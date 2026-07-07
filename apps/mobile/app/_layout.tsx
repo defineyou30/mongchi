@@ -36,6 +36,14 @@ import { AppDialogProvider } from "../src/shared/ui/AppDialog";
 import { useNotificationSync } from "../src/features/notifications/useNotificationSync";
 import { fontPairFamilies } from "../src/shared/design/fontPair";
 import { initSoundManager, preloadSfx } from "../src/shared/audio";
+import { ErrorBoundary } from "../src/shared/errors/ErrorBoundary";
+import { installGlobalErrorHooks } from "../src/shared/errors/globalErrorHooks";
+
+// Wired at module scope so uncaught JS errors/unhandled rejections are
+// captured from the very first tick, before RootLayout even mounts (see
+// docs/readiness-diagnosis.md item 5). Idempotent -- safe if this module
+// re-evaluates (e.g. fast refresh).
+installGlobalErrorHooks();
 
 const rootBackground = "#9FDBFF";
 // Blanket fallback face for any Text/TextInput that hasn't been migrated to
@@ -108,24 +116,26 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: rootBackground }}>
-      <SafeAreaProvider style={{ flex: 1, backgroundColor: rootBackground }}>
-        <AppDialogProvider>
-          <TerrariumSessionProvider>
-            <NotificationSync />
-            <Stack
-              screenOptions={{
-                animation: "none",
-                gestureEnabled: false,
-                headerShown: false,
-                contentStyle: {
-                  backgroundColor: rootBackground
-                }
-              }}
-            />
-            <StatusBar hidden style="light" />
-          </TerrariumSessionProvider>
-        </AppDialogProvider>
-      </SafeAreaProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider style={{ flex: 1, backgroundColor: rootBackground }}>
+          <AppDialogProvider>
+            <TerrariumSessionProvider>
+              <NotificationSync />
+              <Stack
+                screenOptions={{
+                  animation: "none",
+                  gestureEnabled: false,
+                  headerShown: false,
+                  contentStyle: {
+                    backgroundColor: rootBackground
+                  }
+                }}
+              />
+              <StatusBar hidden style="light" />
+            </TerrariumSessionProvider>
+          </AppDialogProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
     </View>
   );
 }

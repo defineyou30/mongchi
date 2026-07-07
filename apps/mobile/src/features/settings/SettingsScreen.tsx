@@ -1,6 +1,7 @@
-import { Camera, CloudRain, FileText, LifeBuoy, MapPin, MessageCircle, Music, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Volume2, VolumeX } from "lucide-react-native";
+import { Bug, Camera, CloudRain, FileText, LifeBuoy, MapPin, MessageCircle, Music, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Volume2, VolumeX } from "lucide-react-native";
 import { router } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Share, StyleSheet, Text, View } from "react-native";
 
 import { useAudioSettings } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
@@ -11,6 +12,8 @@ import { useAppDialog } from "../../shared/ui/AppDialog";
 import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+import { clearErrorLog, readErrorLog } from "../../shared/errors/reporter";
+import type { ErrorLogEntry } from "../../shared/errors/reporter";
 import type { WeatherCondition } from "@mongchi/shared";
 
 const weatherPreviewOptions: Array<{ condition: WeatherCondition; label: string; detail: string }> = [
@@ -51,6 +54,40 @@ export function SettingsScreen() {
   const activeWeatherIndex = Math.max(0, weatherPreviewOptions.findIndex((option) => option.condition === weatherState.context.condition));
   const activeWeather = weatherPreviewOptions[activeWeatherIndex] ?? fallbackWeatherPreview;
   const nextWeather = weatherPreviewOptions[(activeWeatherIndex + 1) % weatherPreviewOptions.length] ?? fallbackWeatherPreview;
+
+  // Diagnostics (__DEV__ only, see docs/readiness-diagnosis.md item 5): a
+  // read-only view into the local error ring buffer for spotting recurring
+  // failures during QA. Not a support-facing feature yet -- Sentry (a
+  // separate, native-rebuild-bundled task) will eventually make this
+  // visible to real support requests without needing device access.
+  const [errorLogEntries, setErrorLogEntries] = useState<ErrorLogEntry[]>([]);
+
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
+    void readErrorLog().then(setErrorLogEntries);
+  }, []);
+
+  const handleShareErrorLog = () => {
+    void readErrorLog().then((entries) => {
+      if (entries.length === 0) {
+        showDialog({ title: "Error log", message: "No recent errors logged on this device." });
+        return;
+      }
+
+      const summary = entries
+        .map((entry) => `[${entry.timestamp}] ${entry.level}: ${entry.message}`)
+        .join("\n");
+
+      void Share.share({ message: summary });
+    });
+  };
+
+  const handleClearErrorLog = () => {
+    void clearErrorLog().then(() => setErrorLogEntries([]));
+  };
 
   const confirmDeleteOriginalPhoto = () => {
     showDialog({
@@ -393,6 +430,24 @@ export function SettingsScreen() {
                 onPress={() => setFontPairId(option.id)}
               />
             ))}
+          </View>
+        </View>
+      ) : null}
+
+      {__DEV__ ? (
+        <View style={styles.devSection}>
+          <View style={styles.sectionHeader}>
+            <Bug color={colors.violet} size={18} strokeWidth={2.8} />
+            <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Dev: error log</Text>
+          </View>
+          <Text style={[styles.controlText, { fontFamily: fontFamilies.body }]}>
+            {errorLogEntries.length > 0
+              ? `${errorLogEntries.length} recent error${errorLogEntries.length === 1 ? "" : "s"} logged on this device.`
+              : "No recent errors logged on this device."}
+          </Text>
+          <View style={styles.linkGrid}>
+            <ActionButton label="Share log" Icon={LifeBuoy} variant="secondary" size="compact" style={styles.linkButton} onPress={handleShareErrorLog} />
+            <ActionButton label="Clear log" Icon={Trash2} variant="secondary" size="compact" style={styles.linkButton} onPress={handleClearErrorLog} />
           </View>
         </View>
       ) : null}

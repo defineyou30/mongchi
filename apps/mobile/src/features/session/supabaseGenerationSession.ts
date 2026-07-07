@@ -13,6 +13,7 @@ import type {
 
 import type { MobileApiError } from "../../shared/api";
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from "./supabaseClient";
+import { reporter } from "../../shared/errors/reporter";
 
 export type SupabaseGenerationFlowResult<T> =
   | {
@@ -244,6 +245,9 @@ const uploadOriginalPhoto = async (
     return { ok: true, data: { storagePath } };
   } catch (cause) {
     console.warn("[generation] original photo upload threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("generation: original photo upload threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
     return {
       ok: false,
       error: toMobileError(0, "original_photo_upload_network_error", "Photo upload failed. Check your connection and try again.", true)
@@ -367,6 +371,9 @@ export const startSupabaseGenerationFlow = async (
       "[generation] source photo prepare failed:",
       cause instanceof Error ? cause.message : String(cause)
     );
+    reporter.captureMessage("generation: source photo prepare failed", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
     return errorResult(
       toMobileError(
         0,
@@ -595,6 +602,9 @@ export const pollSupabaseGenerationFlow = async (
     return await pollSupabaseGenerationFlowInner(client, state, now);
   } catch (cause) {
     console.warn("[generation] poll flow threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("generation: poll flow threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
     return errorResult(
       toMobileError(0, "generation_job_poll_failed", "Could not check on your companion's progress.", true)
     );
@@ -662,6 +672,9 @@ export const retrySupabaseGenerationFlow = async (
       "[generation] source photo prepare failed:",
       cause instanceof Error ? cause.message : String(cause)
     );
+    reporter.captureMessage("generation: source photo prepare failed on retry", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
     return {
       ok: true,
       data: {
@@ -910,6 +923,9 @@ export const pollSupabaseExpressionPackFlow = async (
     return await pollSupabaseExpressionPackFlowInner(client, jobId, petId, now);
   } catch (cause) {
     console.warn("[expressionPack] poll flow threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("expressionPack: poll flow threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
     return errorResult(
       toMobileError(0, "generation_job_poll_failed", "Could not check on your companion's new expressions.", true)
     );

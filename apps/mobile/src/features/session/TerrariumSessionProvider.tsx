@@ -69,6 +69,7 @@ import type {
 } from "@mongchi/shared";
 import { homeWalkDurationMs } from "../terrarium/terrariumHomeInteractionContract";
 import type { MobileApiError } from "../../shared/api";
+import { reporter } from "../../shared/errors/reporter";
 
 import {
   acceptApiGeneratedPet,
@@ -580,6 +581,9 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
               setState(restored);
             }
           } else {
+            reporter.captureMessage("session restore: corrupt/unmigratable session backed up", {
+              parseFailed
+            });
             await AsyncStorage.setItem(CORRUPT_SESSION_BACKUP_KEY, stored);
             await AsyncStorage.removeItem(STORAGE_KEY);
           }
@@ -588,11 +592,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         if (!cancelled) {
           setCareCooldownUntilByAction(storedCooldowns);
         }
-      } catch {
+      } catch (cause) {
         // Unexpected failure reading storage itself (not a parse/shape
         // failure) — leave the stored session untouched so a transient
         // AsyncStorage error can't wipe local progress; the app continues
         // with a fresh in-memory session for this run.
+        reporter.captureMessage("session restore: unexpected storage read failure", {
+          cause: cause instanceof Error ? cause.message : String(cause)
+        });
         if (!cancelled) {
           await clearCareActionCooldowns(AsyncStorage);
         }
@@ -1256,6 +1263,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const setExpressionPackFailed = useCallback((packId: string, failureMessageSafe: string) => {
+    reporter.captureMessage("expressionPack: purchase/generation failed", { packId, failureMessageSafe });
     setExpressionPackPurchaseStatusById((current) => ({
       ...current,
       [packId]: { status: "failed", failureMessageSafe }
