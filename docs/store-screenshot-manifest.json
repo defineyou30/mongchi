@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "sourceFlow": "Welcome -> Photo upload -> Pet setup -> Hatching -> Pet reveal -> Main terrarium -> AI chat / premium bond -> Shop",
+  "outputDirectory": "docs/qa-screenshots",
+  "finalCaptureRequirement": "Capture in a development-client or production build without Expo Go overlays.",
+  "filenamePattern": "{platform}-{device}-store-{preset}.png",
+  "requiredPlatforms": ["ios", "android"],
+  "screenshots": [
+    {
+      "preset": "welcome",
+      "route": "/onboarding",
+      "caption": "Start a tiny cozy world from one pet photo.",
+      "captureLabel": "store-welcome"
+    },
+    {
+      "preset": "photo-upload",
+      "route": "/photo-upload",
+      "caption": "Choose a dog or cat photo with clear consent controls.",
+      "captureLabel": "store-photo-upload"
+    },
+    {
+      "preset": "pet-setup",
+      "route": "/pet-setup",
+      "caption": "Shape the pet's name, species, personality, and voice while creation begins.",
+      "captureLabel": "store-pet-setup"
+    },
+    {
+      "preset": "hatching",
+      "route": "/generation",
+      "caption": "Watch the tiny companion hatch into the world.",
+      "captureLabel": "store-hatching"
+    },
+    {
+      "preset": "pet-reveal",
+      "route": "/pet-reveal",
+      "caption": "Meet the generated pet before entering the garden.",
+      "captureLabel": "store-pet-reveal"
+    },
+    {
+      "preset": "terrarium",
+      "route": "/terrarium",
+      "caption": "Care, decorate, react, and keep the garden alive.",
+      "captureLabel": "store-terrarium"
+    },
+    {
+      "preset": "chat",
+      "route": "/chat",
+      "caption": "Say a quick hello or view the Plus AI chat disclosure.",
+      "captureLabel": "store-chat"
+    },
+    {
+      "preset": "shop",
+      "route": "/shop",
+      "caption": "Preview Plus pass and garden extras without mobile secrets.",
+      "captureLabel": "store-shop"
+    }
+  ]
+}

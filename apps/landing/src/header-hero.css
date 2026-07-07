@@ -1,0 +1,232 @@
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px clamp(16px, 4vw, 40px);
+  background: rgba(255, 245, 222, 0.86);
+  border-bottom: 3px solid rgba(91, 55, 38, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.brand-mark,
+.site-nav,
+.store-actions,
+.feature-copy,
+.site-footer nav {
+  display: flex;
+  align-items: center;
+}
+
+.brand-mark {
+  gap: 8px;
+  min-width: max-content;
+  font-family: "PixelifySans", system-ui, sans-serif;
+  font-size: 22px;
+  color: var(--wood-dark);
+}
+
+.brand-mark img,
+.download-card > img {
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 5px 0 rgba(91, 55, 38, 0.15);
+}
+
+.site-nav {
+  gap: clamp(10px, 2.4vw, 24px);
+  color: var(--wood-dark);
+  font-family: "PixelifySans", system-ui, sans-serif;
+  font-size: 15px;
+}
+
+.site-nav a,
+.site-footer a {
+  padding: 7px 0;
+  border-bottom: 3px solid transparent;
+}
+
+.site-nav a:hover,
+.site-footer a:hover {
+  border-color: var(--honey);
+}
+
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 68px);
+  min-height: 84svh;
+  padding: clamp(32px, 6vw, 72px) clamp(16px, 5vw, 72px) clamp(28px, 5vw, 54px);
+  overflow: hidden;
+}
+
+.hero::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  height: 26%;
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(84, 168, 92, 0.24) 64%, rgba(84, 168, 92, 0.38) 100%),
+    repeating-linear-gradient(90deg, rgba(91, 55, 38, 0.1) 0 8px, transparent 8px 18px);
+  content: "";
+}
+
+.hero-copy {
+  max-width: 540px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--wood-dark);
+  font-family: "PixelifySans", system-ui, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  color: var(--wood-dark);
+  font-family: "PixelifySans", system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: clamp(64px, 12vw, 132px);
+  line-height: 0.86;
+  text-shadow: 0 5px 0 var(--cream), 0 10px 0 rgba(91, 55, 38, 0.16);
+}
+
+h2 {
+  font-size: clamp(32px, 5vw, 58px);
+  line-height: 0.96;
+}
+
+h3 {
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.02;
+}
+
+.hero-subtitle,
+.section-copy p,
+.feature-copy p,
+.download-card p,
+.shop-strip p,
+.play-card p {
+  color: var(--muted-ink);
+  font-size: clamp(17px, 2vw, 22px);
+}
+
+.hero-subtitle {
+  max-width: 500px;
+  margin: 24px 0;
+}
+
+.store-actions {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.store-button {
+  display: inline-flex;
+  min-width: 164px;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 64px;
+  padding: 10px 18px 8px;
+  color: var(--cream);
+  background: var(--wood-dark);
+  border: var(--rim);
+  border-radius: 8px;
+  box-shadow: 0 6px 0 var(--wood), 0 14px 24px rgba(91, 55, 38, 0.16);
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+.store-button:hover {
+  box-shadow: 0 3px 0 var(--wood), 0 10px 18px rgba(91, 55, 38, 0.14);
+  transform: translateY(3px);
+}
+
+.store-button span {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.store-button strong {
+  font-family: "PixelifySans", system-ui, sans-serif;
+  font-size: 22px;
+  line-height: 1.05;
+}
+
+.store-button-primary {
+  color: var(--wood-dark);
+  background: var(--honey);
+}
+
+.hero-scene {
+  position: relative;
+  min-height: clamp(500px, 66vw, 760px);
+  isolation: isolate;
+}
+
+.hero-garden {
+  position: absolute;
+  top: 0;
+  right: 9%;
+  width: min(68%, 520px);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border: 4px solid var(--cream);
+  border-radius: 8px;
+  box-shadow: var(--shadow-wood);
+}
+
+.hero-logo {
+  position: absolute;
+  top: 3%;
+  left: 2%;
+  width: min(31%, 190px);
+  border-radius: 24px;
+  filter: drop-shadow(0 12px 0 rgba(91, 55, 38, 0.13)) drop-shadow(0 24px 26px rgba(91, 55, 38, 0.18));
+}
+
+.hero-pet {
+  position: absolute;
+  right: 23%;
+  bottom: 11%;
+  z-index: 2;
+  width: min(30%, 230px);
+  image-rendering: pixelated;
+  filter: drop-shadow(0 10px 0 rgba(91, 55, 38, 0.18));
+}
+
+.phone-frame {
+  position: absolute;
+  right: 0;
+  bottom: 3%;
+  z-index: 1;
+  width: min(31vw, 260px);
+  min-width: 190px;
+  padding: 8px;
+  background: var(--wood-dark);
+  border: 5px solid var(--cream);
+  border-radius: 32px;
+  box-shadow: var(--shadow-wood);
+  transform: rotate(3deg);
+}
+
+.phone-frame img {
+  aspect-ratio: 1206 / 2622;
+  object-fit: cover;
+  border-radius: 22px;
+}

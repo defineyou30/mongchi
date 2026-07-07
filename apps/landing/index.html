@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Mongchi is a cozy tiny pet terrarium app where a small friend grows from one photo into your pocket garden."
+    />
+    <meta property="og:title" content="Mongchi - Tiny Pet Terrarium" />
+    <meta
+      property="og:description"
+      content="Raise a tiny friend from one photo. Care, chat, and relax in your pocket garden."
+    />
+    <meta property="og:image" content="/assets/brand/app-logo-v1-128.webp" />
+    <meta name="theme-color" content="#9FDBFF" />
+    <title>Mongchi - Tiny Pet Terrarium</title>
+    <link rel="icon" href="/assets/brand/app-logo-v1-128.webp" type="image/webp" />
+    <link rel="preload" href="/assets/brand/app-logo-v1-128.webp" as="image" fetchpriority="high" />
+    <link rel="preload" href="/assets/brand/app-logo-v1.webp" as="image" fetchpriority="high" />
+    <link rel="preload" href="/assets/fonts/PixelifySans_700Bold.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/assets/fonts/Baloo2_700Bold.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/assets/backgrounds/home-garden-premium-v2-portrait.webp" as="image" fetchpriority="high" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header" aria-label="Mongchi site header">
+      <a class="brand-mark" href="#" aria-label="Mongchi home">
+        <img src="/assets/brand/app-logo-v1-128.webp" width="48" height="48" alt="" />
+        <span>Mongchi</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="#about">What is Mongchi?</a>
+        <a href="#play">How to Play</a>
+        <a href="#garden">Garden</a>
+        <a href="#download">Download</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Tiny Pet Terrarium</p>
+          <h1 id="hero-title">Mongchi</h1>
+          <p class="hero-subtitle">
+            Raise a tiny friend from one photo. Care, chat, and relax in your pocket garden.
+          </p>
+          <div class="store-actions" aria-label="Download options">
+            <a class="store-button store-button-primary" href="#download">
+              <span>Coming soon on</span>
+              <strong>App Store</strong>
+            </a>
+            <a class="store-button" href="#download">
+              <span>Coming soon on</span>
+              <strong>Google Play</strong>
+            </a>
+          </div>
+        </div>
+
+        <div class="hero-scene" aria-label="Mongchi garden preview">
+          <img
+            class="hero-garden"
+            src="/assets/backgrounds/home-garden-premium-v2-portrait.webp"
+            srcset="
+              /assets/backgrounds/home-garden-premium-v2-portrait-360.webp 360w,
+              /assets/backgrounds/home-garden-premium-v2-portrait.webp 720w
+            "
+            sizes="(max-width: 620px) 263px, (max-width: 920px) 600px, 520px"
+            width="720"
+            height="960"
+            alt=""
+            fetchpriority="high"
+          />
+          <img class="hero-logo" src="/assets/brand/app-logo-v1.webp" width="256" height="256" alt="" fetchpriority="high" />
+          <img
+            class="hero-pet"
+            src="/assets/pets/miso-happy.webp"
+            width="256"
+            height="256"
+            alt="Miso smiling in the garden"
+            fetchpriority="high"
+          />
+          <div class="phone-frame" aria-label="Mongchi app terrarium screen">
+            <img
+              src="/assets/screens/terrarium-phone.webp"
+              srcset="/assets/screens/terrarium-phone-180.webp 180w, /assets/screens/terrarium-phone.webp 360w"
+              sizes="(max-width: 620px) 136px, 260px"
+              width="360"
+              height="783"
+              alt="Mongchi terrarium screen with Miso in a garden"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section id="about" class="about-section" aria-labelledby="about-title">
+        <div class="about-art">
+          <img src="/assets/pets/miso-chat-portrait.webp" width="220" height="220" alt="Miso portrait" />
+          <p>Miso saved one small hello for when you returned.</p>
+        </div>
+        <div class="section-copy">
+          <p class="eyebrow">What is Mongchi?</p>
+          <h2 id="about-title">A little pet world that waits gently in your pocket.</h2>
+          <p>
+            Add one favorite photo, meet a tiny companion, and check in whenever you need a quiet break.
+            Mongchi turns care, short chats, walks, and small garden gifts into a soft daily ritual.
+          </p>
+        </div>
+      </section>
+
+      <section id="play" class="play-section" aria-labelledby="play-title">
+        <div class="section-heading">
+          <p class="eyebrow">How to Play</p>
+          <h2 id="play-title">Four tiny steps, no pressure.</h2>
+        </div>
+        <div class="play-grid">
+          <article class="play-card">
+            <img src="/assets/brand/app-logo-v1-128.webp" width="96" height="96" alt="" />
+            <h3>Add a Photo</h3>
+            <p>Start from one picture of the pet you love.</p>
+          </article>
+          <article class="play-card">
+            <img src="/assets/pets/miso-idle.webp" width="96" height="96" alt="" />
+            <h3>Meet Mongchi</h3>
+            <p>A small companion moves into the garden.</p>
+          </article>
+          <article class="play-card">
+            <img src="/assets/buttons/feed.webp" width="96" height="96" alt="" />
+            <h3>Care a Little</h3>
+            <p>Feed, play, water, walk, and say hello.</p>
+          </article>
+          <article class="play-card">
+            <img src="/assets/items/flower-pot.webp" width="96" height="96" alt="" />
+            <h3>Grow the Garden</h3>
+            <p>Collect gifts and make the pocket world yours.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="garden" class="garden-section" aria-labelledby="garden-title">
+        <div class="section-heading">
+          <p class="eyebrow">Pocket Garden</p>
+          <h2 id="garden-title">The app mood, right on the page.</h2>
+        </div>
+
+        <div class="feature-band feature-band-left">
+          <div class="feature-copy">
+            <img src="/assets/brand/app-logo-v1-128.webp" width="64" height="64" alt="" />
+            <h3>From photo to friend</h3>
+            <p>Keep the first moment visible: photo pass, hatching, reveal, and a friend entering the terrarium.</p>
+          </div>
+          <div class="screen-pair">
+            <img
+              src="/assets/screens/photo-upload-card.webp"
+              srcset="/assets/screens/photo-upload-card-320.webp 320w, /assets/screens/photo-upload-card.webp 480w"
+              sizes="(max-width: 620px) 300px, (max-width: 920px) 346px, 300px"
+              width="480"
+              height="720"
+              alt="Mongchi photo upload screen"
+             
+            />
+            <img
+              src="/assets/screens/pet-reveal-card.webp"
+              srcset="/assets/screens/pet-reveal-card-320.webp 320w, /assets/screens/pet-reveal-card.webp 480w"
+              sizes="(max-width: 920px) 346px, 300px"
+              width="480"
+              height="720"
+              alt="Mongchi pet reveal screen"
+             
+            />
+          </div>
+        </div>
+
+        <div class="feature-band feature-band-right">
+          <div class="feature-copy">
+            <img src="/assets/buttons/affection.webp" width="64" height="64" alt="" />
+            <h3>Care that feels soft</h3>
+            <p>Chunky pixel buttons and short speech make the loop feel like a handheld toy, not a task list.</p>
+          </div>
+          <div class="screen-pair">
+            <img
+              src="/assets/screens/terrarium-card.webp"
+              srcset="/assets/screens/terrarium-card-320.webp 320w, /assets/screens/terrarium-card.webp 480w"
+              sizes="(max-width: 620px) 300px, (max-width: 920px) 346px, 300px"
+              width="480"
+              height="720"
+              alt="Mongchi garden care screen"
+            />
+            <img
+              src="/assets/screens/chat-card.webp"
+              srcset="/assets/screens/chat-card-320.webp 320w, /assets/screens/chat-card.webp 480w"
+              sizes="(max-width: 920px) 346px, 300px"
+              width="480"
+              height="720"
+              alt="Mongchi chat screen"
+            />
+          </div>
+        </div>
+
+        <div class="shop-strip">
+          <img
+            src="/assets/backgrounds/shop-market-premium-v1-square.webp"
+            srcset="
+              /assets/backgrounds/shop-market-premium-v1-square-320.webp 320w,
+              /assets/backgrounds/shop-market-premium-v1-square.webp 560w
+            "
+            sizes="(max-width: 620px) 296px, 240px"
+            width="560"
+            height="560"
+            alt=""
+          />
+          <div>
+            <p class="eyebrow">Garden Shelf</p>
+            <h3>Collect treats, themes, and little reasons to come back.</h3>
+            <p>The shop stays playful and compact, like a shelf inside the garden rather than a storefront.</p>
+          </div>
+          <img src="/assets/items/gift-box.webp" width="112" height="112" alt="" />
+        </div>
+      </section>
+
+      <section id="download" class="download-section" aria-labelledby="download-title">
+        <div class="download-card">
+          <img src="/assets/brand/app-logo-v1-128.webp" width="120" height="120" alt="Mongchi app icon" />
+          <div>
+            <p class="eyebrow">Download</p>
+            <h2 id="download-title">Mongchi will open its garden soon.</h2>
+            <p>Built for quiet check-ins, tiny daily care, and the feeling of keeping a beloved friend close.</p>
+          </div>
+          <div class="store-actions">
+            <a class="store-button store-button-primary" href="#download">
+              <span>Coming soon on</span>
+              <strong>App Store</strong>
+            </a>
+            <a class="store-button" href="#download">
+              <span>Coming soon on</span>
+              <strong>Google Play</strong>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Mongchi - Tiny Pet Terrarium</p>
+      <nav aria-label="Footer navigation">
+        <a href="#about">About</a>
+        <a href="#play">How to Play</a>
+        <a href="#download">Download</a>
+      </nav>
+    </footer>
+  </body>
+</html>

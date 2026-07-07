@@ -1,0 +1,55 @@
+/**
+ * SFX id -> bundled asset manifest (Phase 1: SFX only, see
+ * docs/gamefeel-sound-plan.md §2). BGM/ambience players are Phase 2 and will
+ * get their own manifest file (bgmAssets.ts / ambienceAssets.ts) rather than
+ * growing this one, since music loops have very different loading/looping
+ * needs than one-shot SFX.
+ *
+ * PLACEHOLDER: every file under apps/mobile/assets/audio/ right now is a
+ * synthesized sine/triangle-wave placeholder (see
+ * /private/tmp .../scratchpad/synth_sfx.py used to generate them), not a
+ * curated asset. They exist so the wiring and mix behavior can be built and
+ * tested end-to-end before sourcing real SFX (Kenney/freesound/BeepBox per
+ * the plan doc's sourcing section). Swap the `require(...)` targets below in
+ * place when curated assets land -- no other code should need to change.
+ */
+export type SfxId =
+  | "sfx_tap"
+  | "sfx_feed"
+  | "sfx_water"
+  | "sfx_play"
+  | "sfx_affection"
+  | "sfx_rest"
+  | "sfx_treat"
+  | "sfx_toast"
+  | "jingle_levelup"
+  | "jingle_discovery"
+  | "jingle_letter"
+  | "sfx_reveal";
+
+export const sfxAssetSources: Record<SfxId, number> = {
+  sfx_tap: require("../../../assets/audio/sfx_tap.m4a"),
+  sfx_feed: require("../../../assets/audio/sfx_feed.m4a"),
+  sfx_water: require("../../../assets/audio/sfx_water.m4a"),
+  sfx_play: require("../../../assets/audio/sfx_play.m4a"),
+  sfx_affection: require("../../../assets/audio/sfx_affection.m4a"),
+  sfx_rest: require("../../../assets/audio/sfx_rest.m4a"),
+  sfx_treat: require("../../../assets/audio/sfx_treat.m4a"),
+  sfx_toast: require("../../../assets/audio/sfx_toast.m4a"),
+  jingle_levelup: require("../../../assets/audio/jingle_levelup.m4a"),
+  jingle_discovery: require("../../../assets/audio/jingle_discovery.m4a"),
+  jingle_letter: require("../../../assets/audio/jingle_letter.m4a"),
+  sfx_reveal: require("../../../assets/audio/sfx_reveal.m4a")
+};
+
+/** Care-action id -> its success SFX, for the handleCareAction wiring point. */
+export const careActionSfxById: Partial<Record<string, SfxId>> = {
+  feed: "sfx_feed",
+  water_garden: "sfx_water",
+  play: "sfx_play",
+  affection: "sfx_affection",
+  rest: "sfx_rest",
+  treat: "sfx_treat"
+};
+
+export const sfxIds: SfxId[] = Object.keys(sfxAssetSources) as SfxId[];

@@ -1,0 +1,8 @@
+{
+  "plugins": [
+    "expo-font"
+  ],
+  "ios": {
+    "bundleIdentifier": "com.lucaspucass.mongchi"
+  }
+}

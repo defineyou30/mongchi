@@ -1,0 +1,128 @@
+import { isTreatInventoryItem } from "@mongchi/shared";
+import type { CareActionType, Inventory, Item, ItemId } from "@mongchi/shared";
+
+import { gameItemAssetByCatalogId } from "../../shared/assets/gameItemCatalogMapping";
+import type { GameItemAssetKey } from "../../shared/assets/gameItemCatalogMapping";
+import type { HomeFloatingDockAction } from "./terrariumHomeInteractionContract";
+
+export interface HomeCareMenuOption {
+  readonly id: string;
+  readonly action: CareActionType;
+  readonly title: string;
+  readonly meta: string;
+  readonly quantity: number;
+  readonly assetKey: GameItemAssetKey;
+  readonly owned: boolean;
+  readonly itemId?: ItemId;
+}
+
+interface HomeCareMenuInput {
+  readonly action: HomeFloatingDockAction;
+  readonly catalogItems: readonly Item[];
+  readonly devStoreUnlocked: boolean;
+  readonly inventory: Inventory;
+  readonly limit?: number;
+}
+
+const baseOptionByAction: Record<HomeFloatingDockAction, HomeCareMenuOption> = {
+  affection: {
+    id: "base-affection",
+    action: "affection",
+    title: "Pet",
+    meta: "+Bond",
+    quantity: 1,
+    assetKey: "petBed",
+    owned: true
+  },
+  feed: {
+    id: "base-feed",
+    action: "feed",
+    title: "Meal",
+    meta: "+Full",
+    quantity: 1,
+    assetKey: "foodBowl",
+    owned: true
+  },
+  play: {
+    id: "base-play",
+    action: "play",
+    title: "Ball",
+    meta: "+Mood",
+    quantity: 1,
+    assetKey: "toyBall",
+    owned: true
+  },
+  walk: {
+    id: "base-walk",
+    action: "walk",
+    title: "Path",
+    meta: "+Bond",
+    quantity: 1,
+    assetKey: "steppingStone",
+    owned: true
+  },
+  water_garden: {
+    id: "base-water",
+    action: "water_garden",
+    title: "Water",
+    meta: "+Thirst",
+    quantity: 1,
+    assetKey: "drinkWaterBowl",
+    owned: true
+  }
+};
+
+const isSpecialCareItemForAction = (action: HomeFloatingDockAction, item: Item): boolean => {
+  switch (action) {
+    case "affection":
+      return item.behaviorTags.includes("affection") || item.behaviorTags.includes("sleep");
+    case "feed":
+      return isTreatInventoryItem(item);
+    case "play":
+      return item.id !== "item_toy_ball_mint" && item.behaviorTags.includes("play");
+    case "walk":
+      return item.behaviorTags.includes("walk") || item.category === "path";
+    case "water_garden":
+      return item.id === "item_milk_pup_cup";
+  }
+};
+
+const getOptionActionForItem = (action: HomeFloatingDockAction, item: Item): CareActionType => {
+  if (action === "feed" && isTreatInventoryItem(item)) {
+    return "treat";
+  }
+
+  return action;
+};
+
+export const getVisibleHomeCareMenuOptions = ({
+  action,
+  catalogItems,
+  devStoreUnlocked,
+  inventory,
+  limit = action === "feed" ? 3 : 4
+}: HomeCareMenuInput): HomeCareMenuOption[] => {
+  const quantityByItemId = new Map(inventory.items.map((entry) => [entry.itemId, entry.quantity]));
+  const specialOptions = catalogItems
+    .filter((item) => isSpecialCareItemForAction(action, item))
+    .map((item) => {
+      const quantity = quantityByItemId.get(item.id) ?? 0;
+      const owned = devStoreUnlocked || quantity > 0;
+
+      return {
+        id: `item-${item.id}`,
+        action: getOptionActionForItem(action, item),
+        title: action === "feed" ? "Treat" : item.name,
+        meta: owned ? `x${devStoreUnlocked ? Math.max(1, quantity) : quantity}` : "Shop",
+        quantity: devStoreUnlocked ? Math.max(1, quantity) : quantity,
+        owned,
+        assetKey: gameItemAssetByCatalogId[item.id] ?? baseOptionByAction[action].assetKey,
+        itemId: item.id
+      };
+    });
+  const ownedOptions = specialOptions.filter((option) => option.owned);
+  const previewOptions = specialOptions.filter((option) => !option.owned).slice(0, Math.max(0, limit - 1));
+  const visibleSpecialOptions = devStoreUnlocked ? ownedOptions : [...ownedOptions, ...previewOptions].slice(0, Math.max(0, limit - 1));
+
+  return [baseOptionByAction[action], ...visibleSpecialOptions];
+};

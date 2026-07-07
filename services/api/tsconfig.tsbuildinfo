@@ -1,0 +1,1 @@
+{"root":["./src/contracts.ts","./src/httprouter.ts","./src/index.ts","./src/service.ts","./src/__tests__/httprouter.test.ts","./src/__tests__/service.test.ts"],"version":"6.0.3"}

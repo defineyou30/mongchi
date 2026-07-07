@@ -1,0 +1,44 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "2B659430-8BE0-4C2F-A3BF-17AE6852AA2F",
+        "deviceName" : "iPhone 16 Pro",
+        "exportedFileName" : "05A60CA9-113C-4D3F-98F0-ECA2E0B39679.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "43-home-after-shop-get-item-back_0_8A149629-3FC0-4B7E-BAAB-1226283FB98C.png",
+        "timestamp" : 1782787577.56
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "2B659430-8BE0-4C2F-A3BF-17AE6852AA2F",
+        "deviceName" : "iPhone 16 Pro",
+        "exportedFileName" : "295DAE12-4DBD-4683-AFA3-4CFFE97AFA97.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "42-shop-after-alert-dismiss_0_3FE4E172-1E6B-41E4-A85F-BC1282C649F5.png",
+        "timestamp" : 1782787574.959
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "2B659430-8BE0-4C2F-A3BF-17AE6852AA2F",
+        "deviceName" : "iPhone 16 Pro",
+        "exportedFileName" : "22869D5A-2C82-4DD4-8456-3F358ED8634F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "41-shop-after-get-item_0_F3316DE6-D6D8-4D24-9552-94CD86029E50.png",
+        "timestamp" : 1782787572.349
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "2B659430-8BE0-4C2F-A3BF-17AE6852AA2F",
+        "deviceName" : "iPhone 16 Pro",
+        "exportedFileName" : "6ECA6262-F9E7-4B0D-9ED2-CD4C8D458377.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "40-shop-before-get-item_0_4C2B9271-1B82-4300-AD37-99C937459A24.png",
+        "timestamp" : 1782787569.377
+      }
+    ],
+    "testIdentifier" : "ManualTapQA/test03ShopGetItemButtonByActualTap()",
+    "testIdentifierURL" : "test://com.apple.xcode/TinyPetTerrarium/TinyPetTerrariumUITests/ManualTapQA/test03ShopGetItemButtonByActualTap"
+  }
+]

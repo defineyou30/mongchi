@@ -1,0 +1,92 @@
+{
+  "status": "final-assets-required",
+  "styleReference": "docs/design/image1.png and docs/design/image2.png",
+  "implementation": {
+    "catalogFile": "apps/mobile/src/shared/assets/gameItemCatalog.ts",
+    "selector": "getGameItemAssetKeyForPlantStage",
+    "mapping": "plantStageAssetByCatalogId",
+    "layoutRule": "Home keeps placement size and anchor from the base catalog item; only the rendered stage visual changes."
+  },
+  "assetRules": {
+    "format": "transparent PNG",
+    "style": "premium soft 2D/2.5D cozy miniature garden object",
+    "negative": "no hard pixel sprite, no emoji icon, no text, no frame, no background scene",
+    "anchor": "same canvas, same ground contact shadow, same base footprint within one preset"
+  },
+  "presets": [
+    {
+      "itemId": "item_flower_pot_sunny",
+      "displayName": "Sunny Flower Pot",
+      "placementPreset": "front_pot",
+      "sceneCanvas": "96x96",
+      "stages": [
+        {
+          "stageKey": "seed",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/flower-pot-seed.png",
+          "prompt": "Tiny terracotta pot with warm soil and one barely visible green sprout, soft 2D/2.5D cozy garden prop, transparent background."
+        },
+        {
+          "stageKey": "sprout",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/flower-pot-sprout.png",
+          "prompt": "Same terracotta pot with two small rounded leaves, gentle painterly highlight, warm contact shadow, transparent background."
+        },
+        {
+          "stageKey": "leafy",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/flower-pot-leafy.png",
+          "prompt": "Same terracotta pot with fuller rounded green leaves, readable small silhouette, cozy mobile game prop, transparent background."
+        },
+        {
+          "stageKey": "bloom",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/flower-pot-bloom.png",
+          "prompt": "Same terracotta pot fully blooming with one or two soft pink flowers, tiny sparkle accents inside object bounds, transparent background."
+        }
+      ]
+    },
+    {
+      "itemId": "item_leafy_plant_clover",
+      "displayName": "Clover Leaf Plant",
+      "placementPreset": "side_leaf",
+      "sceneCanvas": "128x128",
+      "stages": [
+        {
+          "stageKey": "sprout",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/clover-sprout.png",
+          "prompt": "Small clover sprout with two rounded leaves, premium cozy 2D/2.5D plant prop, transparent background."
+        },
+        {
+          "stageKey": "leafy",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/clover-leafy.png",
+          "prompt": "Lush clover leaf plant with vertical rounded foliage, soft sunlight, grounded contact shadow, transparent background."
+        },
+        {
+          "stageKey": "bloom",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/clover-bloom.png",
+          "prompt": "Same clover plant with tiny white-pink blossoms and gentle sparkle accents, transparent background."
+        }
+      ]
+    },
+    {
+      "itemId": "item_seasonal_flowers_spring",
+      "displayName": "Spring Flower Patch",
+      "placementPreset": "seasonal_patch",
+      "sceneCanvas": "160x160",
+      "stages": [
+        {
+          "stageKey": "sprout",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/spring-patch-sprout.png",
+          "prompt": "Small spring flower patch sprout cluster, low ground-hugging shape, soft 2D/2.5D cozy garden prop, transparent background."
+        },
+        {
+          "stageKey": "leafy",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/spring-patch-leafy.png",
+          "prompt": "Fuller spring flower patch with leafy green mound but few buds, same footprint and contact shadow, transparent background."
+        },
+        {
+          "stageKey": "bloom",
+          "assetPath": "apps/mobile/assets/game-items/plant-stages/scene/spring-patch-bloom.png",
+          "prompt": "Spring flower patch fully blooming with small pastel blossoms, premium soft mobile game prop, transparent background."
+        }
+      ]
+    }
+  ]
+}

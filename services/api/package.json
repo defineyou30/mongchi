@@ -1,0 +1,31 @@
+{
+  "name": "@mongchi/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "npm run start:api",
+    "start:api": "tsx src/runtimeCli.ts api-server",
+    "start:generation-worker": "tsx src/runtimeCli.ts generation-worker",
+    "start:privacy-worker": "tsx src/runtimeCli.ts privacy-deletion-worker",
+    "start:outbox-worker": "tsx src/runtimeCli.ts outbox-worker",
+    "start:chat-retention-worker": "tsx src/runtimeCli.ts chat-retention-worker",
+    "start:migrate": "tsx src/runtimeCli.ts migrate",
+    "typecheck": "tsc -b --pretty"
+  },
+  "dependencies": {
+    "@mongchi/ai-worker": "0.1.0",
+    "@mongchi/shared": "0.1.0",
+    "pg": "^8.22.0",
+    "tsx": "^4.22.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "typescript": "6.0.3"
+  }
+}

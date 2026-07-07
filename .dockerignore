@@ -1,0 +1,30 @@
+# Dependencies (reinstalled via npm ci in the image)
+node_modules
+**/node_modules
+
+# Version control
+.git
+.gitignore
+
+# Editor / OS cruft
+.DS_Store
+**/.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env files (secrets) — keep .env.example so it can be referenced if needed
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Docs, QA evidence, and design/planning scratch — not needed at runtime
+docs/qa-screenshots
+new-concepts
+dummy
+tmp
+
+# Expo local cache
+.expo

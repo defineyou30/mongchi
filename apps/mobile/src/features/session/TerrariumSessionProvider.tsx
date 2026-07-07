@@ -1,0 +1,1910 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  acceptPrototypeGeneratedPet,
+  advancePrototypeGeneration,
+  canContinuePetSetup,
+  canContinuePhotoStep,
+  canCreatePet,
+  applyPrototypeTheme,
+  confirmPrototypeExpressionPackPurchase,
+  createPersistedSessionEnvelope,
+  isValidPrototypeSessionShape,
+  runSessionMigrations,
+  purchasePrototypeThemeBundle,
+  claimPrototypeWalkReward,
+  completePrototypeWalkEarlyWithCredit,
+  createInitialPrototypeSession,
+  deletePrototypeChatHistory,
+  deletePrototypeOriginalPhoto,
+  getActivePrototypePet,
+  getBondProgressValue,
+  getCareSatisfactionSummary,
+  getCreditItemPrice,
+  getExpressionPackById,
+  getGenerationAttemptKey,
+  getMonotonicGenerationProgress,
+  getPrototypeGenerationPollSnapshot,
+  getSpendableCreditBalance,
+  makeMockGeneratedAsset,
+  mergePrototypeGeneratedAssets,
+  normalizeRestoredGeneration,
+  pollPrototypeGenerationJob,
+  performPrototypeCareAction,
+  projectCareStateForTime,
+  purchasePrototypeInventoryItem,
+  refreshPrototypeWalk,
+  reportPrototypeGenerationIssue,
+  retryPrototypeGeneration,
+  setPrototypeConsentAccepted,
+  setPrototypeMockPhotoSelected,
+  setPrototypeSelectedPhotoUri,
+  setPrototypeWeatherCondition,
+  setPrototypeWeatherEnabled,
+  startPrototypeGeneration,
+  togglePrototypePersonalityTag,
+  updatePrototypeDraft,
+  validatePrototypeExpressionPackPurchase
+} from "@mongchi/shared";
+import type {
+  CareActionType,
+  CareSatisfactionSummary,
+  CommerceProduct,
+  CreditWallet,
+  Entitlement,
+  GeneratedAsset,
+  GeneratedAssetId,
+  GenerationIssueCategory,
+  Inventory,
+  Item,
+  ItemId,
+  PersonalityTag,
+  PetSetupDraft,
+  PrototypeSessionState,
+  RestorePurchasesRequest,
+  WeatherCondition,
+  WalkSession
+} from "@mongchi/shared";
+import { homeWalkDurationMs } from "../terrarium/terrariumHomeInteractionContract";
+import type { MobileApiError } from "../../shared/api";
+
+import {
+  acceptApiGeneratedPet,
+  createConfiguredGenerationApiClient,
+  pollApiGenerationFlow,
+  retryApiGenerationFlow,
+  startApiGenerationFlow
+} from "./apiGenerationSession";
+import { createAsyncActionGuard } from "./asyncActionGuard";
+import { hasActiveGenerationJob } from "./generationJobGuards";
+import { getSupabaseClient } from "./supabaseClient";
+import {
+  pollSupabaseExpressionPackFlow,
+  pollSupabaseGenerationFlow,
+  retrySupabaseGenerationFlow,
+  startSupabaseExpressionPackFlow,
+  startSupabaseGenerationFlow
+} from "./supabaseGenerationSession";
+import {
+  claimApiDailyLoopWalkReward,
+  createConfiguredDailyLoopApiClient,
+  loadApiDailyLoopState,
+  performApiDailyLoopCareAction,
+  refreshApiWalkLocally
+} from "./apiDailyLoopSession";
+import type { TerrariumRuntimeMode } from "./apiDailyLoopSession";
+import {
+  resolveGeneratedAssetReadUrl,
+  shouldRefreshGeneratedAssetReadUrl
+} from "./generatedAssetReadUrl";
+import type { GeneratedAssetReadUrlCacheEntry } from "./generatedAssetReadUrl";
+import { buildGeneratedAssetUriMap } from "./generatedAssetUriMap";
+import {
+  buildStoreRestorePurchasesRequest,
+  buildStorePurchaseVerificationRequest,
+  getNativePurchasePlatform,
+  isNativeStoreCheckoutEnabled,
+  startNativeStorePurchaseConnection
+} from "./nativeStorePurchases";
+import type { NativeStorePurchaseConnection } from "./nativeStorePurchases";
+import { createQaScreenSession, getConfiguredQaScreenPreset, getQaScreenApiState } from "./qaScreenSession";
+import { getRuntimeActiveEntitlements, getRuntimeCatalogItems } from "./runtimePresentationData";
+import { createStoreScreenshotSession, getConfiguredStoreScreenshotPreset } from "./storeScreenshotSession";
+import {
+  refreshApproximateLocationWeather,
+  type LocationWeatherRefreshStatus
+} from "./locationWeatherSession";
+import {
+  clearCareActionCooldowns,
+  readCareActionCooldowns,
+  writeCareActionCooldowns
+} from "./careActionCooldownSession";
+import type { Purchase } from "expo-iap";
+
+type RestorePurchasesResult =
+  | {
+      ok: true;
+      mode: TerrariumRuntimeMode;
+      restoredCount: number;
+      serverVerified: boolean;
+    }
+  | {
+      ok: false;
+      messageSafe: string;
+    };
+
+type PurchaseProductResult =
+  | {
+      ok: true;
+      mode: TerrariumRuntimeMode;
+      messageSafe: string;
+    }
+  | {
+      ok: false;
+      messageSafe: string;
+    };
+
+type PurchaseCatalogItemResult =
+  | {
+      ok: true;
+      mode: TerrariumRuntimeMode;
+      messageSafe: string;
+      placed: boolean;
+    }
+  | {
+      ok: false;
+      messageSafe: string;
+    };
+
+export type PurchaseExpressionPackResult =
+  | { ok: true; messageSafe: string }
+  | { ok: false; messageSafe: string };
+
+/** Per-pack lifecycle for the friend page's pose gallery -- "pending" covers both the job-start call and the poll loop that follows it. */
+export type ExpressionPackPurchaseStatus = "pending" | "failed";
+
+export interface ExpressionPackPurchaseState {
+  status: ExpressionPackPurchaseStatus;
+  failureMessageSafe?: string;
+}
+
+interface TerrariumSessionContextValue extends PrototypeSessionState {
+  activePet: ReturnType<typeof getActivePrototypePet>;
+  catalogItems: Item[];
+  careCooldownUntilByAction: Partial<Record<CareActionType, number>>;
+  canContinuePetSetup: boolean;
+  canContinuePhotoStep: boolean;
+  canCreatePet: boolean;
+  satisfactionScore: number;
+  satisfactionSummary: CareSatisfactionSummary;
+  bondProgress: number;
+  creditBalance: number;
+  generationProgress: number;
+  generationPollSnapshot: ReturnType<typeof getPrototypeGenerationPollSnapshot>;
+  generatedAssetUriById: Partial<Record<GeneratedAssetId, string>>;
+  commerceProducts: CommerceProduct[];
+  activeEntitlements: Entitlement[];
+  entitlementsCount: number;
+  hasPremiumChatEntitlement: boolean;
+  isHydrated: boolean;
+  runtimeMode: TerrariumRuntimeMode;
+  apiSyncStatus: "idle" | "syncing" | "ready" | "error";
+  apiErrorMessage: string | null;
+  nativeCheckoutReady: boolean;
+  purchaseInProgressProductId: string | null;
+  purchaseStatusMessage: string | null;
+  devStoreUnlocked: boolean;
+  weatherLocationStatus: LocationWeatherRefreshStatus;
+  weatherLocationMessage: string | null;
+  updateDraft: (patch: Partial<PetSetupDraft>) => void;
+  togglePersonalityTag: (tag: PersonalityTag) => void;
+  setMockPhotoSelected: (selected: boolean) => void;
+  setSelectedPhotoUri: (
+    uri: string,
+    source: "library" | "camera",
+    metadata?: { byteSize?: number | null; mimeType?: string | null }
+  ) => void;
+  setConsentAccepted: (accepted: boolean) => void;
+  startMockGeneration: () => void;
+  advanceMockGeneration: () => void;
+  pollMockGeneration: (options?: { force?: boolean }) => void;
+  retryMockGeneration: () => void;
+  acceptGeneratedPet: () => void;
+  performCareAction: (action: CareActionType, itemId?: ItemId) => void;
+  setCareActionCooldown: (action: CareActionType, cooldownUntil: number) => void;
+  setWeatherScenesEnabled: (enabled: boolean) => void;
+  setManualWeatherCondition: (condition: WeatherCondition) => void;
+  refreshWeatherFromApproximateLocation: () => Promise<boolean>;
+  refreshWalk: () => void;
+  claimWalkReward: () => void;
+  /** Spends 1 credit to bring the pet home early. Returns false (no-op) if the wallet balance is insufficient. */
+  completeWalkEarly: () => boolean;
+  applyTheme: (themeId: ItemId) => PurchaseCatalogItemResult;
+  purchaseThemeBundle: (bundleId: string) => PurchaseCatalogItemResult;
+  /** Per-pack id status for the friend page's pose gallery (pending job-start/poll, or a warm failure message). Absent = not currently purchasing. */
+  expressionPackPurchaseStatusById: Partial<Record<string, ExpressionPackPurchaseState>>;
+  /** Starts (or confirms failure fast for) an expression pack purchase -- see purchaseExpressionPack's doc comment for the full state machine. */
+  purchaseExpressionPack: (packId: string) => Promise<PurchaseExpressionPackResult>;
+  reportGenerationIssue: (category: GenerationIssueCategory) => void;
+  deleteOriginalPhoto: () => void;
+  deleteChatHistory: () => void;
+  purchaseCatalogItem: (itemId: ItemId) => Promise<PurchaseCatalogItemResult>;
+  purchaseProduct: (product: CommerceProduct) => Promise<PurchaseProductResult>;
+  restorePurchases: () => Promise<RestorePurchasesResult>;
+  syncWallet: (wallet: CreditWallet) => void;
+  resetSession: () => Promise<boolean>;
+}
+
+const STORAGE_KEY = "mongchi/prototype-session-v1";
+// Destination for the raw payload when restore ultimately fails (parse error,
+// unmigratable version, or invalid shape after migration) — deletion is a
+// last resort, so the original data is moved here instead of discarded.
+const CORRUPT_SESSION_BACKUP_KEY = `${STORAGE_KEY}.corrupt-backup`;
+const DEVELOPMENT_STORE_CREDIT_BALANCE = 9999;
+// How often a pending expression-pack job is re-polled -- fast enough to
+// feel responsive for a soft-progress purchase UX, without hammering the
+// generation_jobs table. The interval that uses this only runs while at
+// least one pack purchase is pending.
+const EXPRESSION_PACK_POLL_INTERVAL_MS = 2500;
+
+const nowIso = () => new Date().toISOString();
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const isDevelopmentStoreUnlockEnabled = () =>
+  process.env.EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE === "true" ||
+  (process.env.NODE_ENV === "development" && process.env.EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE !== "false");
+
+const getDevelopmentWalletForPurchase = (wallet: CreditWallet, minimumCreditBalance: number, updatedAt: string): CreditWallet => {
+  const balance = getSpendableCreditBalance(wallet);
+
+  if (balance >= minimumCreditBalance) {
+    return wallet;
+  }
+
+  return {
+    ...wallet,
+    bonusCredits: wallet.bonusCredits + minimumCreditBalance - balance,
+    updatedAt
+  };
+};
+
+const withDevelopmentPurchaseWallet = (
+  state: PrototypeSessionState,
+  minimumCreditBalance: number,
+  updatedAt: string
+): PrototypeSessionState => ({
+  ...state,
+  wallet: getDevelopmentWalletForPurchase(state.wallet, minimumCreditBalance, updatedAt)
+});
+
+const getDevelopmentStoreEntitlements = (userId: CreditWallet["userId"], now: string): Entitlement[] => [
+  {
+    id: "ent_dev_premium_chat",
+    userId,
+    key: "premium_chat",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_premium_chat",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "ent_dev_extra_pet_slot",
+    userId,
+    key: "extra_pet_slot",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_extra_pet_slot",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "ent_dev_regeneration_credit",
+    userId,
+    key: "regeneration_credit",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_regeneration_credit",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "ent_dev_theme_pack",
+    userId,
+    key: "theme_pack",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_theme_pack",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "ent_dev_item_pack",
+    userId,
+    key: "item_pack",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_item_pack",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "ent_dev_treat_pack",
+    userId,
+    key: "treat_pack",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_treat_pack",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "ent_dev_subscription_plus",
+    userId,
+    key: "subscription_plus",
+    status: "active",
+    source: "admin_grant",
+    startsAt: now,
+    ledgerEntryId: "ledger_dev_subscription_plus",
+    metadata: { developmentUnlock: true },
+    createdAt: now,
+    updatedAt: now
+  }
+];
+
+const mergeEntitlements = (current: Entitlement[], incoming: Entitlement[]): Entitlement[] => {
+  const merged = new Map(current.map((entitlement) => [entitlement.id, entitlement]));
+
+  for (const entitlement of incoming) {
+    merged.set(entitlement.id, entitlement);
+  }
+
+  return [...merged.values()];
+};
+
+const mergePlantGrowthEntries = (
+  currentEntries: NonNullable<Inventory["plantGrowth"]> = [],
+  incomingEntries: NonNullable<Inventory["plantGrowth"]> = []
+): NonNullable<Inventory["plantGrowth"]> => {
+  const merged = new Map(currentEntries.map((entry) => [entry.itemId, entry]));
+
+  for (const entry of incomingEntries) {
+    merged.set(entry.itemId, entry);
+  }
+
+  return [...merged.values()];
+};
+
+const preserveInventoryPlantGrowth = (currentInventory: Inventory, incomingInventory: Inventory): Inventory => ({
+  ...incomingInventory,
+  plantGrowth: mergePlantGrowthEntries(currentInventory.plantGrowth ?? [], incomingInventory.plantGrowth ?? [])
+});
+
+// Lenient shape merge: given a validated (post-migration) raw payload, fills
+// in any missing/partial nested fields from a freshly created session so
+// older or slightly malformed saves still hydrate instead of failing outright.
+const mergeRestoredSession = (value: Record<string, unknown>): PrototypeSessionState => {
+  const restored = value as unknown as PrototypeSessionState & {
+    acceptedAsset?: GeneratedAsset | null;
+    acceptedAssets?: unknown;
+  };
+  const acceptedAssets = Array.isArray(restored.acceptedAssets)
+    ? (restored.acceptedAssets as GeneratedAsset[])
+    : restored.acceptedAsset
+      ? [restored.acceptedAsset]
+      : [];
+  const fallback = createInitialPrototypeSession(nowIso());
+  const restoredInventory = isObject(restored.inventory)
+    ? {
+        ...fallback.inventory,
+        ...restored.inventory,
+        plantGrowth: Array.isArray(restored.inventory.plantGrowth) ? restored.inventory.plantGrowth : (fallback.inventory.plantGrowth ?? [])
+      }
+    : {
+        ...fallback.inventory,
+        plantGrowth: fallback.inventory.plantGrowth ?? []
+      };
+
+  const merged: PrototypeSessionState = {
+    ...fallback,
+    ...restored,
+    acceptedAssets,
+    inventory: restoredInventory,
+    relationshipState: restored.relationshipState ?? {
+      ...fallback.relationshipState,
+      petId: restored.petProfile?.id ?? fallback.relationshipState.petId
+    },
+    wallet: restored.wallet ?? fallback.wallet,
+    weatherState: restored.weatherState ?? fallback.weatherState,
+    lastCareReward: restored.lastCareReward ?? null,
+    generationIssueReport: restored.generationIssueReport ?? null
+  };
+
+  // Restore-time normalization (design audit invariant I6): a session
+  // persisted while a generation job was actively mid-flight (app killed
+  // between poll ticks) or stranded at "completed" with no assets yet
+  // signed would otherwise permanently block both auto-start (which treats
+  // any non-terminal status as "already active") and manual retry, with no
+  // poller left running to ever move it forward. See
+  // normalizeRestoredGeneration for the exact repair rules.
+  return normalizeRestoredGeneration(merged, nowIso());
+};
+
+// Restore pipeline: (a) the caller has already JSON.parsed the stored string,
+// (b) apply sequential schema migrations from whatever version was stored up
+// to CURRENT_SESSION_SCHEMA_VERSION, (c) shallow-validate the migrated shape.
+// Deletion is a last resort — see the corrupt-backup handling in the
+// hydration effect below, which only runs once this returns null.
+const restoreSession = (rawValue: unknown): PrototypeSessionState | null => {
+  const migrationResult = runSessionMigrations(rawValue);
+
+  if (!migrationResult.ok) {
+    return null;
+  }
+
+  if (!isValidPrototypeSessionShape(migrationResult.state)) {
+    return null;
+  }
+
+  return mergeRestoredSession(migrationResult.state);
+};
+
+const TerrariumSessionContext = createContext<TerrariumSessionContextValue | null>(null);
+
+export function TerrariumSessionProvider({ children }: { children: ReactNode }) {
+  const [storeScreenshotPreset] = useState(() => getConfiguredStoreScreenshotPreset());
+  const [qaScreenPreset] = useState(() => getConfiguredQaScreenPreset());
+  const [state, setState] = useState<PrototypeSessionState>(() =>
+    storeScreenshotPreset
+      ? createStoreScreenshotSession(storeScreenshotPreset, nowIso())
+      : qaScreenPreset
+        ? createQaScreenSession(qaScreenPreset, nowIso())
+        : createInitialPrototypeSession(nowIso())
+  );
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [apiRuntime] = useState(() => createConfiguredDailyLoopApiClient());
+  const [generationApiRuntime] = useState(() => createConfiguredGenerationApiClient());
+  const [apiCatalogItems, setApiCatalogItems] = useState<Item[] | null>(null);
+  const [apiCommerceProducts, setApiCommerceProducts] = useState<CommerceProduct[] | null>(null);
+  const [apiEntitlements, setApiEntitlements] = useState<Entitlement[] | null>(null);
+  const [generatedAssetReadUrls, setGeneratedAssetReadUrls] = useState<Partial<Record<GeneratedAssetId, GeneratedAssetReadUrlCacheEntry>>>({});
+  const nativeStoreConnection = useRef<NativeStorePurchaseConnection | null>(null);
+  const [nativeCheckoutReady, setNativeCheckoutReady] = useState(false);
+  const [purchaseInProgressProductId, setPurchaseInProgressProductId] = useState<string | null>(null);
+  const [purchaseStatusMessage, setPurchaseStatusMessage] = useState<string | null>(null);
+  const [weatherLocationStatus, setWeatherLocationStatus] = useState<LocationWeatherRefreshStatus>("idle");
+  const [weatherLocationMessage, setWeatherLocationMessage] = useState<string | null>(null);
+  const [sessionClock, setSessionClock] = useState(() => Date.now());
+  const [careCooldownUntilByAction, setCareCooldownUntilByAction] = useState<Partial<Record<CareActionType, number>>>({});
+  // Expression pack purchases: keyed by packId so the friend page's pose
+  // gallery can show per-pack progress/failure independent of any other UI.
+  // Deliberately session-only (not persisted in PrototypeSessionState) --
+  // the source of truth for *ownership* is inventory.ownedExpressionPackIds
+  // (persisted), this only tracks the transient job-start/poll journey. A
+  // pending entry surviving an app restart mid-job is safe: the next
+  // purchase attempt for that pack id simply starts a fresh job.
+  const [expressionPackPurchaseStatusById, setExpressionPackPurchaseStatusById] = useState<
+    Partial<Record<string, ExpressionPackPurchaseState>>
+  >({});
+  // Job ids currently being polled, keyed by packId -- read by the polling
+  // effect below so it keeps running across re-renders/navigation (the
+  // effect lives in the provider, not in any one screen).
+  const [expressionPackJobIdByPackId, setExpressionPackJobIdByPackId] = useState<Partial<Record<string, string>>>({});
+  const expressionPackPollGuard = useRef(createAsyncActionGuard());
+  // In-flight guards for the generation start/poll/retry flows. These calls
+  // are triggered both from explicit user taps and from effects (see
+  // GenerationScreen's poll interval and mount-triggered start), so a guard
+  // held in a ref (rather than component state, which only updates on the
+  // next render) is needed to prevent duplicate network calls — e.g. rapid
+  // double-taps on "Try again" invoking generate-avatar more than once
+  // before the first call's state update lands.
+  const generationStartGuard = useRef(createAsyncActionGuard());
+  const generationPollGuard = useRef(createAsyncActionGuard());
+  const generationRetryGuard = useRef(createAsyncActionGuard());
+  // Display-only gauge memory: the generation progress bar must never appear
+  // to move backward, even though the underlying poll response occasionally
+  // does (an out-of-order/stale poll landing after a newer one). Keyed on
+  // getGenerationAttemptKey so a genuinely new attempt (fresh job or retry)
+  // still resets the gauge to 0 instead of getting stuck at the previous
+  // attempt's high point.
+  const generationProgressGaugeRef = useRef<{ attemptKey: string; maxProgress: number }>({
+    attemptKey: "",
+    maxProgress: 0
+  });
+  const [initialQaApiState] = useState(() => getQaScreenApiState(qaScreenPreset));
+  const [apiSyncStatus, setApiSyncStatus] = useState<"idle" | "syncing" | "ready" | "error">(
+    initialQaApiState?.status ?? (apiRuntime.error || generationApiRuntime.error ? "error" : "idle")
+  );
+  const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(
+    initialQaApiState?.message ?? apiRuntime.error?.messageSafe ?? generationApiRuntime.error?.messageSafe ?? null
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (storeScreenshotPreset) {
+        if (!cancelled) {
+          setState(createStoreScreenshotSession(storeScreenshotPreset, nowIso()));
+          setIsHydrated(true);
+        }
+        return;
+      }
+
+      if (qaScreenPreset) {
+        if (!cancelled) {
+          setState(createQaScreenSession(qaScreenPreset, nowIso()));
+          setIsHydrated(true);
+        }
+        return;
+      }
+
+      try {
+        const [stored, storedCooldowns] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          readCareActionCooldowns(AsyncStorage, Date.now())
+        ]);
+
+        if (stored) {
+          // Pipeline: (a) parse, (b) migrate, (c) validate. Deletion is a
+          // last resort: if any step fails, back the raw payload up under a
+          // separate key instead of silently discarding a user's progress.
+          let parsedJson: unknown;
+          let parseFailed = false;
+
+          try {
+            parsedJson = JSON.parse(stored);
+          } catch {
+            parseFailed = true;
+          }
+
+          const restored = parseFailed ? null : restoreSession(parsedJson);
+
+          if (restored) {
+            if (!cancelled) {
+              setState(restored);
+            }
+          } else {
+            await AsyncStorage.setItem(CORRUPT_SESSION_BACKUP_KEY, stored);
+            await AsyncStorage.removeItem(STORAGE_KEY);
+          }
+        }
+
+        if (!cancelled) {
+          setCareCooldownUntilByAction(storedCooldowns);
+        }
+      } catch {
+        // Unexpected failure reading storage itself (not a parse/shape
+        // failure) — leave the stored session untouched so a transient
+        // AsyncStorage error can't wipe local progress; the app continues
+        // with a fresh in-memory session for this run.
+        if (!cancelled) {
+          await clearCareActionCooldowns(AsyncStorage);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [qaScreenPreset, storeScreenshotPreset]);
+
+  useEffect(() => {
+    if (!isHydrated || storeScreenshotPreset || qaScreenPreset) {
+      return;
+    }
+
+    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(createPersistedSessionEnvelope(state)));
+  }, [isHydrated, qaScreenPreset, state, storeScreenshotPreset]);
+
+  useEffect(() => {
+    if (!isHydrated || storeScreenshotPreset || qaScreenPreset) {
+      return;
+    }
+
+    void writeCareActionCooldowns(AsyncStorage, careCooldownUntilByAction, Date.now());
+  }, [careCooldownUntilByAction, isHydrated, qaScreenPreset, storeScreenshotPreset]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSessionClock(Date.now());
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const now = sessionClock;
+
+    setCareCooldownUntilByAction((current) => {
+      const next = Object.fromEntries(Object.entries(current).filter(([, cooldownUntil]) => cooldownUntil > now)) as Partial<
+        Record<CareActionType, number>
+      >;
+
+      return Object.keys(next).length === Object.keys(current).length ? current : next;
+    });
+  }, [sessionClock]);
+
+  const activePet = useMemo(() => getActivePrototypePet(state, nowIso()), [state]);
+  const catalogItems = useMemo(() => getRuntimeCatalogItems(apiRuntime.mode, apiCatalogItems), [apiCatalogItems, apiRuntime.mode]);
+  const activeGeneratedAssetId = state.acceptedAsset?.id ?? activePet.activeAssetId ?? null;
+  const generatedAssetIdsToResolve = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [activeGeneratedAssetId, ...state.acceptedAssets.map((asset) => asset.id)].filter(
+            (assetId): assetId is GeneratedAssetId => typeof assetId === "string" && assetId.length > 0
+          )
+        )
+      ),
+    [activeGeneratedAssetId, state.acceptedAssets]
+  );
+
+  const applyApiStatePatch = useCallback((patch: Partial<PrototypeSessionState>) => {
+    setState((current) => ({
+      ...current,
+      ...patch
+    }));
+  }, []);
+
+  const setApiError = useCallback((error: MobileApiError) => {
+    setApiSyncStatus("error");
+    setApiErrorMessage(error.messageSafe);
+  }, []);
+
+  const setPurchaseError = useCallback((messageSafe: string) => {
+    setPurchaseInProgressProductId(null);
+    setPurchaseStatusMessage(messageSafe);
+    setApiSyncStatus("error");
+    setApiErrorMessage(messageSafe);
+  }, []);
+
+  const handleNativePurchase = useCallback(
+    async (purchase: Purchase) => {
+      if (apiRuntime.mode !== "api") {
+        setPurchaseError("Checkout confirmation is required before purchases can unlock.");
+        return;
+      }
+
+      const platform = getNativePurchasePlatform();
+
+      if (!platform) {
+        setPurchaseError("Purchases can only be verified on iOS or Android.");
+        return;
+      }
+
+      const product = apiCommerceProducts?.find((candidate) => candidate.productId === purchase.productId);
+
+      if (!product) {
+        setPurchaseError("This item is not available in the current store catalog.");
+        return;
+      }
+
+      setApiSyncStatus("syncing");
+      setPurchaseStatusMessage("Verifying purchase.");
+
+      const verification = await buildStorePurchaseVerificationRequest(platform, product, purchase);
+
+      if (!verification.ok) {
+        setPurchaseError(verification.messageSafe);
+        return;
+      }
+
+      const result = await apiRuntime.client.verifyPurchase(verification.request);
+
+      if (!result.ok) {
+        setApiError(result.error);
+        setPurchaseInProgressProductId(null);
+        setPurchaseStatusMessage(result.error.messageSafe);
+        return;
+      }
+
+      setApiEntitlements((current) => mergeEntitlements(current ?? [], result.data.entitlements));
+      if (result.data.wallet) {
+        setState((current) => ({
+          ...current,
+          wallet: result.data.wallet as CreditWallet
+        }));
+      }
+
+      try {
+        await nativeStoreConnection.current?.finishPurchase(purchase, product.grantType === "consumable");
+      } catch {
+        setPurchaseStatusMessage("Purchase was verified, but the store transaction still needs to finish.");
+        setPurchaseInProgressProductId(null);
+        setApiSyncStatus("ready");
+        return;
+      }
+
+      setPurchaseInProgressProductId(null);
+      setPurchaseStatusMessage("Purchase verified.");
+      setApiSyncStatus("ready");
+    },
+    [apiCommerceProducts, apiRuntime, setApiError, setPurchaseError]
+  );
+
+  const setApiGenerationError = useCallback(
+    (error: MobileApiError) => {
+      setApiError(error);
+      setState((current) => ({
+        ...current,
+        generation: {
+          ...current.generation,
+          status: "failed",
+          failedAt: nowIso(),
+          nextPollAfter: undefined,
+          failureCode: error.code,
+          failureMessageSafe: error.messageSafe
+        }
+      }));
+    },
+    [setApiError]
+  );
+
+  useEffect(() => {
+    if (!isHydrated || apiRuntime.mode !== "api") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const sync = async () => {
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      const result = await loadApiDailyLoopState(apiRuntime.client);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!result.ok) {
+        setApiError(result.error);
+        return;
+      }
+
+      setApiCatalogItems(result.data.catalogItems);
+      setApiCommerceProducts(result.data.state.commerceProducts);
+      setApiEntitlements(result.data.state.entitlements);
+      setState((current) => {
+        const inventory = result.data.state.inventory
+          ? preserveInventoryPlantGrowth(current.inventory, result.data.state.inventory)
+          : current.inventory;
+
+        return {
+          ...current,
+          ...(result.data.state.petProfile ? { petProfile: result.data.state.petProfile } : {}),
+          ...(result.data.state.careState ? { careState: result.data.state.careState } : {}),
+          ...(result.data.state.relationshipState ? { relationshipState: result.data.state.relationshipState } : {}),
+          ...(result.data.state.wallet ? { wallet: result.data.state.wallet } : {}),
+          inventory,
+          activeWalk: result.data.state.activeWalk,
+          currentReaction: result.data.state.currentReaction
+        };
+      });
+      setApiSyncStatus("ready");
+    };
+
+    void sync();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiRuntime, isHydrated, setApiError]);
+
+  useEffect(() => {
+    if (generatedAssetIdsToResolve.length === 0 || apiRuntime.mode !== "api") {
+      return;
+    }
+
+    let cancelled = false;
+    const assetIdsToRefresh = generatedAssetIdsToResolve.filter((assetId) => shouldRefreshGeneratedAssetReadUrl(generatedAssetReadUrls[assetId]));
+
+    if (assetIdsToRefresh.length === 0) {
+      return;
+    }
+
+    void Promise.all(assetIdsToRefresh.map((assetId) => resolveGeneratedAssetReadUrl(apiRuntime.client, assetId))).then((results) => {
+      if (cancelled) {
+        return;
+      }
+
+      const entries = results.flatMap((result) => (result.ok && result.entry ? [result.entry] : []));
+
+      if (entries.length === 0) {
+        return;
+      }
+
+      setGeneratedAssetReadUrls((current) => {
+        const next = { ...current };
+
+        for (const entry of entries) {
+          next[entry.assetId] = entry;
+        }
+
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiRuntime, generatedAssetIdsToResolve, generatedAssetReadUrls]);
+
+  const updateDraft = useCallback((patch: Partial<PetSetupDraft>) => {
+    setState((current) => updatePrototypeDraft(current, patch));
+  }, []);
+
+  const togglePersonalityTag = useCallback((tag: PersonalityTag) => {
+    setState((current) => togglePrototypePersonalityTag(current, tag));
+  }, []);
+
+  const setMockPhotoSelected = useCallback((selected: boolean) => {
+    setState((current) => setPrototypeMockPhotoSelected(current, selected));
+  }, []);
+
+  const setSelectedPhotoUri = useCallback(
+    (uri: string, source: "library" | "camera", metadata?: { byteSize?: number | null; mimeType?: string | null }) => {
+      setState((current) => setPrototypeSelectedPhotoUri(current, uri, source, metadata));
+    },
+    []
+  );
+
+  const setConsentAccepted = useCallback((accepted: boolean) => {
+    setState((current) => setPrototypeConsentAccepted(current, accepted));
+  }, []);
+
+  const startMockGeneration = useCallback(() => {
+    // Idempotency guard: never start a new generation job while the pet
+    // already has a live (or completed-pending-accept) one. This is the
+    // authoritative check -- callers (e.g. GenerationScreen's mount effect)
+    // additionally guard themselves, but this is what actually prevents a
+    // duplicate upload+invoke if a caller's own guard has a gap. A live job
+    // means only polling should drive progress from here; a terminally
+    // failed/cancelled/expired job's id must NOT block this path, since
+    // PhotoUploadScreen's Continue calls startMockGeneration directly (not
+    // retryMockGeneration) to kick off a fresh attempt after a new photo is
+    // picked -- see hasActiveGenerationJob for why status matters here.
+    if (hasActiveGenerationJob(state.petProfile?.activeGenerationJobId, state.generation.status)) {
+      return;
+    }
+
+    const startedAt = nowIso();
+    const supabaseClient = getSupabaseClient();
+
+    if (supabaseClient) {
+      generationStartGuard.current.run(async () => {
+        setApiSyncStatus("syncing");
+        setApiErrorMessage(null);
+
+        const result = await startSupabaseGenerationFlow(supabaseClient, state, startedAt);
+
+        if (!result.ok) {
+          setApiGenerationError(result.error);
+          return;
+        }
+
+        applyApiStatePatch(result.data);
+        setApiSyncStatus("ready");
+      });
+      return;
+    }
+
+    if (generationApiRuntime.mode !== "api") {
+      setState((current) => startPrototypeGeneration(current, startedAt));
+      return;
+    }
+
+    generationStartGuard.current.run(async () => {
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      const result = await startApiGenerationFlow(generationApiRuntime.client, state, startedAt);
+
+      if (!result.ok) {
+        setApiGenerationError(result.error);
+        return;
+      }
+
+      applyApiStatePatch(result.data);
+      setApiSyncStatus("ready");
+    });
+  }, [applyApiStatePatch, generationApiRuntime, setApiGenerationError, state]);
+
+  const advanceMockGeneration = useCallback(() => {
+    setState((current) => advancePrototypeGeneration(current, nowIso()));
+  }, []);
+
+  const pollMockGeneration = useCallback(
+    (options?: { force?: boolean }) => {
+      const polledAt = nowIso();
+      const nextPollAt = state.generation.nextPollAfter ? new Date(state.generation.nextPollAfter).getTime() : 0;
+      const supabaseClient = getSupabaseClient();
+
+      if (supabaseClient) {
+        if (!options?.force && nextPollAt && Date.now() < nextPollAt) {
+          return;
+        }
+
+        generationPollGuard.current.run(async () => {
+          setApiSyncStatus("syncing");
+          setApiErrorMessage(null);
+
+          const result = await pollSupabaseGenerationFlow(supabaseClient, state, polledAt);
+
+          if (!result.ok) {
+            setApiGenerationError(result.error);
+            return;
+          }
+
+          applyApiStatePatch(result.data);
+          setApiSyncStatus("ready");
+        });
+        return;
+      }
+
+      if (generationApiRuntime.mode !== "api") {
+        setState((current) => pollPrototypeGenerationJob(current, polledAt, options));
+        return;
+      }
+
+      if (!options?.force && nextPollAt && Date.now() < nextPollAt) {
+        return;
+      }
+
+      generationPollGuard.current.run(async () => {
+        setApiSyncStatus("syncing");
+        setApiErrorMessage(null);
+
+        const result = await pollApiGenerationFlow(generationApiRuntime.client, state, polledAt);
+
+        if (!result.ok) {
+          setApiGenerationError(result.error);
+          return;
+        }
+
+        applyApiStatePatch(result.data);
+        setApiSyncStatus("ready");
+      });
+    },
+    [applyApiStatePatch, generationApiRuntime, setApiGenerationError, state]
+  );
+
+  const retryMockGeneration = useCallback(() => {
+    const retriedAt = nowIso();
+    const supabaseClient = getSupabaseClient();
+
+    if (supabaseClient) {
+      generationRetryGuard.current.run(async () => {
+        setApiSyncStatus("syncing");
+        setApiErrorMessage(null);
+
+        const result = await retrySupabaseGenerationFlow(supabaseClient, state, retriedAt);
+
+        if (!result.ok) {
+          setApiGenerationError(result.error);
+          return;
+        }
+
+        applyApiStatePatch(result.data);
+        setApiSyncStatus("ready");
+      });
+      return;
+    }
+
+    if (generationApiRuntime.mode !== "api") {
+      setState((current) => retryPrototypeGeneration(current, retriedAt));
+      return;
+    }
+
+    generationRetryGuard.current.run(async () => {
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      const result = await retryApiGenerationFlow(generationApiRuntime.client, state, retriedAt);
+
+      if (!result.ok) {
+        setApiGenerationError(result.error);
+        return;
+      }
+
+      applyApiStatePatch(result.data);
+      setApiSyncStatus("ready");
+    });
+  }, [applyApiStatePatch, generationApiRuntime, setApiGenerationError, state]);
+
+  const acceptGeneratedPet = useCallback(() => {
+    // Critical: Supabase-mode already has the real generated assets (signed
+    // storage URLs from pollSupabaseGenerationFlow) sitting in
+    // state.acceptedAsset/acceptedAssets by the time this is called --
+    // acceptPrototypeGeneratedPet must NOT overwrite them with
+    // makeMockGeneratedAssetsForPet's local placeholders, which is what the
+    // default (non-preserveAssets) call below does. preserveAssets: true
+    // keeps whatever real assets are already in state.
+    if (getSupabaseClient()) {
+      setState((current) => acceptPrototypeGeneratedPet(current, nowIso(), { preserveAssets: true }));
+      return;
+    }
+
+    if (generationApiRuntime.mode !== "api") {
+      setState((current) => acceptPrototypeGeneratedPet(current, nowIso()));
+      return;
+    }
+
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+
+    void acceptApiGeneratedPet(generationApiRuntime.client, state).then((result) => {
+      if (!result.ok) {
+        setApiError(result.error);
+        return;
+      }
+
+      applyApiStatePatch(result.data);
+      setApiSyncStatus("ready");
+    });
+  }, [applyApiStatePatch, generationApiRuntime, setApiError, state]);
+
+  const performCareAction = useCallback(
+    (action: CareActionType, itemId?: ItemId) => {
+      const occurredAt = nowIso();
+
+      if (apiRuntime.mode !== "api") {
+        setState((current) => performPrototypeCareAction(current, action, occurredAt, itemId, { walkDurationMs: homeWalkDurationMs }));
+        return;
+      }
+
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      void performApiDailyLoopCareAction(apiRuntime.client, state, catalogItems, activePet.id, action, occurredAt, itemId).then((result) => {
+        if (!result.ok) {
+          setApiError(result.error);
+          return;
+        }
+
+        applyApiStatePatch(result.data);
+        setApiSyncStatus("ready");
+      });
+    },
+    [activePet.id, apiRuntime, applyApiStatePatch, catalogItems, setApiError, state]
+  );
+
+  const setCareActionCooldown = useCallback((action: CareActionType, cooldownUntil: number) => {
+    setCareCooldownUntilByAction((current) => ({
+      ...current,
+      [action]: cooldownUntil
+    }));
+  }, []);
+
+  const setWeatherScenesEnabled = useCallback((enabled: boolean) => {
+    setState((current) => setPrototypeWeatherEnabled(current, enabled, nowIso()));
+  }, []);
+
+  const setManualWeatherCondition = useCallback((condition: WeatherCondition) => {
+    setState((current) => setPrototypeWeatherCondition(current, condition, nowIso()));
+  }, []);
+
+  const refreshWeatherFromApproximateLocation = useCallback(async (): Promise<boolean> => {
+    const requestedAt = nowIso();
+    setWeatherLocationStatus("requesting");
+    setWeatherLocationMessage("Checking approximate local weather.");
+
+    const result = await refreshApproximateLocationWeather({
+      runtimeMode: apiRuntime.mode,
+      client: apiRuntime.client,
+      locale: "en-US",
+      requestedAt
+    });
+
+    if (!result.ok) {
+      setWeatherLocationStatus(result.status);
+      setWeatherLocationMessage(result.messageSafe);
+      return false;
+    }
+
+    setState((current) => ({
+      ...current,
+      weatherState: {
+        settings: {
+          ...current.weatherState.settings,
+          enabled: true,
+          useApproximateLocation: true,
+          lastExplainedAt: requestedAt
+        },
+        context: result.weather,
+        updatedAt: requestedAt
+      }
+    }));
+    setWeatherLocationStatus("ready");
+    setWeatherLocationMessage(result.messageSafe);
+
+    return true;
+  }, [apiRuntime]);
+
+  const refreshWalk = useCallback(() => {
+    const refreshedAt = nowIso();
+
+    if (apiRuntime.mode !== "api") {
+      setState((current) => refreshPrototypeWalk(current, refreshedAt));
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      activeWalk: refreshApiWalkLocally(current.activeWalk, refreshedAt)
+    }));
+  }, [apiRuntime]);
+
+  /** Spends 1 credit to bring the pet home early; leaves state untouched (and returns false) if the balance is insufficient. */
+  const completeWalkEarly = useCallback(() => {
+    if (apiRuntime.mode !== "api") {
+      const result = completePrototypeWalkEarlyWithCredit(state, nowIso());
+
+      if (!result.ok) {
+        return false;
+      }
+
+      setState(result.state);
+      return true;
+    }
+
+    return false;
+  }, [apiRuntime, state]);
+
+  const claimWalkReward = useCallback(() => {
+    if (apiRuntime.mode !== "api") {
+      setState((current) => claimPrototypeWalkReward(current, nowIso()));
+      return;
+    }
+
+    if (!state.activeWalk) {
+      return;
+    }
+
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+
+    void claimApiDailyLoopWalkReward(apiRuntime.client, state, state.activeWalk.id, activePet.id).then((result) => {
+      if (!result.ok) {
+        setApiError(result.error);
+        return;
+      }
+
+      applyApiStatePatch(result.data);
+      setApiSyncStatus("ready");
+    });
+  }, [activePet.id, apiRuntime, applyApiStatePatch, setApiError, state]);
+
+  const purchaseThemeBundle = useCallback(
+    (bundleId: string): PurchaseCatalogItemResult => {
+      if (apiRuntime.mode === "api") {
+        return { ok: false, messageSafe: "Theme bundles are coming to the live store soon." };
+      }
+
+      const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+      const purchasedAt = nowIso();
+      const result = purchasePrototypeThemeBundle(
+        devStoreUnlocked ? withDevelopmentPurchaseWallet(state, DEVELOPMENT_STORE_CREDIT_BALANCE, purchasedAt) : state,
+        bundleId,
+        purchasedAt
+      );
+
+      if (!result.ok) {
+        return {
+          ok: false,
+          messageSafe: result.reason === "insufficient_credits" ? "Not enough credits for this set." : "This set is not available."
+        };
+      }
+
+      setState(result.state);
+
+      return {
+        ok: true,
+        mode: apiRuntime.mode,
+        messageSafe: result.alreadyOwned ? "Theme applied to the garden!" : "New theme unlocked and applied to the garden!",
+        placed: true
+      };
+    },
+    [apiRuntime, state]
+  );
+
+  /**
+   * Applies a theme the player already owns (or the always-free default) for
+   * free -- refuses an unowned theme id instead of silently applying it, so
+   * this can never be used as a free-purchase bypass (see purchaseThemeBundle
+   * for the only path that grants new ownership).
+   */
+  const applyTheme = useCallback(
+    (themeId: ItemId): PurchaseCatalogItemResult => {
+      const result = applyPrototypeTheme(state, themeId, nowIso());
+
+      if (!result.ok) {
+        return { ok: false, messageSafe: "Unlock this theme first." };
+      }
+
+      setState(result.state);
+
+      return { ok: true, mode: apiRuntime.mode, messageSafe: "Theme applied to the garden!", placed: true };
+    },
+    [apiRuntime.mode, state]
+  );
+
+  const setExpressionPackPending = useCallback((packId: string) => {
+    setExpressionPackPurchaseStatusById((current) => ({ ...current, [packId]: { status: "pending" } }));
+  }, []);
+
+  const setExpressionPackFailed = useCallback((packId: string, failureMessageSafe: string) => {
+    setExpressionPackPurchaseStatusById((current) => ({
+      ...current,
+      [packId]: { status: "failed", failureMessageSafe }
+    }));
+    setExpressionPackJobIdByPackId((current) => {
+      const { [packId]: _removed, ...rest } = current;
+      return rest;
+    });
+  }, []);
+
+  const clearExpressionPackStatus = useCallback((packId: string) => {
+    setExpressionPackPurchaseStatusById((current) => {
+      const { [packId]: _removed, ...rest } = current;
+      return rest;
+    });
+    setExpressionPackJobIdByPackId((current) => {
+      const { [packId]: _removed, ...rest } = current;
+      return rest;
+    });
+  }, []);
+
+  /**
+   * Purchases an expression pack: the credit charge is confirmed only after
+   * the server-side generation job has actually started (see
+   * confirmPrototypeExpressionPackPurchase's doc comment), so a network
+   * failure before that point leaves the wallet completely untouched -- the
+   * same "transactional across an async boundary" shape as the walk
+   * early-return credit spend, just gated on a job-start network call
+   * instead of a synchronous check.
+   *
+   * State machine:
+   *  1. validatePrototypeExpressionPackPurchase (no mutation) -- fails fast
+   *     for already-owned / insufficient-credit / unknown pack ids.
+   *  2. Mark the pack "pending" for the gallery's progress UI.
+   *  3. Supabase configured: start the server job seeded from the idle
+   *     sprite. On success, confirm the domain purchase (credits spend now)
+   *     and start polling; on failure, revert to "failed" with a warm
+   *     message and no charge.
+   *     No Supabase (local/dev): confirm the purchase immediately and merge
+   *     in mock assets for the pack's states, so the dev-wallet-unlocked
+   *     path can be exercised end-to-end without a live backend.
+   *  4. The polling effect below merges the finished assets into
+   *     acceptedAssets once the job completes, and clears the pending status.
+   */
+  const purchaseExpressionPack = useCallback(
+    async (packId: string): Promise<PurchaseExpressionPackResult> => {
+      const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+      const purchasedAt = nowIso();
+      const validationState = devStoreUnlocked
+        ? withDevelopmentPurchaseWallet(state, DEVELOPMENT_STORE_CREDIT_BALANCE, purchasedAt)
+        : state;
+      const validation = validatePrototypeExpressionPackPurchase(validationState, packId);
+
+      if (!validation.ok) {
+        const messageSafe =
+          validation.reason === "already_owned"
+            ? "You already have these expressions!"
+            : validation.reason === "insufficient_credits"
+              ? "Not enough credits for this pack yet."
+              : "This pack is not available.";
+
+        return { ok: false, messageSafe };
+      }
+
+      const pack = validation.pack;
+      setExpressionPackPending(pack.id);
+
+      const supabaseClient = getSupabaseClient();
+
+      if (!supabaseClient) {
+        // Local/dev fallback: no live backend to poll, so confirm the
+        // purchase and merge in mock assets for the pack's states right
+        // away -- this is what lets the dev-unlocked wallet path exercise
+        // the full purchase -> gallery flow in the simulator.
+        const confirmed = confirmPrototypeExpressionPackPurchase(validationState, pack.id, purchasedAt);
+
+        if (!confirmed.ok) {
+          setExpressionPackFailed(pack.id, "Not enough credits for this pack yet.");
+          return { ok: false, messageSafe: "Not enough credits for this pack yet." };
+        }
+
+        const pet = getActivePrototypePet(confirmed.state, purchasedAt);
+        const mockAssets = pack.states.map((packState) =>
+          makeMockGeneratedAsset(packState, {
+            petId: pet.id,
+            generationJobId: `gen_expression_pack_${pack.id}`,
+            species: pet.species
+          })
+        );
+
+        setState(mergePrototypeGeneratedAssets(confirmed.state, mockAssets));
+        clearExpressionPackStatus(pack.id);
+
+        return { ok: true, messageSafe: `New moments unlocked: ${pack.nameEn}!` };
+      }
+
+      const started = await startSupabaseExpressionPackFlow(supabaseClient, state, pack.states);
+
+      if (!started.ok) {
+        setExpressionPackFailed(pack.id, started.error.messageSafe);
+        return { ok: false, messageSafe: started.error.messageSafe };
+      }
+
+      // Job actually started server-side -- confirm the charge now.
+      const confirmed = confirmPrototypeExpressionPackPurchase(state, pack.id, purchasedAt);
+
+      if (!confirmed.ok) {
+        // Extremely unlikely (validated moments ago), but never strand a
+        // started job without at least surfacing something to the player.
+        setExpressionPackFailed(pack.id, "Something went sideways starting these new expressions. Try again soon.");
+        return { ok: false, messageSafe: "Something went sideways starting these new expressions. Try again soon." };
+      }
+
+      setState(confirmed.state);
+      setExpressionPackJobIdByPackId((current) => ({ ...current, [pack.id]: started.data.jobId }));
+
+      return { ok: true, messageSafe: "New moments are on their way..." };
+    },
+    [clearExpressionPackStatus, setExpressionPackFailed, setExpressionPackPending, state]
+  );
+
+  // Keeps polling every pending expression-pack job even if the friend page
+  // (or wherever purchaseExpressionPack was called from) is no longer
+  // mounted -- this effect owns its own interval (rather than piggybacking on
+  // the 30s sessionClock tick, which is too coarse for a purchase-progress
+  // UX) so navigating home never stalls a pack that's already mid-generation.
+  // Only runs while at least one pack purchase is pending, so it never adds
+  // background work to the common case of no active purchase.
+  useEffect(() => {
+    const pendingEntries = Object.entries(expressionPackJobIdByPackId).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string"
+    );
+
+    if (pendingEntries.length === 0) {
+      return;
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    const pollOnce = () => {
+      expressionPackPollGuard.current.run(async () => {
+        const polledAt = nowIso();
+
+        for (const [packId, jobId] of pendingEntries) {
+          const pet = getActivePrototypePet(state, polledAt);
+          const result = await pollSupabaseExpressionPackFlow(supabaseClient, jobId, pet.id, polledAt);
+
+          if (!result.ok) {
+            // Transient poll failure -- leave the job pending, try again next tick.
+            continue;
+          }
+
+          if (result.data.status === "failed") {
+            setExpressionPackFailed(
+              packId,
+              result.data.failureMessageSafe ?? "The tiny door got stuck. Let's try adding these expressions again."
+            );
+            continue;
+          }
+
+          if (result.data.status === "completed") {
+            setState((current) => mergePrototypeGeneratedAssets(current, result.data.assets));
+            clearExpressionPackStatus(packId);
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(pollOnce, EXPRESSION_PACK_POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [clearExpressionPackStatus, expressionPackJobIdByPackId, setExpressionPackFailed, state]);
+
+  const purchaseCatalogItem = useCallback(
+    async (itemId: ItemId): Promise<PurchaseCatalogItemResult> => {
+      const price = getCreditItemPrice(itemId);
+      const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+
+      if (!price) {
+        return {
+          ok: false,
+          messageSafe: "This item is not available for credits yet."
+        };
+      }
+
+      const purchasedAt = nowIso();
+
+      if (apiRuntime.mode !== "api") {
+        if (!devStoreUnlocked && getSpendableCreditBalance(state.wallet) < price.creditCost) {
+          return {
+            ok: false,
+            messageSafe: "Not enough credits for this item."
+          };
+        }
+
+        setState((current) =>
+          purchasePrototypeInventoryItem(
+            devStoreUnlocked
+              ? withDevelopmentPurchaseWallet(current, DEVELOPMENT_STORE_CREDIT_BALANCE, purchasedAt)
+              : current,
+            itemId,
+            purchasedAt
+          )
+        );
+
+        return {
+          ok: true,
+          mode: "local",
+          messageSafe: devStoreUnlocked ? "Development store unlock is active." : `Used ${price.creditCost} credits.`,
+          placed: false
+        };
+      }
+
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      const result = await apiRuntime.client.purchaseInventoryItem({ itemId });
+
+      if (!result.ok) {
+        setApiError(result.error);
+
+        return {
+          ok: false,
+          messageSafe: result.error.messageSafe
+        };
+      }
+
+      setState((current) => ({
+        ...current,
+        wallet: result.data.wallet,
+        inventory: preserveInventoryPlantGrowth(current.inventory, result.data.inventory)
+      }));
+      setApiSyncStatus("ready");
+
+      return {
+        ok: true,
+        mode: "api",
+        messageSafe: `Used ${result.data.creditCost} credits.`,
+        placed: false
+      };
+    },
+    [apiRuntime, setApiError, state.wallet]
+  );
+
+  const reportGenerationIssue = useCallback((category: GenerationIssueCategory) => {
+    const reportedAt = nowIso();
+
+    setState((current) => reportPrototypeGenerationIssue(current, category, reportedAt));
+
+    if (apiRuntime.mode !== "api") {
+      return;
+    }
+
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+
+    void apiRuntime.client
+      .reportGenerationIssue({
+        petId: activePet.id,
+        ...(activePet.activeGenerationJobId ? { generationJobId: activePet.activeGenerationJobId } : {}),
+        category
+      })
+      .then((result) => {
+        if (!result.ok) {
+          setApiError(result.error);
+          return;
+        }
+
+        setApiSyncStatus("ready");
+      });
+  }, [activePet.activeGenerationJobId, activePet.id, apiRuntime, setApiError]);
+
+  const deleteOriginalPhoto = useCallback(() => {
+    const deletedAt = nowIso();
+
+    if (apiRuntime.mode !== "api") {
+      setState((current) => deletePrototypeOriginalPhoto(current, deletedAt));
+      return;
+    }
+
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+
+    void apiRuntime.client.deleteOriginalPhotos({ petId: activePet.id }).then((result) => {
+      if (!result.ok) {
+        setApiError(result.error);
+        return;
+      }
+
+      setState((current) => deletePrototypeOriginalPhoto(current, result.data.deletedAt));
+      setApiSyncStatus("ready");
+    });
+  }, [activePet.id, apiRuntime, setApiError]);
+
+  const deleteChatHistory = useCallback(() => {
+    const deletedAt = nowIso();
+
+    if (apiRuntime.mode !== "api") {
+      setState((current) => deletePrototypeChatHistory(current, deletedAt));
+      return;
+    }
+
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+
+    void apiRuntime.client.deleteChatHistory().then((result) => {
+      if (!result.ok) {
+        setApiError(result.error);
+        return;
+      }
+
+      setState((current) => deletePrototypeChatHistory(current, result.data.deletedAt));
+      setApiSyncStatus("ready");
+    });
+  }, [apiRuntime, setApiError]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (apiRuntime.mode !== "api" || !isNativeStoreCheckoutEnabled()) {
+      setNativeCheckoutReady(false);
+      return;
+    }
+
+    void startNativeStorePurchaseConnection({
+      onPurchase: (purchase) => {
+        void handleNativePurchase(purchase);
+      },
+      onError: setPurchaseError
+    }).then((result) => {
+      if (cancelled) {
+        if (result.ok) {
+          void result.connection.close();
+        }
+        return;
+      }
+
+      if (!result.ok) {
+        nativeStoreConnection.current = null;
+        setNativeCheckoutReady(false);
+        setPurchaseStatusMessage(result.messageSafe);
+        return;
+      }
+
+      nativeStoreConnection.current = result.connection;
+      setNativeCheckoutReady(true);
+      setPurchaseStatusMessage(null);
+    });
+
+    return () => {
+      cancelled = true;
+      const connection = nativeStoreConnection.current;
+      nativeStoreConnection.current = null;
+      setNativeCheckoutReady(false);
+
+      if (connection) {
+        void connection.close();
+      }
+    };
+  }, [apiRuntime.mode, handleNativePurchase, setPurchaseError]);
+
+  const purchaseProduct = useCallback(
+    async (product: CommerceProduct): Promise<PurchaseProductResult> => {
+      if (apiRuntime.mode !== "api") {
+        return {
+          ok: false,
+          messageSafe: "Store checkout is unavailable right now."
+        };
+      }
+
+      if (!getNativePurchasePlatform()) {
+        return {
+          ok: false,
+          messageSafe: "Checkout is only available on iOS or Android."
+        };
+      }
+
+      if (!isNativeStoreCheckoutEnabled()) {
+        return {
+          ok: false,
+          messageSafe: "Store checkout is unavailable right now."
+        };
+      }
+
+      const connection = nativeStoreConnection.current;
+
+      if (!nativeCheckoutReady || !connection) {
+        return {
+          ok: false,
+          messageSafe: purchaseStatusMessage ?? "Store checkout is still connecting."
+        };
+      }
+
+      setPurchaseInProgressProductId(product.productId);
+      setPurchaseStatusMessage("Opening secure checkout.");
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      try {
+        await connection.requestPurchase(product);
+      } catch (error) {
+        const messageSafe = error instanceof Error ? error.message : "Store checkout could not be started.";
+        setPurchaseError(messageSafe);
+
+        return {
+          ok: false,
+          messageSafe
+        };
+      }
+
+      return {
+        ok: true,
+        mode: "api",
+        messageSafe: "Checkout started."
+      };
+    },
+    [apiRuntime.mode, nativeCheckoutReady, purchaseStatusMessage, setPurchaseError]
+  );
+
+  const restorePurchases = useCallback(async (): Promise<RestorePurchasesResult> => {
+    if (apiRuntime.mode !== "api") {
+      return {
+        ok: true,
+        mode: "local",
+        restoredCount: 0,
+        serverVerified: false
+      };
+    }
+
+    const platform = getNativePurchasePlatform();
+
+    if (!platform) {
+      return {
+        ok: false,
+        messageSafe: "Purchases can only be restored on iOS or Android."
+      };
+    }
+
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+    setPurchaseStatusMessage("Checking store purchases.");
+
+    let restoreRequest: RestorePurchasesRequest = {
+      platform,
+      transactionIds: []
+    };
+
+    if (isNativeStoreCheckoutEnabled()) {
+      const connection = nativeStoreConnection.current;
+
+      if (!nativeCheckoutReady || !connection) {
+        const messageSafe = purchaseStatusMessage ?? "Store checkout is still connecting.";
+        setApiSyncStatus("ready");
+        setPurchaseStatusMessage(messageSafe);
+
+        return {
+          ok: false,
+          messageSafe
+        };
+      }
+
+      try {
+        const storePurchases = await connection.restorePurchases();
+        const restorePayload = await buildStoreRestorePurchasesRequest(platform, apiCommerceProducts ?? [], storePurchases);
+        restoreRequest = restorePayload.request;
+        setPurchaseStatusMessage(
+          restorePayload.eligibleCount > 0 ? "Verifying restored purchases." : "No store purchases found."
+        );
+      } catch (error) {
+        const messageSafe = error instanceof Error ? error.message : "Store purchases could not be restored.";
+        setPurchaseError(messageSafe);
+
+        return {
+          ok: false,
+          messageSafe
+        };
+      }
+    }
+
+    const result = await apiRuntime.client.restorePurchases(restoreRequest);
+
+    if (!result.ok) {
+      setApiError(result.error);
+      return {
+        ok: false,
+        messageSafe: result.error.messageSafe
+      };
+    }
+
+    setApiEntitlements((current) => mergeEntitlements(current ?? [], result.data.entitlements));
+    if (result.data.wallet) {
+      setState((current) => ({
+        ...current,
+        wallet: result.data.wallet as CreditWallet
+      }));
+    }
+    setApiSyncStatus("ready");
+    setPurchaseStatusMessage("Purchases restored.");
+
+    return {
+      ok: true,
+      mode: "api",
+      restoredCount: result.data.entitlements.length,
+      serverVerified: result.data.serverVerified
+    };
+  }, [apiRuntime, apiCommerceProducts, nativeCheckoutReady, purchaseStatusMessage, setApiError, setPurchaseError]);
+
+  const resetSession = useCallback(async () => {
+    if (apiRuntime.mode === "api" && state.petProfile?.id) {
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      const result = await apiRuntime.client.deletePrivacyPet(state.petProfile.id);
+
+      if (!result.ok) {
+        setApiError(result.error);
+        return false;
+      }
+
+      setApiSyncStatus("ready");
+    }
+
+    const initialState = createInitialPrototypeSession(nowIso());
+    setState(initialState);
+    setCareCooldownUntilByAction({});
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(createPersistedSessionEnvelope(initialState))),
+      clearCareActionCooldowns(AsyncStorage),
+      AsyncStorage.removeItem(CORRUPT_SESSION_BACKUP_KEY)
+    ]);
+
+    return true;
+  }, [apiRuntime, setApiError, state.petProfile?.id]);
+
+  const syncWallet = useCallback((wallet: CreditWallet) => {
+    setState((current) => ({
+      ...current,
+      wallet
+    }));
+  }, []);
+
+  const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+  const activeEntitlements = useMemo(() => {
+    const runtimeEntitlements = getRuntimeActiveEntitlements(apiRuntime.mode, apiEntitlements);
+
+    if (!devStoreUnlocked) {
+      return runtimeEntitlements;
+    }
+
+    return mergeEntitlements(runtimeEntitlements, getDevelopmentStoreEntitlements(state.wallet.userId, nowIso()));
+  }, [apiEntitlements, apiRuntime.mode, devStoreUnlocked, state.wallet.userId]);
+  const generatedAssetUriById = useMemo(
+    () => buildGeneratedAssetUriMap(generatedAssetReadUrls, state.acceptedAsset, state.acceptedAssets),
+    [generatedAssetReadUrls, state.acceptedAsset, state.acceptedAssets]
+  );
+
+  const sessionNow = useMemo(() => nowIso(), [sessionClock, state.careState]);
+  const projectedCareState = projectCareStateForTime(state.careState, sessionNow, state.activeBuffs ?? []);
+  const satisfactionSummary = getCareSatisfactionSummary(projectedCareState, sessionNow);
+
+  const attemptKey = getGenerationAttemptKey(state);
+
+  if (generationProgressGaugeRef.current.attemptKey !== attemptKey) {
+    generationProgressGaugeRef.current = { attemptKey, maxProgress: 0 };
+  }
+
+  const generationProgress = getMonotonicGenerationProgress(state, generationProgressGaugeRef.current.maxProgress);
+  generationProgressGaugeRef.current.maxProgress = generationProgress;
+
+  const value: TerrariumSessionContextValue = {
+    ...state,
+    careState: projectedCareState,
+    activePet,
+    catalogItems,
+    careCooldownUntilByAction,
+    canContinuePetSetup: canContinuePetSetup(state),
+    canContinuePhotoStep: canContinuePhotoStep(state),
+    canCreatePet: canCreatePet(state),
+    satisfactionScore: satisfactionSummary.score,
+    satisfactionSummary,
+    bondProgress: getBondProgressValue(state.relationshipState),
+    creditBalance: devStoreUnlocked
+      ? Math.max(DEVELOPMENT_STORE_CREDIT_BALANCE, getSpendableCreditBalance(state.wallet))
+      : getSpendableCreditBalance(state.wallet),
+    generationProgress,
+    generationPollSnapshot: getPrototypeGenerationPollSnapshot(state),
+    generatedAssetUriById,
+    commerceProducts: apiCommerceProducts ?? [],
+    activeEntitlements,
+    entitlementsCount: activeEntitlements.length,
+    hasPremiumChatEntitlement:
+      activeEntitlements.some((entitlement) => entitlement.key === "premium_chat"),
+    isHydrated,
+    runtimeMode: apiRuntime.mode,
+    apiSyncStatus,
+    apiErrorMessage,
+    nativeCheckoutReady,
+    purchaseInProgressProductId,
+    purchaseStatusMessage,
+    devStoreUnlocked,
+    weatherLocationStatus,
+    weatherLocationMessage,
+    updateDraft,
+    togglePersonalityTag,
+    setMockPhotoSelected,
+    setSelectedPhotoUri,
+    setConsentAccepted,
+    startMockGeneration,
+    advanceMockGeneration,
+    pollMockGeneration,
+    retryMockGeneration,
+    acceptGeneratedPet,
+    performCareAction,
+    setCareActionCooldown,
+    setWeatherScenesEnabled,
+    setManualWeatherCondition,
+    refreshWeatherFromApproximateLocation,
+    refreshWalk,
+    claimWalkReward,
+    completeWalkEarly,
+    applyTheme,
+    purchaseThemeBundle,
+    expressionPackPurchaseStatusById,
+    purchaseExpressionPack,
+    reportGenerationIssue,
+    deleteOriginalPhoto,
+    deleteChatHistory,
+    purchaseCatalogItem,
+    purchaseProduct,
+    restorePurchases,
+    syncWallet,
+    resetSession
+  };
+
+  return <TerrariumSessionContext.Provider value={value}>{children}</TerrariumSessionContext.Provider>;
+}
+
+export function useTerrariumSession() {
+  const context = useContext(TerrariumSessionContext);
+
+  if (!context) {
+    throw new Error("useTerrariumSession must be used inside TerrariumSessionProvider");
+  }
+
+  return context;
+}
+
+export type { WalkSession };

@@ -1,0 +1,154 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
+    "npm:@supabase/supabase-js@2": "2.110.0",
+    "npm:fast-png@7": "7.0.1"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "npm": {
+    "@supabase/auth-js@2.110.0": {
+      "integrity": "sha512-Mi288WCTp6wxMFCOu/UgzgHEXODjdl2uVTLqK11eanzGZaldU3RyP8Am+ZbNuVzFP+5+iOvppxzv7N5Ym84xTg==",
+      "dependencies": [
+        "tslib"
+      ]
+    },
+    "@supabase/functions-js@2.110.0": {
+      "integrity": "sha512-Fde5wlY8ZZy+9yqrWlQHo8MacSyUBArBEtN2boB4thJQigPnQD/cc61qZN0n3I1L0gwhWtHYwIMnOBKxSvF6Hw==",
+      "dependencies": [
+        "tslib"
+      ]
+    },
+    "@supabase/phoenix@0.4.4": {
+      "integrity": "sha512-Gt0pqoXuIqX/8dvG0OKp/wMCobXNH3klNbUPBNyOfN0YA1IswrM3HyWFMOPk1Jy+BRaIyDPcFx4jLBwHNmlyfQ=="
+    },
+    "@supabase/postgrest-js@2.110.0": {
+      "integrity": "sha512-ZbC1QZL3jcvBUfVKjJbgRM27G4Mg3Zzqdm44m5pJafe1e52Cli793EOnwQucomBAGEUDd03Nzaf7XV3ji/XexQ==",
+      "dependencies": [
+        "tslib"
+      ]
+    },
+    "@supabase/realtime-js@2.110.0": {
+      "integrity": "sha512-Wn2AWpneZuDFTkp/65tqctvoh+3JvyTjMam8sTMqVWy5BgkU8zAvFwilPYPPPhkINeKF8NAJKP7FclJ2iGCUMw==",
+      "dependencies": [
+        "@supabase/phoenix",
+        "tslib"
+      ]
+    },
+    "@supabase/storage-js@2.110.0": {
+      "integrity": "sha512-71+gU3HrhiylAhftY6FmO5PPdcsScnVcS766CVD+vTYK9qTDLbrx8FhgBYbqGm3iV/wkTfzrNJfjGsMeFRkJRQ==",
+      "dependencies": [
+        "iceberg-js",
+        "tslib"
+      ]
+    },
+    "@supabase/supabase-js@2.110.0": {
+      "integrity": "sha512-8yI84VJiEVW4zxZpLUmxXmjzQ7O2St9X/ymzlBETDHTURPWG3LmvbSiibq+7dqAJmyoUfxZnSfXeM4HCM8s4XQ==",
+      "dependencies": [
+        "@supabase/auth-js",
+        "@supabase/functions-js",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/storage-js"
+      ]
+    },
+    "@types/pako@2.0.4": {
+      "integrity": "sha512-VWDCbrLeVXJM9fihYodcLiIv0ku+AlOa/TQ1SvYOaBuyrSKgEcro95LJyIsJ4vSo6BXIxOKxiJAat04CmST9Fw=="
+    },
+    "fast-png@7.0.1": {
+      "integrity": "sha512-aD5BELuxRrAPlRhb9V/z1PVMFJy3cUXqIvoxM3IQ+7Rku+T4cbXxWclZ47f1XwhViEl4n30TAN8JmvTJKKc2Dw==",
+      "dependencies": [
+        "@types/pako",
+        "iobuffer",
+        "pako"
+      ]
+    },
+    "iceberg-js@0.8.1": {
+      "integrity": "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="
+    },
+    "iobuffer@6.0.1": {
+      "integrity": "sha512-SZWYkWNfjIXIBYSDpXDYIgshqtbOPsi4lviawAEceR1Kqk+sHDlcQjWrzNQsii80AyBY0q5c8HCTNjqo74ul+Q=="
+    },
+    "pako@2.2.0": {
+      "integrity": "sha512-zJq6RP/5q+TO2OpFV3FHzlPnFjmkb7Nc99a5SNjJE+uu/PkpChs+NIZSSzbBoD+6kjiISXjfYdwj1ZRQ81dz/w=="
+    },
+    "tslib@2.8.1": {
+      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:pngjs@^3.4.0",
+        "npm:typescript@6.0.3",
+        "npm:vitest@^4.1.9"
+      ]
+    },
+    "members": {
+      "apps/mobile": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@mongchi/shared@0.1.0",
+            "npm:@react-native-async-storage/async-storage@2.2.0",
+            "npm:@supabase/supabase-js@^2.109.0",
+            "npm:@types/react@19.2.17",
+            "npm:expo-crypto@^56.0.4",
+            "npm:expo-dev-client@~56.0.20",
+            "npm:expo-file-system@~56.0.8",
+            "npm:expo-font@~56.0.7",
+            "npm:expo-iap@^4.3.3",
+            "npm:expo-image-manipulator@~56.0.20",
+            "npm:expo-image-picker@~56.0.18",
+            "npm:expo-location@~56.0.18",
+            "npm:expo-notifications@~56.0.19",
+            "npm:expo-router@~56.2.11",
+            "npm:expo-secure-store@~56.0.4",
+            "npm:expo-status-bar@56.0.4",
+            "npm:expo@56.0.12",
+            "npm:lottie-react-native@~7.3.4",
+            "npm:lucide-react-native@1.21.0",
+            "npm:react-native-reanimated@4.3.1",
+            "npm:react-native-safe-area-context@5.7",
+            "npm:react-native-screens@4.25.2",
+            "npm:react-native-svg@15.15.4",
+            "npm:react-native@0.85.3",
+            "npm:react@19.2.3",
+            "npm:typescript@6.0.3"
+          ]
+        }
+      },
+      "services/api": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@mongchi/ai-worker@0.1.0",
+            "npm:@mongchi/shared@0.1.0",
+            "npm:@types/pg@^8.20.0",
+            "npm:pg@^8.22.0",
+            "npm:tsx@^4.22.4",
+            "npm:typescript@6.0.3"
+          ]
+        }
+      },
+      "workers/ai": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@mongchi/shared@0.1.0",
+            "npm:sharp@~0.34.5",
+            "npm:typescript@6.0.3"
+          ]
+        }
+      }
+    }
+  }
+}

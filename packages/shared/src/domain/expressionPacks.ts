@@ -1,0 +1,49 @@
+import type { GeneratedAssetState } from "./assets";
+
+/**
+ * A purchasable expression pack: a small set of additional generated-asset
+ * states beyond the free idle/happy/sleep trio. Buying a pack starts a
+ * server-side generation job scoped to just its states (see
+ * supabaseGenerationSession.ts's expression-pack start flow) — once that job
+ * completes, the new assets are merged into acceptedAssets and the reaction
+ * engine (selectGeneratedAssetForReaction) picks them up automatically
+ * whenever a matching reaction fires. Kept as an array so future packs can be
+ * added without any shape change.
+ */
+export interface ExpressionPack {
+  id: string;
+  nameEn: string;
+  nameKo: string;
+  descriptionEn: string;
+  descriptionKo: string;
+  /** Generated-asset states this pack unlocks. Never overlaps the free idle/happy/sleep trio. */
+  states: readonly GeneratedAssetState[];
+  creditCost: number;
+}
+
+/**
+ * Vertical-slice launch pack: the three states a companion reaches most often
+ * through everyday play (see petExpression.ts's deriveAmbientPetAssetState
+ * for hungry/sleep priority, and assetStateForReactionCategory for
+ * curious/hungry's reaction-category mappings) -- these are the expressions
+ * an owner will actually see fire soonest after unlocking, rather than a rare
+ * one like celebrate or garden_help.
+ */
+export const expressionPacks: ExpressionPack[] = [
+  {
+    id: "pack-everyday-moments",
+    nameEn: "Everyday Moments",
+    nameKo: "일상의 순간들",
+    descriptionEn: "A few more everyday looks — curious, playful, and a little hungry.",
+    descriptionKo: "궁금해하고, 신나게 놀고, 배고파하는 모습까지 — 일상 속 표정을 더 만나보세요.",
+    states: ["curious", "play", "hungry"],
+    creditCost: 12
+  }
+];
+
+export const getExpressionPackById = (packId: string): ExpressionPack | null =>
+  expressionPacks.find((pack) => pack.id === packId) ?? null;
+
+/** True once every state in the pack has a matching generated asset already accepted. */
+export const isExpressionPackUnlocked = (pack: ExpressionPack, acceptedAssetStates: readonly GeneratedAssetState[]): boolean =>
+  pack.states.every((state) => acceptedAssetStates.includes(state));

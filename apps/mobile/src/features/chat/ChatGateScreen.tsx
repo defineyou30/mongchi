@@ -1,0 +1,804 @@
+import { router } from "expo-router";
+import { Lock, MessageCircle, Mic, Send } from "lucide-react-native";
+import { memo, useMemo, useState } from "react";
+import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import type { ImageSourcePropType } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import {
+  defaultWeatherContext,
+  getCareDaysAway,
+  getPremiumChatPaymentPreview,
+  getWeatherScenePresentation,
+  premiumChatGate,
+  selectGeneratedAssetForReaction
+} from "@mongchi/shared";
+import type { ConversationMessage } from "@mongchi/shared";
+
+import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
+import { playSfx } from "../../shared/audio";
+import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
+import { getWeatherBackgroundSource } from "../../shared/assets/weatherSceneAssets";
+import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
+import { BackButton } from "../../shared/ui/BackButton";
+import { useTypewriter } from "../../shared/ui/useTypewriter";
+import { WeatherSceneLayer } from "../../shared/ui/WeatherSceneLayer";
+import { createConfiguredDailyLoopApiClient } from "../session/apiDailyLoopSession";
+import { sendApiPremiumChatTurn, startApiPremiumChatThread } from "../session/apiPremiumChatSession";
+import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+import {
+  getChatConversationStarters,
+  getPremiumChatAccessPresentation,
+  getShortChatReplyText
+} from "./chatGatePresentation";
+
+type ChatStatus = "idle" | "starting" | "ready" | "sending";
+
+const chatPipSegments = [0, 1, 2, 3, 4] as const;
+const speechBubbleAsset: ImageSourcePropType = require("../../../assets/generated/ui/speech-bubble-v1.png");
+/** Chat typing speed, within the 30-50ms warm typing feel used across the app. */
+const chatTypewriterMsPerChar = 38;
+
+interface PetThoughtBubbleProps {
+  petName: string;
+  text: string;
+  msPerChar: number;
+  enabled: boolean;
+  bubbleFontFamily: string;
+}
+
+/**
+ * Owns the typewriter hook in its own memoized component so the once-per-char
+ * setState it drives only re-renders this small bubble subtree, not the whole
+ * chat screen (input bar, message stack, payment strip, etc). Before this
+ * split, every keystroke of the typewriter re-ran ChatGateScreen's full body
+ * and re-rendered its entire tree, which read as animation jank on device.
+ */
+const PetThoughtBubble = memo(function PetThoughtBubble({ petName, text, msPerChar, enabled, bubbleFontFamily }: PetThoughtBubbleProps) {
+  const petThought = useTypewriter({ text, msPerChar, enabled });
+
+  return (
+    <Pressable
+      accessibilityRole="text"
+      accessibilityLabel={`${petName} says ${text}`}
+      accessibilityHint={petThought.isComplete ? undefined : "Tap to show the full message right away"}
+      style={styles.petThoughtPressable}
+      onPress={petThought.skip}
+    >
+      <ImageBackground
+        accessibilityElementsHidden
+        imageStyle={styles.petThoughtImage}
+        resizeMode="stretch"
+        source={speechBubbleAsset}
+        style={styles.petThought}
+      >
+        <View style={styles.petThoughtTextBox}>
+          <Text numberOfLines={2} style={[styles.petThoughtText, { fontFamily: bubbleFontFamily }]}>
+            {petThought.displayedText}
+          </Text>
+        </View>
+      </ImageBackground>
+    </Pressable>
+  );
+});
+
+export function ChatGateScreen() {
+  const {
+    acceptedAsset,
+    acceptedAssets,
+    activePet,
+    careState,
+    careStats,
+    creditBalance,
+    generatedAssetUriById,
+    hasPremiumChatEntitlement,
+    memories,
+    recentReactions,
+    runtimeMode,
+    satisfactionScore,
+    satisfactionSummary,
+    syncWallet,
+    weatherState,
+    wallet
+  } = useTerrariumSession();
+  const fontFamilies = useFontFamilies();
+  const [apiRuntime] = useState(() => createConfiguredDailyLoopApiClient());
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [quickTalkStartedAtMs] = useState<number | null>(null);
+  // Fixed once per mount rather than recomputed every render: the greeting
+  // copy it feeds is only time-sensitive at day granularity, so freezing it
+  // avoids re-deriving the whole chat presentation (and re-rendering the
+  // typewriter's parent tree) on every unrelated state change.
+  const [replyNow] = useState(() => new Date().toISOString());
+
+  const chatPayment = getPremiumChatPaymentPreview(wallet, hasPremiumChatEntitlement);
+  const premiumChatAccess = getPremiumChatAccessPresentation({
+    petName: activePet.name,
+    apiReady: runtimeMode === "api" && apiRuntime.mode === "api",
+    payment: chatPayment,
+    hasPremiumChatEntitlement,
+    freeChatTickets: wallet.freeChatTickets,
+    creditBalance
+  });
+  const premiumChatReady = premiumChatAccess.ready;
+  const trimmedDraft = draft.trim();
+  const chatPetAsset = selectGeneratedAssetForReaction(acceptedAssets, acceptedAsset, "chat_portrait");
+  const petAssetId = chatPetAsset?.id ?? activePet.activeAssetId ?? null;
+  const petAssetUri = petAssetId ? generatedAssetUriById[petAssetId] ?? null : null;
+  const activeWeather = weatherState.settings.enabled ? weatherState.context : defaultWeatherContext;
+  const weatherScene = useMemo(() => getWeatherScenePresentation("chat", activeWeather, "en-US"), [activeWeather]);
+  const careDaysAway = useMemo(() => getCareDaysAway(careState, replyNow), [careState, replyNow]);
+  const shortReplyText = useMemo(
+    () =>
+      getShortChatReplyText({
+        petName: activePet.name,
+        quickTalkStartedAtMs,
+        recentReactions,
+        satisfactionSummary,
+        careState,
+        weather: activeWeather,
+        now: replyNow,
+        daysAway: careDaysAway,
+        memories,
+        careStats
+      }),
+    [activePet.name, quickTalkStartedAtMs, recentReactions, satisfactionSummary, careState, activeWeather, replyNow, careDaysAway, memories, careStats]
+  );
+  const reduceMotionEnabled = useReducedMotionPreference();
+  const conversationStarters = useMemo(
+    () =>
+      getChatConversationStarters({
+        petName: activePet.name,
+        careState,
+        weather: activeWeather,
+        now: replyNow,
+        daysAway: careDaysAway
+      }),
+    [activePet.name, careState, activeWeather, replyNow, careDaysAway]
+  );
+  const showConversationStarters = premiumChatReady && !!conversationId && !trimmedDraft && chatStatus !== "sending";
+
+  const handleStartPremiumChat = async () => {
+    if (!premiumChatReady || apiRuntime.mode !== "api") {
+      return;
+    }
+
+    setChatStatus("starting");
+    setChatError(null);
+
+    const started = await startApiPremiumChatThread(apiRuntime.client, activePet.id);
+
+    if (!started.ok) {
+      setChatError(started.error.messageSafe);
+      setChatStatus("idle");
+      return;
+    }
+
+    setConversationId(started.thread.conversationId);
+    setMessages(started.thread.messages);
+    setChatError(started.warning?.messageSafe ?? null);
+    setChatStatus("ready");
+  };
+
+  const handleSendPremiumMessage = async () => {
+    if (!premiumChatReady || apiRuntime.mode !== "api" || !conversationId || !trimmedDraft) {
+      return;
+    }
+
+    playSfx("sfx_tap");
+    setChatStatus("sending");
+    setChatError(null);
+
+    const sent = await sendApiPremiumChatTurn(
+      apiRuntime.client,
+      {
+        conversationId,
+        messages
+      },
+      draft
+    );
+
+    if (!sent.ok) {
+      setChatError(sent.error.messageSafe);
+      setChatStatus("ready");
+      return;
+    }
+
+    syncWallet(sent.wallet);
+    setMessages(sent.thread.messages);
+    setDraft("");
+    setChatStatus("ready");
+  };
+
+  const renderMessage = (message: ConversationMessage) => {
+    const isUser = message.sender === "user";
+    const isPet = message.sender === "pet_ai";
+
+    return (
+      <View key={message.id} style={[styles.chatBubble, isUser ? styles.userBubble : styles.petBubble, !isUser && !isPet ? styles.systemBubble : null]}>
+        <Text style={[styles.messageLabel, { fontFamily: fontFamilies.label }, isUser ? styles.userMessageLabel : null]}>
+          {isUser ? "You" : isPet ? activePet.name : "Notice"}
+        </Text>
+        <Text numberOfLines={3} style={[styles.messageText, { fontFamily: fontFamilies.body }, isUser ? styles.userMessageText : null]}>
+          {message.text}
+        </Text>
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.chatRoot}>
+      <ImageBackground accessibilityElementsHidden resizeMode="cover" source={getWeatherBackgroundSource(weatherScene.backgroundKey)} style={styles.chatBackground}>
+        <View style={styles.chatSceneWash} />
+        <WeatherSceneLayer overlayKey={weatherScene.overlayKey} />
+      </ImageBackground>
+
+      <SafeAreaView accessibilityLabel={`${activePet.name}'s garden chat. ${weatherScene.accessibilityLabel}`} edges={["top", "left", "right"]} style={styles.chatSafe}>
+        <Text accessibilityRole="header" style={[styles.screenReaderTitle, { fontFamily: fontFamilies.title }]}>
+          {activePet.name}'s garden chat
+        </Text>
+        <ScrollView bounces={false} contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.sceneTopBar}>
+            <BackButton accessibilityLabel="Back home" style={styles.backButton} onPress={() => router.replace("/terrarium")} />
+          </View>
+
+          <View style={styles.chatStage}>
+            <View pointerEvents="none" style={styles.petStage}>
+              <View style={styles.petGroundShadow} />
+              <GeneratedPetAssetImage
+                accessibilityLabel="Pet in chat garden"
+                assetId={petAssetId ?? null}
+                decorative
+                remoteUri={petAssetUri ?? null}
+                style={styles.petSprite}
+              />
+            </View>
+
+            <PetThoughtBubble
+              petName={activePet.name}
+              text={shortReplyText}
+              msPerChar={chatTypewriterMsPerChar}
+              enabled={!reduceMotionEnabled}
+              bubbleFontFamily={fontFamilies.bubble}
+            />
+
+            <View style={styles.chatTray}>
+              {conversationId && messages.length > 0 ? (
+              <View style={styles.messageStack}>
+                {conversationId && messages.length > 0 ? (
+                  messages.slice(-3).map(renderMessage)
+                ) : null}
+              </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={premiumChatAccess.isLocked ? `${premiumChatAccess.ctaLabel}. ${premiumChatAccess.accessibilityLabel}` : premiumChatAccess.accessibilityLabel}
+                  accessibilityState={{ disabled: chatStatus === "starting" }}
+                  disabled={chatStatus === "starting"}
+                  style={[styles.premiumGate, chatStatus === "starting" ? styles.disabledBubble : null]}
+                  onPress={premiumChatReady ? () => void handleStartPremiumChat() : () => router.push("/shop")}
+                >
+                  <View style={styles.premiumGateIcon}>
+                    {premiumChatAccess.isLocked ? (
+                      <Lock color={colors.woodDark} size={20} strokeWidth={3} />
+                    ) : (
+                      <MessageCircle color={colors.woodDark} size={20} strokeWidth={3} />
+                    )}
+                  </View>
+                  <View style={styles.bubbleCopy}>
+                    <Text style={[styles.lockedTitle, { fontFamily: fontFamilies.title }]}>{premiumChatAccess.title}</Text>
+                    <Text numberOfLines={2} style={[styles.lockedText, { fontFamily: fontFamilies.body }]}>
+                      {premiumChatReady && chatStatus === "starting" ? "Opening a cozy thread..." : premiumChatAccess.detail}
+                    </Text>
+                  </View>
+                </Pressable>
+                )}
+
+              {chatError ? (
+                <View style={styles.errorBubble}>
+                  <Text style={[styles.errorText, { fontFamily: fontFamilies.body }]}>{chatError}</Text>
+                </View>
+              ) : null}
+
+              <View
+                accessibilityLabel={`${premiumChatAccess.chatPips.label}: ${premiumChatAccess.balanceLabel}. ${premiumChatAccess.detail}`}
+                style={styles.chatPaymentStrip}
+              >
+                <View style={styles.chatPipPill}>
+                  <Text numberOfLines={1} style={[styles.chatPipLabel, { fontFamily: fontFamilies.label }]}>
+                    {premiumChatAccess.chatPips.label}
+                  </Text>
+                  <View style={styles.chatPipTrack}>
+                    {chatPipSegments.map((segment) => (
+                      <View
+                        key={segment}
+                        style={[styles.chatPipDot, segment < premiumChatAccess.chatPips.filled ? styles.chatPipDotFilled : null]}
+                      />
+                    ))}
+                    {premiumChatAccess.chatPips.overflow > 0 ? (
+                      <Text style={[styles.chatPipOverflow, { fontFamily: fontFamilies.label }]}>+{premiumChatAccess.chatPips.overflow}</Text>
+                    ) : null}
+                  </View>
+                </View>
+                <Text numberOfLines={1} style={[styles.chatPaymentText, { fontFamily: fontFamilies.body }]}>
+                  {conversationId ? chatPayment.detail : premiumChatAccess.detail}
+                </Text>
+              </View>
+
+              {showConversationStarters ? (
+                <View accessibilityLabel="Conversation starters" style={styles.starterRow}>
+                  {conversationStarters.map((starter) => (
+                    <Pressable
+                      key={starter}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use starter: ${starter}`}
+                      style={({ pressed }) => [styles.starterChip, pressed ? styles.starterChipPressed : null]}
+                      onPress={() => setDraft(starter)}
+                    >
+                      <Text numberOfLines={1} style={[styles.starterChipText, { fontFamily: fontFamilies.body }]}>
+                        {starter}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.inputBar}>
+                <View style={styles.micButton}>
+                  <Mic color={colors.white} size={22} strokeWidth={2.8} />
+                </View>
+                <TextInput
+                  accessibilityLabel="Premium chat message"
+                  editable={premiumChatReady && !!conversationId && chatStatus !== "sending"}
+                  value={draft}
+                  placeholder={premiumChatReady && conversationId ? `Message ${activePet.name}` : premiumChatAccess.inputPlaceholder}
+                  placeholderTextColor={colors.mutedInk}
+                  maxLength={240}
+                  style={[styles.chatInput, { fontFamily: fontFamilies.body }]}
+                  onChangeText={setDraft}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={conversationId ? "Send premium chat message" : premiumChatAccess.ctaLabel}
+                  accessibilityState={{ disabled: conversationId ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting" }}
+                  disabled={conversationId ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting"}
+                  style={({ pressed }) => [
+                    styles.sendButton,
+                    pressed ? styles.sendButtonPressed : null,
+                    conversationId ? (trimmedDraft ? null : styles.sendButtonDisabled) : null
+                  ]}
+                  onPress={conversationId ? () => void handleSendPremiumMessage() : premiumChatReady ? () => void handleStartPremiumChat() : () => router.push("/shop")}
+                >
+                  <Send color={colors.white} size={22} strokeWidth={3} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.disclosureStrip}>
+            <MessageCircle color={colors.skyDeep} size={14} strokeWidth={2.5} />
+            <Text style={[styles.disclosureText, { fontFamily: fontFamilies.body }]}>{premiumChatGate.disclosureText}</Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  starterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 4
+  },
+  starterChip: {
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.86)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    maxWidth: "100%"
+  },
+  starterChipPressed: {
+    backgroundColor: "rgba(255,245,222,0.96)"
+  },
+  starterChipText: {
+    color: colors.ink,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "700"
+  },
+  chatRoot: {
+    flex: 1,
+    backgroundColor: colors.skySoft
+  },
+  chatBackground: {
+    position: "absolute",
+    top: -96,
+    right: 0,
+    bottom: -96,
+    left: 0
+  },
+  chatSceneWash: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(255,245,222,0.08)"
+  },
+  chatSafe: {
+    flex: 1
+  },
+  screenReaderTitle: {
+    position: "absolute",
+    left: -1000,
+    top: 0,
+    width: 1,
+    height: 1,
+    opacity: 0
+  },
+  screenContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    // Single top-of-content gap below the safe area (~8-12pt target,
+    // matching the rest of the app's screens post-audit) -- sceneTopBar/
+    // backButton below carry no additional top margin.
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md
+  },
+  chatStage: {
+    minHeight: 628,
+    position: "relative",
+    justifyContent: "flex-end",
+    overflow: "visible"
+  },
+  sceneDoghouse: {
+    position: "absolute",
+    left: 18,
+    top: 278,
+    zIndex: 4,
+    width: 76,
+    height: 76
+  },
+  sceneToyBall: {
+    position: "absolute",
+    right: 54,
+    top: 358,
+    zIndex: 5,
+    width: 48,
+    height: 48,
+    transform: [{ rotate: "-8deg" }]
+  },
+  petStage: {
+    position: "absolute",
+    top: 130,
+    alignSelf: "center",
+    zIndex: 8,
+    width: 190,
+    height: 192,
+    alignItems: "center",
+    justifyContent: "flex-end"
+  },
+  petGroundShadow: {
+    position: "absolute",
+    bottom: 14,
+    width: 116,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: "rgba(58,70,43,0.2)",
+    transform: [{ scaleX: 1.25 }]
+  },
+  petSprite: {
+    width: 176,
+    height: 176
+  },
+  sceneTopBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    minHeight: 52,
+    marginBottom: 2,
+    zIndex: 30
+  },
+  backButton: {
+    zIndex: 10
+  },
+  petThoughtPressable: {
+    position: "absolute",
+    top: 40,
+    alignSelf: "center",
+    zIndex: 15,
+    width: 360,
+    height: 92
+  },
+  petThought: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible"
+  },
+  petThoughtImage: {
+    width: "100%",
+    height: "100%"
+  },
+  petThoughtTextBox: {
+    position: "absolute",
+    top: 16,
+    right: 36,
+    left: 36,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  petThoughtText: {
+    width: "100%",
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+    textAlign: "center",
+    flexShrink: 1,
+    textShadowColor: "rgba(255,255,255,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 0
+  },
+  chatTray: {
+    zIndex: 18,
+    gap: spacing.sm,
+    paddingTop: 0,
+    paddingBottom: spacing.sm
+  },
+  premiumGate: {
+    minHeight: 70,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: colors.cream,
+    backgroundColor: "rgba(255,232,199,0.94)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...shadows.tile
+  },
+  premiumGateIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: colors.cream,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  messageStack: {
+    gap: spacing.sm
+  },
+  chatBubble: {
+    minHeight: 54,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.86)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...shadows.tile
+  },
+  petBubble: {
+    alignSelf: "stretch",
+    backgroundColor: "rgba(218,240,255,0.92)"
+  },
+  userBubble: {
+    alignSelf: "flex-end",
+    maxWidth: "88%",
+    backgroundColor: "rgba(255,232,199,0.94)"
+  },
+  systemBubble: {
+    alignSelf: "center",
+    backgroundColor: "rgba(255,245,222,0.88)"
+  },
+  lockedBubble: {
+    alignSelf: "stretch",
+    backgroundColor: "rgba(207,180,245,0.88)"
+  },
+  disabledBubble: {
+    opacity: 0.68
+  },
+  avatarDot: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.cream,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.88)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarText: {
+    color: colors.woodDark,
+    fontSize: 17,
+    fontWeight: "900"
+  },
+  bubbleCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  messageLabel: {
+    color: colors.skyDeep,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  userMessageLabel: {
+    color: colors.woodDark
+  },
+  messageText: {
+    color: colors.ink,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "800"
+  },
+  userMessageText: {
+    color: colors.ink
+  },
+  lockedTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: "900"
+  },
+  lockedText: {
+    color: colors.woodDark,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800"
+  },
+  errorBubble: {
+    borderRadius: 16,
+    backgroundColor: "rgba(255,127,123,0.18)",
+    borderWidth: 2,
+    borderColor: colors.coral,
+    padding: spacing.sm
+  },
+  errorText: {
+    color: colors.ink,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800"
+  },
+  chatPaymentStrip: {
+    minHeight: 44,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,245,222,0.76)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.78)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    ...shadows.tile
+  },
+  chatPipPill: {
+    maxWidth: 168,
+    minHeight: 34,
+    borderRadius: 12,
+    backgroundColor: colors.cream,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.82)",
+    justifyContent: "center",
+    gap: 3,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3
+  },
+  chatPipLabel: {
+    color: colors.woodDark,
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  chatPipTrack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3
+  },
+  chatPipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(128,81,46,0.18)"
+  },
+  chatPipDotFilled: {
+    backgroundColor: colors.honey
+  },
+  chatPipOverflow: {
+    marginLeft: 2,
+    color: colors.woodDark,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: "900"
+  },
+  chatPaymentText: {
+    flex: 1,
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800"
+  },
+  inputBar: {
+    minHeight: 58,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,245,222,0.94)",
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.86)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    ...shadows.gamePanel
+  },
+  micButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(122,110,102,0.72)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  chatInput: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,255,255,0.62)",
+    borderWidth: 2,
+    borderColor: "rgba(128,81,46,0.12)",
+    color: colors.ink,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: "800",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs
+  },
+  sendButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.apple,
+    borderWidth: 3,
+    borderColor: colors.cream,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.button
+  },
+  sendButtonPressed: {
+    transform: [{ translateY: 2 }]
+  },
+  sendButtonDisabled: {
+    opacity: 0.62
+  },
+  disclosureStrip: {
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,245,222,0.74)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.72)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm
+  },
+  disclosureText: {
+    flex: 1,
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800"
+  }
+});

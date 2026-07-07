@@ -1,0 +1,86 @@
+{
+  "expo": {
+    "name": "Mongchi",
+    "slug": "mongchi",
+    "scheme": "mongchi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "backgroundColor": "#9FDBFF",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#9FDBFF"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.mongchi.mobile",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Mongchi can use your camera when you choose to take a pet photo for avatar creation.",
+        "NSPhotoLibraryUsageDescription": "Mongchi uses a pet photo you choose to create your tiny avatar.",
+        "NSPhotoLibraryAddUsageDescription": "Mongchi can save pet share images only when you ask it to.",
+        "NSLocationWhenInUseUsageDescription": "Mongchi can use approximate location when you choose local weather scenes for your pet garden.",
+        "UIStatusBarHidden": true,
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
+    },
+    "android": {
+      "package": "app.mongchi.mobile",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#8ED7C6"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-dev-client",
+        {
+          "android": {
+            "skipOnboarding": true,
+            "showMenuAtLaunch": false,
+            "toolsButton": false
+          },
+          "ios": {
+            "skipOnboarding": true,
+            "showMenuAtLaunch": false,
+            "toolsButton": false
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mongchi uses a pet photo you choose to create your tiny avatar.",
+          "cameraPermission": "Mongchi can use your camera when you choose to take a pet photo for avatar creation."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Mongchi can use approximate location when you choose local weather scenes for your pet garden."
+        }
+      ],
+      "expo-secure-store",
+      "expo-iap",
+      "expo-font",
+      "expo-notifications"
+    ]
+  }
+}
