@@ -1,7 +1,7 @@
-import { Bug, Camera, CloudRain, FileText, LifeBuoy, MapPin, MessageCircle, Music, Music2, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Volume2, VolumeX } from "lucide-react-native";
+import { Bug, Camera, CloudRain, Download, FileText, LifeBuoy, MapPin, MessageCircle, Music, Music2, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Upload, Volume2, VolumeX } from "lucide-react-native";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Share, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { syncAmbienceWithSettings, syncBgmWithSettings, useAudioSettings } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
@@ -46,10 +46,15 @@ export function SettingsScreen() {
     weatherState,
     weatherLocationMessage,
     weatherLocationStatus,
-    resetSession
+    resetSession,
+    exportSessionBackup,
+    importSessionBackup
   } = useTerrariumSession();
   const privacyActionInProgress = apiSyncStatus === "syncing";
   const privacyActionError = apiSyncStatus === "error" ? apiErrorMessage : null;
+  const [restoreModalVisible, setRestoreModalVisible] = useState(false);
+  const [restoreInputText, setRestoreInputText] = useState("");
+  const [restoreInFlight, setRestoreInFlight] = useState(false);
   const weatherLocationInProgress = weatherLocationStatus === "requesting";
   const activeWeatherIndex = Math.max(0, weatherPreviewOptions.findIndex((option) => option.condition === weatherState.context.condition));
   const activeWeather = weatherPreviewOptions[activeWeatherIndex] ?? fallbackWeatherPreview;
@@ -116,6 +121,72 @@ export function SettingsScreen() {
       primaryLabel: "Delete",
       secondaryLabel: "Cancel",
       onPrimary: deleteChatHistory
+    });
+  };
+
+  // "Back up your friend": hands the current session envelope to RN's
+  // built-in Share sheet as a named JSON file, so the user can save it to
+  // iCloud/Files, Notes, or email it to themselves -- no new native
+  // dependency needed (see docs/readiness-diagnosis.md item 4).
+  const handleExportBackup = () => {
+    const result = exportSessionBackup();
+
+    if (!result.ok) {
+      showDialog({ title: "Backup", message: result.messageSafe });
+      return;
+    }
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+
+    void Share.share({
+      title: `mongchi-backup-${todayKey}.json`,
+      message: result.backupText
+    }).catch(() => {
+      showDialog({ title: "Backup", message: "Couldn't open the share sheet. Please try again." });
+    });
+  };
+
+  const openRestoreModal = () => {
+    setRestoreInputText("");
+    setRestoreModalVisible(true);
+  };
+
+  const closeRestoreModal = () => {
+    if (restoreInFlight) {
+      return;
+    }
+
+    setRestoreModalVisible(false);
+    setRestoreInputText("");
+  };
+
+  const confirmRestoreFromBackup = () => {
+    if (restoreInputText.trim().length === 0) {
+      showDialog({ title: "Restore from backup", message: "Paste your backup text first." });
+      return;
+    }
+
+    showDialog({
+      title: "Restore this backup?",
+      message: "This will replace your current garden. Your current friend will be backed up first, just in case.",
+      primaryLabel: "Restore",
+      secondaryLabel: "Cancel",
+      onPrimary: () => {
+        setRestoreInFlight(true);
+
+        void importSessionBackup(restoreInputText)
+          .then((result) => {
+            if (!result.ok) {
+              showDialog({ title: "Restore from backup", message: result.messageSafe });
+              return;
+            }
+
+            setRestoreModalVisible(false);
+            setRestoreInputText("");
+            showDialog({ title: "Welcome back!", message: "Your garden has been restored from the backup." });
+          })
+          .finally(() => setRestoreInFlight(false));
+      }
     });
   };
 
@@ -389,6 +460,48 @@ export function SettingsScreen() {
             onPress={confirmDeleteChatHistory}
           />
         </View>
+
+        <View style={styles.rowDivider} />
+
+        <View style={styles.compactRow}>
+          <View style={styles.compactIconFrame}>
+            <Download color={colors.leaf} size={18} strokeWidth={2.6} />
+          </View>
+          <View style={styles.compactCopy}>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Back up your friend</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
+              Save a copy of your garden so it's never only on this device.
+            </Text>
+          </View>
+          <ActionButton
+            label="Export"
+            Icon={Download}
+            variant="secondary"
+            size="compact"
+            style={styles.compactAction}
+            onPress={handleExportBackup}
+          />
+        </View>
+
+        <View style={styles.compactRow}>
+          <View style={styles.compactIconFrame}>
+            <Upload color={colors.leaf} size={18} strokeWidth={2.6} />
+          </View>
+          <View style={styles.compactCopy}>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Restore from backup</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
+              Paste a saved backup to bring your garden back.
+            </Text>
+          </View>
+          <ActionButton
+            label="Restore"
+            Icon={Upload}
+            variant="secondary"
+            size="compact"
+            style={styles.compactAction}
+            onPress={openRestoreModal}
+          />
+        </View>
       </View>
 
       <View style={styles.settingsSection}>
@@ -486,6 +599,51 @@ export function SettingsScreen() {
           onPress={handleReset}
         />
       </View>
+
+      <Modal transparent animationType="fade" statusBarTranslucent visible={restoreModalVisible} onRequestClose={closeRestoreModal}>
+        <View style={styles.restoreOverlay}>
+          <View accessibilityRole="alert" style={styles.restoreCard}>
+            <Text accessibilityRole="header" style={[styles.restoreTitle, { fontFamily: fontFamilies.title }]}>
+              Restore from backup
+            </Text>
+            <Text style={[styles.restoreHint, { fontFamily: fontFamilies.body }]}>
+              Paste the backup text you saved earlier (from iCloud, Notes, or email).
+            </Text>
+            <TextInput
+              value={restoreInputText}
+              onChangeText={setRestoreInputText}
+              placeholder="Paste your backup JSON here"
+              placeholderTextColor={colors.mutedInk}
+              multiline
+              editable={!restoreInFlight}
+              style={styles.restoreInput}
+              accessibilityLabel="Backup text"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.restoreActions}>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.restoreButton, styles.restoreSecondaryButton]}
+                disabled={restoreInFlight}
+                onPress={closeRestoreModal}
+              >
+                <Text style={[styles.restoreButtonText, styles.restoreSecondaryButtonText]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.restoreButton, styles.restorePrimaryButton, restoreInFlight ? styles.restoreButtonDisabled : null]}
+                disabled={restoreInFlight}
+                onPress={confirmRestoreFromBackup}
+              >
+                <Text style={[styles.restoreButtonText, styles.restorePrimaryButtonText]}>
+                  {restoreInFlight ? "Restoring" : "Restore"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </GardenSceneFrame>
   );
 }
@@ -716,5 +874,85 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700"
+  },
+  restoreOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(20,24,38,0.42)",
+    padding: 24
+  },
+  restoreCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 28,
+    borderWidth: 4,
+    borderBottomWidth: 7,
+    borderColor: colors.cream,
+    backgroundColor: "rgba(255,245,222,0.98)",
+    padding: 18,
+    gap: 12,
+    ...shadows.gamePanel
+  },
+  restoreTitle: {
+    color: colors.ink,
+    fontSize: 19,
+    lineHeight: 24,
+    fontWeight: "900"
+  },
+  restoreHint: {
+    color: colors.mutedInk,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700"
+  },
+  restoreInput: {
+    minHeight: 120,
+    maxHeight: 220,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "rgba(125,97,200,0.28)",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    color: colors.ink,
+    fontSize: 12,
+    lineHeight: 16,
+    padding: 12,
+    textAlignVertical: "top"
+  },
+  restoreActions: {
+    flexDirection: "row",
+    gap: 10
+  },
+  restoreButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 23,
+    borderWidth: 3,
+    borderBottomWidth: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12
+  },
+  restorePrimaryButton: {
+    backgroundColor: colors.apple,
+    borderColor: colors.cream
+  },
+  restoreSecondaryButton: {
+    backgroundColor: "rgba(255,255,255,0.78)",
+    borderColor: "rgba(255,255,255,0.92)"
+  },
+  restoreButtonDisabled: {
+    opacity: 0.7
+  },
+  restoreButtonText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900"
+  },
+  restorePrimaryButtonText: {
+    color: colors.white
+  },
+  restoreSecondaryButtonText: {
+    color: colors.woodDark
   }
 });

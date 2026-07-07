@@ -34,6 +34,7 @@ import {
   makeMockGeneratedAsset,
   mergePrototypeGeneratedAssets,
   normalizeRestoredGeneration,
+  parseSessionBackup,
   pollPrototypeGenerationJob,
   performPrototypeCareAction,
   projectCareStateForTime,
@@ -41,6 +42,7 @@ import {
   refreshPrototypeWalk,
   reportPrototypeGenerationIssue,
   retryPrototypeGeneration,
+  serializeSessionBackup,
   setPrototypeConsentAccepted,
   setPrototypeMockPhotoSelected,
   setPrototypeSelectedPhotoUri,
@@ -168,6 +170,13 @@ export type PurchaseExpressionPackResult =
   | { ok: true; messageSafe: string }
   | { ok: false; messageSafe: string };
 
+/** "Back up your friend": hands back the exact JSON text to share/save. Pure read of the current in-memory session -- never touches storage. */
+export type ExportSessionBackupResult = { ok: true; backupText: string } | { ok: false; messageSafe: string };
+
+export type ImportSessionBackupResult =
+  | { ok: true }
+  | { ok: false; reason: "empty_input" | "invalid_json" | "unmigratable_version" | "invalid_shape"; messageSafe: string };
+
 /** Per-pack lifecycle for the friend page's pose gallery -- "pending" covers both the job-start call and the poll loop that follows it. */
 export type ExpressionPackPurchaseStatus = "pending" | "failed";
 
@@ -241,6 +250,10 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   restorePurchases: () => Promise<RestorePurchasesResult>;
   syncWallet: (wallet: CreditWallet) => void;
   resetSession: () => Promise<boolean>;
+  /** Serializes the current session as shareable backup text (see ExportSessionBackupResult's doc comment). */
+  exportSessionBackup: () => ExportSessionBackupResult;
+  /** Validates, migrates, and restores a pasted backup (see ImportSessionBackupResult's doc comment). */
+  importSessionBackup: (backupText: string) => Promise<ImportSessionBackupResult>;
 }
 
 const STORAGE_KEY = "mongchi/prototype-session-v1";
@@ -248,6 +261,12 @@ const STORAGE_KEY = "mongchi/prototype-session-v1";
 // unmigratable version, or invalid shape after migration) — deletion is a
 // last resort, so the original data is moved here instead of discarded.
 const CORRUPT_SESSION_BACKUP_KEY = `${STORAGE_KEY}.corrupt-backup`;
+// Snapshot of the session immediately before a user-initiated backup
+// import overwrites it — lets "Restore from backup" be undone by re-running
+// import against this key's contents if the pasted backup turns out to be
+// the wrong one. Distinct from CORRUPT_SESSION_BACKUP_KEY (that one is for
+// data the app itself couldn't make sense of on cold start).
+const PRE_IMPORT_SNAPSHOT_KEY = `${STORAGE_KEY}.pre-import-snapshot`;
 const DEVELOPMENT_STORE_CREDIT_BALANCE = 9999;
 // How often a pending expression-pack job is re-polled -- fast enough to
 // feel responsive for a soft-progress purchase UX, without hammering the
@@ -1908,6 +1927,75 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     return true;
   }, [apiRuntime, activeBundle.petProfile?.id, setApiError]);
 
+  /**
+   * "Back up your friend": serializes the current in-memory session as the
+   * same versioned envelope that's already written to AsyncStorage on every
+   * change (see the persistence effect above), so a share/export always
+   * reflects exactly what would be restored on next app launch. No signed
+   * asset URLs or auth tokens are added -- state.acceptedAsset(s) only ever
+   * carries whatever URL/id shape is already sitting in session state
+   * (a short-lived signed Supabase URL in server-backed runtime mode, or a
+   * local mock placeholder in local/dev mode), so this exports nothing more
+   * sensitive than what's already on-device.
+   */
+  const exportSessionBackup = useCallback((): ExportSessionBackupResult => {
+    try {
+      return { ok: true, backupText: serializeSessionBackup(createPersistedSessionEnvelope(state)) };
+    } catch {
+      return { ok: false, messageSafe: "Couldn't put together a backup right now. Please try again." };
+    }
+  }, [state]);
+
+  /**
+   * "Restore from backup": validates+migrates the pasted text (via the same
+   * parse -> migrate -> validate pipeline restoreSession uses on cold start)
+   * before touching anything. Atomic from the caller's point of view --
+   * either every step below succeeds and the new session is committed, or
+   * nothing changes and the existing in-memory/on-disk session is left
+   * exactly as it was. The current session is snapshotted to
+   * PRE_IMPORT_SNAPSHOT_KEY right before the overwrite so a wrong-file
+   * import is still recoverable.
+   */
+  const importSessionBackup = useCallback(
+    async (backupText: string): Promise<ImportSessionBackupResult> => {
+      const parsed = parseSessionBackup(backupText);
+
+      if (!parsed.ok) {
+        const messageSafe =
+          parsed.reason === "empty_input"
+            ? "Paste your backup text first."
+            : parsed.reason === "invalid_json"
+              ? "This doesn't look like a valid backup file. Nothing was changed."
+              : parsed.reason === "unmigratable_version"
+                ? "This backup is from a newer app version and can't be restored here yet. Nothing was changed."
+                : "This backup looks incomplete. Nothing was changed.";
+
+        return { ok: false, reason: parsed.reason, messageSafe };
+      }
+
+      const restoredState = mergeRestoredSession(parsed.envelope.state as unknown as Record<string, unknown>);
+
+      try {
+        // Snapshot first: if the write below is interrupted, the pre-import
+        // session is still recoverable from PRE_IMPORT_SNAPSHOT_KEY.
+        await AsyncStorage.setItem(PRE_IMPORT_SNAPSHOT_KEY, JSON.stringify(createPersistedSessionEnvelope(state)));
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(createPersistedSessionEnvelope(restoredState)));
+      } catch {
+        return {
+          ok: false,
+          reason: "invalid_shape",
+          messageSafe: "Couldn't save the restored garden to this device. Nothing was changed."
+        };
+      }
+
+      setState(restoredState);
+      setCareCooldownUntilByAction({});
+
+      return { ok: true };
+    },
+    [state]
+  );
+
   const syncWallet = useCallback((wallet: CreditWallet) => {
     setState((current) => ({
       ...current,
@@ -2014,7 +2102,9 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     purchaseProduct,
     restorePurchases,
     syncWallet,
-    resetSession
+    resetSession,
+    exportSessionBackup,
+    importSessionBackup
   };
 
   return <TerrariumSessionContext.Provider value={value}>{children}</TerrariumSessionContext.Provider>;

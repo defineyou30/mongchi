@@ -13,3 +13,4 @@ export * from "./episodes/petStatusEngine";
 export * from "./episodes/petPushNotificationEngine";
 export * from "./session/prototypeSession";
 export * from "./session/sessionMigrations";
+export * from "./session/sessionBackup";
