@@ -1,0 +1,316 @@
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
+
+import type { CareActionType } from "@mongchi/shared";
+
+import { GameItemImage } from "../../shared/ui/GameIllustrations";
+import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
+import { getCareMomentStaging } from "./terrariumHomeCareMoment";
+import type { CareMomentBallStaging, CareMomentBowlStaging, CareMomentHeartBurstStaging } from "./terrariumHomeCareMoment";
+
+interface CareMomentLayerProps {
+  /** The most recent care action, or null when nothing has fired yet this session. */
+  action: CareActionType | null;
+  /** Timestamp of that action -- used as the remount key so the same action fired twice in a row replays its moment. */
+  actedAtMs: number | null;
+  /** Bottom offset (px) of the pet stage, so props anchor relative to where the pet actually stands (see homeStageLayout.ts). */
+  petStageBottomPx: number;
+}
+
+/**
+ * Tier 2 "care moment" context staging (docs/gamefeel-sound-plan.md §1 Tier
+ * 2): a prop appears only for the beat of the care action itself, then
+ * disappears. This is a pointerEvents="none" overlay so it never intercepts
+ * taps meant for the pet or the care dock underneath it. Sound is already
+ * wired at the call site (TerrariumHomeScreen plays careActionSfxById on
+ * every press) -- this layer is visual-only, no new audio.
+ */
+export function CareMomentLayer({ action, actedAtMs, petStageBottomPx }: CareMomentLayerProps) {
+  const reduceMotionEnabled = useReducedMotionPreference();
+
+  if (action === null || actedAtMs === null) {
+    return null;
+  }
+
+  const staging = getCareMomentStaging(action);
+
+  if (!staging) {
+    return null;
+  }
+
+  // Keying by actedAtMs (not just staging.kind) guarantees a fresh mount --
+  // and therefore a fresh animation run -- every time the same action fires
+  // again, even back to back.
+  const key = actedAtMs;
+
+  if (staging.kind === "bowl") {
+    return (
+      <BowlMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />
+    );
+  }
+
+  if (staging.kind === "ball") {
+    return <BallMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
+  }
+
+  return <HeartBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
+}
+
+function BowlMoment({
+  staging,
+  petStageBottomPx,
+  reduceMotionEnabled
+}: {
+  staging: CareMomentBowlStaging;
+  petStageBottomPx: number;
+  reduceMotionEnabled: boolean;
+}) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      // Reduced motion: skip the scale/fade choreography but still show the
+      // bowl briefly (an instant appear/disappear reads better than nothing
+      // for "what just happened"), matching the screen's existing
+      // reduce-motion pattern of holding still instead of animating.
+      progress.setValue(1);
+      const timeout = setTimeout(() => progress.setValue(0), staging.holdMs);
+
+      return () => clearTimeout(timeout);
+    }
+
+    const sequence = Animated.sequence([
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: staging.appearMs,
+        easing: Easing.out(Easing.back(1.4)),
+        useNativeDriver: true
+      }),
+      Animated.delay(staging.holdMs),
+      Animated.timing(progress, {
+        toValue: 0,
+        duration: staging.disappearMs,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true
+      })
+    ]);
+
+    sequence.start();
+
+    return () => sequence.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={[
+        styles.bowlAnchor,
+        {
+          bottom: petStageBottomPx + 6,
+          opacity: progress,
+          transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }]
+        }
+      ]}
+    >
+      <GameItemImage accessibilityLabel={staging.accessibilityLabel} decorative item={staging.item} style={styles.bowlImage} variant="action" />
+    </Animated.View>
+  );
+}
+
+function BallMoment({
+  staging,
+  petStageBottomPx,
+  reduceMotionEnabled
+}: {
+  staging: CareMomentBallStaging;
+  petStageBottomPx: number;
+  reduceMotionEnabled: boolean;
+}) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      // No arc under reduced motion -- the ball simply isn't shown mid-flight;
+      // handleCareAction's existing SFX/haptic still confirms the press landed.
+      return;
+    }
+
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: staging.totalMs,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    });
+
+    animation.start();
+
+    return () => animation.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (reduceMotionEnabled) {
+    return null;
+  }
+
+  // Rolls from just beside the pet out to the right and back down, with a
+  // bounce-ish arc (translateY dips then rises) and a spin (rotate) so it
+  // reads as a thrown ball rather than a sliding icon. No fail state -- the
+  // ball always completes its little trip and fades near the end.
+  const translateX = progress.interpolate({ inputRange: [0, 0.55, 1], outputRange: [0, 96, 132] });
+  const translateY = progress.interpolate({ inputRange: [0, 0.35, 0.7, 1], outputRange: [0, -46, -6, 0] });
+  const rotate = progress.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "540deg"] });
+  const opacity = progress.interpolate({ inputRange: [0, 0.08, 0.82, 1], outputRange: [0, 1, 1, 0] });
+  const scale = progress.interpolate({ inputRange: [0, 0.08, 1], outputRange: [0.6, 1, 0.9] });
+
+  return (
+    <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={[
+        styles.ballAnchor,
+        {
+          bottom: petStageBottomPx + 30,
+          opacity,
+          transform: [{ translateX }, { translateY }, { rotate }, { scale }]
+        }
+      ]}
+    >
+      <GameItemImage accessibilityLabel={staging.accessibilityLabel} decorative item={staging.item} style={styles.ballImage} variant="action" />
+    </Animated.View>
+  );
+}
+
+function HeartBurstMoment({
+  staging,
+  petStageBottomPx,
+  reduceMotionEnabled
+}: {
+  staging: CareMomentHeartBurstStaging;
+  petStageBottomPx: number;
+  reduceMotionEnabled: boolean;
+}) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      return;
+    }
+
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: staging.totalMs,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true
+    });
+
+    animation.start();
+
+    return () => animation.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (reduceMotionEnabled) {
+    return null;
+  }
+
+  // 2-3 small hearts drift up and fade near the tap point (just above the
+  // pet's body), each offset slightly in x and with a small stagger so they
+  // don't read as one blob.
+  const heartOffsets = heartOffsetsByCount[staging.heartCount] ?? defaultHeartOffsets;
+
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={[styles.heartAnchor, { bottom: petStageBottomPx + 140 }]}
+    >
+      {heartOffsets.map((offsetX, index) => {
+        const staggerStart = index * 0.12;
+        const localProgress = progress.interpolate({
+          inputRange: [0, Math.min(0.999, staggerStart), 1],
+          outputRange: [0, 0, 1],
+          extrapolate: "clamp"
+        });
+
+        return (
+          <Animated.Text
+            key={offsetX}
+            style={[
+              styles.heartGlyph,
+              {
+                left: offsetX,
+                opacity: localProgress.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 1, 1, 0] }),
+                transform: [
+                  { translateY: localProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -54] }) },
+                  { scale: localProgress.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.4, 1, 0.9] }) }
+                ]
+              }
+            ]}
+          >
+            {"❤"}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+
+const defaultHeartOffsets = [-26, 0, 26];
+
+const heartOffsetsByCount: Record<number, number[]> = {
+  2: [-18, 18],
+  3: defaultHeartOffsets
+};
+
+const styles = StyleSheet.create({
+  bowlAnchor: {
+    position: "absolute",
+    alignSelf: "center",
+    left: "50%",
+    marginLeft: 46,
+    zIndex: 54,
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  bowlImage: {
+    width: 60,
+    height: 60
+  },
+  ballAnchor: {
+    position: "absolute",
+    alignSelf: "center",
+    left: "50%",
+    marginLeft: -20,
+    zIndex: 54,
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  ballImage: {
+    width: 44,
+    height: 44
+  },
+  heartAnchor: {
+    position: "absolute",
+    alignSelf: "center",
+    left: "50%",
+    marginLeft: -30,
+    zIndex: 56,
+    width: 60,
+    height: 20
+  },
+  heartGlyph: {
+    position: "absolute",
+    fontSize: 20,
+    lineHeight: 22,
+    color: "#FF6B8A"
+  }
+});

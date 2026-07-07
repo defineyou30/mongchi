@@ -56,6 +56,7 @@ import {
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { requestNotificationPermissionAfterFirstCareAction } from "../notifications/notificationPermission";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
+import { CareMomentLayer } from "./CareMomentLayer";
 import { HomeCareActionTray } from "./HomeCareActionTray";
 import type {
   HomeCareActionFeedbackIcon,
@@ -1510,6 +1511,11 @@ export function TerrariumHomeScreen() {
                   </Text>
                 </ImageBackground>
               </Pressable>
+              <CareMomentLayer
+                action={lastActionSnapshot?.action ?? null}
+                actedAtMs={lastActionSnapshot?.actedAtMs ?? null}
+                petStageBottomPx={homePetStageBottomPx}
+              />
             </>
           )}
           {eventToastQueue[0] ? (
