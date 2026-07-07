@@ -73,6 +73,7 @@ const publicConfig = {
   EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL: normalizeEmail(process.env.EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL)
 };
 const developmentAuthFallback = normalizeBoolean(process.env.EXPO_PUBLIC_TINY_PET_ALLOW_DEVELOPMENT_AUTH_FALLBACK);
+const devUnlockStore = normalizeBoolean(process.env.EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE);
 const nativeCheckoutEnabledRaw = process.env.EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT?.trim() ?? "";
 const nativeCheckoutEnabled = nativeCheckoutEnabledRaw ? normalizeBoolean(nativeCheckoutEnabledRaw) : false;
 const apiBaseUrl = normalizeUrl(process.env.EXPO_PUBLIC_TINY_PET_API_BASE_URL);
@@ -507,6 +508,10 @@ if (production) {
 
   if (developmentAuthFallback !== false) {
     failures.push("EXPO_PUBLIC_TINY_PET_ALLOW_DEVELOPMENT_AUTH_FALLBACK must be set to false for production builds.");
+  }
+
+  if (devUnlockStore === true) {
+    failures.push("EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE must not be set to true for production builds.");
   }
 
   if (mockAuthToken) {

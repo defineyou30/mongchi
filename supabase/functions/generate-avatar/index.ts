@@ -120,6 +120,15 @@ const DEFAULT_IMAGE_QUALITY = Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "low";
 const RATE_LIMIT_WINDOW_SECONDS = 300;
 const RATE_LIMIT_MAX_ATTEMPTS = 3;
 
+// Hard cap on how many distinct states a single expression-pack request can
+// ask for. Without this, a client could submit requested_states padded with
+// duplicates (e.g. ['happy','happy',...] x hundreds) and turn one rate-limit
+// slot into an unbounded number of paid OpenAI generation calls, since
+// generation fans out per requested state. Deduplication happens before this
+// cap is enforced (see the isExpressionPackRequest validation below), so the
+// cap always bounds distinct, billable states -- not raw array length.
+const MAX_EXPRESSION_PACK_STATES = 6;
+
 // Per-OpenAI-call abort timeout. Chosen so that safety check (1 call) +
 // state generation (calls now run in parallel, so this is ~1 call's worth of
 // wall time) + upload can all fail fast enough to leave room, within the
@@ -1230,10 +1239,10 @@ const runPipeline = async (input: {
 // HTTP handler
 // ---------------------------------------------------------------------------
 
-const jsonResponse = (body: unknown, status: number): Response =>
+const jsonResponse = (body: unknown, status: number, extraHeaders?: Record<string, string>): Response =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json", ...extraHeaders }
   });
 
 // species is required; petName/personalityTags/talkingStyle are optional so
@@ -1340,7 +1349,16 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "invalid_request" }, 400);
     }
 
-    requestedStates = body.requested_states;
+    // Dedup before enforcing the hard cap so a padded/repeated array (e.g.
+    // hundreds of 'happy' entries) can't smuggle amplified generation work
+    // through the length check below -- see MAX_EXPRESSION_PACK_STATES.
+    const dedupedStates = Array.from(new Set(body.requested_states));
+
+    if (dedupedStates.length === 0 || dedupedStates.length > MAX_EXPRESSION_PACK_STATES) {
+      return jsonResponse({ error: "invalid_request" }, 400);
+    }
+
+    requestedStates = dedupedStates;
 
     // Ownership check: the Edge Function runs with the service_role key
     // (bypasses RLS) and downloads whatever path it's given, so an
@@ -1359,10 +1377,13 @@ Deno.serve(async (req: Request) => {
   });
 
   // 3. Rate limit: cap burst attempts before touching quota or doing any
-  // paid work. A fail-open policy is used for an unexpected RPC error here
+  // paid work. For ordinary photo generations, an RPC error here fails open
   // (log and continue) rather than blocking every request on this guard's
   // own availability -- quota consumption right below remains the
-  // authoritative "how many total" check regardless.
+  // authoritative "how many total" check regardless. Expression pack mode
+  // has no quota gate (see step 4 below), so this rate limit is its *only*
+  // server-side guard against amplification -- an RPC error there must fail
+  // closed instead, or the guard disappears exactly when it's needed most.
   const { data: rateLimitOk, error: rateLimitError } = await admin.rpc("check_generation_rate_limit", {
     p_user: userId,
     p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
@@ -1370,9 +1391,21 @@ Deno.serve(async (req: Request) => {
   });
 
   if (rateLimitError) {
+    if (isExpressionPackRequest) {
+      console.error(
+        "[generate-avatar] rate limit check failed for expression pack request, failing closed:",
+        rateLimitError.message
+      );
+      return jsonResponse(
+        { error: "rate_limit_unavailable" },
+        503,
+        { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) }
+      );
+    }
+
     console.warn("[generate-avatar] rate limit check failed, failing open:", rateLimitError.message);
   } else if (rateLimitOk !== true) {
-    return jsonResponse({ error: "rate_limited" }, 429);
+    return jsonResponse({ error: "rate_limited" }, 429, { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) });
   }
 
   // 4. Consume quota atomically before doing any paid work. Skipped entirely
