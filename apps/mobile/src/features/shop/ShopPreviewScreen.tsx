@@ -227,7 +227,15 @@ export function ShopPreviewScreen() {
   const useServerCatalog = runtimeMode === "api" && commerceProducts.length > 0;
   const checkoutAvailable = useServerCatalog && nativeCheckoutReady;
   const premiumPass = getPremiumPassShopPresentation(commerceProducts, activeEntitlements);
-  const visibleCommerceProducts = useServerCatalog
+  // IAP-backed commerce products (credit packs, subscriptions) render as
+  // browsable-but-unbuyable "Soon" cards whenever native checkout isn't wired
+  // up for this build (checkoutAvailable false) -- that reads as a broken
+  // shop, not a coming-soon shelf. Hide them outside __DEV__ so a production
+  // build with checkout not yet enabled shows an honest empty shelf instead.
+  // Re-enable at launch once EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT is
+  // on and checkout is verified end-to-end.
+  const showUnwiredCommerceProducts = __DEV__ || checkoutAvailable;
+  const visibleCommerceProducts = useServerCatalog && showUnwiredCommerceProducts
     ? commerceProducts.filter((product) => !isPremiumPassProduct(product) && getProductShopCategory(product) !== null)
     : [];
   const rawShopSummary = useServerCatalog

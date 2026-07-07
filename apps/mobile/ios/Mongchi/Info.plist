@@ -69,10 +69,6 @@
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Mongchi can use approximate location when you choose local weather scenes for your pet garden.</string>
     <key>NSMicrophoneUsageDescription</key>

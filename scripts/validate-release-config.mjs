@@ -924,6 +924,20 @@ if (production) {
   if (!isOptionalBoolean(chatRetentionWorkerStopOnIdle)) {
     failures.push("TINY_PET_CHAT_RETENTION_WORKER_STOP_ON_IDLE must be true or false when set.");
   }
+
+  // GENERATION_TEST_STATES / GENERATION_DRY_RUN are generate-avatar Supabase
+  // Edge Function secrets, not TINY_PET_*/mobile build env -- this script
+  // cannot see the deployed function's env (separate deploy target/secret
+  // store). This only catches the case where they leak into the local/CI
+  // process env that triggers a production build (see docs/launch-plan.md
+  // §6 for the required manual Supabase dashboard check).
+  if (process.env.GENERATION_TEST_STATES) {
+    failures.push("GENERATION_TEST_STATES must not be set when producing a production build (generate-avatar test-only override).");
+  }
+
+  if (process.env.GENERATION_DRY_RUN) {
+    failures.push("GENERATION_DRY_RUN must not be set when producing a production build (generate-avatar dry-run override).");
+  }
 }
 
 if (!expo.ios?.bundleIdentifier || /example|placeholder|todo/i.test(expo.ios.bundleIdentifier)) {
