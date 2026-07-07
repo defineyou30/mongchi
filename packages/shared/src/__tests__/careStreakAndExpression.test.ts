@@ -6,6 +6,7 @@ import {
   createInitialPrototypeSession,
   deriveAmbientPetAssetState,
   didStreakJustUseGrace,
+  getActivePetBundle,
   getCareStatBand,
   getCareStreakSnackReward,
   getStreakGraceReturnLine,
@@ -18,6 +19,8 @@ import {
   updatePrototypeDraft
 } from "../index";
 import { mockCareState } from "../mock/mockData";
+
+const active = getActivePetBundle;
 
 describe("care stat bands", () => {
   it("maps meter values to bands", () => {
@@ -288,7 +291,7 @@ describe("care streak grace integration (return session surfacing)", () => {
 
     expect(state.careStreak.current).toBe(3);
     expect(state.careStreak.graceUsedAt).toBe("2026-06-27T09:01:00.000Z");
-    expect(state.currentReaction?.line).toBe(getStreakGraceReturnLine("Miso"));
+    expect(active(state).currentReaction?.line).toBe(getStreakGraceReturnLine("Miso"));
   });
 
   it("still grants the day-3 snack into inventory even when the grace return line takes the reaction slot", () => {
@@ -300,7 +303,7 @@ describe("care streak grace integration (return session surfacing)", () => {
 
     const snackEntry = state.inventory.items.find((entry) => entry.itemId === STREAK_SNACK_ITEM_ID && entry.source === "streak_reward");
     expect(snackEntry?.quantity).toBe(1);
-    expect(state.currentReaction?.line).toBe(getStreakGraceReturnLine("Miso"));
+    expect(active(state).currentReaction?.line).toBe(getStreakGraceReturnLine("Miso"));
   });
 
   it("does not show the grace line on an ordinary consecutive-day care action", () => {
@@ -310,7 +313,7 @@ describe("care streak grace integration (return session surfacing)", () => {
     state = performPrototypeCareAction(state, "talk", "2026-06-25T09:01:00.000Z"); // day 2 -- no gap, no grace
 
     expect(state.careStreak.graceUsedAt).toBeFalsy();
-    expect(state.currentReaction?.line).not.toBe(getStreakGraceReturnLine("Miso"));
+    expect(active(state).currentReaction?.line).not.toBe(getStreakGraceReturnLine("Miso"));
   });
 });
 

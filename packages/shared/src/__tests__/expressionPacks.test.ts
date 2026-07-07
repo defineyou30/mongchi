@@ -5,6 +5,7 @@ import {
   confirmPrototypeExpressionPackPurchase,
   createInitialPrototypeSession,
   expressionPacks,
+  getActivePetBundle,
   getExpressionPackById,
   getSpendableCreditBalance,
   isExpressionPackUnlocked,
@@ -14,6 +15,7 @@ import {
 import { makeMockGeneratedAsset } from "../mock/mockData";
 
 const now = "2026-06-24T09:00:00.000Z";
+const active = getActivePetBundle;
 
 describe("expressionPacks catalog", () => {
   it("defines the everyday-moments vertical slice pack with the expected states and price", () => {
@@ -126,7 +128,7 @@ describe("confirmPrototypeExpressionPackPurchase (transactional purchase)", () =
 
     expect(getSpendableCreditBalance(result.state.wallet)).toBe(creditsBefore - pack.creditCost);
     expect(result.state.inventory.ownedExpressionPackIds).toContain(pack.id);
-    const memory = result.state.memories.find((entry) => entry.type === "expression_pack");
+    const memory = active(result.state).memories.find((entry) => entry.type === "expression_pack");
     expect(memory).toBeTruthy();
     expect(memory?.refs?.itemId).toBe(pack.id);
   });
@@ -189,34 +191,34 @@ describe("confirmPrototypeExpressionPackPurchase (transactional purchase)", () =
 describe("mergePrototypeGeneratedAssets", () => {
   it("adds new expression-pack assets alongside the existing free trio without dropping any", () => {
     const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
-    const originalStates = state.acceptedAssets.map((asset) => asset.state);
+    const originalStates = active(state).acceptedAssets.map((asset) => asset.state);
     expect(originalStates).toContain("idle");
     expect(originalStates).toContain("happy");
     expect(originalStates).toContain("sleep");
 
     const newAssets = ["curious", "play", "hungry"].map((assetState) =>
       makeMockGeneratedAsset(assetState as "curious" | "play" | "hungry", {
-        petId: state.petProfile!.id,
+        petId: active(state).petProfile!.id,
         generationJobId: "gen_expression_pack_001"
       })
     );
 
     const merged = mergePrototypeGeneratedAssets(state, newAssets);
-    const mergedStates = merged.acceptedAssets.map((asset) => asset.state);
+    const mergedStates = active(merged).acceptedAssets.map((asset) => asset.state);
 
     expect(mergedStates).toEqual(expect.arrayContaining([...originalStates, "curious", "play", "hungry"]));
-    expect(merged.acceptedAssets).toHaveLength(new Set(mergedStates).size);
+    expect(active(merged).acceptedAssets).toHaveLength(new Set(mergedStates).size);
   });
 
   it("replaces an existing asset of the same state rather than duplicating it", () => {
     const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
     const replacementIdle = makeMockGeneratedAsset("idle", {
-      petId: state.petProfile!.id,
+      petId: active(state).petProfile!.id,
       generationJobId: "gen_reroll_001"
     });
 
     const merged = mergePrototypeGeneratedAssets(state, [replacementIdle]);
-    const idleAssets = merged.acceptedAssets.filter((asset) => asset.state === "idle");
+    const idleAssets = active(merged).acceptedAssets.filter((asset) => asset.state === "idle");
 
     expect(idleAssets).toHaveLength(1);
     expect(idleAssets[0]?.generationJobId).toBe("gen_reroll_001");
@@ -230,11 +232,11 @@ describe("mergePrototypeGeneratedAssets", () => {
 
   it("preserves acceptedAsset (the primary display asset) when it is already set", () => {
     const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
-    const originalAcceptedAsset = state.acceptedAsset;
+    const originalAcceptedAsset = active(state).acceptedAsset;
 
-    const newAssets = [makeMockGeneratedAsset("curious", { petId: state.petProfile!.id, generationJobId: "gen_pack" })];
+    const newAssets = [makeMockGeneratedAsset("curious", { petId: active(state).petProfile!.id, generationJobId: "gen_pack" })];
     const merged = mergePrototypeGeneratedAssets(state, newAssets);
 
-    expect(merged.acceptedAsset).toBe(originalAcceptedAsset);
+    expect(active(merged).acceptedAsset).toBe(originalAcceptedAsset);
   });
 });

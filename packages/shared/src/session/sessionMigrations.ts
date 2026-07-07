@@ -18,7 +18,27 @@ export interface PersistedSessionEnvelope {
  * migration step to keep existing local saves loadable. Register the
  * matching vN -> vN+1 function in `sessionMigrations` below.
  */
-export const CURRENT_SESSION_SCHEMA_VERSION = 6;
+export const CURRENT_SESSION_SCHEMA_VERSION = 7;
+
+/** The first (and, until W3, only) pet's id -- see prototypeSession.ts's FIRST_PET_ID (kept as a separate literal here so this migration module has no import-time dependency on prototypeSession.ts's internals). */
+const FIRST_PET_ID = "pet_local_001";
+
+/** Top-level PrototypeSessionState keys that the v6 -> v7 migration lifts into `pets[petId]`. See docs/multi-pet-w1-design.md section 5. */
+const V6_PER_PET_KEYS = [
+  "petProfile",
+  "acceptedAsset",
+  "acceptedAssets",
+  "careState",
+  "relationshipState",
+  "currentReaction",
+  "lastCareReward",
+  "recentReactions",
+  "activeWalk",
+  "lastWalkDiscovery",
+  "generationIssueReport",
+  "memories",
+  "careStats"
+] as const;
 
 /**
  * Plant/pot catalog items removed from the garden concept. Any owned,
@@ -304,6 +324,65 @@ export const sessionMigrations: Record<number, (state: unknown) => unknown> = {
         ownedExpressionPackIds: existingOwnedExpressionPackIds
       }
     };
+  },
+  // v6 -> v7: bundles every per-pet field (petProfile/acceptedAsset(s)/
+  // careState/relationshipState/currentReaction/lastCareReward/
+  // recentReactions/activeWalk/lastWalkDiscovery/generationIssueReport/
+  // memories/careStats) under `pets[petId]`, with `activePetId` pointing at
+  // it -- the "multi-pet W1" domain bundling wave (see
+  // docs/multi-pet-w1-design.md). This is a structural lift, not a value
+  // change: nothing is renamed or recomputed, every one of these fields is
+  // moved into the bundle byte-for-byte and every shared field (wallet/
+  // inventory/careStreak/walkCollection/activeBuffs/
+  // lastTicketRefillDayKey/firstRewardClaimedAt/draft/photo/generation/
+  // weatherState/originalPhotoDeletedAt/chatHistoryDeletedAt) stays at the
+  // top level untouched.
+  //
+  // Idempotent: a payload that already has a `pets` object and a string
+  // `activePetId` is assumed already-lifted and passed through as-is (this
+  // also protects a stray re-run of this step, e.g. via a future chain
+  // change, from double-wrapping an already-bundled save).
+  //
+  // Pet id: reuses the existing petProfile.id when present (this is always
+  // "pet_local_001" for every save that predates multi-pet, per
+  // buildPrototypePetProfile), otherwise falls back to the FIRST_PET_ID
+  // constant for an onboarding-incomplete save (petProfile still null).
+  //
+  // IMPORTANT: do not "improve" migrations 1-5 to read from `pets` -- the
+  // chain runs 3->4->5->6->7 in order, so by the time this step runs the
+  // payload is still in the pre-bundle flat shape those steps expect. See
+  // docs/multi-pet-w1-design.md section 8 (pitfall 4).
+  6: (state: unknown) => {
+    if (!isRecord(state)) {
+      return state;
+    }
+
+    if (isRecord(state.pets) && typeof state.activePetId === "string") {
+      return state;
+    }
+
+    const petIdFromProfile =
+      isRecord(state.petProfile) && typeof state.petProfile.id === "string" ? state.petProfile.id : FIRST_PET_ID;
+
+    const bundle: Record<string, unknown> = {};
+
+    for (const key of V6_PER_PET_KEYS) {
+      if (key in state) {
+        bundle[key] = state[key];
+      }
+    }
+
+    const rest: Record<string, unknown> = { ...state };
+
+    for (const key of V6_PER_PET_KEYS) {
+      delete rest[key];
+    }
+
+    return {
+      ...rest,
+      pets: { [petIdFromProfile]: bundle },
+      activePetId: petIdFromProfile
+    };
   }
 };
 
@@ -417,7 +496,7 @@ export const createPersistedSessionEnvelope = (state: PrototypeSessionState): Pe
   state
 });
 
-const REQUIRED_TOP_LEVEL_KEYS = ["draft", "photo", "generation", "careState", "relationshipState", "wallet", "inventory"] as const;
+const REQUIRED_TOP_LEVEL_KEYS = ["draft", "photo", "generation", "pets", "wallet", "inventory"] as const;
 
 /**
  * Shallow structural check that a migrated payload still looks like a

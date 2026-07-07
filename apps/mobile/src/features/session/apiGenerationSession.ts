@@ -16,6 +16,7 @@ import type {
   GenerationJobStatus,
   GenerationPollResponse,
   PetAssetsResponse,
+  PetBundle,
   PetProfile,
   PhotoUploadUrlRequest,
   PhotoUploadUrlResponse,
@@ -201,7 +202,7 @@ export const startApiGenerationFlow = async (
   state: PrototypeSessionState,
   now: string,
   uploadTransport: SourcePhotoUploadTransport = uploadSourcePhotoToSignedUrl
-): Promise<ApiGenerationResult<Partial<PrototypeSessionState>>> => {
+): Promise<ApiGenerationResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const sourcePhoto = resolveSourcePhotoCandidate(state);
 
   if (!sourcePhoto.ok) {
@@ -280,9 +281,9 @@ export const startApiGenerationFlow = async (
 
 export const pollApiGenerationFlow = async (
   client: GenerationApiClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   now: string
-): Promise<ApiGenerationResult<Partial<PrototypeSessionState>>> => {
+): Promise<ApiGenerationResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const jobId = state.petProfile?.activeGenerationJobId;
 
   if (!jobId) {
@@ -316,9 +317,9 @@ export const pollApiGenerationFlow = async (
 
 export const retryApiGenerationFlow = async (
   client: GenerationApiClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   now: string
-): Promise<ApiGenerationResult<Partial<PrototypeSessionState>>> => {
+): Promise<ApiGenerationResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const jobId = state.petProfile?.activeGenerationJobId;
 
   if (!jobId) {
@@ -351,8 +352,8 @@ export const retryApiGenerationFlow = async (
 
 export const acceptApiGeneratedPet = async (
   client: GenerationApiClient,
-  state: PrototypeSessionState
-): Promise<ApiGenerationResult<Partial<PrototypeSessionState>>> => {
+  state: PrototypeSessionState & PetBundle
+): Promise<ApiGenerationResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const pet = state.petProfile;
   const jobId = pet?.activeGenerationJobId;
 

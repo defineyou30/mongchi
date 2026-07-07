@@ -5,6 +5,7 @@ import {
   acceptPrototypeGeneratedPet,
   createInitialPrototypeSession,
   createManualWeatherContext,
+  getActivePetBundle,
   mockCareState,
   performPrototypeCareAction,
   claimPrototypeWalkReward,
@@ -13,6 +14,8 @@ import {
   setPrototypeWeatherCondition,
   updatePrototypeDraft
 } from "../index";
+
+const active = getActivePetBundle;
 
 const createAcceptedSession = (): PrototypeSessionState =>
   acceptPrototypeGeneratedPet(
@@ -49,24 +52,24 @@ describe("scenario QA contracts", () => {
 
       state = performPrototypeCareAction(state, action, `2026-06-24T08:${String(index).padStart(2, "0")}:00.000Z`);
 
-      expect(state.currentReaction).toBeTruthy();
-      expect(state.relationshipState.totalCareActions).toBeGreaterThan(8);
+      expect(active(state).currentReaction).toBeTruthy();
+      expect(active(state).relationshipState.totalCareActions).toBeGreaterThan(8);
 
       if (action === "walk") {
-        expect(state.activeWalk?.status).toBe("walking");
-        expect(state.careState.activeWalkId).toBe(state.activeWalk?.id);
+        expect(active(state).activeWalk?.status).toBe("walking");
+        expect(active(state).careState.activeWalkId).toBe(active(state).activeWalk?.id);
 
         const returned = refreshPrototypeWalk(state, "2026-06-24T08:20:00.000Z");
 
-        expect(returned.activeWalk?.status).toBe("returned");
+        expect(active(returned).activeWalk?.status).toBe("returned");
 
         const claimed = claimPrototypeWalkReward(returned, "2026-06-24T08:21:00.000Z");
 
-        expect(claimed.activeWalk).toBeNull();
-        expect(claimed.careState.activeWalkId).toBeUndefined();
+        expect(active(claimed).activeWalk).toBeNull();
+        expect(active(claimed).careState.activeWalkId).toBeUndefined();
         expect(claimed.inventory.items.find((entry) => entry.source === "walk_reward")).toBeDefined();
       } else {
-        expect(state.activeWalk).toBeNull();
+        expect(active(state).activeWalk).toBeNull();
       }
     }
   });
@@ -75,8 +78,8 @@ describe("scenario QA contracts", () => {
     const baseState = createAcceptedSession();
     const state = performPrototypeCareAction(baseState, "water_garden", "2026-06-24T08:05:00.000Z");
 
-    expect(state.careState.gardenHealth).toBeGreaterThan(80);
-    expect(state.lastCareReward).toBeNull();
+    expect(active(state).careState.gardenHealth).toBeGreaterThan(80);
+    expect(active(state).lastCareReward).toBeNull();
   });
 
   it("keeps weather, time, urgent needs, and recent actions from collapsing into one repeated line", () => {
@@ -143,7 +146,7 @@ describe("scenario QA contracts", () => {
     state = performPrototypeCareAction(state, "walk", "2026-06-24T08:01:00.000Z");
 
     expect(state.weatherState.context.condition).toBe("rain");
-    expect(state.activeWalk?.discoveryLine).toContain("rainy");
-    expect(state.currentReaction?.ruleId).toBe("en_weather_rain_walk_001");
+    expect(active(state).activeWalk?.discoveryLine).toContain("rainy");
+    expect(active(state).currentReaction?.ruleId).toBe("en_weather_rain_walk_001");
   });
 });

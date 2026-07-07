@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { generatedAssetStates, generationSteps } from "@mongchi/shared";
+import { generatedAssetStates, generationSteps, getActivePetBundle } from "@mongchi/shared";
 
 import {
   createStoreScreenshotSession,
@@ -8,6 +8,8 @@ import {
   storeScreenshotPresetRoutes,
   storeScreenshotPresets
 } from "./storeScreenshotSession";
+
+const active = getActivePetBundle;
 
 describe("store screenshot session presets", () => {
   it("keeps the store screenshot flow order aligned with the native app journey", () => {
@@ -58,21 +60,21 @@ describe("store screenshot session presets", () => {
 
     expect(reveal.generation.status).toBe("completed");
     expect(reveal.generation.currentStepIndex).toBe(generationSteps.length - 1);
-    expect(reveal.petProfile).toBeNull();
-    expect(reveal.acceptedAsset).toBeNull();
-    expect(terrarium.petProfile?.name).toBe("Miso");
-    expect(terrarium.acceptedAsset?.state).toBe("idle");
-    expect(terrarium.acceptedAssets.map((asset) => asset.state)).toEqual([...generatedAssetStates]);
-    expect(terrarium.currentReaction?.line).not.toMatch(/[가-힣]/);
+    expect(active(reveal).petProfile).toBeNull();
+    expect(active(reveal).acceptedAsset).toBeNull();
+    expect(active(terrarium).petProfile?.name).toBe("Miso");
+    expect(active(terrarium).acceptedAsset?.state).toBe("idle");
+    expect(active(terrarium).acceptedAssets.map((asset) => asset.state)).toEqual([...generatedAssetStates]);
+    expect(active(terrarium).currentReaction?.line).not.toMatch(/[가-힣]/);
   });
 
   it("creates shop states without walk reward inventory side effects", () => {
     const state = createStoreScreenshotSession("shop", "2026-06-24T09:00:00.000Z");
 
-    expect(state.activeWalk).toBeNull();
+    expect(active(state).activeWalk).toBeNull();
     expect(state.firstRewardClaimedAt).toBeNull();
     expect(state.inventory.items.find((entry) => entry.source === "walk_reward")).toBeUndefined();
-    expect(state.currentReaction?.category).not.toBe("new_item");
-    expect(state.currentReaction?.line).not.toMatch(/[가-힣]/);
+    expect(active(state).currentReaction?.category).not.toBe("new_item");
+    expect(active(state).currentReaction?.line).not.toMatch(/[가-힣]/);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createInitialPrototypeSession,
+  getActivePetBundle,
   mockGeneratedAssets,
   mockPetProfile,
   setPrototypeConsentAccepted,
@@ -169,7 +170,12 @@ const createReadyState = () => {
   state = setPrototypeMockPhotoSelected(state, true);
   state = setPrototypeConsentAccepted(state, true);
 
-  return state;
+  // apiGenerationSession.ts's flows read per-pet fields (petProfile/
+  // acceptedAsset(s)) directly off their `state` parameter -- in production
+  // that parameter is TerrariumSessionProvider's `legacyFlatState` (the
+  // active bundle flattened back onto the top level), not the raw
+  // PrototypeSessionState. Flatten the same way here.
+  return { ...state, ...getActivePetBundle(state) };
 };
 
 describe("API generation session helpers", () => {

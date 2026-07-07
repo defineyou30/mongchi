@@ -17,6 +17,7 @@ import type {
   ItemId,
   MemoryEntry,
   PersonalityTag,
+  PetId,
   PetProfile,
   PetSpecies,
   RecentReaction,
@@ -135,36 +136,101 @@ export interface PrototypeWeatherState {
   updatedAt: string;
 }
 
-export interface PrototypeSessionState {
-  draft: PetSetupDraft;
-  photo: MockPhotoState;
-  generation: MockGenerationState;
+/**
+ * Everything that belongs to one pet. Shared top-level fields (wallet/
+ * inventory/weatherState/careStreak/walkCollection/activeBuffs/
+ * lastTicketRefillDayKey/firstRewardClaimedAt) live outside the bundle --
+ * see the "multi-pet W1" design doc (docs/multi-pet-w1-design.md) for the
+ * per-field placement rationale. W1 always has exactly one bundle
+ * (INV-1); the bundle/activePetId plumbing exists so a second pet can be
+ * added later (W3+) without another state-shape migration.
+ */
+export interface PetBundle {
   petProfile: PetProfile | null;
   acceptedAsset: GeneratedAsset | null;
   acceptedAssets: GeneratedAsset[];
   careState: CareState;
   relationshipState: RelationshipState;
-  wallet: CreditWallet;
-  inventory: Inventory;
-  activeWalk: WalkSession | null;
-  weatherState: PrototypeWeatherState;
   currentReaction: SelectedReaction | null;
   lastCareReward: CareActionReward | null;
   recentReactions: RecentReaction[];
-  originalPhotoDeletedAt: string | null;
-  chatHistoryDeletedAt: string | null;
-  firstRewardClaimedAt: string | null;
-  generationIssueReport: GenerationIssueReport | null;
-  careStreak: CareStreakState;
-  lastTicketRefillDayKey: string | null;
-  activeBuffs: ActiveCareBuff[];
-  walkCollection: WalkCollectionState;
+  activeWalk: WalkSession | null;
   lastWalkDiscovery: { collectibleId: string; isNew: boolean; collectionCompleted: boolean } | null;
+  generationIssueReport: GenerationIssueReport | null;
   /** Timeline of remembered moments -- the foundation the album/home-episode/chat-memory/monthly-letter waves build on. */
   memories: MemoryEntry[];
   /** Accumulated care-pattern counters used to derive per-owner "habits" for future dialogue branching. */
   careStats: CareStats;
 }
+
+/** The first (and, until W3, only) pet's id -- kept stable across the v6 -> v7 migration lift (INV-3). */
+export const FIRST_PET_ID: PetId = "pet_local_001";
+
+export interface PrototypeSessionState {
+  draft: PetSetupDraft;
+  photo: MockPhotoState;
+  generation: MockGenerationState;
+  pets: Record<PetId, PetBundle>;
+  activePetId: PetId;
+  wallet: CreditWallet;
+  inventory: Inventory;
+  weatherState: PrototypeWeatherState;
+  originalPhotoDeletedAt: string | null;
+  chatHistoryDeletedAt: string | null;
+  firstRewardClaimedAt: string | null;
+  careStreak: CareStreakState;
+  lastTicketRefillDayKey: string | null;
+  activeBuffs: ActiveCareBuff[];
+  walkCollection: WalkCollectionState;
+}
+
+/**
+ * Reads the currently-active pet's bundle. `state.pets[state.activePetId]`
+ * is guaranteed defined by INV-2 (activePetId is always a valid key of
+ * pets) for any state produced by createInitialPrototypeSession or restored
+ * through mergeRestoredSession, both of which establish the invariant at
+ * their respective construction boundaries -- the non-null assertion here
+ * is the lens's half of that contract, not an unchecked assumption.
+ */
+export const getActivePetBundle = (state: PrototypeSessionState): PetBundle => state.pets[state.activePetId]!;
+
+/** Reads a specific pet's bundle, or undefined if no pet with that id exists. */
+export const getPetBundle = (state: PrototypeSessionState, petId: PetId): PetBundle | undefined => state.pets[petId];
+
+/**
+ * Rewrites the active pet's bundle by merging in the Partial<PetBundle>
+ * `fn` returns, leaving every other bundle and all shared top-level fields
+ * untouched. This is the only sanctioned way to update per-pet fields --
+ * having `fn` return a partial patch (rather than a whole new bundle) lets
+ * call sites that touch several per-pet fields at once (e.g.
+ * performPrototypeCareAction) stay a single call.
+ */
+export const withActivePetBundle = (
+  state: PrototypeSessionState,
+  fn: (bundle: PetBundle) => Partial<PetBundle>
+): PrototypeSessionState => {
+  const current = state.pets[state.activePetId]!;
+  const patch = fn(current);
+
+  return {
+    ...state,
+    pets: {
+      ...state.pets,
+      [state.activePetId]: { ...current, ...patch }
+    }
+  };
+};
+
+/**
+ * Derives the "one sprite to show" from a bundle: the explicit
+ * acceptedAsset if set, otherwise the idle-state asset, otherwise whatever
+ * is first in acceptedAssets. Exported for future call sites (W5 plans to
+ * retire the acceptedAsset field in favor of always deriving it) -- W1
+ * itself keeps acceptedAsset as a real, independently-written field and
+ * does not yet route any call site through this selector.
+ */
+export const selectPrimaryAsset = (bundle: PetBundle): GeneratedAsset | null =>
+  bundle.acceptedAsset ?? bundle.acceptedAssets.find((asset) => asset.state === "idle") ?? bundle.acceptedAssets[0] ?? null;
 
 export const generationSteps = [
   "Preparing photo",
@@ -315,6 +381,31 @@ const recordDaysTogetherMilestoneIfCrossed = (
   });
 };
 
+/** Builds a fresh, empty PetBundle for a not-yet-created pet (seeded mock care/relationship state, no assets/memories yet). */
+export const createInitialPetBundle = (now: string = FALLBACK_NOW, petId: PetId = FIRST_PET_ID): PetBundle => ({
+  petProfile: null,
+  acceptedAsset: null,
+  acceptedAssets: [],
+  careState: {
+    ...mockCareState,
+    petId,
+    updatedAt: now
+  },
+  relationshipState: {
+    ...mockRelationshipState,
+    petId,
+    updatedAt: now
+  },
+  currentReaction: null,
+  lastCareReward: null,
+  recentReactions: [],
+  activeWalk: null,
+  lastWalkDiscovery: null,
+  generationIssueReport: null,
+  memories: [],
+  careStats: createInitialCareStats()
+});
+
 export const createInitialPrototypeSession = (now: string = FALLBACK_NOW): PrototypeSessionState => ({
   draft: initialDraft,
   photo: {
@@ -326,19 +417,10 @@ export const createInitialPrototypeSession = (now: string = FALLBACK_NOW): Proto
     consentAccepted: false
   },
   generation: initialGeneration,
-  petProfile: null,
-  acceptedAsset: null,
-  acceptedAssets: [],
-  careState: {
-    ...mockCareState,
-    petId: "pet_local_001",
-    updatedAt: now
+  pets: {
+    [FIRST_PET_ID]: createInitialPetBundle(now, FIRST_PET_ID)
   },
-  relationshipState: {
-    ...mockRelationshipState,
-    petId: "pet_local_001",
-    updatedAt: now
-  },
+  activePetId: FIRST_PET_ID,
   wallet: {
     ...mockCreditWallet,
     updatedAt: now
@@ -347,22 +429,14 @@ export const createInitialPrototypeSession = (now: string = FALLBACK_NOW): Proto
     ...mockInventory,
     updatedAt: now
   },
-  activeWalk: null,
   weatherState: createInitialWeatherState(now),
-  currentReaction: null,
-  lastCareReward: null,
-  recentReactions: [],
   originalPhotoDeletedAt: null,
   chatHistoryDeletedAt: null,
   firstRewardClaimedAt: null,
-  generationIssueReport: null,
   careStreak: createInitialCareStreak(now),
   lastTicketRefillDayKey: null,
   activeBuffs: [],
-  walkCollection: {},
-  lastWalkDiscovery: null,
-  memories: [],
-  careStats: createInitialCareStats()
+  walkCollection: {}
 });
 
 /**
@@ -527,7 +601,7 @@ export const buildPrototypePetProfile = (
 };
 
 export const getActivePrototypePet = (state: PrototypeSessionState, now: string = FALLBACK_NOW): PetProfile =>
-  state.petProfile ?? buildPrototypePetProfile(state.draft, now);
+  getActivePetBundle(state).petProfile ?? buildPrototypePetProfile(state.draft, now);
 
 export const canContinuePetSetup = (state: PrototypeSessionState): boolean =>
   state.draft.name.trim().length >= 2 && state.draft.personalityTags.length > 0 && state.draft.talkingStyle.length > 0;
@@ -664,7 +738,7 @@ export const normalizeRestoredGeneration = (
 ): PrototypeSessionState => {
   const { status } = state.generation;
   const isStrandedInFlight = inFlightGenerationStatuses.has(status);
-  const isStrandedCompletion = status === "completed" && state.acceptedAssets.length === 0;
+  const isStrandedCompletion = status === "completed" && getActivePetBundle(state).acceptedAssets.length === 0;
 
   if (!isStrandedInFlight && !isStrandedCompletion) {
     return state;
@@ -765,9 +839,7 @@ export const startPrototypeGeneration = (
     startedAt: now,
     lastPolledAt: now,
     nextPollAfter: addMs(now, DEFAULT_GENERATION_POLL_INTERVAL_MS)
-  },
-  acceptedAsset: null,
-  acceptedAssets: []
+  }
 });
 
 export const advancePrototypeGeneration = (
@@ -829,9 +901,7 @@ export const retryPrototypeGeneration = (
     startedAt: now,
     lastPolledAt: now,
     nextPollAfter: addMs(now, DEFAULT_GENERATION_POLL_INTERVAL_MS)
-  },
-  acceptedAsset: null,
-  acceptedAssets: []
+  }
 });
 
 export const pollPrototypeGenerationJob = (
@@ -887,10 +957,10 @@ export const pollPrototypeGenerationJob = (
 };
 
 const appendReaction = (
-  state: PrototypeSessionState,
+  bundle: PetBundle,
   reaction: SelectedReaction,
   shownAt: string
-): Pick<PrototypeSessionState, "currentReaction" | "recentReactions"> => ({
+): Pick<PetBundle, "currentReaction" | "recentReactions"> => ({
   currentReaction: reaction,
   recentReactions: [
     {
@@ -898,7 +968,7 @@ const appendReaction = (
       line: reaction.line,
       shownAt
     },
-    ...state.recentReactions
+    ...bundle.recentReactions
   ].slice(0, 12)
 });
 
@@ -919,14 +989,15 @@ export const acceptPrototypeGeneratedPet = (
   now: string = FALLBACK_NOW,
   options: AcceptPrototypeGeneratedPetOptions = {}
 ): PrototypeSessionState => {
-  const pet = buildPrototypePetProfile(state.draft, now, state.petProfile);
+  const bundle = getActivePetBundle(state);
+  const pet = buildPrototypePetProfile(state.draft, now, bundle.petProfile);
   const careState: CareState = {
-    ...state.careState,
+    ...bundle.careState,
     petId: pet.id,
     updatedAt: now
   };
   const relationshipState: RelationshipState = {
-    ...state.relationshipState,
+    ...bundle.relationshipState,
     petId: pet.id,
     updatedAt: now
   };
@@ -937,18 +1008,18 @@ export const acceptPrototypeGeneratedPet = (
     careState,
     weather: state.weatherState.context,
     eventContext: "generation_reveal",
-    recentReactions: state.recentReactions
+    recentReactions: bundle.recentReactions
   });
   const acceptedAssets = options.preserveAssets
-    ? state.acceptedAssets
+    ? bundle.acceptedAssets
     : makeMockGeneratedAssetsForPet({
         petId: pet.id,
         generationJobId: pet.activeGenerationJobId ?? "gen_local_001",
         species: pet.species
       });
-  const acceptedAsset = options.preserveAssets ? state.acceptedAsset : (acceptedAssets[0] ?? null);
+  const acceptedAsset = options.preserveAssets ? bundle.acceptedAsset : (acceptedAssets[0] ?? null);
   const firstMemoryNote = pet.memoryNote?.trim();
-  const memories = recordPetMemory(state.memories, {
+  const memories = recordPetMemory(bundle.memories, {
     id: "mem_moved_in",
     type: "moved_in",
     occurredAt: now,
@@ -956,16 +1027,15 @@ export const acceptPrototypeGeneratedPet = (
     ...(firstMemoryNote ? { refs: { note: firstMemoryNote } } : {})
   });
 
-  return {
-    ...state,
+  return withActivePetBundle(state, () => ({
     petProfile: pet,
     acceptedAsset,
     acceptedAssets,
     careState,
     relationshipState,
     memories,
-    ...appendReaction(state, selectedReaction, now)
-  };
+    ...appendReaction(bundle, selectedReaction, now)
+  }));
 };
 
 const applyBondLevelRewards = (
@@ -1124,16 +1194,16 @@ export const performPrototypeCareAction = (
   const resolvedActionItemId = action === "treat" ? consumableTreatItemId : itemId;
 
   if (action === "treat" && !consumableTreatItemId) {
-    return {
-      ...state,
+    return withActivePetBundle(state, () => ({
       lastCareReward: null
-    };
+    }));
   }
 
+  const bundle = getActivePetBundle(state);
   const pet = getActivePrototypePet(state, now);
   const buffsBeforeAction = pruneActiveCareBuffs(state.activeBuffs, now);
   const result = applyLocalCareAction(
-    state.careState,
+    bundle.careState,
     {
       action,
       occurredAt: now,
@@ -1159,7 +1229,7 @@ export const performPrototypeCareAction = (
     recentAction: action,
     daysAway: 0,
     weather: state.weatherState.context,
-    recentReactions: state.recentReactions,
+    recentReactions: bundle.recentReactions,
     ...(buffStarted ? { eventContext: "buff_started" } : {})
   });
 
@@ -1174,33 +1244,33 @@ export const performPrototypeCareAction = (
   // every other action so their normal XP amount is unaffected.
   const xpOverride =
     action === "treat"
-      ? (shouldGrantTreatBondXp(state.careStats, now) ? getBondXpForCareAction("treat") : 0)
+      ? (shouldGrantTreatBondXp(bundle.careStats, now) ? getBondXpForCareAction("treat") : 0)
       : action === "talk"
-        ? (shouldGrantTalkBondXp(state.careStats, now) ? getBondXpForCareAction("talk") : 0)
+        ? (shouldGrantTalkBondXp(bundle.careStats, now) ? getBondXpForCareAction("talk") : 0)
         : action === "play"
-          ? (shouldGrantPlayBondXp(state.careStats, now) ? getBondXpForCareAction("play") : 0)
+          ? (shouldGrantPlayBondXp(bundle.careStats, now) ? getBondXpForCareAction("play") : 0)
           : undefined;
-  const baseRelationshipState = applyRelationshipCareAction(state.relationshipState, action, now, xpOverride);
+  const baseRelationshipState = applyRelationshipCareAction(bundle.relationshipState, action, now, xpOverride);
   const bondMultiplier = getBondXpMultiplier(buffsBeforeAction, now);
   const relationshipState =
     bondMultiplier > 1
       ? grantRelationshipBondXp(baseRelationshipState, Math.round(getBondXpForCareAction(action) * (bondMultiplier - 1)), now)
       : baseRelationshipState;
 
-  const isFirstTreat = action === "treat" && (state.careStats.actionCounts.treat ?? 0) === 0;
+  const isFirstTreat = action === "treat" && (bundle.careStats.actionCounts.treat ?? 0) === 0;
   const memoriesWithFirstTreat = isFirstTreat
-    ? recordPetMemory(state.memories, {
+    ? recordPetMemory(bundle.memories, {
         id: "mem_first_treat",
         type: "first_treat",
         occurredAt: now,
         line: "I got my very first treat from you.",
         ...(consumableTreatItemId ? { refs: { itemId: consumableTreatItemId } } : {})
       })
-    : state.memories;
+    : bundle.memories;
 
   const bondReward = applyBondLevelRewards(
     { wallet: state.wallet, inventory, memories: memoriesWithFirstTreat },
-    state.relationshipState.bondLevel,
+    bundle.relationshipState.bondLevel,
     relationshipState.bondLevel,
     now
   );
@@ -1209,7 +1279,7 @@ export const performPrototypeCareAction = (
   // A bond level-up is the emotional peak of the loop and outranks everything
   // else; a streak snack still beats the regular action reaction.
   const finalReaction = bondReward.celebrationReaction ?? streakReward.celebrationReaction ?? selectedReaction;
-  const bumpedCareStats = bumpCareStats(state.careStats, action, consumableTreatItemId ?? undefined);
+  const bumpedCareStats = bumpCareStats(bundle.careStats, action, consumableTreatItemId ?? undefined);
   const careStats =
     action === "treat"
       ? bumpTreatXpCounter(bumpedCareStats, now)
@@ -1220,22 +1290,25 @@ export const performPrototypeCareAction = (
           : bumpedCareStats;
   const memories = recordDaysTogetherMilestoneIfCrossed(streakReward.memories, pet.createdAt, now);
 
-  return applyPrototypeDailyTicketRefill(
+  const nextState: PrototypeSessionState = withActivePetBundle(
     {
       ...state,
-      careState: result.nextState,
-      relationshipState,
       wallet: bondReward.wallet,
       inventory: streakReward.inventory,
-      lastCareReward: null,
       careStreak: nextCareStreak,
-      activeBuffs,
+      activeBuffs
+    },
+    () => ({
+      careState: result.nextState,
+      relationshipState,
+      lastCareReward: null,
       careStats,
       memories,
-      ...appendReaction(state, finalReaction, now)
-    },
-    now
+      ...appendReaction(bundle, finalReaction, now)
+    })
   );
+
+  return applyPrototypeDailyTicketRefill(nextState, now);
 };
 
 export const startPrototypeWalk = (
@@ -1244,7 +1317,9 @@ export const startPrototypeWalk = (
   durationMs: number = DEFAULT_WALK_DURATION_MS,
   itemId?: ItemId
 ): PrototypeSessionState => {
-  if (state.activeWalk && state.activeWalk.status !== "claimed" && state.activeWalk.status !== "expired") {
+  const bundle = getActivePetBundle(state);
+
+  if (bundle.activeWalk && bundle.activeWalk.status !== "claimed" && bundle.activeWalk.status !== "expired") {
     return state;
   }
 
@@ -1264,7 +1339,7 @@ export const startPrototypeWalk = (
     updatedAt: now
   };
   const careResult = applyLocalCareAction(
-    state.careState,
+    bundle.careState,
     {
       action: "walk",
       occurredAt: now,
@@ -1280,57 +1355,62 @@ export const startPrototypeWalk = (
     recentAction: "walk",
     walkStatus: "walking",
     weather: state.weatherState.context,
-    recentReactions: state.recentReactions
+    recentReactions: bundle.recentReactions
   });
 
-  const walkRelationshipState = applyRelationshipCareAction(state.relationshipState, "walk", now);
+  const walkRelationshipState = applyRelationshipCareAction(bundle.relationshipState, "walk", now);
   const walkBondReward = applyBondLevelRewards(
-    { wallet: state.wallet, inventory: state.inventory, memories: state.memories },
-    state.relationshipState.bondLevel,
+    { wallet: state.wallet, inventory: state.inventory, memories: bundle.memories },
+    bundle.relationshipState.bondLevel,
     walkRelationshipState.bondLevel,
     now
   );
   const nextCareStreak = updateCareStreakOnCare(state.careStreak, now);
   const streakReward = applyCareStreakSnackReward(walkBondReward.inventory, walkBondReward.memories, state.careStreak, nextCareStreak, now, pet.name);
-  const careStats = bumpCareStats(state.careStats, "walk");
+  const careStats = bumpCareStats(bundle.careStats, "walk");
   const memories = recordDaysTogetherMilestoneIfCrossed(streakReward.memories, pet.createdAt, now);
 
-  return applyPrototypeDailyTicketRefill(
+  const nextState: PrototypeSessionState = withActivePetBundle(
     {
       ...state,
+      wallet: walkBondReward.wallet,
+      inventory: streakReward.inventory,
+      careStreak: nextCareStreak
+    },
+    () => ({
       activeWalk: walk,
       careState: {
         ...careResult.nextState,
         activeWalkId: walk.id
       },
       relationshipState: walkRelationshipState,
-      wallet: walkBondReward.wallet,
-      inventory: streakReward.inventory,
-      careStreak: nextCareStreak,
       careStats,
       memories,
-      ...appendReaction(state, walkBondReward.celebrationReaction ?? streakReward.celebrationReaction ?? selectedReaction, now)
-    },
-    now
+      ...appendReaction(bundle, walkBondReward.celebrationReaction ?? streakReward.celebrationReaction ?? selectedReaction, now)
+    })
   );
+
+  return applyPrototypeDailyTicketRefill(nextState, now);
 };
 
 export const refreshPrototypeWalk = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW
 ): PrototypeSessionState => {
-  if (!state.activeWalk || state.activeWalk.status !== "walking") {
+  const bundle = getActivePetBundle(state);
+
+  if (!bundle.activeWalk || bundle.activeWalk.status !== "walking") {
     return state;
   }
 
-  if (new Date(now).getTime() < new Date(state.activeWalk.returnAt).getTime()) {
+  if (new Date(now).getTime() < new Date(bundle.activeWalk.returnAt).getTime()) {
     return state;
   }
 
   const pet = getActivePrototypePet(state, now);
   const careState: CareState = {
-    ...state.careState,
-    happiness: Math.min(100, state.careState.happiness + 6),
+    ...bundle.careState,
+    happiness: Math.min(100, bundle.careState.happiness + 6),
     updatedAt: now
   };
   const selectedReaction = selectLocalReaction(starterReactionRules, {
@@ -1340,22 +1420,23 @@ export const refreshPrototypeWalk = (
     careState,
     walkStatus: "returned",
     weather: state.weatherState.context,
-    recentReactions: state.recentReactions
+    recentReactions: bundle.recentReactions
   });
 
   // The walk stays in "returned" until the user greets the pet and claims the
   // discovery via claimPrototypeWalkReward — coming home is a moment, not a tick.
-  return {
-    ...state,
-    activeWalk: {
-      ...state.activeWalk,
-      status: "returned",
-      updatedAt: now
-    },
+  return withActivePetBundle(state, (currentBundle) => ({
+    activeWalk: currentBundle.activeWalk
+      ? {
+          ...currentBundle.activeWalk,
+          status: "returned",
+          updatedAt: now
+        }
+      : currentBundle.activeWalk,
     careState,
-    memories: recordDaysTogetherMilestoneIfCrossed(state.memories, pet.createdAt, now),
-    ...appendReaction(state, selectedReaction, now)
-  };
+    memories: recordDaysTogetherMilestoneIfCrossed(bundle.memories, pet.createdAt, now),
+    ...appendReaction(bundle, selectedReaction, now)
+  }));
 };
 
 /** Rewarded-ad hook: brings a walking pet home immediately. */
@@ -1363,19 +1444,22 @@ export const completePrototypeWalkEarly = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW
 ): PrototypeSessionState => {
-  if (!state.activeWalk || state.activeWalk.status !== "walking") {
+  const bundle = getActivePetBundle(state);
+
+  if (!bundle.activeWalk || bundle.activeWalk.status !== "walking") {
     return state;
   }
 
   return refreshPrototypeWalk(
-    {
-      ...state,
-      activeWalk: {
-        ...state.activeWalk,
-        returnAt: now,
-        updatedAt: now
-      }
-    },
+    withActivePetBundle(state, (currentBundle) => ({
+      activeWalk: currentBundle.activeWalk
+        ? {
+            ...currentBundle.activeWalk,
+            returnAt: now,
+            updatedAt: now
+          }
+        : currentBundle.activeWalk
+    })),
     now
   );
 };
@@ -1395,7 +1479,9 @@ export const completePrototypeWalkEarlyWithCredit = (
   now: string = FALLBACK_NOW,
   creditCost: number = 1
 ): CompleteWalkEarlyWithCreditResult => {
-  if (!state.activeWalk || state.activeWalk.status !== "walking") {
+  const bundle = getActivePetBundle(state);
+
+  if (!bundle.activeWalk || bundle.activeWalk.status !== "walking") {
     return { ok: false, reason: "no_active_walk" };
   }
 
@@ -1480,14 +1566,14 @@ export const purchasePrototypeThemeBundle = (
   bundleId: string,
   now: string = FALLBACK_NOW
 ): PurchaseThemeBundleResult => {
-  const bundle = getThemeBundleById(bundleId);
+  const themeBundle = getThemeBundleById(bundleId);
 
-  if (!bundle) {
+  if (!themeBundle) {
     return { ok: false, reason: "bundle_not_found" };
   }
 
-  const alreadyOwned = (state.inventory.ownedThemeIds ?? []).includes(bundle.themeId);
-  const walletSpend = alreadyOwned ? { ok: true as const, wallet: state.wallet } : spendCredits(state.wallet, bundle.creditCost, now);
+  const alreadyOwned = (state.inventory.ownedThemeIds ?? []).includes(themeBundle.themeId);
+  const walletSpend = alreadyOwned ? { ok: true as const, wallet: state.wallet } : spendCredits(state.wallet, themeBundle.creditCost, now);
 
   if (!walletSpend.ok) {
     return { ok: false, reason: "insufficient_credits" };
@@ -1495,20 +1581,21 @@ export const purchasePrototypeThemeBundle = (
 
   const inventory: Inventory = {
     ...state.inventory,
-    selectedTerrariumThemeId: bundle.themeId,
-    ownedThemeIds: alreadyOwned ? (state.inventory.ownedThemeIds ?? []) : [...(state.inventory.ownedThemeIds ?? []), bundle.themeId],
+    selectedTerrariumThemeId: themeBundle.themeId,
+    ownedThemeIds: alreadyOwned ? (state.inventory.ownedThemeIds ?? []) : [...(state.inventory.ownedThemeIds ?? []), themeBundle.themeId],
     updatedAt: now
   };
 
+  const petBundle = getActivePetBundle(state);
   const pet = getActivePrototypePet(state, now);
   const selectedReaction = selectLocalReaction(starterReactionRules, {
     locale: DEFAULT_PROTOTYPE_LOCALE,
     now,
     pet,
-    careState: state.careState,
+    careState: petBundle.careState,
     eventContext: "item_placed",
     weather: state.weatherState.context,
-    recentReactions: state.recentReactions
+    recentReactions: petBundle.recentReactions
   });
 
   // Only record a new "theme applied" memory the first time this theme is
@@ -1516,25 +1603,29 @@ export const purchasePrototypeThemeBundle = (
   // memory entry every time (recordPetMemory would dedupe by id anyway since
   // the id is stable per themeId, but skip the extra work/celebration line churn).
   const memories = alreadyOwned
-    ? state.memories
-    : recordPetMemory(state.memories, {
-        id: `mem_theme_${bundle.themeId}`,
+    ? petBundle.memories
+    : recordPetMemory(petBundle.memories, {
+        id: `mem_theme_${themeBundle.themeId}`,
         type: "theme_applied",
         occurredAt: now,
         line: `The garden looks different today. I like this new look on us.`,
-        refs: { itemId: bundle.themeId }
+        refs: { itemId: themeBundle.themeId }
       });
 
   return {
     ok: true,
     alreadyOwned,
-    state: {
-      ...state,
-      wallet: walletSpend.wallet,
-      inventory,
-      memories,
-      ...appendReaction(state, selectedReaction, now)
-    }
+    state: withActivePetBundle(
+      {
+        ...state,
+        wallet: walletSpend.wallet,
+        inventory
+      },
+      () => ({
+        memories,
+        ...appendReaction(petBundle, selectedReaction, now)
+      })
+    )
   };
 };
 
@@ -1642,7 +1733,7 @@ export const confirmPrototypeExpressionPackPurchase = (
     updatedAt: now
   };
 
-  const memories = recordPetMemory(state.memories, {
+  const memories = recordPetMemory(getActivePetBundle(state).memories, {
     id: `mem_expression_pack_${validation.pack.id}`,
     type: "expression_pack",
     occurredAt: now,
@@ -1652,12 +1743,14 @@ export const confirmPrototypeExpressionPackPurchase = (
 
   return {
     ok: true,
-    state: {
-      ...state,
-      wallet: walletSpend.wallet,
-      inventory,
-      memories
-    }
+    state: withActivePetBundle(
+      {
+        ...state,
+        wallet: walletSpend.wallet,
+        inventory
+      },
+      () => ({ memories })
+    )
   };
 };
 
@@ -1678,7 +1771,8 @@ export const mergePrototypeGeneratedAssets = (
     return state;
   }
 
-  const byState = new Map(state.acceptedAssets.map((asset) => [asset.state, asset]));
+  const bundle = getActivePetBundle(state);
+  const byState = new Map(bundle.acceptedAssets.map((asset) => [asset.state, asset]));
 
   for (const asset of newAssets) {
     byState.set(asset.state, asset);
@@ -1686,11 +1780,10 @@ export const mergePrototypeGeneratedAssets = (
 
   const acceptedAssets = [...byState.values()];
 
-  return {
-    ...state,
+  return withActivePetBundle(state, () => ({
     acceptedAssets,
-    acceptedAsset: state.acceptedAsset ?? acceptedAssets[0] ?? null
-  };
+    acceptedAsset: bundle.acceptedAsset ?? acceptedAssets[0] ?? null
+  }));
 };
 
 const clearCareWalkId = (careState: CareState, now: string): CareState => {
@@ -1707,12 +1800,14 @@ export const claimPrototypeWalkReward = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW
 ): PrototypeSessionState => {
-  if (!state.activeWalk || state.activeWalk.status !== "returned") {
+  const bundle = getActivePetBundle(state);
+
+  if (!bundle.activeWalk || bundle.activeWalk.status !== "returned") {
     return state;
   }
 
   const pet = getActivePrototypePet(state, now);
-  const careState = clearCareWalkId(state.careState, now);
+  const careState = clearCareWalkId(bundle.careState, now);
   const selectedReaction = selectLocalReaction(starterReactionRules, {
     locale: DEFAULT_PROTOTYPE_LOCALE,
     now,
@@ -1720,13 +1815,13 @@ export const claimPrototypeWalkReward = (
     careState,
     eventContext: "walk_reward_claimed",
     weather: state.weatherState.context,
-    recentReactions: state.recentReactions
+    recentReactions: bundle.recentReactions
   });
-  const rewardItemId = state.activeWalk.rewardItemIds[0] ?? WALK_REWARD_ITEM_ID;
+  const rewardItemId = bundle.activeWalk.rewardItemIds[0] ?? WALK_REWARD_ITEM_ID;
   const inventory = grantInventoryItem(state.inventory, rewardItemId, now);
 
   // Every walk also brings home one collectible for the walk journal.
-  const collectible = rollWalkCollectible(state.weatherState.context.condition, state.activeWalk.id);
+  const collectible = rollWalkCollectible(state.weatherState.context.condition, bundle.activeWalk.id);
   const collectionUpdate = addToWalkCollection(state.walkCollection, collectible.id, now);
   const collectionCompleted =
     collectionUpdate.isNew && isWalkCollectionComplete(collectionUpdate.collection) && !isWalkCollectionComplete(state.walkCollection);
@@ -1759,16 +1854,16 @@ export const claimPrototypeWalkReward = (
   // This walk's careStats.walkCount was already bumped by startPrototypeWalk,
   // so a value of exactly 1 here means the walk being claimed right now was
   // the very first one ever completed.
-  const isFirstWalk = state.careStats.walkCount === 1;
+  const isFirstWalk = bundle.careStats.walkCount === 1;
   let memories = isFirstWalk
-    ? recordPetMemory(state.memories, {
+    ? recordPetMemory(bundle.memories, {
         id: "mem_first_walk",
         type: "first_walk",
         occurredAt: now,
         line: "I came back from my very first walk with you.",
         refs: { weather: state.weatherState.context.condition }
       })
-    : state.memories;
+    : bundle.memories;
 
   if (collectionUpdate.isNew) {
     memories = recordPetMemory(memories, {
@@ -1802,18 +1897,22 @@ export const claimPrototypeWalkReward = (
 
   memories = recordDaysTogetherMilestoneIfCrossed(memories, pet.createdAt, now);
 
-  return {
-    ...state,
-    activeWalk: null,
-    careState,
-    inventory,
-    wallet,
-    walkCollection: collectionUpdate.collection,
-    lastWalkDiscovery: { collectibleId: collectible.id, isNew: collectionUpdate.isNew, collectionCompleted },
-    lastCareReward: { type: "item", itemId: rewardItemId, quantity: 1 },
-    memories,
-    ...appendReaction(state, discoveryReaction ?? selectedReaction, now)
-  };
+  return withActivePetBundle(
+    {
+      ...state,
+      inventory,
+      wallet,
+      walkCollection: collectionUpdate.collection
+    },
+    () => ({
+      activeWalk: null,
+      careState,
+      lastWalkDiscovery: { collectibleId: collectible.id, isNew: collectionUpdate.isNew, collectionCompleted },
+      lastCareReward: { type: "item", itemId: rewardItemId, quantity: 1 },
+      memories,
+      ...appendReaction(bundle, discoveryReaction ?? selectedReaction, now)
+    })
+  );
 };
 
 export const reportPrototypeGenerationIssue = (
@@ -1823,33 +1922,37 @@ export const reportPrototypeGenerationIssue = (
 ): PrototypeSessionState => {
   const pet = getActivePrototypePet(state, now);
 
-  return {
-    ...state,
+  return withActivePetBundle(state, () => ({
     generationIssueReport: {
       category,
       petId: pet.id,
       generationStatus: state.generation.status,
       reportedAt: now
     }
-  };
+  }));
 };
 
 export const deletePrototypeOriginalPhoto = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW
-): PrototypeSessionState => ({
-  ...state,
-  originalPhotoDeletedAt: now,
-  photo: {
-    ...state.photo,
-    selectedMockPhoto: false,
-    selectedPhotoUri: null,
-    byteSize: null,
-    mimeType: null,
-    source: "none"
-  },
-  petProfile: state.petProfile ? { ...state.petProfile, originalPhotoDeletedAt: now, updatedAt: now } : null
-});
+): PrototypeSessionState =>
+  withActivePetBundle(
+    {
+      ...state,
+      originalPhotoDeletedAt: now,
+      photo: {
+        ...state.photo,
+        selectedMockPhoto: false,
+        selectedPhotoUri: null,
+        byteSize: null,
+        mimeType: null,
+        source: "none"
+      }
+    },
+    (bundle) => ({
+      petProfile: bundle.petProfile ? { ...bundle.petProfile, originalPhotoDeletedAt: now, updatedAt: now } : null
+    })
+  );
 
 export const deletePrototypeChatHistory = (
   state: PrototypeSessionState,

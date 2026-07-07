@@ -19,6 +19,7 @@ import {
   performPrototypeCareAction,
   claimPrototypeWalkReward,
   completePrototypeWalkEarlyWithCredit,
+  getActivePetBundle,
   purchasePrototypeThemeBundle,
   refreshPrototypeWalk,
   reportPrototypeGenerationIssue,
@@ -32,11 +33,14 @@ import {
   startPrototypeGeneration,
   startPrototypeWalk,
   togglePrototypePersonalityTag,
-  updatePrototypeDraft
+  updatePrototypeDraft,
+  withActivePetBundle
 } from "../index";
 import { generatedAssetStates } from "../domain";
 import type { GeneratedAsset } from "../domain";
 import type { PrototypeSessionState } from "../session/prototypeSession";
+
+const active = getActivePetBundle;
 
 describe("prototype first-session state", () => {
   it("moves from setup to completed generation and accepted pet", () => {
@@ -65,14 +69,14 @@ describe("prototype first-session state", () => {
 
     state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:02:00.000Z");
 
-    expect(state.petProfile?.name).toBe("Bori");
-    expect(state.petProfile?.species).toBe("cat");
-    expect(state.petProfile?.activeAssetId).toBe("asset_luna_idle_001");
-    expect(state.acceptedAsset?.id).toBe("asset_luna_idle_001");
-    expect(state.acceptedAsset?.state).toBe("idle");
-    expect(state.acceptedAssets.map((asset) => asset.state)).toEqual([...generatedAssetStates]);
-    expect(state.acceptedAssets.every((asset) => asset.id.startsWith("asset_luna_"))).toBe(true);
-    expect(state.currentReaction?.category).toBe("generation_reveal");
+    expect(active(state).petProfile?.name).toBe("Bori");
+    expect(active(state).petProfile?.species).toBe("cat");
+    expect(active(state).petProfile?.activeAssetId).toBe("asset_luna_idle_001");
+    expect(active(state).acceptedAsset?.id).toBe("asset_luna_idle_001");
+    expect(active(state).acceptedAsset?.state).toBe("idle");
+    expect(active(state).acceptedAssets.map((asset) => asset.state)).toEqual([...generatedAssetStates]);
+    expect(active(state).acceptedAssets.every((asset) => asset.id.startsWith("asset_luna_"))).toBe(true);
+    expect(active(state).currentReaction?.category).toBe("generation_reveal");
   });
 
   it("carries an optional first memory from the setup draft into the accepted pet's memoryNote", () => {
@@ -84,7 +88,7 @@ describe("prototype first-session state", () => {
     });
     state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:01:00.000Z");
 
-    expect(state.petProfile?.memoryNote).toBe("Napping in a sunbeam together");
+    expect(active(state).petProfile?.memoryNote).toBe("Napping in a sunbeam together");
   });
 
   it("leaves memoryNote unset when no first memory was entered", () => {
@@ -93,7 +97,7 @@ describe("prototype first-session state", () => {
     state = updatePrototypeDraft(state, { name: "Bori" });
     state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:01:00.000Z");
 
-    expect(state.petProfile?.memoryNote).toBeUndefined();
+    expect(active(state).petProfile?.memoryNote).toBeUndefined();
   });
 
   it("supports generation failure and retry without external services", () => {
@@ -111,8 +115,8 @@ describe("prototype first-session state", () => {
 
     expect(state.generation.status).toBe("preprocessing");
     expect(state.generation.retryCount).toBe(1);
-    expect(state.acceptedAssets).toEqual([]);
-    expect(state.acceptedAsset).toBeNull();
+    expect(active(state).acceptedAssets).toEqual([]);
+    expect(active(state).acceptedAsset).toBeNull();
   });
 
   it("stores generation issue reports as safe coarse categories", () => {
@@ -123,7 +127,7 @@ describe("prototype first-session state", () => {
     state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:01:00.000Z");
     state = reportPrototypeGenerationIssue(state, "wrong_pet", "2026-06-24T09:02:00.000Z");
 
-    expect(state.generationIssueReport).toEqual({
+    expect(active(state).generationIssueReport).toEqual({
       category: "wrong_pet",
       petId: "pet_local_001",
       generationStatus: "created",
@@ -141,15 +145,15 @@ describe("prototype first-session state", () => {
       "2026-06-24T09:01:00.000Z"
     );
 
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "play")?.state).toBe("play");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "sleepy")?.state).toBe("sleep");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "idle_happy")?.state).toBe("happy");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "hungry")?.state).toBe("hungry");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "treat")?.state).toBe("treat_reaction");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "walk_return")?.state).toBe("walk_return");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "garden_help")?.state).toBe("garden_help");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "chat_portrait")?.state).toBe("chat_portrait");
-    expect(selectGeneratedAssetForReaction(state.acceptedAssets, state.acceptedAsset, "walk_out")?.state).toBe("idle");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "play")?.state).toBe("play");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "sleepy")?.state).toBe("sleep");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "idle_happy")?.state).toBe("happy");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "hungry")?.state).toBe("hungry");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "treat")?.state).toBe("treat_reaction");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "walk_return")?.state).toBe("walk_return");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "garden_help")?.state).toBe("garden_help");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "chat_portrait")?.state).toBe("chat_portrait");
+    expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "walk_out")?.state).toBe("idle");
   });
 
   it("consumes owned treat items when a treat care action uses an inventory item", () => {
@@ -174,7 +178,7 @@ describe("prototype first-session state", () => {
     state = performPrototypeCareAction(state, "treat", "2026-06-24T09:02:00.000Z", "item_treat_plate_biscuit");
 
     expect(state.inventory.items.find((item) => item.itemId === "item_treat_plate_biscuit")?.quantity).toBe(1);
-    expect(state.currentReaction?.category).toBe("treat_common");
+    expect(active(state).currentReaction?.category).toBe("treat_common");
 
     state = performPrototypeCareAction(state, "treat", "2026-06-24T09:03:00.000Z", "item_treat_plate_biscuit");
 
@@ -186,8 +190,8 @@ describe("prototype first-session state", () => {
     const unchanged = performPrototypeCareAction(state, "treat", "2026-06-24T09:01:00.000Z");
 
     expect(unchanged.inventory).toBe(state.inventory);
-    expect(unchanged.relationshipState).toBe(state.relationshipState);
-    expect(unchanged.currentReaction).toBe(state.currentReaction);
+    expect(active(unchanged).relationshipState).toBe(active(state).relationshipState);
+    expect(active(unchanged).currentReaction).toBe(active(state).currentReaction);
 
     state = {
       ...state,
@@ -208,8 +212,8 @@ describe("prototype first-session state", () => {
     const treated = performPrototypeCareAction(state, "treat", "2026-06-24T09:03:00.000Z");
 
     expect(treated.inventory.items.some((item) => item.itemId === "item_treat_plate_biscuit")).toBe(false);
-    expect(treated.currentReaction?.category).toBe("treat_common");
-    expect(treated.relationshipState.bondXp).toBe(state.relationshipState.bondXp + 5);
+    expect(active(treated).currentReaction?.category).toBe("treat_common");
+    expect(active(treated).relationshipState.bondXp).toBe(active(state).relationshipState.bondXp + 5);
   });
 
   it("keeps daily care, walk return, and time decay coherent across a home-session loop", () => {
@@ -221,36 +225,36 @@ describe("prototype first-session state", () => {
     );
 
     state = performPrototypeCareAction(state, "feed", "2026-06-24T08:00:00.000Z");
-    expect(state.careState.satiety).toBeGreaterThan(70);
-    expect(state.currentReaction?.category).toBe("fed_recent");
+    expect(active(state).careState.satiety).toBeGreaterThan(70);
+    expect(active(state).currentReaction?.category).toBe("fed_recent");
 
     state = performPrototypeCareAction(state, "water_garden", "2026-06-24T08:05:00.000Z");
-    expect(state.careState.gardenHealth).toBeGreaterThan(80);
+    expect(active(state).careState.gardenHealth).toBeGreaterThan(80);
 
-    const energyBeforePlay = state.careState.energy;
+    const energyBeforePlay = active(state).careState.energy;
     state = performPrototypeCareAction(state, "play", "2026-06-24T08:10:00.000Z");
-    expect(state.careState.happiness).toBeGreaterThan(80);
+    expect(active(state).careState.happiness).toBeGreaterThan(80);
     // Play still spends its full energy cost (feed/water_garden give a little
     // energy back, but play/walk's own drain is unchanged -- see the mongchi
     // "케어 체감 밸런스" fix).
-    expect(state.careState.energy).toBe(energyBeforePlay - 8);
+    expect(active(state).careState.energy).toBe(energyBeforePlay - 8);
 
     state = startPrototypeWalk(state, "2026-06-24T08:20:00.000Z", 1000);
-    expect(state.activeWalk?.status).toBe("walking");
-    expect(state.careState.activeWalkId).toBe(state.activeWalk?.id);
+    expect(active(state).activeWalk?.status).toBe("walking");
+    expect(active(state).careState.activeWalkId).toBe(active(state).activeWalk?.id);
 
     state = refreshPrototypeWalk(state, "2026-06-24T08:20:01.000Z");
-    expect(state.activeWalk?.status).toBe("returned");
+    expect(active(state).activeWalk?.status).toBe("returned");
 
     state = claimPrototypeWalkReward(state, "2026-06-24T08:20:02.000Z");
-    expect(state.activeWalk).toBeNull();
-    expect(state.careState.activeWalkId).toBeUndefined();
+    expect(active(state).activeWalk).toBeNull();
+    expect(active(state).careState.activeWalkId).toBeUndefined();
     expect(state.inventory.items.find((entry) => entry.source === "walk_reward")).toBeDefined();
 
     const nextDay = performPrototypeCareAction(state, "affection", "2026-06-25T13:20:01.000Z");
-    expect(nextDay.careState.satiety).toBeLessThan(state.careState.satiety);
-    expect(nextDay.careState.happiness).toBeLessThanOrEqual(100);
-    expect(nextDay.relationshipState.bondXp).toBe(state.relationshipState.bondXp + 4);
+    expect(active(nextDay).careState.satiety).toBeLessThan(active(state).careState.satiety);
+    expect(active(nextDay).careState.happiness).toBeLessThanOrEqual(100);
+    expect(active(nextDay).relationshipState.bondXp).toBe(active(state).relationshipState.bondXp + 4);
   });
 
   it("applies local care actions from the current time-projected state", () => {
@@ -261,9 +265,9 @@ describe("prototype first-session state", () => {
     // floor of 15) well below the 40 catchup threshold; feed also now gives a
     // small energy recovery on top of the projected 47 -- see the mongchi
     // "케어 체감 밸런스" fix.
-    expect(fed.careState.satiety).toBe(61);
-    expect(fed.careState.energy).toBe(61);
-    expect(fed.careState.updatedAt).toBe("2026-06-25T15:00:00.000Z");
+    expect(active(fed).careState.satiety).toBe(61);
+    expect(active(fed).careState.energy).toBe(61);
+    expect(active(fed).careState.updatedAt).toBe("2026-06-25T15:00:00.000Z");
   });
 
   it("keeps wallet credits and bond growth untouched by the pet water action", () => {
@@ -273,27 +277,27 @@ describe("prototype first-session state", () => {
 
     state = performPrototypeCareAction(state, "talk", "2026-06-24T09:01:00.000Z");
 
-    expect(state.relationshipState.totalTalkCount).toBe(3);
-    expect(state.relationshipState.bondXp).toBe(69);
+    expect(active(state).relationshipState.totalTalkCount).toBe(3);
+    expect(active(state).relationshipState.bondXp).toBe(69);
     expect(getSpendableCreditBalance(state.wallet)).toBe(25);
 
     state = performPrototypeCareAction(state, "water_garden", "2026-06-24T09:03:00.000Z");
 
-    expect(state.careState.gardenHealth).toBeGreaterThan(80);
-    expect(state.lastCareReward).toBeNull();
+    expect(active(state).careState.gardenHealth).toBeGreaterThan(80);
+    expect(active(state).lastCareReward).toBeNull();
     expect(getSpendableCreditBalance(state.wallet)).toBe(25);
   });
 
   it("does not grant any item or bonus reward from the core pet water action", () => {
     let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
     const startingCredits = getSpendableCreditBalance(state.wallet);
-    const startingBondXp = state.relationshipState.bondXp;
+    const startingBondXp = active(state).relationshipState.bondXp;
 
     state = performPrototypeCareAction(state, "water_garden", "2026-06-24T09:02:00.000Z");
 
     expect(getSpendableCreditBalance(state.wallet)).toBe(startingCredits);
-    expect(state.relationshipState.bondXp).toBe(startingBondXp + 1);
-    expect(state.lastCareReward).toBeNull();
+    expect(active(state).relationshipState.bondXp).toBe(startingBondXp + 1);
+    expect(active(state).lastCareReward).toBeNull();
   });
 
   it("polls mock generation jobs with scheduled and manual progression", () => {
@@ -353,7 +357,7 @@ describe("prototype first-session state", () => {
 
     expect(state.photo.selectedPhotoUri).toBeNull();
     expect(state.photo.source).toBe("none");
-    expect(state.petProfile?.originalPhotoDeletedAt).toBe("2026-06-24T09:02:00.000Z");
+    expect(active(state).petProfile?.originalPhotoDeletedAt).toBe("2026-06-24T09:02:00.000Z");
   });
 
   it("gates the photo step on photo + consent alone, independent of pet-setup draft fields", () => {
@@ -412,25 +416,25 @@ describe("prototype walk reward loop", () => {
       name: "Miso"
     });
     state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:00:10.000Z");
-    const happinessBeforeWalk = state.careState.happiness;
+    const happinessBeforeWalk = active(state).careState.happiness;
     state = startPrototypeWalk(state, "2026-06-24T09:01:00.000Z", 1000);
 
-    expect(state.activeWalk?.status).toBe("walking");
-    expect(state.careState.activeWalkId).toBe(state.activeWalk?.id);
+    expect(active(state).activeWalk?.status).toBe("walking");
+    expect(active(state).careState.activeWalkId).toBe(active(state).activeWalk?.id);
 
     state = refreshPrototypeWalk(state, "2026-06-24T09:01:00.500Z");
-    expect(state.activeWalk?.status).toBe("walking");
+    expect(active(state).activeWalk?.status).toBe("walking");
 
     state = refreshPrototypeWalk(state, "2026-06-24T09:01:01.000Z");
-    expect(state.activeWalk?.status).toBe("returned");
-    expect(state.careState.happiness).toBeGreaterThan(happinessBeforeWalk);
-    expect(state.currentReaction?.category).toBe("walk_return_common");
+    expect(active(state).activeWalk?.status).toBe("returned");
+    expect(active(state).careState.happiness).toBeGreaterThan(happinessBeforeWalk);
+    expect(active(state).currentReaction?.category).toBe("walk_return_common");
 
     state = claimPrototypeWalkReward(state, "2026-06-24T09:01:02.000Z");
-    expect(state.activeWalk).toBeNull();
-    expect(state.careState.activeWalkId).toBeUndefined();
+    expect(active(state).activeWalk).toBeNull();
+    expect(active(state).careState.activeWalkId).toBeUndefined();
     expect(state.inventory.items.some((entry) => entry.source === "walk_reward")).toBe(true);
-    expect(state.lastCareReward).toMatchObject({ type: "item", quantity: 1 });
+    expect(active(state).lastCareReward).toMatchObject({ type: "item", quantity: 1 });
   });
 
   it("uses weather-aware walk episodes and discovery copy", () => {
@@ -442,8 +446,8 @@ describe("prototype walk reward loop", () => {
     state = setPrototypeWeatherCondition(state, "rain", "2026-06-24T09:00:20.000Z");
     state = startPrototypeWalk(state, "2026-06-24T09:01:00.000Z", 1000);
 
-    expect(state.activeWalk?.discoveryLine).toContain("rainy");
-    expect(state.currentReaction?.ruleId).toBe("en_weather_rain_walk_001");
+    expect(active(state).activeWalk?.discoveryLine).toContain("rainy");
+    expect(active(state).currentReaction?.ruleId).toBe("en_weather_rain_walk_001");
   });
 
   it("always rewards a consumable treat/food item from a walk, in any weather", () => {
@@ -467,7 +471,7 @@ describe("prototype walk reward loop", () => {
       state = setPrototypeWeatherCondition(state, condition, "2026-06-24T09:00:20.000Z");
       state = startPrototypeWalk(state, "2026-06-24T09:01:00.000Z", 1000);
 
-      const rewardItemId = state.activeWalk?.rewardItemIds[0];
+      const rewardItemId = active(state).activeWalk?.rewardItemIds[0];
       const rewardItem = mockItems.find((item) => item.id === rewardItemId);
 
       expect(rewardItem).toBeDefined();
@@ -484,7 +488,7 @@ describe("paid early walk return (bring home now)", () => {
     state = startPrototypeWalk(state, "2026-06-24T09:01:00.000Z", 60_000);
     const balanceBeforeSpend = getSpendableCreditBalance(state.wallet);
 
-    expect(state.activeWalk?.status).toBe("walking");
+    expect(active(state).activeWalk?.status).toBe("walking");
 
     const result = completePrototypeWalkEarlyWithCredit(state, "2026-06-24T09:01:05.000Z");
 
@@ -494,7 +498,7 @@ describe("paid early walk return (bring home now)", () => {
     }
 
     expect(getSpendableCreditBalance(result.state.wallet)).toBe(balanceBeforeSpend - 1);
-    expect(result.state.activeWalk?.status).toBe("returned");
+    expect(active(result.state).activeWalk?.status).toBe("returned");
   });
 
   it("does not touch the wallet or the walk when the balance is insufficient", () => {
@@ -510,7 +514,7 @@ describe("paid early walk return (bring home now)", () => {
     const result = completePrototypeWalkEarlyWithCredit(state, "2026-06-24T09:01:05.000Z");
 
     expect(result).toEqual({ ok: false, reason: "insufficient_balance" });
-    expect(state.activeWalk?.status).toBe("walking");
+    expect(active(state).activeWalk?.status).toBe("walking");
     expect(getSpendableCreditBalance(state.wallet)).toBe(0);
   });
 
@@ -580,10 +584,56 @@ describe("generation progress gauge monotonicity", () => {
   });
 });
 
+// Multi-pet W1 (docs/multi-pet-w1-design.md section 4): a second pet's
+// generation flow must never destroy the first (active) pet's already-
+// accepted assets. Before W1, startPrototypeGeneration/retryPrototypeGeneration
+// unconditionally cleared acceptedAsset/acceptedAssets -- harmless while
+// there was only ever one pet, but that same code path would have wiped an
+// existing pet's sprite the moment a second pet's generation could start.
+// These regression tests prove the active bundle's assets now survive both
+// calls untouched, which is the structural precondition W3 (a real second
+// pet) depends on.
+describe("generation isolation (does not destroy the active pet's assets)", () => {
+  it("startPrototypeGeneration leaves the active bundle's acceptedAssets untouched", () => {
+    let state = acceptPrototypeGeneratedPet(updatePrototypeDraft(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"), { name: "Miso" }), "2026-06-24T09:00:10.000Z");
+    const assetsBefore = active(state).acceptedAssets;
+    const assetBefore = active(state).acceptedAsset;
+
+    state = startPrototypeGeneration(state, "2026-06-24T09:01:00.000Z");
+
+    expect(active(state).acceptedAssets).toBe(assetsBefore);
+    expect(active(state).acceptedAsset).toBe(assetBefore);
+    expect(active(state).acceptedAssets.length).toBeGreaterThan(0);
+  });
+
+  it("retryPrototypeGeneration leaves the active bundle's acceptedAssets untouched", () => {
+    let state = acceptPrototypeGeneratedPet(updatePrototypeDraft(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"), { name: "Miso" }), "2026-06-24T09:00:10.000Z");
+    const assetsBefore = active(state).acceptedAssets;
+    const assetBefore = active(state).acceptedAsset;
+
+    state = retryPrototypeGeneration(state, "2026-06-24T09:01:00.000Z");
+
+    expect(active(state).acceptedAssets).toBe(assetsBefore);
+    expect(active(state).acceptedAsset).toBe(assetBefore);
+    expect(active(state).acceptedAssets.length).toBeGreaterThan(0);
+  });
+
+  it("a start->retry sequence still leaves the active bundle's assets intact", () => {
+    let state = acceptPrototypeGeneratedPet(updatePrototypeDraft(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"), { name: "Miso" }), "2026-06-24T09:00:10.000Z");
+    const assetsBefore = active(state).acceptedAssets;
+
+    state = startPrototypeGeneration(state, "2026-06-24T09:01:00.000Z");
+    state = failPrototypeGeneration(state, "2026-06-24T09:01:05.000Z");
+    state = retryPrototypeGeneration(state, "2026-06-24T09:02:00.000Z");
+
+    expect(active(state).acceptedAssets).toEqual(assetsBefore);
+  });
+});
+
 describe("acceptPrototypeGeneratedPet preserveAssets option", () => {
   const makeSignedAsset = (state: PrototypeSessionState = createInitialPrototypeSession("2026-07-03T09:00:00.000Z")): GeneratedAsset => ({
     id: "job_supabase_001:idle",
-    petId: state.petProfile?.id ?? "pet_local_001",
+    petId: active(state).petProfile?.id ?? "pet_local_001",
     generationJobId: "job_supabase_001",
     state: "idle",
     uri: "https://signed.example.com/avatars/idle.png",
@@ -603,16 +653,15 @@ describe("acceptPrototypeGeneratedPet preserveAssets option", () => {
     state = updatePrototypeDraft(state, { name: "Miso" });
 
     const signedAsset = makeSignedAsset(state);
-    state = {
-      ...state,
+    state = withActivePetBundle(state, () => ({
       acceptedAsset: signedAsset,
       acceptedAssets: [signedAsset]
-    };
+    }));
 
     const result = acceptPrototypeGeneratedPet(state, "2026-07-03T09:03:00.000Z", { preserveAssets: true });
 
-    expect(result.acceptedAsset).toBe(signedAsset);
-    expect(result.acceptedAssets).toEqual([signedAsset]);
+    expect(active(result).acceptedAsset).toBe(signedAsset);
+    expect(active(result).acceptedAssets).toEqual([signedAsset]);
   });
 
   it("still generates local mock assets by default (preserveAssets omitted)", () => {
@@ -621,8 +670,8 @@ describe("acceptPrototypeGeneratedPet preserveAssets option", () => {
 
     const result = acceptPrototypeGeneratedPet(state, "2026-07-03T09:03:00.000Z");
 
-    expect(result.acceptedAssets.length).toBeGreaterThan(0);
-    expect(result.acceptedAsset?.uri).not.toContain("signed.example.com");
+    expect(active(result).acceptedAssets.length).toBeGreaterThan(0);
+    expect(active(result).acceptedAsset?.uri).not.toContain("signed.example.com");
   });
 });
 
@@ -648,15 +697,17 @@ describe("normalizeRestoredGeneration", () => {
   it("downgrades a completed status with no accepted assets (stranded before poll response landed)", () => {
     let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
     state = updatePrototypeDraft(state, { name: "Miso" });
-    state = {
-      ...state,
-      generation: {
-        ...state.generation,
-        status: "completed",
-        completedAt: "2026-06-24T09:05:00.000Z"
+    state = withActivePetBundle(
+      {
+        ...state,
+        generation: {
+          ...state.generation,
+          status: "completed",
+          completedAt: "2026-06-24T09:05:00.000Z"
+        }
       },
-      acceptedAssets: []
-    };
+      () => ({ acceptedAssets: [] })
+    );
 
     const normalized = normalizeRestoredGeneration(state, "2026-06-24T10:00:00.000Z");
 
@@ -710,7 +761,7 @@ describe("memory + care stats spine", () => {
   it("records a moved_in memory when the pet is accepted", () => {
     const state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
 
-    const movedIn = state.memories.find((entry) => entry.type === "moved_in");
+    const movedIn = active(state).memories.find((entry) => entry.type === "moved_in");
     expect(movedIn).toBeDefined();
     expect(movedIn?.occurredAt).toBe("2026-06-24T09:00:00.000Z");
   });
@@ -720,7 +771,7 @@ describe("memory + care stats spine", () => {
     state = updatePrototypeDraft(state, { name: "Miso", firstMemory: "The rainy afternoon we met." });
     state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:00:00.000Z");
 
-    const movedIn = state.memories.find((entry) => entry.type === "moved_in");
+    const movedIn = active(state).memories.find((entry) => entry.type === "moved_in");
     expect(movedIn?.refs?.note).toBe("The rainy afternoon we met.");
   });
 
@@ -730,10 +781,10 @@ describe("memory + care stats spine", () => {
     state = refreshPrototypeWalk(state, "2026-06-24T09:01:01.000Z");
     state = claimPrototypeWalkReward(state, "2026-06-24T09:01:02.000Z");
 
-    expect(state.memories.some((entry) => entry.type === "first_walk")).toBe(true);
-    expect(state.memories.some((entry) => entry.type === "first_find")).toBe(true);
-    expect(state.careStats.walkCount).toBe(1);
-    expect(state.careStats.totalCareActions).toBeGreaterThan(0);
+    expect(active(state).memories.some((entry) => entry.type === "first_walk")).toBe(true);
+    expect(active(state).memories.some((entry) => entry.type === "first_find")).toBe(true);
+    expect(active(state).careStats.walkCount).toBe(1);
+    expect(active(state).careStats.totalCareActions).toBeGreaterThan(0);
   });
 
   it("does not record a second first_walk/first_find on a later walk", () => {
@@ -746,8 +797,8 @@ describe("memory + care stats spine", () => {
     state = refreshPrototypeWalk(state, "2026-06-24T10:00:01.000Z");
     state = claimPrototypeWalkReward(state, "2026-06-24T10:00:02.000Z");
 
-    expect(state.memories.filter((entry) => entry.type === "first_walk")).toHaveLength(1);
-    expect(state.careStats.walkCount).toBe(2);
+    expect(active(state).memories.filter((entry) => entry.type === "first_walk")).toHaveLength(1);
+    expect(active(state).careStats.walkCount).toBe(2);
   });
 
   it("records a bond_level memory when a care action crosses a bond level", () => {
@@ -759,8 +810,8 @@ describe("memory + care stats spine", () => {
       state = performPrototypeCareAction(state, "affection", `2026-06-24T09:0${i}:00.000Z`);
     }
 
-    expect(state.relationshipState.bondLevel).toBeGreaterThanOrEqual(2);
-    const bondMemory = state.memories.find((entry) => entry.type === "bond_level" && entry.refs?.bondLevel === 2);
+    expect(active(state).relationshipState.bondLevel).toBeGreaterThanOrEqual(2);
+    const bondMemory = active(state).memories.find((entry) => entry.type === "bond_level" && entry.refs?.bondLevel === 2);
     expect(bondMemory).toBeDefined();
   });
 
@@ -781,7 +832,7 @@ describe("memory + care stats spine", () => {
     }
 
     expect(state.careStreak.current).toBe(7);
-    const streakMemory = state.memories.find((entry) => entry.type === "streak_milestone" && entry.refs?.streakCount === 7);
+    const streakMemory = active(state).memories.find((entry) => entry.type === "streak_milestone" && entry.refs?.streakCount === 7);
     expect(streakMemory).toBeDefined();
   });
 
@@ -795,9 +846,9 @@ describe("memory + care stats spine", () => {
 
     state = performPrototypeCareAction(state, "treat", "2026-06-24T09:02:00.000Z");
 
-    const firstTreatMemory = state.memories.find((entry) => entry.type === "first_treat");
+    const firstTreatMemory = active(state).memories.find((entry) => entry.type === "first_treat");
     expect(firstTreatMemory).toBeDefined();
-    expect(Object.keys(state.careStats.treatItemCounts).length).toBeGreaterThan(0);
+    expect(Object.keys(active(state).careStats.treatItemCounts).length).toBeGreaterThan(0);
 
     // Bring home a second treat/food item so the follow-up treat action has
     // something to consume, and confirm the memory still only recorded once.
@@ -806,7 +857,7 @@ describe("memory + care stats spine", () => {
     state = claimPrototypeWalkReward(state, "2026-06-24T09:03:02.000Z");
     state = performPrototypeCareAction(state, "treat", "2026-06-24T10:00:00.000Z");
 
-    expect(state.memories.filter((entry) => entry.type === "first_treat")).toHaveLength(1);
+    expect(active(state).memories.filter((entry) => entry.type === "first_treat")).toHaveLength(1);
   });
 
   it("records a theme_applied memory once per theme purchase", () => {
@@ -818,7 +869,7 @@ describe("memory + care stats spine", () => {
       return;
     }
 
-    const themeMemory = result.state.memories.find((entry) => entry.type === "theme_applied");
+    const themeMemory = active(result.state).memories.find((entry) => entry.type === "theme_applied");
     expect(themeMemory).toBeDefined();
     expect(themeMemory?.refs?.itemId).toBe("theme-fairy-garden");
   });
@@ -828,7 +879,7 @@ describe("memory + care stats spine", () => {
 
     state = performPrototypeCareAction(state, "talk", "2026-07-01T09:01:00.000Z");
 
-    const daysMemory = state.memories.find((entry) => entry.type === "days_milestone");
+    const daysMemory = active(state).memories.find((entry) => entry.type === "days_milestone");
     expect(daysMemory).toBeDefined();
     expect(daysMemory?.refs?.daysTogether).toBe(7);
   });
@@ -838,7 +889,7 @@ describe("memory + care stats spine", () => {
     state = performPrototypeCareAction(state, "talk", "2026-07-01T09:01:00.000Z");
     state = performPrototypeCareAction(state, "talk", "2026-07-01T15:00:00.000Z");
 
-    expect(state.memories.filter((entry) => entry.type === "days_milestone" && entry.refs?.daysTogether === 7)).toHaveLength(1);
+    expect(active(state).memories.filter((entry) => entry.type === "days_milestone" && entry.refs?.daysTogether === 7)).toHaveLength(1);
   });
 
   it("bumps care stats on every care action, including the action taken during a walk", () => {
@@ -847,10 +898,10 @@ describe("memory + care stats spine", () => {
     state = performPrototypeCareAction(state, "play", "2026-06-24T09:02:00.000Z");
     state = startPrototypeWalk(state, "2026-06-24T09:03:00.000Z", 1000);
 
-    expect(state.careStats.actionCounts.feed).toBe(1);
-    expect(state.careStats.actionCounts.play).toBe(1);
-    expect(state.careStats.walkCount).toBe(1);
-    expect(state.careStats.totalCareActions).toBeGreaterThanOrEqual(2);
+    expect(active(state).careStats.actionCounts.feed).toBe(1);
+    expect(active(state).careStats.actionCounts.play).toBe(1);
+    expect(active(state).careStats.walkCount).toBe(1);
+    expect(active(state).careStats.totalCareActions).toBeGreaterThanOrEqual(2);
   });
 
   it("caps treat bond XP at 3 grants per local day, but always applies the treat's stat/mood effects", () => {
@@ -871,50 +922,50 @@ describe("memory + care stats spine", () => {
       }
     };
 
-    const bondXpBefore = state.relationshipState.bondXp;
-    const satietyBefore = state.careState.satiety;
+    const bondXpBefore = active(state).relationshipState.bondXp;
+    const satietyBefore = active(state).careState.satiety;
 
     // First 3 treats of the day each grant the normal +5 bond XP.
     for (let i = 0; i < 3; i += 1) {
-      const before = state.relationshipState.bondXp;
+      const before = active(state).relationshipState.bondXp;
       state = performPrototypeCareAction(state, "treat", `2026-06-24T09:0${i + 1}:00.000Z`, "item_treat_plate_biscuit");
-      expect(state.relationshipState.bondXp).toBe(before + 5);
+      expect(active(state).relationshipState.bondXp).toBe(before + 5);
     }
 
-    expect(state.relationshipState.bondXp).toBe(bondXpBefore + 15);
+    expect(active(state).relationshipState.bondXp).toBe(bondXpBefore + 15);
 
     // A 4th treat the same day still fills the bowl and lifts mood/affection,
     // but grants no further bond XP -- the emotional side of giving a treat
     // is never gated, only the XP farming.
-    const beforeFourth = state.relationshipState.bondXp;
-    const satietyBeforeFourth = state.careState.satiety;
+    const beforeFourth = active(state).relationshipState.bondXp;
+    const satietyBeforeFourth = active(state).careState.satiety;
     state = performPrototypeCareAction(state, "treat", "2026-06-24T09:10:00.000Z", "item_treat_plate_biscuit");
 
-    expect(state.relationshipState.bondXp).toBe(beforeFourth);
-    expect(state.careState.satiety).toBeGreaterThan(satietyBeforeFourth);
-    expect(state.careState.satiety).toBeGreaterThanOrEqual(satietyBefore);
+    expect(active(state).relationshipState.bondXp).toBe(beforeFourth);
+    expect(active(state).careState.satiety).toBeGreaterThan(satietyBeforeFourth);
+    expect(active(state).careState.satiety).toBeGreaterThanOrEqual(satietyBefore);
 
     // The next calendar day resets the cap.
-    const beforeNextDay = state.relationshipState.bondXp;
+    const beforeNextDay = active(state).relationshipState.bondXp;
     state = performPrototypeCareAction(state, "treat", "2026-06-26T09:00:00.000Z", "item_treat_plate_biscuit");
-    expect(state.relationshipState.bondXp).toBe(beforeNextDay + 5);
+    expect(active(state).relationshipState.bondXp).toBe(beforeNextDay + 5);
   });
 
   it("caps talk bond XP at 10 grants per local day, but always applies talk's mood/affection effects", () => {
     let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
 
     for (let i = 0; i < 10; i += 1) {
-      const before = state.relationshipState.bondXp;
+      const before = active(state).relationshipState.bondXp;
       state = performPrototypeCareAction(state, "talk", `2026-06-24T09:${`${i}`.padStart(2, "0")}:00.000Z`);
-      expect(state.relationshipState.bondXp).toBe(before + 3);
+      expect(active(state).relationshipState.bondXp).toBe(before + 3);
     }
 
-    const beforeEleventh = state.relationshipState.bondXp;
-    const happinessBeforeEleventh = state.careState.happiness;
+    const beforeEleventh = active(state).relationshipState.bondXp;
+    const happinessBeforeEleventh = active(state).careState.happiness;
     state = performPrototypeCareAction(state, "talk", "2026-06-24T09:15:00.000Z");
 
-    expect(state.relationshipState.bondXp).toBe(beforeEleventh);
-    expect(state.careState.happiness).toBeGreaterThanOrEqual(happinessBeforeEleventh);
+    expect(active(state).relationshipState.bondXp).toBe(beforeEleventh);
+    expect(active(state).careState.happiness).toBeGreaterThanOrEqual(happinessBeforeEleventh);
   });
 
   it("caps play bond XP at 5 grants per local day, but always applies play's mood effects (special toys bypass the cooldown, not the XP cap)", () => {
@@ -924,23 +975,23 @@ describe("memory + care stats spine", () => {
     // the base 20-minute play cooldown -- see terrariumHomeInteractionContract.ts)
     // each grant the normal +2 bond XP.
     for (let i = 0; i < 5; i += 1) {
-      const before = state.relationshipState.bondXp;
+      const before = active(state).relationshipState.bondXp;
       state = performPrototypeCareAction(state, "play", `2026-06-24T09:0${i}:00.000Z`, "item_plush_toy_buddy");
-      expect(state.relationshipState.bondXp).toBe(before + 2);
+      expect(active(state).relationshipState.bondXp).toBe(before + 2);
     }
 
     // A 6th play the same day still lifts happiness (and can still cost
     // energy), but grants no further bond XP -- only XP farming is capped.
-    const beforeSixth = state.relationshipState.bondXp;
-    const happinessBeforeSixth = state.careState.happiness;
+    const beforeSixth = active(state).relationshipState.bondXp;
+    const happinessBeforeSixth = active(state).careState.happiness;
     state = performPrototypeCareAction(state, "play", "2026-06-24T09:10:00.000Z", "item_plush_toy_buddy");
 
-    expect(state.relationshipState.bondXp).toBe(beforeSixth);
-    expect(state.careState.happiness).toBeGreaterThanOrEqual(happinessBeforeSixth);
+    expect(active(state).relationshipState.bondXp).toBe(beforeSixth);
+    expect(active(state).careState.happiness).toBeGreaterThanOrEqual(happinessBeforeSixth);
 
     // The next calendar day resets the cap.
-    const beforeNextDay = state.relationshipState.bondXp;
+    const beforeNextDay = active(state).relationshipState.bondXp;
     state = performPrototypeCareAction(state, "play", "2026-06-26T09:00:00.000Z", "item_plush_toy_buddy");
-    expect(state.relationshipState.bondXp).toBe(beforeNextDay + 2);
+    expect(active(state).relationshipState.bondXp).toBe(beforeNextDay + 2);
   });
 });

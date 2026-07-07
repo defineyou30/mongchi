@@ -44,12 +44,13 @@ vi.mock("./supabaseClient", () => ({
 
 import {
   createInitialPrototypeSession,
+  getActivePetBundle,
   setPrototypeConsentAccepted,
   setPrototypeMockPhotoSelected,
   setPrototypeSelectedPhotoUri,
   updatePrototypeDraft
 } from "@mongchi/shared";
-import type { PrototypeSessionState } from "@mongchi/shared";
+import type { PetBundle, PrototypeSessionState } from "@mongchi/shared";
 
 import {
   pollSupabaseExpressionPackFlow,
@@ -60,7 +61,18 @@ import {
   startSupabaseGenerationFlow
 } from "./supabaseGenerationSession";
 
-const createReadyState = (): PrototypeSessionState => {
+// supabaseGenerationSession.ts's flows read per-pet fields (petProfile/
+// acceptedAsset(s)) directly off their `state` parameter -- in production
+// that parameter is TerrariumSessionProvider's `legacyFlatState` (the
+// active bundle flattened back onto the top level), not the raw
+// PrototypeSessionState. These tests call the flows directly, so they need
+// the same flattening.
+const toLegacyFlatState = (state: PrototypeSessionState): PrototypeSessionState & PetBundle => ({
+  ...state,
+  ...getActivePetBundle(state)
+});
+
+const createReadyState = (): PrototypeSessionState & PetBundle => {
   let state = createInitialPrototypeSession("2026-07-03T09:00:00.000Z");
 
   state = updatePrototypeDraft(state, {
@@ -75,10 +87,10 @@ const createReadyState = (): PrototypeSessionState => {
   });
   state = setPrototypeConsentAccepted(state, true);
 
-  return state;
+  return toLegacyFlatState(state);
 };
 
-const createMockPhotoState = (): PrototypeSessionState => {
+const createMockPhotoState = (): PrototypeSessionState & PetBundle => {
   let state = createInitialPrototypeSession("2026-07-03T09:00:00.000Z");
 
   state = updatePrototypeDraft(state, {
@@ -90,7 +102,7 @@ const createMockPhotoState = (): PrototypeSessionState => {
   state = setPrototypeMockPhotoSelected(state, true);
   state = setPrototypeConsentAccepted(state, true);
 
-  return state;
+  return toLegacyFlatState(state);
 };
 
 interface FakeSupabaseClientOptions {
@@ -256,7 +268,7 @@ describe("supabase generation session start flow", () => {
     });
     state = setPrototypeConsentAccepted(state, true);
 
-    const result = await startSupabaseGenerationFlow(client as never, state, "2026-07-03T09:01:00.000Z");
+    const result = await startSupabaseGenerationFlow(client as never, toLegacyFlatState(state), "2026-07-03T09:01:00.000Z");
 
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -278,7 +290,7 @@ describe("supabase generation session start flow", () => {
     const { client } = createFakeSupabaseClient();
     const state = createInitialPrototypeSession("2026-07-03T09:00:00.000Z");
 
-    const result = await startSupabaseGenerationFlow(client as never, state, "2026-07-03T09:01:00.000Z");
+    const result = await startSupabaseGenerationFlow(client as never, toLegacyFlatState(state), "2026-07-03T09:01:00.000Z");
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -399,7 +411,7 @@ describe("supabase generation session start flow", () => {
 });
 
 describe("supabase generation session poll flow", () => {
-  const stateWithJob = (): PrototypeSessionState => {
+  const stateWithJob = (): PrototypeSessionState & PetBundle => {
     const base = createReadyState();
 
     return {
@@ -581,7 +593,7 @@ describe("supabase generation session poll flow", () => {
 });
 
 describe("supabase generation session retry flow", () => {
-  const stateWithJob = (): PrototypeSessionState => {
+  const stateWithJob = (): PrototypeSessionState & PetBundle => {
     const base = createReadyState();
 
     return {
@@ -630,7 +642,7 @@ describe("supabase generation session retry flow", () => {
     });
 
     const state = stateWithJob();
-    const stateWithoutPhoto: PrototypeSessionState = {
+    const stateWithoutPhoto: PrototypeSessionState & PetBundle = {
       ...state,
       photo: {
         ...state.photo,
@@ -699,7 +711,7 @@ describe("supabase generation session retry flow", () => {
 });
 
 describe("resolveIdleAssetStoragePath", () => {
-  const withIdleAsset = (contentHash: string, uri = "https://signed.example.com/avatars/user/job/idle.png"): PrototypeSessionState => {
+  const withIdleAsset = (contentHash: string, uri = "https://signed.example.com/avatars/user/job/idle.png"): PrototypeSessionState & PetBundle => {
     const base = createReadyState();
 
     return {
@@ -759,7 +771,7 @@ describe("resolveIdleAssetStoragePath", () => {
 });
 
 describe("supabase expression pack start flow", () => {
-  const stateWithIdleAsset = (): PrototypeSessionState => {
+  const stateWithIdleAsset = (): PrototypeSessionState & PetBundle => {
     const base = createReadyState();
 
     return {

@@ -41,6 +41,7 @@ import type {
   Item,
   ItemId,
   ListPetsResponse,
+  PetBundle,
   PetProfile,
   PlaceInventoryItemRequest,
   PrototypeSessionState,
@@ -188,11 +189,11 @@ const getWaterablePlantItemIds = (state: PrototypeSessionState, catalogItems: re
 };
 
 const buildLocalCareProgressPatch = (
-  currentState: PrototypeSessionState,
+  currentState: PrototypeSessionState & PetBundle,
   catalogItems: readonly Item[],
   action: CareActionType,
   occurredAt: string
-): Pick<PrototypeSessionState, "relationshipState"> & Partial<Pick<PrototypeSessionState, "inventory">> => {
+): Pick<PetBundle, "relationshipState"> & Partial<Pick<PrototypeSessionState, "inventory">> => {
   const relationshipState = applyRelationshipCareAction(currentState.relationshipState, action, occurredAt);
 
   if (action !== "water_garden") {
@@ -324,13 +325,13 @@ export const loadApiDailyLoopState = async (
 
 export const performApiDailyLoopCareAction = async (
   client: DailyLoopApiClient,
-  currentState: PrototypeSessionState,
+  currentState: PrototypeSessionState & PetBundle,
   catalogItems: readonly Item[],
   petId: string,
   action: CareActionType,
   occurredAt: string,
   itemId?: ItemId
-): Promise<ApiDailyLoopResult<Partial<PrototypeSessionState>>> => {
+): Promise<ApiDailyLoopResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   if (action === "walk") {
     const startedWalk = await client.startWalk(petId);
 
@@ -382,10 +383,10 @@ export const performApiDailyLoopCareAction = async (
 
 export const claimApiDailyLoopWalkReward = async (
   client: DailyLoopApiClient,
-  currentState: PrototypeSessionState,
+  currentState: PrototypeSessionState & PetBundle,
   walkId: string,
   petId: string
-): Promise<ApiDailyLoopResult<Partial<PrototypeSessionState>>> => {
+): Promise<ApiDailyLoopResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const claimed = await client.claimWalkReward(walkId);
 
   if (!claimed.ok) {

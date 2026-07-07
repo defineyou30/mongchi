@@ -5,6 +5,7 @@ import {
   addToWalkCollection,
   claimPrototypeWalkReward,
   createInitialPrototypeSession,
+  getActivePetBundle,
   getSpendableCreditBalance,
   getWalkCollectionProgress,
   isWalkCollectionComplete,
@@ -17,6 +18,7 @@ import {
 import type { WalkCollectionState } from "../index";
 
 const now = "2026-06-24T09:00:00.000Z";
+const active = getActivePetBundle;
 
 describe("walk collectible rolls", () => {
   it("is deterministic for the same walk seed and respects weather pools", () => {
@@ -61,10 +63,10 @@ describe("walk claim collects discoveries", () => {
     state = refreshPrototypeWalk(state, "2026-06-24T09:01:01.000Z");
     state = claimPrototypeWalkReward(state, "2026-06-24T09:01:02.000Z");
 
-    expect(state.lastWalkDiscovery).not.toBeNull();
-    expect(state.lastWalkDiscovery?.isNew).toBe(true);
+    expect(active(state).lastWalkDiscovery).not.toBeNull();
+    expect(active(state).lastWalkDiscovery?.isNew).toBe(true);
     expect(getWalkCollectionProgress(state.walkCollection).found).toBe(1);
-    expect(state.currentReaction?.ruleId).toContain("walk_discovery_");
+    expect(active(state).currentReaction?.ruleId).toContain("walk_discovery_");
   });
 
   it("grants the completion bonus when the final collectible is found", () => {
@@ -74,7 +76,7 @@ describe("walk claim collects discoveries", () => {
     state = refreshPrototypeWalk(state, "2026-06-24T09:01:01.000Z");
 
     // Pre-fill the journal with everything except what this walk will find.
-    const pending = rollWalkCollectible(state.weatherState.context.condition, state.activeWalk!.id);
+    const pending = rollWalkCollectible(state.weatherState.context.condition, active(state).activeWalk!.id);
     const nearlyFull: WalkCollectionState = Object.fromEntries(
       walkCollectibles.filter((collectible) => collectible.id !== pending.id).map((collectible) => [collectible.id, { count: 1, firstFoundAt: now }])
     );
@@ -87,12 +89,12 @@ describe("walk claim collects discoveries", () => {
     state = claimPrototypeWalkReward(state, "2026-06-24T09:01:02.000Z");
 
     expect(isWalkCollectionComplete(state.walkCollection)).toBe(true);
-    expect(state.lastWalkDiscovery?.collectionCompleted).toBe(true);
+    expect(active(state).lastWalkDiscovery?.collectionCompleted).toBe(true);
     // The completion bonus must land in bonusCredits (play-earned bucket),
     // never the paid credits bucket.
     expect(state.wallet.bonusCredits).toBe(bonusCreditsBefore + WALK_COLLECTION_COMPLETE_CREDITS);
     expect(state.wallet.credits).toBe(creditsBefore);
     expect(getSpendableCreditBalance(state.wallet)).toBe(spendableBefore + WALK_COLLECTION_COMPLETE_CREDITS);
-    expect(state.currentReaction?.ruleId).toBe("walk_collection_complete");
+    expect(active(state).currentReaction?.ruleId).toBe("walk_collection_complete");
   });
 });

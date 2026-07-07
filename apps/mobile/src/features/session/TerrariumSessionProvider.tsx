@@ -17,8 +17,11 @@ import {
   claimPrototypeWalkReward,
   completePrototypeWalkEarlyWithCredit,
   createInitialPrototypeSession,
+  createInitialPetBundle,
   deletePrototypeChatHistory,
   deletePrototypeOriginalPhoto,
+  FIRST_PET_ID,
+  getActivePetBundle,
   getActivePrototypePet,
   getBondProgressValue,
   getCareSatisfactionSummary,
@@ -46,7 +49,8 @@ import {
   startPrototypeGeneration,
   togglePrototypePersonalityTag,
   updatePrototypeDraft,
-  validatePrototypeExpressionPackPurchase
+  validatePrototypeExpressionPackPurchase,
+  withActivePetBundle
 } from "@mongchi/shared";
 import type {
   CareActionType,
@@ -61,6 +65,7 @@ import type {
   Item,
   ItemId,
   PersonalityTag,
+  PetBundle,
   PetSetupDraft,
   PrototypeSessionState,
   RestorePurchasesRequest,
@@ -171,7 +176,7 @@ export interface ExpressionPackPurchaseState {
   failureMessageSafe?: string;
 }
 
-interface TerrariumSessionContextValue extends PrototypeSessionState {
+interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle {
   activePet: ReturnType<typeof getActivePrototypePet>;
   catalogItems: Item[];
   careCooldownUntilByAction: Partial<Record<CareActionType, number>>;
@@ -396,19 +401,41 @@ const preserveInventoryPlantGrowth = (currentInventory: Inventory, incomingInven
   plantGrowth: mergePlantGrowthEntries(currentInventory.plantGrowth ?? [], incomingInventory.plantGrowth ?? [])
 });
 
+// Lenient per-bundle shape merge: fills in any missing/partial PetBundle
+// fields from a freshly created bundle so an older or slightly malformed
+// save's pet still hydrates instead of failing outright. Mirrors the
+// acceptedAsset(s)-derived-from-either-shape leniency the old flat-state
+// merge used to apply at the top level.
+const mergeRestoredPetBundle = (fallback: PetBundle, restored: Record<string, unknown>): PetBundle => {
+  const acceptedAssets = Array.isArray(restored.acceptedAssets)
+    ? (restored.acceptedAssets as GeneratedAsset[])
+    : restored.acceptedAsset
+      ? [restored.acceptedAsset as GeneratedAsset]
+      : fallback.acceptedAssets;
+
+  return {
+    ...fallback,
+    ...restored,
+    acceptedAssets,
+    relationshipState: isObject(restored.relationshipState)
+      ? (restored.relationshipState as unknown as PetBundle["relationshipState"])
+      : {
+          ...fallback.relationshipState,
+          petId: isObject(restored.petProfile) && typeof restored.petProfile.id === "string" ? restored.petProfile.id : fallback.relationshipState.petId
+        },
+    lastCareReward: (restored.lastCareReward as PetBundle["lastCareReward"] | undefined) ?? null,
+    generationIssueReport: (restored.generationIssueReport as PetBundle["generationIssueReport"] | undefined) ?? null
+  } as PetBundle;
+};
+
 // Lenient shape merge: given a validated (post-migration) raw payload, fills
 // in any missing/partial nested fields from a freshly created session so
 // older or slightly malformed saves still hydrate instead of failing outright.
 const mergeRestoredSession = (value: Record<string, unknown>): PrototypeSessionState => {
   const restored = value as unknown as PrototypeSessionState & {
-    acceptedAsset?: GeneratedAsset | null;
-    acceptedAssets?: unknown;
+    pets?: unknown;
+    activePetId?: unknown;
   };
-  const acceptedAssets = Array.isArray(restored.acceptedAssets)
-    ? (restored.acceptedAssets as GeneratedAsset[])
-    : restored.acceptedAsset
-      ? [restored.acceptedAsset]
-      : [];
   const fallback = createInitialPrototypeSession(nowIso());
   const restoredInventory = isObject(restored.inventory)
     ? {
@@ -421,19 +448,36 @@ const mergeRestoredSession = (value: Record<string, unknown>): PrototypeSessionS
         plantGrowth: fallback.inventory.plantGrowth ?? []
       };
 
+  // Bundle/activePetId normalization (design doc pitfall 3): a corrupted or
+  // partial save might be missing `pets` entirely, have an empty `pets`, or
+  // have an `activePetId` that doesn't point at any key in `pets`. Any of
+  // these would make getActivePetBundle crash on every subsequent read, so
+  // this is the one place that re-establishes INV-2 (activePetId is always
+  // a valid key of pets) at the restore boundary.
+  const restoredPetsRaw = (isObject(restored.pets) ? restored.pets : {}) as Record<string, unknown>;
+  const restoredPetIds = Object.keys(restoredPetsRaw);
+  const activePetId =
+    typeof restored.activePetId === "string" && restoredPetIds.includes(restored.activePetId)
+      ? restored.activePetId
+      : (restoredPetIds[0] ?? FIRST_PET_ID);
+  const pets: PrototypeSessionState["pets"] =
+    restoredPetIds.length > 0
+      ? Object.fromEntries(
+          restoredPetIds.map((petId) => [
+            petId,
+            mergeRestoredPetBundle(createInitialPetBundle(nowIso(), petId), restoredPetsRaw[petId] as Record<string, unknown>)
+          ])
+        )
+      : { [activePetId]: createInitialPetBundle(nowIso(), activePetId) };
+
   const merged: PrototypeSessionState = {
     ...fallback,
     ...restored,
-    acceptedAssets,
+    pets,
+    activePetId,
     inventory: restoredInventory,
-    relationshipState: restored.relationshipState ?? {
-      ...fallback.relationshipState,
-      petId: restored.petProfile?.id ?? fallback.relationshipState.petId
-    },
     wallet: restored.wallet ?? fallback.wallet,
-    weatherState: restored.weatherState ?? fallback.weatherState,
-    lastCareReward: restored.lastCareReward ?? null,
-    generationIssueReport: restored.generationIssueReport ?? null
+    weatherState: restored.weatherState ?? fallback.weatherState
   };
 
   // Restore-time normalization (design audit invariant I6): a session
@@ -654,26 +698,82 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   }, [sessionClock]);
 
   const activePet = useMemo(() => getActivePrototypePet(state, nowIso()), [state]);
+  // The one compatibility seam that lets the rest of this provider (and
+  // every UI component below it) keep reading per-pet fields
+  // (careState/relationshipState/acceptedAsset(s)/activeWalk/etc.) as if
+  // they were still top-level PrototypeSessionState fields, even though W1
+  // moved them into state.pets[activePetId]. See docs/multi-pet-w1-design.md
+  // section 3. UI components are never touched by W1 -- this is the only
+  // place that bridges old shape <-> new shape.
+  const activeBundle = useMemo(() => getActivePetBundle(state), [state]);
   const catalogItems = useMemo(() => getRuntimeCatalogItems(apiRuntime.mode, apiCatalogItems), [apiCatalogItems, apiRuntime.mode]);
-  const activeGeneratedAssetId = state.acceptedAsset?.id ?? activePet.activeAssetId ?? null;
+  const activeGeneratedAssetId = activeBundle.acceptedAsset?.id ?? activePet.activeAssetId ?? null;
   const generatedAssetIdsToResolve = useMemo(
     () =>
       Array.from(
         new Set(
-          [activeGeneratedAssetId, ...state.acceptedAssets.map((asset) => asset.id)].filter(
+          [activeGeneratedAssetId, ...activeBundle.acceptedAssets.map((asset) => asset.id)].filter(
             (assetId): assetId is GeneratedAssetId => typeof assetId === "string" && assetId.length > 0
           )
         )
       ),
-    [activeGeneratedAssetId, state.acceptedAssets]
+    [activeGeneratedAssetId, activeBundle.acceptedAssets]
   );
 
-  const applyApiStatePatch = useCallback((patch: Partial<PrototypeSessionState>) => {
-    setState((current) => ({
-      ...current,
-      ...patch
-    }));
+  // apiDailyLoopSession.ts/apiGenerationSession.ts/supabaseGenerationSession.ts
+  // (W1 leaves these files untouched, see docs/multi-pet-w1-design.md section
+  // 3.3/4.4) return Partial<PrototypeSessionState> patches that still use the
+  // pre-W1 flat per-pet keys (careState/relationshipState/petProfile/
+  // acceptedAsset(s)/activeWalk/currentReaction/lastCareReward/
+  // generationIssueReport) -- this adapter routes those keys into the active
+  // bundle instead of setting them as (now-nonexistent) top-level fields,
+  // while shared keys (wallet/inventory/etc.) still land at the top level.
+  const PET_BUNDLE_PATCH_KEYS = [
+    "petProfile",
+    "acceptedAsset",
+    "acceptedAssets",
+    "careState",
+    "relationshipState",
+    "currentReaction",
+    "lastCareReward",
+    "recentReactions",
+    "activeWalk",
+    "lastWalkDiscovery",
+    "generationIssueReport",
+    "memories",
+    "careStats"
+  ] as const;
+
+  const applyApiStatePatch = useCallback((patch: Partial<PrototypeSessionState> & Partial<PetBundle>) => {
+    setState((current) => {
+      const bundlePatch: Partial<PetBundle> = {};
+      const topPatch: Record<string, unknown> = {};
+
+      for (const [key, fieldValue] of Object.entries(patch)) {
+        if ((PET_BUNDLE_PATCH_KEYS as readonly string[]).includes(key)) {
+          (bundlePatch as Record<string, unknown>)[key] = fieldValue;
+        } else {
+          topPatch[key] = fieldValue;
+        }
+      }
+
+      const next = { ...current, ...topPatch } as PrototypeSessionState;
+
+      return Object.keys(bundlePatch).length > 0 ? withActivePetBundle(next, () => bundlePatch) : next;
+    });
   }, []);
+
+  // Legacy flat-state view for the external session helper modules
+  // (apiDailyLoopSession.ts/apiGenerationSession.ts/supabaseGenerationSession.ts)
+  // that still read `state.petProfile`/`state.careState`/`state.activeWalk`/
+  // etc. directly as top-level PrototypeSessionState fields -- those files
+  // are explicitly out of scope for W1 (see docs/multi-pet-w1-design.md
+  // sections 3.3/4.4), so this reconstructs the shape they expect from the
+  // current active bundle instead of editing every read site in those files.
+  const legacyFlatState = useMemo(
+    () => ({ ...state, ...activeBundle }) as PrototypeSessionState & PetBundle,
+    [state, activeBundle]
+  );
 
   const setApiError = useCallback((error: MobileApiError) => {
     setApiSyncStatus("error");
@@ -799,16 +899,19 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           ? preserveInventoryPlantGrowth(current.inventory, result.data.state.inventory)
           : current.inventory;
 
-        return {
+        const withTop: PrototypeSessionState = {
           ...current,
+          ...(result.data.state.wallet ? { wallet: result.data.state.wallet } : {}),
+          inventory
+        };
+
+        return withActivePetBundle(withTop, () => ({
           ...(result.data.state.petProfile ? { petProfile: result.data.state.petProfile } : {}),
           ...(result.data.state.careState ? { careState: result.data.state.careState } : {}),
           ...(result.data.state.relationshipState ? { relationshipState: result.data.state.relationshipState } : {}),
-          ...(result.data.state.wallet ? { wallet: result.data.state.wallet } : {}),
-          inventory,
           activeWalk: result.data.state.activeWalk,
           currentReaction: result.data.state.currentReaction
-        };
+        }));
       });
       setApiSyncStatus("ready");
     };
@@ -893,7 +996,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     // PhotoUploadScreen's Continue calls startMockGeneration directly (not
     // retryMockGeneration) to kick off a fresh attempt after a new photo is
     // picked -- see hasActiveGenerationJob for why status matters here.
-    if (hasActiveGenerationJob(state.petProfile?.activeGenerationJobId, state.generation.status)) {
+    if (hasActiveGenerationJob(activeBundle.petProfile?.activeGenerationJobId, state.generation.status)) {
       return;
     }
 
@@ -905,7 +1008,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setApiSyncStatus("syncing");
         setApiErrorMessage(null);
 
-        const result = await startSupabaseGenerationFlow(supabaseClient, state, startedAt);
+        const result = await startSupabaseGenerationFlow(supabaseClient, legacyFlatState, startedAt);
 
         if (!result.ok) {
           setApiGenerationError(result.error);
@@ -927,7 +1030,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       setApiSyncStatus("syncing");
       setApiErrorMessage(null);
 
-      const result = await startApiGenerationFlow(generationApiRuntime.client, state, startedAt);
+      const result = await startApiGenerationFlow(generationApiRuntime.client, legacyFlatState, startedAt);
 
       if (!result.ok) {
         setApiGenerationError(result.error);
@@ -937,7 +1040,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       applyApiStatePatch(result.data);
       setApiSyncStatus("ready");
     });
-  }, [applyApiStatePatch, generationApiRuntime, setApiGenerationError, state]);
+  }, [activeBundle, applyApiStatePatch, generationApiRuntime, legacyFlatState, setApiGenerationError, state]);
 
   const advanceMockGeneration = useCallback(() => {
     setState((current) => advancePrototypeGeneration(current, nowIso()));
@@ -958,7 +1061,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           setApiSyncStatus("syncing");
           setApiErrorMessage(null);
 
-          const result = await pollSupabaseGenerationFlow(supabaseClient, state, polledAt);
+          const result = await pollSupabaseGenerationFlow(supabaseClient, legacyFlatState, polledAt);
 
           if (!result.ok) {
             setApiGenerationError(result.error);
@@ -984,7 +1087,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setApiSyncStatus("syncing");
         setApiErrorMessage(null);
 
-        const result = await pollApiGenerationFlow(generationApiRuntime.client, state, polledAt);
+        const result = await pollApiGenerationFlow(generationApiRuntime.client, legacyFlatState, polledAt);
 
         if (!result.ok) {
           setApiGenerationError(result.error);
@@ -995,7 +1098,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setApiSyncStatus("ready");
       });
     },
-    [applyApiStatePatch, generationApiRuntime, setApiGenerationError, state]
+    [applyApiStatePatch, generationApiRuntime, legacyFlatState, setApiGenerationError, state]
   );
 
   const retryMockGeneration = useCallback(() => {
@@ -1007,7 +1110,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setApiSyncStatus("syncing");
         setApiErrorMessage(null);
 
-        const result = await retrySupabaseGenerationFlow(supabaseClient, state, retriedAt);
+        const result = await retrySupabaseGenerationFlow(supabaseClient, legacyFlatState, retriedAt);
 
         if (!result.ok) {
           setApiGenerationError(result.error);
@@ -1029,7 +1132,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       setApiSyncStatus("syncing");
       setApiErrorMessage(null);
 
-      const result = await retryApiGenerationFlow(generationApiRuntime.client, state, retriedAt);
+      const result = await retryApiGenerationFlow(generationApiRuntime.client, legacyFlatState, retriedAt);
 
       if (!result.ok) {
         setApiGenerationError(result.error);
@@ -1039,7 +1142,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       applyApiStatePatch(result.data);
       setApiSyncStatus("ready");
     });
-  }, [applyApiStatePatch, generationApiRuntime, setApiGenerationError, state]);
+  }, [applyApiStatePatch, generationApiRuntime, legacyFlatState, setApiGenerationError, state]);
 
   const acceptGeneratedPet = useCallback(() => {
     // Critical: Supabase-mode already has the real generated assets (signed
@@ -1062,7 +1165,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     setApiSyncStatus("syncing");
     setApiErrorMessage(null);
 
-    void acceptApiGeneratedPet(generationApiRuntime.client, state).then((result) => {
+    void acceptApiGeneratedPet(generationApiRuntime.client, legacyFlatState).then((result) => {
       if (!result.ok) {
         setApiError(result.error);
         return;
@@ -1071,7 +1174,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       applyApiStatePatch(result.data);
       setApiSyncStatus("ready");
     });
-  }, [applyApiStatePatch, generationApiRuntime, setApiError, state]);
+  }, [applyApiStatePatch, generationApiRuntime, legacyFlatState, setApiError, state]);
 
   const performCareAction = useCallback(
     (action: CareActionType, itemId?: ItemId) => {
@@ -1085,17 +1188,19 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       setApiSyncStatus("syncing");
       setApiErrorMessage(null);
 
-      void performApiDailyLoopCareAction(apiRuntime.client, state, catalogItems, activePet.id, action, occurredAt, itemId).then((result) => {
-        if (!result.ok) {
-          setApiError(result.error);
-          return;
-        }
+      void performApiDailyLoopCareAction(apiRuntime.client, legacyFlatState, catalogItems, activePet.id, action, occurredAt, itemId).then(
+        (result) => {
+          if (!result.ok) {
+            setApiError(result.error);
+            return;
+          }
 
-        applyApiStatePatch(result.data);
-        setApiSyncStatus("ready");
-      });
+          applyApiStatePatch(result.data);
+          setApiSyncStatus("ready");
+        }
+      );
     },
-    [activePet.id, apiRuntime, applyApiStatePatch, catalogItems, setApiError, state]
+    [activePet.id, apiRuntime, applyApiStatePatch, catalogItems, legacyFlatState, setApiError]
   );
 
   const setCareActionCooldown = useCallback((action: CareActionType, cooldownUntil: number) => {
@@ -1158,10 +1263,11 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       return;
     }
 
-    setState((current) => ({
-      ...current,
-      activeWalk: refreshApiWalkLocally(current.activeWalk, refreshedAt)
-    }));
+    setState((current) =>
+      withActivePetBundle(current, (bundle) => ({
+        activeWalk: refreshApiWalkLocally(bundle.activeWalk, refreshedAt)
+      }))
+    );
   }, [apiRuntime]);
 
   /** Spends 1 credit to bring the pet home early; leaves state untouched (and returns false) if the balance is insufficient. */
@@ -1186,14 +1292,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       return;
     }
 
-    if (!state.activeWalk) {
+    if (!activeBundle.activeWalk) {
       return;
     }
 
     setApiSyncStatus("syncing");
     setApiErrorMessage(null);
 
-    void claimApiDailyLoopWalkReward(apiRuntime.client, state, state.activeWalk.id, activePet.id).then((result) => {
+    void claimApiDailyLoopWalkReward(apiRuntime.client, legacyFlatState, activeBundle.activeWalk.id, activePet.id).then((result) => {
       if (!result.ok) {
         setApiError(result.error);
         return;
@@ -1202,7 +1308,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       applyApiStatePatch(result.data);
       setApiSyncStatus("ready");
     });
-  }, [activePet.id, apiRuntime, applyApiStatePatch, setApiError, state]);
+  }, [activeBundle.activeWalk, activePet.id, apiRuntime, applyApiStatePatch, legacyFlatState, setApiError]);
 
   const purchaseThemeBundle = useCallback(
     (bundleId: string): PurchaseCatalogItemResult => {
@@ -1360,7 +1466,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         return { ok: true, messageSafe: `New moments unlocked: ${pack.nameEn}!` };
       }
 
-      const started = await startSupabaseExpressionPackFlow(supabaseClient, state, pack.states);
+      const started = await startSupabaseExpressionPackFlow(supabaseClient, legacyFlatState, pack.states);
 
       if (!started.ok) {
         setExpressionPackFailed(pack.id, started.error.messageSafe);
@@ -1382,7 +1488,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
       return { ok: true, messageSafe: "New moments are on their way..." };
     },
-    [clearExpressionPackStatus, setExpressionPackFailed, setExpressionPackPending, state]
+    [clearExpressionPackStatus, legacyFlatState, setExpressionPackFailed, setExpressionPackPending, state]
   );
 
   // Keeps polling every pending expression-pack job even if the friend page
@@ -1776,11 +1882,11 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   }, [apiRuntime, apiCommerceProducts, nativeCheckoutReady, purchaseStatusMessage, setApiError, setPurchaseError]);
 
   const resetSession = useCallback(async () => {
-    if (apiRuntime.mode === "api" && state.petProfile?.id) {
+    if (apiRuntime.mode === "api" && activeBundle.petProfile?.id) {
       setApiSyncStatus("syncing");
       setApiErrorMessage(null);
 
-      const result = await apiRuntime.client.deletePrivacyPet(state.petProfile.id);
+      const result = await apiRuntime.client.deletePrivacyPet(activeBundle.petProfile.id);
 
       if (!result.ok) {
         setApiError(result.error);
@@ -1800,7 +1906,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     ]);
 
     return true;
-  }, [apiRuntime, setApiError, state.petProfile?.id]);
+  }, [apiRuntime, activeBundle.petProfile?.id, setApiError]);
 
   const syncWallet = useCallback((wallet: CreditWallet) => {
     setState((current) => ({
@@ -1820,12 +1926,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     return mergeEntitlements(runtimeEntitlements, getDevelopmentStoreEntitlements(state.wallet.userId, nowIso()));
   }, [apiEntitlements, apiRuntime.mode, devStoreUnlocked, state.wallet.userId]);
   const generatedAssetUriById = useMemo(
-    () => buildGeneratedAssetUriMap(generatedAssetReadUrls, state.acceptedAsset, state.acceptedAssets),
-    [generatedAssetReadUrls, state.acceptedAsset, state.acceptedAssets]
+    () => buildGeneratedAssetUriMap(generatedAssetReadUrls, activeBundle.acceptedAsset, activeBundle.acceptedAssets),
+    [generatedAssetReadUrls, activeBundle.acceptedAsset, activeBundle.acceptedAssets]
   );
 
-  const sessionNow = useMemo(() => nowIso(), [sessionClock, state.careState]);
-  const projectedCareState = projectCareStateForTime(state.careState, sessionNow, state.activeBuffs ?? []);
+  const sessionNow = useMemo(() => nowIso(), [sessionClock, activeBundle.careState]);
+  const projectedCareState = projectCareStateForTime(activeBundle.careState, sessionNow, state.activeBuffs ?? []);
   const satisfactionSummary = getCareSatisfactionSummary(projectedCareState, sessionNow);
 
   const attemptKey = getGenerationAttemptKey(state);
@@ -1839,6 +1945,15 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
   const value: TerrariumSessionContextValue = {
     ...state,
+    // Restores per-pet fields (careState/relationshipState/petProfile/
+    // acceptedAsset(s)/activeWalk/currentReaction/lastCareReward/
+    // recentReactions/lastWalkDiscovery/generationIssueReport/memories/
+    // careStats) to the top level for UI consumers -- see the activeBundle
+    // comment above and docs/multi-pet-w1-design.md section 3. Must come
+    // after ...state (so it doesn't get clobbered by state.pets) and before
+    // the careState: projectedCareState override below (so the time
+    // projection isn't itself overwritten by the raw bundle value).
+    ...activeBundle,
     careState: projectedCareState,
     activePet,
     catalogItems,
@@ -1848,7 +1963,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     canCreatePet: canCreatePet(state),
     satisfactionScore: satisfactionSummary.score,
     satisfactionSummary,
-    bondProgress: getBondProgressValue(state.relationshipState),
+    bondProgress: getBondProgressValue(activeBundle.relationshipState),
     creditBalance: devStoreUnlocked
       ? Math.max(DEVELOPMENT_STORE_CREDIT_BALANCE, getSpendableCreditBalance(state.wallet))
       : getSpendableCreditBalance(state.wallet),

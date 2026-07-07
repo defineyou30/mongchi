@@ -5,12 +5,14 @@ import {
   applyPrototypeTheme,
   createInitialPrototypeSession,
   DEFAULT_THEME_ID,
+  getActivePetBundle,
   getSpendableCreditBalance,
   purchasePrototypeThemeBundle,
   themeBundles
 } from "../index";
 
 const now = "2026-06-24T09:00:00.000Z";
+const active = getActivePetBundle;
 
 describe("theme bundle purchase", () => {
   it("spends credits, records ownership, and applies the background theme in one purchase", () => {
@@ -30,7 +32,7 @@ describe("theme bundle purchase", () => {
     expect(getSpendableCreditBalance(result.state.wallet)).toBe(creditsBefore - bundle.creditCost);
     expect(result.state.inventory.selectedTerrariumThemeId).toBe(bundle.themeId);
     expect(result.state.inventory.ownedThemeIds).toContain(bundle.themeId);
-    expect(result.state.currentReaction).toBeTruthy();
+    expect(active(result.state).currentReaction).toBeTruthy();
   });
 
   it("rejects the purchase when credits are insufficient", () => {

@@ -5,14 +5,36 @@ import {
   createPersistedSessionEnvelope,
   CURRENT_SESSION_SCHEMA_VERSION,
   DEFAULT_THEME_ID,
+  getActivePetBundle,
   isValidPrototypeSessionShape,
   runSessionMigrations,
   sessionMigrations
 } from "../index";
 
+const FIRST_PET_ID = "pet_local_001";
+const active = getActivePetBundle;
+
+/**
+ * Migrations 1-6 all run against the pre-v7 flat shape (per-pet fields --
+ * petProfile/acceptedAsset(s)/careState/relationshipState/currentReaction/
+ * lastCareReward/recentReactions/activeWalk/lastWalkDiscovery/
+ * generationIssueReport/memories/careStats -- sitting at the TOP level, not
+ * inside `pets[petId]`). createInitialPrototypeSession now always returns
+ * the current (v7, bundled) shape, so fixtures simulating an old legacy
+ * payload need to flatten a fresh bundle back out to look like what a real
+ * v1-v6 save on disk looked like. Only the v6 -> v7 migration (tested
+ * separately below) expects the bundled shape as input.
+ */
+const flattenToLegacyShape = (state: ReturnType<typeof createInitialPrototypeSession>) => {
+  const { pets, activePetId, ...shared } = state;
+  const bundle = pets[activePetId]!;
+
+  return { ...shared, ...bundle };
+};
+
 describe("session schema migrations", () => {
   it("treats a legacy payload with no schemaVersion field as v0 and migrates it to the current version", () => {
-    const legacyState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const legacyState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
 
     const result = runSessionMigrations(legacyState);
 
@@ -20,25 +42,61 @@ describe("session schema migrations", () => {
     expect(result.fromVersion).toBe(0);
     expect(result.toVersion).toBe(CURRENT_SESSION_SCHEMA_VERSION);
     // v0 -> v1 is a no-op shape change and v1 -> v2 leaves this fixture
-    // untouched, so the only expected difference after the full chain is the
-    // v2 -> v3 step dropping the (already-empty) placedItems field.
+    // untouched, so the only expected differences after the full chain are
+    // the v2 -> v3 step dropping the (already-empty) placedItems field and
+    // the v6 -> v7 step lifting every per-pet field into `pets[petId]`.
     const { placedItems: _placedItems, ...legacyInventoryWithoutPlacedItems } = legacyState.inventory;
+    const {
+      petProfile,
+      acceptedAsset,
+      acceptedAssets,
+      careState,
+      relationshipState,
+      currentReaction,
+      lastCareReward,
+      recentReactions,
+      activeWalk,
+      lastWalkDiscovery,
+      generationIssueReport,
+      memories,
+      careStats,
+      ...restOfLegacyState
+    } = legacyState;
+
     expect(result.state).toEqual({
-      ...legacyState,
-      inventory: legacyInventoryWithoutPlacedItems
+      ...restOfLegacyState,
+      inventory: legacyInventoryWithoutPlacedItems,
+      pets: {
+        [FIRST_PET_ID]: {
+          petProfile,
+          acceptedAsset,
+          acceptedAssets,
+          careState,
+          relationshipState,
+          currentReaction,
+          lastCareReward,
+          recentReactions,
+          activeWalk,
+          lastWalkDiscovery,
+          generationIssueReport,
+          memories,
+          careStats
+        }
+      },
+      activePetId: FIRST_PET_ID
     });
   });
 
   it("preserves user progress fields through the v0 -> v1 migration", () => {
     const legacyState = {
-      ...createInitialPrototypeSession("2026-06-24T09:00:00.000Z"),
+      ...flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z")),
       wallet: { userId: "user_demo_001", paidCredits: 42, bonusCredits: 7, freeChatTickets: 3, updatedAt: "2026-06-24T09:00:00.000Z" }
     };
 
     const result = runSessionMigrations(legacyState);
 
     expect(result.ok).toBe(true);
-    expect((result.state as typeof legacyState).wallet.paidCredits).toBe(42);
+    expect((result.state as { wallet: typeof legacyState.wallet }).wallet.paidCredits).toBe(42);
   });
 
   it("passes through an already-current envelope without re-running migrations", () => {
@@ -89,7 +147,7 @@ describe("session schema migrations", () => {
   });
 
   it("merges duplicate inventory.items rows for the same itemId on v1 -> v2 (root fix for the shop duplicate-card bug)", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const v1Envelope = {
       schemaVersion: 1,
       state: {
@@ -129,7 +187,7 @@ describe("session schema migrations", () => {
   });
 
   it("chains a legacy v0 payload with duplicate inventory rows through v0 -> v2 in one call", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const legacyState = {
       ...baseState,
       inventory: {
@@ -161,7 +219,7 @@ describe("session schema migrations", () => {
   });
 
   it("strips retired plant/pot catalog items from items, placedItems, and plantGrowth on v1 -> v2", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const v1Envelope = {
       schemaVersion: 1,
       state: {
@@ -194,7 +252,7 @@ describe("session schema migrations", () => {
   });
 
   it("drops placedItems and retired placement-decor catalog items on v2 -> v3", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const v2Envelope = {
       schemaVersion: 2,
       state: {
@@ -230,7 +288,7 @@ describe("session schema migrations", () => {
   });
 
   it("chains a legacy v0 payload with placed decor all the way through v0 -> v3 in one call", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const legacyState = {
       ...baseState,
       inventory: {
@@ -266,7 +324,7 @@ describe("session schema migrations", () => {
   });
 
   it("injects empty memories and default careStats on v3 -> v4 for a save with no pet yet", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const { memories: _memories, careStats: _careStats, ...baseStateWithoutMemorySpine } = baseState;
     const v3Envelope = {
       schemaVersion: 3,
@@ -278,9 +336,9 @@ describe("session schema migrations", () => {
     expect(result.ok).toBe(true);
     expect(result.fromVersion).toBe(3);
     expect(result.toVersion).toBe(CURRENT_SESSION_SCHEMA_VERSION);
-    const migrated = result.state as typeof baseState;
-    expect(migrated.memories).toEqual([]);
-    expect(migrated.careStats).toEqual({
+    const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
+    expect(active(migrated).memories).toEqual([]);
+    expect(active(migrated).careStats).toEqual({
       actionCounts: {},
       treatItemCounts: {},
       walkCount: 0,
@@ -289,7 +347,7 @@ describe("session schema migrations", () => {
   });
 
   it("backfills a moved_in memory dated to the pet's createdAt when an existing save already has an activePet", () => {
-    const baseState = createInitialPrototypeSession("2026-06-01T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
     const petProfile = {
       id: "pet_local_001",
       userId: "user_demo_001",
@@ -313,14 +371,14 @@ describe("session schema migrations", () => {
     const result = runSessionMigrations(v3Envelope);
 
     expect(result.ok).toBe(true);
-    const migrated = result.state as typeof baseState;
-    const movedIn = migrated.memories.find((entry) => entry.type === "moved_in");
+    const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
+    const movedIn = active(migrated).memories.find((entry) => entry.type === "moved_in");
     expect(movedIn).toBeDefined();
     expect(movedIn?.occurredAt).toBe("2026-06-01T09:00:00.000Z");
   });
 
   it("does not duplicate the backfilled moved_in memory if one is already present", () => {
-    const baseState = createInitialPrototypeSession("2026-06-01T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
     const petProfile = {
       id: "pet_local_001",
       userId: "user_demo_001",
@@ -342,26 +400,26 @@ describe("session schema migrations", () => {
     };
 
     const result = runSessionMigrations(v3Envelope);
-    const migrated = result.state as typeof baseState;
+    const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
 
     expect(result.ok).toBe(true);
-    expect(migrated.memories.filter((entry) => entry.type === "moved_in")).toHaveLength(1);
+    expect(active(migrated).memories.filter((entry) => entry.type === "moved_in")).toHaveLength(1);
   });
 
   it("does not backfill a moved_in memory for a save with no pet yet", () => {
-    const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const { memories: _memories, careStats: _careStats, ...baseStateWithoutMemorySpine } = baseState;
     const v3Envelope = { schemaVersion: 3, state: baseStateWithoutMemorySpine };
 
     const result = runSessionMigrations(v3Envelope);
-    const migrated = result.state as typeof baseState;
+    const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
 
     expect(result.ok).toBe(true);
-    expect(migrated.memories).toEqual([]);
+    expect(active(migrated).memories).toEqual([]);
   });
 
   it("chains a legacy v0 payload with an existing pet all the way through v0 -> v4, backfilling moved_in", () => {
-    const baseState = createInitialPrototypeSession("2026-06-01T09:00:00.000Z");
+    const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
     const petProfile = {
       id: "pet_local_001",
       userId: "user_demo_001",
@@ -380,13 +438,13 @@ describe("session schema migrations", () => {
     };
 
     const result = runSessionMigrations(legacyState);
-    const migrated = result.state as typeof baseState;
+    const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
 
     expect(result.ok).toBe(true);
     expect(result.fromVersion).toBe(0);
     expect(result.toVersion).toBe(CURRENT_SESSION_SCHEMA_VERSION);
-    expect(migrated.memories.some((entry) => entry.type === "moved_in")).toBe(true);
-    expect(migrated.careStats).toEqual({
+    expect(active(migrated).memories.some((entry) => entry.type === "moved_in")).toBe(true);
+    expect(active(migrated).careStats).toEqual({
       actionCounts: {},
       treatItemCounts: {},
       walkCount: 0,
@@ -425,7 +483,7 @@ describe("session schema migrations", () => {
 
   describe("v4 -> v5 (theme ownership + care streak grace)", () => {
     it("seeds ownedThemeIds with the default theme and graceUsedAt with null for a save with no theme applied yet", () => {
-      const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
       const { ownedThemeIds: _ownedThemeIds, ...inventoryWithoutOwnedThemeIds } = baseState.inventory;
       const { graceUsedAt: _graceUsedAt, ...careStreakWithoutGrace } = baseState.careStreak;
       const v4Envelope = {
@@ -448,7 +506,7 @@ describe("session schema migrations", () => {
     });
 
     it("retroactively grants ownership of an already-applied theme (protects an existing paying/using owner)", () => {
-      const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
       const { ownedThemeIds: _ownedThemeIds, ...inventoryWithoutOwnedThemeIds } = baseState.inventory;
       const v4Envelope = {
         schemaVersion: 4,
@@ -470,7 +528,7 @@ describe("session schema migrations", () => {
     });
 
     it("does not duplicate an already-applied theme id if it was somehow already recorded as owned", () => {
-      const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
       const v4Envelope = {
         schemaVersion: 4,
         state: {
@@ -491,7 +549,7 @@ describe("session schema migrations", () => {
     });
 
     it("preserves an existing graceUsedAt value instead of overwriting it with null", () => {
-      const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
       const v4Envelope = {
         schemaVersion: 4,
         state: {
@@ -511,7 +569,7 @@ describe("session schema migrations", () => {
     });
 
     it("chains a legacy v0 payload with an applied theme all the way through v0 -> v5, backfilling ownership", () => {
-      const baseState = createInitialPrototypeSession("2026-06-01T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
       const { ownedThemeIds: _ownedThemeIds, ...inventoryWithoutOwnedThemeIds } = baseState.inventory;
       const legacyState = {
         ...baseState,
@@ -545,7 +603,7 @@ describe("session schema migrations", () => {
 
   describe("v5 -> v6 (expression pack ownership)", () => {
     it("seeds an empty ownedExpressionPackIds array for a save with no packs owned yet", () => {
-      const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
       const { ownedExpressionPackIds: _ownedExpressionPackIds, ...inventoryWithoutOwnedPacks } = baseState.inventory;
       const v5Envelope = {
         schemaVersion: 5,
@@ -565,7 +623,7 @@ describe("session schema migrations", () => {
     });
 
     it("preserves an already-owned expression pack id instead of wiping it", () => {
-      const baseState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
       const v5Envelope = {
         schemaVersion: 5,
         state: {
@@ -585,7 +643,7 @@ describe("session schema migrations", () => {
     });
 
     it("chains a legacy v0 payload all the way through v0 -> v6, seeding both ownedThemeIds and ownedExpressionPackIds", () => {
-      const baseState = createInitialPrototypeSession("2026-06-01T09:00:00.000Z");
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
       const { ownedThemeIds: _ownedThemeIds, ownedExpressionPackIds: _ownedExpressionPackIds, ...inventoryWithoutOwnership } =
         baseState.inventory;
       const legacyState = {
@@ -614,6 +672,139 @@ describe("session schema migrations", () => {
       expect(result.state).toEqual(state);
     });
   });
+
+  describe("v6 -> v7 (pet bundle)", () => {
+    it("lifts every per-pet field into pets[petId] for a completed-onboarding save, keeping shared fields at the top level", () => {
+      const baseState = flattenToLegacyShape(
+        (() => {
+          let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+          const petProfile = {
+            id: "pet_local_001",
+            userId: "user_demo_001",
+            name: "Miso",
+            species: "dog" as const,
+            personalityTags: ["affectionate" as const],
+            talkingStyle: "gentle" as const,
+            lifecycleStatus: "active" as const,
+            createdAt: "2026-06-24T09:00:00.000Z",
+            updatedAt: "2026-06-24T09:00:00.000Z"
+          };
+          state = {
+            ...state,
+            pets: {
+              [state.activePetId]: {
+                ...state.pets[state.activePetId]!,
+                petProfile,
+                memories: [{ id: "mem_moved_in", type: "moved_in" as const, occurredAt: "2026-06-24T09:00:00.000Z", line: "The day I moved into the garden." }]
+              }
+            }
+          };
+          return state;
+        })()
+      );
+      const v6Envelope = { schemaVersion: 6, state: baseState };
+
+      const result = runSessionMigrations(v6Envelope);
+
+      expect(result.ok).toBe(true);
+      expect(result.fromVersion).toBe(6);
+      expect(result.toVersion).toBe(7);
+      const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
+
+      expect(migrated.pets["pet_local_001"]?.petProfile?.id).toBe("pet_local_001");
+      expect(migrated.pets["pet_local_001"]?.memories).toEqual(baseState.memories);
+      expect(migrated.activePetId).toBe("pet_local_001");
+      // Shared top-level fields are preserved untouched.
+      expect(migrated.wallet).toEqual(baseState.wallet);
+      expect(migrated.inventory).toEqual(baseState.inventory);
+      expect(migrated.careStreak).toEqual(baseState.careStreak);
+      expect(migrated.walkCollection).toEqual(baseState.walkCollection);
+      // Per-pet fields no longer sit at the top level.
+      expect((migrated as unknown as Record<string, unknown>).careState).toBeUndefined();
+      expect((migrated as unknown as Record<string, unknown>).memories).toBeUndefined();
+      expect((migrated as unknown as Record<string, unknown>).petProfile).toBeUndefined();
+    });
+
+    it("lifts a no-pet-yet (onboarding incomplete) save into an empty bundle keyed by the fallback pet id", () => {
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
+      const v6Envelope = { schemaVersion: 6, state: baseState };
+
+      const result = runSessionMigrations(v6Envelope);
+
+      expect(result.ok).toBe(true);
+      const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
+
+      expect(migrated.activePetId).toBe("pet_local_001");
+      expect(migrated.pets["pet_local_001"]?.petProfile).toBeNull();
+      // mock-seeded careState/relationshipState still made it into the bundle.
+      expect(migrated.pets["pet_local_001"]?.careState).toEqual(baseState.careState);
+      expect(migrated.pets["pet_local_001"]?.relationshipState).toEqual(baseState.relationshipState);
+    });
+
+    it("lifts a generation-in-flight save, leaving `generation` at the top level and acceptedAssets in the bundle", () => {
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
+      const v6Envelope = {
+        schemaVersion: 6,
+        state: {
+          ...baseState,
+          generation: {
+            status: "generating" as const,
+            currentStepIndex: 2,
+            retryCount: 0,
+            startedAt: "2026-06-24T09:01:00.000Z"
+          },
+          acceptedAssets: []
+        }
+      };
+
+      const result = runSessionMigrations(v6Envelope);
+
+      expect(result.ok).toBe(true);
+      const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
+
+      // generation (onboarding-transient) stays at the top level, untouched.
+      expect(migrated.generation).toEqual(v6Envelope.state.generation);
+      expect(migrated.pets["pet_local_001"]?.acceptedAssets).toEqual([]);
+    });
+
+    it("is idempotent: a payload that already has pets/activePetId passes through unchanged", () => {
+      const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const alreadyBundled = { schemaVersion: 7, state };
+
+      const result = runSessionMigrations(alreadyBundled);
+
+      expect(result.ok).toBe(true);
+      expect(result.fromVersion).toBe(7);
+      expect(result.toVersion).toBe(7);
+      expect(result.state).toEqual(state);
+    });
+
+    it("chains a legacy v0 payload with an existing pet all the way through v0 -> v7", () => {
+      const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
+      const petProfile = {
+        id: "pet_local_001",
+        userId: "user_demo_001",
+        name: "Miso",
+        species: "dog",
+        personalityTags: ["affectionate"],
+        talkingStyle: "gentle",
+        lifecycleStatus: "active",
+        createdAt: "2026-06-01T09:00:00.000Z",
+        updatedAt: "2026-06-01T09:00:00.000Z"
+      };
+      const legacyState = { ...baseState, petProfile };
+
+      const result = runSessionMigrations(legacyState);
+
+      expect(result.ok).toBe(true);
+      expect(result.fromVersion).toBe(0);
+      expect(result.toVersion).toBe(CURRENT_SESSION_SCHEMA_VERSION);
+      const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
+      expect(migrated.activePetId).toBe("pet_local_001");
+      expect(migrated.pets["pet_local_001"]?.petProfile?.name).toBe("Miso");
+      expect(active(migrated).memories.some((entry) => entry.type === "moved_in")).toBe(true);
+    });
+  });
 });
 
 describe("isValidPrototypeSessionShape", () => {
@@ -626,8 +817,8 @@ describe("isValidPrototypeSessionShape", () => {
   it("accepts a session with legitimately null optional fields", () => {
     const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
 
-    expect(state.petProfile).toBeNull();
-    expect(state.activeWalk).toBeNull();
+    expect(active(state).petProfile).toBeNull();
+    expect(active(state).activeWalk).toBeNull();
     expect(isValidPrototypeSessionShape(state)).toBe(true);
   });
 
@@ -651,6 +842,13 @@ describe("isValidPrototypeSessionShape", () => {
     const { wallet: _wallet, ...withoutWallet } = state;
 
     expect(isValidPrototypeSessionShape(withoutWallet)).toBe(false);
+  });
+
+  it("rejects a payload with pets stripped out (post-v7 shape requires it)", () => {
+    const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const { pets: _pets, ...withoutPets } = state;
+
+    expect(isValidPrototypeSessionShape(withoutPets)).toBe(false);
   });
 });
 

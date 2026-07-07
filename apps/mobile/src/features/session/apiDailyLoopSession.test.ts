@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createInitialPrototypeSession,
+  getActivePetBundle,
   mockCareState,
   mockConversation,
   mockConversationMessages,
@@ -47,6 +48,17 @@ const apiError = <T>(code: string): MobileApiResult<T> => ({
     messageSafe: "Request failed.",
     retryable: true
   }
+});
+
+// apiDailyLoopSession.ts's helpers read per-pet fields (relationshipState/
+// inventory-adjacent care fields) directly off their `currentState`
+// parameter -- in production that parameter is
+// TerrariumSessionProvider's `legacyFlatState` (the active bundle
+// flattened back onto the top level), not the raw PrototypeSessionState.
+// Tests that call these helpers directly need the same flattening.
+const toLegacyFlatState = <T extends ReturnType<typeof createInitialPrototypeSession>>(state: T) => ({
+  ...state,
+  ...getActivePetBundle(state)
 });
 
 const reaction: SelectedReaction = {
@@ -359,7 +371,7 @@ describe("API daily loop session helpers", () => {
   it("maps API care and walk actions into prototype session patches", async () => {
     const client = createFakeClient();
     const currentState = {
-      ...createInitialPrototypeSession("2026-06-24T09:00:00.000Z"),
+      ...toLegacyFlatState(createInitialPrototypeSession("2026-06-24T09:00:00.000Z")),
       inventory: {
         ...mockInventory,
         placedItems: [
@@ -487,7 +499,7 @@ describe("API daily loop session helpers", () => {
           }
         })
     });
-    const currentState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const currentState = toLegacyFlatState(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
 
     const result = await performApiDailyLoopCareAction(
       client,
@@ -514,7 +526,7 @@ describe("API daily loop session helpers", () => {
 
   it("passes consumable treat item ids through the API care action boundary", async () => {
     let receivedBody: CareActionRequest | null = null;
-    const currentState = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    const currentState = toLegacyFlatState(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
     const inventory: Inventory = {
       ...mockInventory,
       items: [
@@ -599,7 +611,7 @@ describe("API daily loop session helpers", () => {
 
   it("claims walk rewards and refreshes returned walks without an extra server endpoint", async () => {
     const currentState = {
-      ...createInitialPrototypeSession("2026-06-24T09:00:00.000Z"),
+      ...toLegacyFlatState(createInitialPrototypeSession("2026-06-24T09:00:00.000Z")),
       inventory: {
         ...mockInventory,
         plantGrowth: [

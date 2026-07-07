@@ -8,6 +8,7 @@ import type {
   GeneratedAsset,
   GeneratedAssetState,
   GenerationJobStatus,
+  PetBundle,
   PrototypeSessionState
 } from "@mongchi/shared";
 
@@ -337,10 +338,10 @@ const invokeGenerateAvatar = (
 
 export const startSupabaseGenerationFlow = async (
   client: SupabaseClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   now: string,
   manipulate: typeof manipulateAsync = manipulateAsync
-): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState>>> => {
+): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const sourcePhoto = resolveSourcePhotoUri(state);
 
   if (!sourcePhoto.ok) {
@@ -396,7 +397,7 @@ export const startSupabaseGenerationFlow = async (
     return invoked;
   }
 
-  const localPet: PrototypeSessionState["petProfile"] = {
+  const localPet: PetBundle["petProfile"] = {
     ...(state.petProfile ?? {
       id: `pet_local_${Crypto.randomUUID()}`,
       userId: session.userId,
@@ -512,9 +513,9 @@ const transientPollRetryPatch = (
 
 const pollSupabaseGenerationFlowInner = async (
   client: SupabaseClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   now: string
-): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState>>> => {
+): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const jobId = state.petProfile?.activeGenerationJobId;
 
   if (!jobId) {
@@ -595,9 +596,9 @@ const pollSupabaseGenerationFlowInner = async (
  */
 export const pollSupabaseGenerationFlow = async (
   client: SupabaseClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   now: string
-): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState>>> => {
+): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   try {
     return await pollSupabaseGenerationFlowInner(client, state, now);
   } catch (cause) {
@@ -613,10 +614,10 @@ export const pollSupabaseGenerationFlow = async (
 
 export const retrySupabaseGenerationFlow = async (
   client: SupabaseClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   now: string,
   manipulate: typeof manipulateAsync = manipulateAsync
-): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState>>> => {
+): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const jobId = state.petProfile?.activeGenerationJobId;
 
   if (!jobId) {
@@ -705,7 +706,7 @@ export const retrySupabaseGenerationFlow = async (
     return invoked;
   }
 
-  const localPet: PrototypeSessionState["petProfile"] = state.petProfile
+  const localPet: PetBundle["petProfile"] = state.petProfile
     ? { ...state.petProfile, activeGenerationJobId: invoked.jobId }
     : null;
 
@@ -778,7 +779,7 @@ export type ResolveIdleAssetStoragePathResult =
  * `/` check also keeps this from ever mistaking a mock placeholder for a
  * real path -- callers only reach this in Supabase mode regardless.
  */
-export const resolveIdleAssetStoragePath = (state: PrototypeSessionState): ResolveIdleAssetStoragePathResult => {
+export const resolveIdleAssetStoragePath = (state: PrototypeSessionState & PetBundle): ResolveIdleAssetStoragePathResult => {
   const idleAsset = state.acceptedAssets.find((asset) => asset.state === "idle") ?? state.acceptedAsset;
 
   if (!idleAsset) {
@@ -820,7 +821,7 @@ export interface StartExpressionPackFlowResult {
  */
 export const startSupabaseExpressionPackFlow = async (
   client: SupabaseClient,
-  state: PrototypeSessionState,
+  state: PrototypeSessionState & PetBundle,
   requestedStates: readonly string[]
 ): Promise<SupabaseGenerationFlowResult<StartExpressionPackFlowResult>> => {
   const storagePath = resolveIdleAssetStoragePath(state);

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { getActivePetBundle } from "@mongchi/shared";
+
 import {
   createQaScreenSession,
   getQaScreenApiState,
@@ -31,8 +33,8 @@ describe("QA screen session presets", () => {
     const progressState = createQaScreenSession("settings-privacy-progress", "2026-06-24T09:00:00.000Z");
 
     for (const state of [errorState, progressState]) {
-      expect(state.petProfile?.name).toBe("Miso");
-      expect(state.acceptedAsset?.state).toBe("idle");
+      expect(getActivePetBundle(state).petProfile?.name).toBe("Miso");
+      expect(getActivePetBundle(state).acceptedAsset?.state).toBe("idle");
       expect(state.photo.selectedMockPhoto).toBe(true);
       expect(state.photo.consentAccepted).toBe(true);
     }

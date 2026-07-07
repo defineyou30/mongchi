@@ -9,6 +9,7 @@ import {
   createActiveCareBuff,
   createInitialPrototypeSession,
   getActionGainMultiplier,
+  getActivePetBundle,
   getBondXpMultiplier,
   performPrototypeCareAction,
   projectCareStateForTime,
@@ -19,6 +20,7 @@ import { mockCareState } from "../mock/mockData";
 
 const now = "2026-06-24T09:00:00.000Z";
 const hoursLater = (hours: number): string => new Date(new Date(now).getTime() + hours * 60 * 60 * 1000).toISOString();
+const active = getActivePetBundle;
 
 const makeCareState = (overrides: Partial<CareState> = {}): CareState => ({
   ...mockCareState,
@@ -108,10 +110,10 @@ describe("buffs in the prototype session", () => {
     expect(state.activeBuffs).toHaveLength(1);
     expect(state.activeBuffs[0]?.buffId).toBe("buff_training_treat");
 
-    const bondBefore = state.relationshipState.bondXp;
+    const bondBefore = active(state).relationshipState.bondXp;
 
     state = performPrototypeCareAction(state, "talk", hoursLater(1.5));
     // talk grants 3 xp, doubled to 6 by the training treat buff.
-    expect(state.relationshipState.bondXp - bondBefore).toBe(6);
+    expect(active(state).relationshipState.bondXp - bondBefore).toBe(6);
   });
 });
