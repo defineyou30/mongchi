@@ -10,18 +10,25 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   createSeededRandom,
   deriveAmbientPetAssetState,
+  getAutonomousBehaviorIntervalMs,
   getAvailableTreatItemId,
   getCareDaysAway,
   getWalkCollectibleById,
   defaultWeatherContext,
   getWeatherScenePresentation,
   hasCaredToday,
+  isNightTime,
+  pickAutonomousBehavior,
+  pickButterflyTapLine,
   projectCareStreakForNow,
   pruneActiveCareBuffs,
   selectEpisodeLine,
   selectGeneratedAssetForReaction,
   selectLocalReaction,
-  starterReactionRules
+  shouldShowMorningStretch,
+  shouldSpawnButterflyVisit,
+  starterReactionRules,
+  AUTONOMOUS_BEHAVIOR_HOLD_MS
 } from "@mongchi/shared";
 import type {
   CareActionType,
@@ -57,6 +64,8 @@ import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { requestNotificationPermissionAfterFirstCareAction } from "../notifications/notificationPermission";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
 import { CareMomentLayer } from "./CareMomentLayer";
+import { NightWashLayer, NightZzzFloat } from "./NightOverlayLayer";
+import { ButterflyVisitorLayer } from "./ButterflyVisitorLayer";
 import { HomeCareActionTray } from "./HomeCareActionTray";
 import type {
   HomeCareActionFeedbackIcon,
@@ -738,6 +747,28 @@ export function TerrariumHomeScreen() {
   const shownEpisodeLineKeysRef = useRef(new Set<string>());
   const isFirstHomeThoughtRef = useRef(true);
   const previousWeatherConditionRef = useRef<WeatherContext["condition"] | null>(null);
+  // Tier 3 world-autonomy state (docs/gamefeel-sound-plan.md §1 Tier 3) --
+  // session-only, matching the house rule against touching prototypeSession's
+  // persisted shape for this wave. Worst case on restart: a fresh morning
+  // stretch/butterfly roll, never a crash or stuck state.
+  //
+  // Morning stretch: fires once, the first render after the pet was last
+  // seen asleep and it is now daytime -- compared against careState's own
+  // lastInteractionAt/updatedAt (the existing "last touched" signal, see
+  // getCareDaysAway) rather than a new persisted field.
+  const hasEvaluatedMorningStretchRef = useRef(false);
+  const [showingMorningStretchUntil, setShowingMorningStretchUntil] = useState(0);
+  // Autonomous idle behavior: a small expression+motion flourish every
+  // 40-90s while nothing else (recent action, walk, celebration) is already
+  // driving the pet's expression -- see pickAutonomousBehavior.
+  const [autonomousBehaviorUntil, setAutonomousBehaviorUntil] = useState(0);
+  const autonomousBehaviorRollRef = useRef(0);
+  // Butterfly visitor: at most one roll per home-screen mount, never
+  // re-rolled on every render.
+  const hasRolledButterflyVisitRef = useRef(false);
+  const [butterflyVisitActive, setButterflyVisitActive] = useState(false);
+  const [butterflyCaughtLine, setButterflyCaughtLine] = useState<string | null>(null);
+  const [nightCareAcknowledgedUntil, setNightCareAcknowledgedUntil] = useState(0);
   const availableTreatItemId = useMemo(() => getAvailableTreatItemId(inventory, catalogItems), [catalogItems, inventory]);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
   const daysTogether = useMemo(
@@ -747,6 +778,11 @@ export function TerrariumHomeScreen() {
   const showFriendEntryBadge = getFriendEntryBadgeVisible(daysTogether, hasOpenedMonthlyLetter);
   const fontFamilies = useFontFamilies();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  // Declared here (rather than further down with the rest of the derived
+  // render values) because the Tier 3 autonomous-behavior timer effect below
+  // needs it as an effect dependency, and hooks can't be called after an
+  // effect that depends on them.
+  const reduceMotionEnabled = useReducedMotionPreference();
 
   useEffect(() => {
     let cancelled = false;
@@ -997,6 +1033,101 @@ export function TerrariumHomeScreen() {
     return () => clearTimeout(timeout);
   }, [lastActionSnapshot]);
 
+  // Morning stretch (docs/gamefeel-sound-plan.md §1 Tier 3): evaluated once
+  // per mount against the pet's last-touched timestamp (the existing
+  // lastInteractionAt/updatedAt signal, see getCareDaysAway) -- if the owner
+  // was last here while the pet was asleep and it's now daytime, play a
+  // short "just woke up" beat instead of settling straight into idle.
+  useEffect(() => {
+    if (hasEvaluatedMorningStretchRef.current || !persistedEventToastKeysLoaded) {
+      return;
+    }
+
+    hasEvaluatedMorningStretchRef.current = true;
+    const lastSeenIso = careState.lastInteractionAt ?? careState.updatedAt ?? null;
+    const nowIso = new Date().toISOString();
+
+    if (shouldShowMorningStretch(lastSeenIso, nowIso)) {
+      setShowingMorningStretchUntil(Date.now() + homeActionFeedbackMs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistedEventToastKeysLoaded]);
+
+  // Autonomous idle behavior (docs/gamefeel-sound-plan.md §1 Tier 3): every
+  // 40-90s, while the pet is otherwise just idling, briefly swap to a small
+  // curious/happy/play flourish with a matching motion cue -- "the dog does
+  // something on its own" even when the owner isn't touching anything. Each
+  // beat re-rolls both its own duration and the next gap so the rhythm never
+  // feels metronomic. Skipped entirely at night (the pet is asleep) and
+  // under reduced motion (no swap worth making without the motion to sell it).
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNext = () => {
+      const gapRoll = Math.random();
+      const gapMs = getAutonomousBehaviorIntervalMs(gapRoll);
+
+      timeoutId = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+
+        autonomousBehaviorRollRef.current = Math.random();
+        const untilMs = Date.now() + AUTONOMOUS_BEHAVIOR_HOLD_MS;
+        setAutonomousBehaviorUntil(untilMs);
+        scheduleNext();
+      }, gapMs);
+    };
+
+    scheduleNext();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [reduceMotionEnabled]);
+
+  // Butterfly visitor (docs/gamefeel-sound-plan.md §1 Tier 3): one roll per
+  // home-screen mount, daytime only, ~15% chance (shouldSpawnButterflyVisit).
+  // Rolled once persisted state has loaded so it doesn't fire ahead of the
+  // welcome/first-care-guide flows.
+  useEffect(() => {
+    if (hasRolledButterflyVisitRef.current || !persistedEventToastKeysLoaded) {
+      return;
+    }
+
+    hasRolledButterflyVisitRef.current = true;
+    const roll = Math.random();
+
+    if (shouldSpawnButterflyVisit(roll, !isNightTime(new Date().toISOString()))) {
+      setButterflyVisitActive(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistedEventToastKeysLoaded]);
+
+  // showingMorningStretchUntil/autonomousBehaviorUntil are plain "expires at
+  // this clock reading" timestamps (same pattern as celebratingBondLevelUntil
+  // above) -- the render body's own `> clock` comparison already turns them
+  // off once the 1s clock tick passes that point, so no separate reset timer
+  // is needed here.
+
+  useEffect(() => {
+    if (!butterflyCaughtLine) {
+      return;
+    }
+
+    const timeout = setTimeout(() => setButterflyCaughtLine(null), homeActionFeedbackMs);
+
+    return () => clearTimeout(timeout);
+  }, [butterflyCaughtLine]);
+
   useEffect(() => {
     if (justClaimedWalkAt === null) {
       return;
@@ -1115,6 +1246,16 @@ export function TerrariumHomeScreen() {
       actedAtMs: nowMs
     });
     setLastAction(action);
+
+    // Night care, no penalty (docs/gamefeel-sound-plan.md §1 Tier 3): a care
+    // tap during the 22:00-06:00 sleep window still fully applies (no stat
+    // changed, no cooldown skipped) -- this only swaps the speech bubble to a
+    // gentle "thanks, going back to sleep" line for the same brief window the
+    // action's own feedback already shows, instead of the pet's usual
+    // wide-awake reaction line.
+    if (isNightTime(new Date(nowMs).toISOString())) {
+      setNightCareAcknowledgedUntil(nowMs + homeActionFeedbackMs);
+    }
   };
 
   const handleFloatingDockButtonPress = (action: HomeFloatingDockAction) => {
@@ -1161,6 +1302,22 @@ export function TerrariumHomeScreen() {
     setJustClaimedWalkAt(Date.now());
   };
 
+  // Butterfly visitor tap (docs/gamefeel-sound-plan.md §1 Tier 3): the
+  // visitor is a momentary flight, not a memory-spine entry (out of scope
+  // for this wave per the plan doc) -- catching it just picks one of the two
+  // authored tap lines and gives the pet a brief curious reaction, then both
+  // clear themselves the same way lastActionSnapshot's own feedback window
+  // does.
+  const handleButterflyCaught = () => {
+    setButterflyVisitActive(false);
+    setButterflyCaughtLine(pickButterflyTapLine(Math.random()));
+    playLightImpactHaptic();
+  };
+
+  const handleButterflyFlownOff = () => {
+    setButterflyVisitActive(false);
+  };
+
   const reactionNow = new Date(clock).toISOString();
   const activeWeather = weatherState.settings.enabled ? weatherState.context : defaultWeatherContext;
   const weatherScene = getWeatherScenePresentation("home", activeWeather, "en-US");
@@ -1192,6 +1349,7 @@ export function TerrariumHomeScreen() {
   const episodeRollSeed = getAmbientReactionSeed(`${activePet.id}:episode`, careState, reactionNow, activeWeather);
   const episodeRoll = createSeededRandom(episodeRollSeed)();
   const preferEpisodeLine = isFirstHomeThoughtRef.current || episodeRoll < 0.35;
+  const isShowingNightCareAcknowledgement = nightCareAcknowledgedUntil > clock;
   const homeThought = getHomeThoughtPresentation({
     petName: activePet.name,
     reaction: daysAway > 0 && !lastActionSnapshot && justClaimedWalkAt === null ? ambientReaction : reaction,
@@ -1202,7 +1360,9 @@ export function TerrariumHomeScreen() {
     recentAction: lastActionSnapshot?.action ?? null,
     daysAway,
     episodeLine,
-    preferEpisodeLine
+    preferEpisodeLine,
+    isShowingNightCareAcknowledgement,
+    momentOverrideLine: butterflyCaughtLine
   });
   const episodeLineIsShowing = Boolean(episodeLine && preferEpisodeLine && homeThought.line === episodeLine.line);
 
@@ -1219,7 +1379,6 @@ export function TerrariumHomeScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeThought.line]);
-  const reduceMotionEnabled = useReducedMotionPreference();
   // 30ms/char reads as noticeably snappier than the shared 40ms default on
   // the home bubble specifically (real-device feedback: 40ms read as "not
   // typing at all"). Chat keeps its own separate 38ms — untouched here.
@@ -1244,16 +1403,40 @@ export function TerrariumHomeScreen() {
   // speech bubble. It reappears the moment the walk resolves to "returned".
   const isPetOnWalk = activeWalk?.status === "walking";
   const feedCooldownLeftMs = getActionCooldownLeftMs("feed");
+  // Tier 3 night sleep (docs/gamefeel-sound-plan.md §1 Tier 3): 22:00-06:00
+  // local, the pet defaults to its `sleep` pose under the NightWashLayer
+  // wash + NightZzzFloat -- unless something more specific is already
+  // driving the expression (a just-taken care action, a claimed walk, a
+  // bond-level celebration, or genuine neglect), all of which stay visible
+  // so a night care tap still gets its normal brief reaction before settling
+  // back to sleep (see isShowingNightSleepPose below). isNight is also read
+  // to gate the daytime-only butterfly visitor and the after-night morning
+  // stretch.
+  const isNight = isNightTime(reactionNow);
   // Ambient expression: neglect shows on the pet's body (sad/sick/messy/hungry),
-  // and a healthy idle pet cycles small curious/happy pulses so it never feels frozen.
+  // and a healthy idle pet cycles small autonomous behaviors so it never
+  // feels frozen (see pickAutonomousBehavior / the autonomous-behavior timer
+  // effect below).
   const ambientAssetState = deriveAmbientPetAssetState(careState, satisfactionSummary.tier);
-  const idlePulseState: GeneratedAssetState | null =
-    ambientAssetState === "idle" && clock % 30000 > 24000
-      ? Math.floor(clock / 30000) % 2 === 0
-        ? "curious"
-        : "happy"
-      : null;
+  const isShowingMorningStretch = showingMorningStretchUntil > clock;
+  const isShowingAutonomousBehavior = !isNight && autonomousBehaviorUntil > clock;
+  const autonomousBehaviorPick = isShowingAutonomousBehavior ? pickAutonomousBehavior(autonomousBehaviorRollRef.current) : null;
+  const idlePulseState: GeneratedAssetState | null = ambientAssetState === "idle" ? autonomousBehaviorPick?.expression ?? null : null;
   const isCelebratingBondLevel = celebratingBondLevelUntil > clock;
+  const isShowingButterflyCaughtReaction = Boolean(butterflyCaughtLine);
+  // True only when nothing more specific (action feedback, walk, celebration,
+  // butterfly catch, morning stretch, genuine neglect) is already driving the
+  // expression -- i.e. the moments the pet is actually shown curled up
+  // asleep under NightZzzFloat, not just "it happens to be nighttime."
+  const isShowingNightSleepPose =
+    isNight &&
+    ambientAssetState === "idle" &&
+    activeWalk?.status !== "returned" &&
+    justClaimedWalkAt === null &&
+    !isCelebratingBondLevel &&
+    !lastActionSnapshot &&
+    !isShowingButterflyCaughtReaction &&
+    !isShowingMorningStretch;
   const petAssetPreference =
     activeWalk?.status === "returned"
       ? "walk_return"
@@ -1266,9 +1449,15 @@ export function TerrariumHomeScreen() {
           ? "celebrate"
           : lastActionSnapshot
             ? homeActionAssetPreference[lastActionSnapshot.action]
-            : ambientAssetState !== "idle"
-              ? ambientAssetState
-              : idlePulseState ?? reaction;
+            : isShowingButterflyCaughtReaction
+              ? "curious"
+              : isShowingMorningStretch
+                ? "happy"
+                : isShowingNightSleepPose
+                  ? "sleep"
+                  : ambientAssetState !== "idle"
+                    ? ambientAssetState
+                    : idlePulseState ?? reaction;
   const displayedPetAsset = selectGeneratedAssetForReaction(acceptedAssets, acceptedAsset, petAssetPreference);
   const petAssetId = displayedPetAsset?.id ?? activePet.activeAssetId ?? null;
   const petAssetUri = petAssetId ? generatedAssetUriById[petAssetId] ?? null : null;
@@ -1340,6 +1529,7 @@ export function TerrariumHomeScreen() {
         <View style={styles.homeSceneWash} />
         <WeatherSceneLayer overlayKey={weatherScene.overlayKey} />
       </ImageBackground>
+      {isNight ? <NightWashLayer /> : null}
       <SafeAreaView accessibilityLabel={`${activePet.name}'s playable tiny garden home. ${weatherScene.accessibilityLabel}`} edges={["left", "right"]} style={styles.homeSafe}>
         <Text accessibilityRole="header" style={[styles.screenReaderTitle, { fontFamily: fontFamilies.display }]}>
           {activePet.name}'s tiny garden
@@ -1516,6 +1706,18 @@ export function TerrariumHomeScreen() {
                 actedAtMs={lastActionSnapshot?.actedAtMs ?? null}
                 petStageBottomPx={homePetStageBottomPx}
               />
+              {isShowingNightSleepPose ? (
+                <NightZzzFloat petStageBottomPx={homePetStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} />
+              ) : null}
+              {butterflyVisitActive && !isNight ? (
+                <ButterflyVisitorLayer
+                  reduceMotionEnabled={reduceMotionEnabled}
+                  windowHeight={windowHeight}
+                  windowWidth={windowWidth}
+                  onCaught={handleButterflyCaught}
+                  onFlownOff={handleButterflyFlownOff}
+                />
+              ) : null}
             </>
           )}
           {eventToastQueue[0] ? (

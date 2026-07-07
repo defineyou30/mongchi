@@ -9,6 +9,7 @@ export * from "./themeBundles";
 export * from "./walkCollection";
 export * from "./common";
 export * from "./conversation";
+export * from "./dayNightCycle";
 export * from "./entitlements";
 export * from "./expressionPacks";
 export * from "./generation";

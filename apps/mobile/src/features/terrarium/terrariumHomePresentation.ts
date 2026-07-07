@@ -1,4 +1,4 @@
-import { bondLevelRewards, getCareStatBand, getExpressionPackById, selectPetStatusLine } from "@mongchi/shared";
+import { bondLevelRewards, getCareStatBand, getExpressionPackById, NIGHT_CARE_ACKNOWLEDGEMENT_LINE, selectPetStatusLine } from "@mongchi/shared";
 import type {
   ActiveCareBuff,
   CareActionReward,
@@ -280,7 +280,9 @@ export const getHomeThoughtPresentation = ({
   recentAction,
   daysAway,
   episodeLine,
-  preferEpisodeLine = false
+  preferEpisodeLine = false,
+  isShowingNightCareAcknowledgement = false,
+  momentOverrideLine = null
 }: {
   petName: string;
   reaction: SelectedReaction;
@@ -294,6 +296,10 @@ export const getHomeThoughtPresentation = ({
   episodeLine?: SelectedEpisodeLine | null;
   /** Caller's decision (first bubble of the session, or a seeded ~30-40% roll) on whether *this* render should prefer the episode line over ambient/fallback copy. */
   preferEpisodeLine?: boolean;
+  /** True for the brief window right after a night-time (22:00-06:00) care tap -- see NIGHT_CARE_ACKNOWLEDGEMENT_LINE. Wins the bubble the same way a celebration reaction does, but never persists past that window (no penalty, no guilt, per the healing-app tone). */
+  isShowingNightCareAcknowledgement?: boolean;
+  /** A one-shot moment line (currently: catching the Tier 3 butterfly visitor) that owns the bubble outright for its brief window -- checked ahead of the night-care line since it's the rarer, more special moment of the two. Pass null when no such moment is active. */
+  momentOverrideLine?: string | null;
 }): HomeThoughtPresentation => {
   // A celebration reaction (bond level-up, walk discovery, walk-journal
   // complete) always owns the bubble outright -- it must never lose to a
@@ -305,6 +311,26 @@ export const getHomeThoughtPresentation = ({
       icon: getReactionIcon(reaction),
       line: reaction.line,
       accessibilityLabel: reaction.line
+    };
+  }
+
+  if (momentOverrideLine) {
+    return {
+      icon: "heart",
+      line: momentOverrideLine,
+      accessibilityLabel: momentOverrideLine
+    };
+  }
+
+  // Night care acknowledgement: same "owns the bubble outright" precedence
+  // as a celebration, but checked second so a genuine celebration (e.g. a
+  // bond level-up that happens to land at night) still wins -- a rare, happy
+  // moment is more worth surfacing than the routine sleepy-thanks line.
+  if (isShowingNightCareAcknowledgement) {
+    return {
+      icon: "heart",
+      line: NIGHT_CARE_ACKNOWLEDGEMENT_LINE,
+      accessibilityLabel: `${petName} sleepily thanks you and settles back down. ${NIGHT_CARE_ACKNOWLEDGEMENT_LINE}`
     };
   }
 

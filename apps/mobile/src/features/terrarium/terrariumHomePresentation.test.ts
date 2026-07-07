@@ -197,6 +197,70 @@ describe("terrarium home presentation", () => {
     expect(isCelebrationReaction(null)).toBe(false);
   });
 
+  it("shows the gentle night-care line and overrides an active urgent need, per the healing-app no-guilt tone", () => {
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: idleReaction,
+      satisfactionSummary: {
+        primaryNeed: "food",
+        hint: "A meal would help most."
+      },
+      isShowingNightCareAcknowledgement: true
+    });
+
+    expect(result.line).toMatch(/thank you/i);
+    expect(result.icon).toBe("heart");
+  });
+
+  it("still lets a celebration reaction win over the night-care line", () => {
+    const celebration: SelectedReaction = {
+      ruleId: "bond_level_up_3",
+      category: "affection_high",
+      line: "Our bond reached level 3! Thank you for all the little moments.",
+      animation: "celebrate",
+      priority: 100
+    };
+
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: celebration,
+      satisfactionSummary: { hint: "Care rhythm is good." },
+      isShowingNightCareAcknowledgement: true
+    });
+
+    expect(result.line).toBe("Our bond reached level 3! Thank you for all the little moments.");
+  });
+
+  it("lets a one-shot moment line (e.g. catching the butterfly visitor) own the bubble outright", () => {
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: idleReaction,
+      satisfactionSummary: {
+        primaryNeed: "food",
+        hint: "A meal would help most."
+      },
+      isShowingNightCareAcknowledgement: true,
+      momentOverrideLine: "Ooh, a little visitor!"
+    });
+
+    expect(result.line).toBe("Ooh, a little visitor!");
+  });
+
+  it("leaves the bubble untouched when no night-care or moment override is active", () => {
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: idleReaction,
+      satisfactionSummary: {
+        primaryNeed: "food",
+        hint: "A meal would help most."
+      },
+      isShowingNightCareAcknowledgement: false,
+      momentOverrideLine: null
+    });
+
+    expect(result.line).toBe("My belly sent an official request for dinner.");
+  });
+
   it("shows a startable path CTA when no walk is active", () => {
     expect(getHomeWalkCtaPresentation(null, "Miso", 0)).toMatchObject({
       status: "start",
