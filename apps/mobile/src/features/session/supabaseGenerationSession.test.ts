@@ -421,6 +421,102 @@ describe("supabase generation session start flow", () => {
     expect(result.error.code).toBe("source_photo_unreadable");
     expect(invokeCalls).toHaveLength(0);
   });
+
+  it("catches an unexpected raw throw from generate-avatar invoke and returns a retryable structured failure instead of letting it escape", async () => {
+    // Regression (P1c gap): unlike the poll flows, the start flow had no
+    // try/catch shield of its own. Since expression-pack purchases now route
+    // through this same start-flow shape to a paid server-side
+    // consume_credits debit, an uncaught throw here during purchase start
+    // would previously propagate as an unhandled promise rejection -- app
+    // crash/hang risk with no retry path for the user.
+    uploadAsyncMock.mockClear();
+    uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
+
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+
+    client.functions.invoke = vi.fn(async () => {
+      throw new Error("network dropped mid-request");
+    }) as never;
+
+    const result = await startSupabaseGenerationFlow(client as never, createReadyState(), "2026-07-03T09:01:00.000Z");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("generation_start_failed");
+    expect(result.error.retryable).toBe(true);
+  });
+
+  it("leaves petProfile/generation state completely untouched on a caught start-flow throw (no optimistic mutation)", async () => {
+    uploadAsyncMock.mockClear();
+    uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
+
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+
+    client.functions.invoke = vi.fn(async () => {
+      throw new Error("network dropped mid-request");
+    }) as never;
+
+    const state = createReadyState();
+    const result = await startSupabaseGenerationFlow(client as never, state, "2026-07-03T09:01:00.000Z");
+
+    expect(result.ok).toBe(false);
+    // A failed start must return no `data` payload at all -- callers only
+    // apply petProfile/generation/wallet patches from `ok: true` results, so
+    // the caller-side state (and thus the wallet/ownership) is guaranteed
+    // unchanged as long as this stays a plain `{ ok: false, error }` shape.
+    expect((result as { data?: unknown }).data).toBeUndefined();
+  });
+
+  it("retries idempotently with the same request semantics after a start-flow throw (no double invoke side effect assumed)", async () => {
+    // Mirrors the ambiguous "202 came back but then it threw" case: the
+    // server may have already committed its work by the time the client
+    // observes a throw. The client-side contract is simply that retrying
+    // calls generate-avatar again; the Edge Function's consume_credits is
+    // idempotent per request_id (see startSupabaseExpressionPackFlow's doc
+    // comment) so a second invoke for the same logical attempt never double
+    // charges server-side. This test verifies the client-side half: after a
+    // caught throw, a subsequent call succeeds normally and does not carry
+    // over any broken state from the failed attempt.
+    uploadAsyncMock.mockClear();
+    uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
+    uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
+
+    const { client, invokeCalls } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+
+    let throwOnce = true;
+    const realInvoke = client.functions.invoke;
+    client.functions.invoke = vi.fn(async (name: string, init: { body: unknown }) => {
+      if (throwOnce) {
+        throwOnce = false;
+        throw new Error("network dropped mid-request");
+      }
+
+      return realInvoke(name, init);
+    }) as never;
+
+    const state = createReadyState();
+    const failed = await startSupabaseGenerationFlow(client as never, state, "2026-07-03T09:01:00.000Z");
+    expect(failed.ok).toBe(false);
+
+    const retried = await startSupabaseGenerationFlow(client as never, state, "2026-07-03T09:01:05.000Z");
+
+    expect(retried.ok).toBe(true);
+    if (!retried.ok) {
+      return;
+    }
+
+    expect(retried.data.petProfile?.activeGenerationJobId).toBe("job_supabase_001");
+    expect(invokeCalls).toHaveLength(1);
+  });
 });
 
 describe("supabase generation session poll flow", () => {
@@ -907,6 +1003,97 @@ describe("supabase expression pack start flow", () => {
 
     expect(result.error.code).toBe("insufficient_credits");
     expect(result.error.status).toBe(402);
+  });
+
+  it("catches an unexpected raw throw from generate-avatar invoke and returns a retryable structured failure instead of crashing", async () => {
+    // Regression (P1c gap this test is written for): expression-pack
+    // purchases trigger a real, server-side paid consume_credits debit. If a
+    // network/client throw during invoke escaped uncaught, it would surface
+    // as an unhandled promise rejection with no retry affordance -- exactly
+    // the crash/no-recourse risk credit Phase 1c's §6.4 "no optimistic paid
+    // generation" guidance is meant to prevent.
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+
+    client.functions.invoke = vi.fn(async () => {
+      throw new Error("connection reset mid-request");
+    }) as never;
+
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      ["curious"],
+      "22222222-2222-4222-8222-222222222222"
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("expression_pack_start_failed");
+    expect(result.error.retryable).toBe(true);
+  });
+
+  it("returns no data payload on a caught throw, so the caller applies no wallet/ownership mutation", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+
+    client.functions.invoke = vi.fn(async () => {
+      throw new Error("connection reset mid-request");
+    }) as never;
+
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      ["curious"],
+      "22222222-2222-4222-8222-222222222222"
+    );
+
+    expect(result.ok).toBe(false);
+    expect((result as { data?: unknown }).data).toBeUndefined();
+  });
+
+  it("retries with the same request_id after a caught throw and only invokes generate-avatar once more (idempotency key reused, not minted fresh)", async () => {
+    // The double-charge safety net for the "202 came back but then it threw"
+    // ambiguous case relies on callers reusing the same requestId across a
+    // retry of the same purchase attempt (see this function's own doc
+    // comment: consume_credits is idempotent on request_id). This test pins
+    // down the client-side half of that contract: a retry call with the same
+    // requestId after a caught throw sends that same request_id again, not a
+    // freshly minted one.
+    const { client, invokeCalls } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      invokeData: { jobId: "job_expression_pack_002" }
+    });
+
+    let throwOnce = true;
+    const realInvoke = client.functions.invoke;
+    client.functions.invoke = vi.fn(async (name: string, init: { body: unknown }) => {
+      if (throwOnce) {
+        throwOnce = false;
+        throw new Error("connection reset mid-request");
+      }
+
+      return realInvoke(name, init);
+    }) as never;
+
+    const sameRequestId = "22222222-2222-4222-8222-222222222222";
+    const failed = await startSupabaseExpressionPackFlow(client as never, stateWithIdleAsset(), ["curious"], sameRequestId);
+    expect(failed.ok).toBe(false);
+
+    const retried = await startSupabaseExpressionPackFlow(client as never, stateWithIdleAsset(), ["curious"], sameRequestId);
+
+    expect(retried.ok).toBe(true);
+    if (!retried.ok) {
+      return;
+    }
+
+    expect(retried.data.jobId).toBe("job_expression_pack_002");
+    expect(invokeCalls).toHaveLength(1);
+    expect(invokeCalls[0]!.body).toMatchObject({ request_id: sameRequestId });
   });
 });
 

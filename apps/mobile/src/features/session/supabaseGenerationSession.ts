@@ -373,7 +373,7 @@ const invokeGenerateAvatar = (
     originalPhotoPath
   });
 
-export const startSupabaseGenerationFlow = async (
+const startSupabaseGenerationFlowInner = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
   now: string,
@@ -466,6 +466,56 @@ export const startSupabaseGenerationFlow = async (
       acceptedAssets: []
     }
   };
+};
+
+/**
+ * Design-audit invariant I4 (failures must never be silent), same shield as
+ * pollSupabaseGenerationFlow below. Before this wrapper, a raw throw from any
+ * await in the inner flow (session sign-in, prepareOriginalPhotoForUpload,
+ * uploadOriginalPhoto's own awaits, invokeGenerateAvatar) escaped uncaught as
+ * an unhandled promise rejection -- unlike the poll flows, which already had
+ * this shield. Since credit Phase 1c wired the expression-pack purchase path
+ * through this same start-flow shape to a paid server-side consume_credits
+ * debit, an uncaught throw here is no longer just "no error shown": it can
+ * leave the purchase attempt with no retry path and no visible failure state
+ * at all.
+ *
+ * Double-charge note: if the Edge Function's consume_credits call already
+ * committed server-side before the throw (e.g. the invoke's HTTP response
+ * itself is what threw, after the server processed the request), the
+ * server-side debit already happened and is NOT undone by this catch -- it
+ * only stops the throw from crashing the client. That's fine: the debit was
+ * for a request that legitimately started, and hydrateServerCreditBalance
+ * (called elsewhere on foreground resume / shop entry / post-generation)
+ * will pick up the true server balance on next hydrate regardless of what
+ * this catch returns locally. If the *caller* retries this same purchase
+ * attempt, callers are expected to reuse the same requestId (see
+ * startSupabaseExpressionPackFlow's doc comment) -- the Edge Function's
+ * consume_credits keys its ledger entry on that request_id, so a retried
+ * invoke with the same id is idempotent and never debits twice.
+ */
+export const startSupabaseGenerationFlow = async (
+  client: SupabaseClient,
+  state: PrototypeSessionState & PetBundle,
+  now: string,
+  manipulate: typeof manipulateAsync = manipulateAsync
+): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
+  try {
+    return await startSupabaseGenerationFlowInner(client, state, now, manipulate);
+  } catch (cause) {
+    console.warn("[generation] start flow threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("generation: start flow threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
+    return errorResult(
+      toMobileError(
+        0,
+        "generation_start_failed",
+        "We need a moment to connect. Try starting again.",
+        true
+      )
+    );
+  }
 };
 
 interface GenerationJobRow {
@@ -865,7 +915,7 @@ export interface StartExpressionPackFlowResult {
  * server only ever debits once for it; callers should mint a fresh UUID per
  * new purchase attempt (not per retry).
  */
-export const startSupabaseExpressionPackFlow = async (
+const startSupabaseExpressionPackFlowInner = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
   requestedStates: readonly string[],
@@ -895,6 +945,53 @@ export const startSupabaseExpressionPackFlow = async (
   }
 
   return { ok: true, data: { jobId: invoked.jobId } };
+};
+
+/**
+ * Same I4 shield as startSupabaseGenerationFlow above, and doubly important
+ * here: this start flow is the one that triggers the server's paid
+ * consume_credits debit (credit Phase 1c, docs/credit-phase1-design.md §6.3).
+ * Per §6.4 ("paid generation must never be optimistic"), nothing here mutates
+ * local wallet/ownership state on success or failure -- the caller
+ * (TerrariumSessionProvider) only charges/advances state after this resolves
+ * `ok: true`, so a caught throw naturally leaves the wallet and pet ownership
+ * completely untouched, exactly like any other `ok: false` result from this
+ * function.
+ *
+ * Double-charge note: if the throw happens *after* the server already
+ * committed the consume_credits debit (e.g. the invoke's own response
+ * handling throws post-commit), that debit is real and intentionally not
+ * rolled back here -- catching only prevents the client from crashing/
+ * hanging on it. The client's local balance simply hasn't caught up yet;
+ * hydrateServerCreditBalance re-reads the server-authoritative balance on the
+ * next hydrate. If the caller retries the same purchase attempt with the
+ * same requestId (see this function's outer doc comment on requestId reuse),
+ * the Edge Function's consume_credits is idempotent on request_id, so the
+ * retry cannot debit a second time -- it just re-resolves against the
+ * already-recorded ledger entry for that id.
+ */
+export const startSupabaseExpressionPackFlow = async (
+  client: SupabaseClient,
+  state: PrototypeSessionState & PetBundle,
+  requestedStates: readonly string[],
+  requestId: string
+): Promise<SupabaseGenerationFlowResult<StartExpressionPackFlowResult>> => {
+  try {
+    return await startSupabaseExpressionPackFlowInner(client, state, requestedStates, requestId);
+  } catch (cause) {
+    console.warn("[expressionPack] start flow threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("expressionPack: start flow threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
+    return errorResult(
+      toMobileError(
+        0,
+        "expression_pack_start_failed",
+        "We need a moment to connect. Try starting again.",
+        true
+      )
+    );
+  }
 };
 
 export type ExpressionPackPollStatus = "pending" | "completed" | "failed";
