@@ -1701,12 +1701,16 @@ export type ConfirmPrototypeExpressionPackPurchaseResult =
   | { ok: false; reason: "pack_not_found" | "already_owned" | "insufficient_credits" };
 
 /**
- * Confirms an expression pack purchase: spends credits, records ownership,
- * and leaves a warm "expression_pack" memory -- called only after the
- * provider layer has confirmed the server-side generation job actually
- * started (the "transactional across an async boundary" pattern also used by
- * completePrototypeWalkEarlyWithCredit, except here the thing being gated is
- * a job-start network call rather than a synchronous state change). Re-runs
+ * Dev-only local purchase confirm: spends credits from the *local* wallet,
+ * records ownership, and leaves a warm "expression_pack" memory. As of
+ * credit Phase 1c (docs/credit-phase1-design.md §6.3/§6.5), this is
+ * exclusively the no-Supabase-client dev fallback path in
+ * TerrariumSessionProvider.purchaseExpressionPack (EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE-gated,
+ * never reachable in production) -- there is no server to debit against, so
+ * spending the local wallet is the only way to make the dev flow exercise
+ * "can't afford it" at all. The real, server-backed purchase flow calls
+ * recordExpressionPackUnlock below instead, since the credit charge already
+ * happened server-side (consume_credits) before this is ever reached. Re-runs
  * the same ownership/balance checks as validatePrototypeExpressionPackPurchase
  * so a caller can never charge twice for a racing double-confirm.
  */
@@ -1747,6 +1751,67 @@ export const confirmPrototypeExpressionPackPurchase = (
       {
         ...state,
         wallet: walletSpend.wallet,
+        inventory
+      },
+      () => ({ memories })
+    )
+  };
+};
+
+export type RecordExpressionPackUnlockResult =
+  | { ok: true; state: PrototypeSessionState }
+  | { ok: false; reason: "pack_not_found" | "already_owned" };
+
+/**
+ * Records an expression pack as owned (inventory + a warm memory) *without*
+ * touching the wallet -- the server-authoritative purchase path for credit
+ * Phase 1c (docs/credit-phase1-design.md §6.1/§6.3). By the time this is
+ * called, the Edge Function has already debited credit_wallets via
+ * consume_credits *before* the generation job was created (see
+ * supabase/functions/generate-avatar/index.ts step 4), so a second local
+ * deduction here would double-charge the player. The caller
+ * (TerrariumSessionProvider.purchaseExpressionPack) is responsible for
+ * syncing state.wallet.credits to the server's returned balance separately
+ * (via hydrateServerCreditBalance), not through this function. Only checks
+ * "does this pack exist" and "not already owned" -- deliberately does *not*
+ * re-check canSpendCredits, since the credits gate already happened
+ * server-side and re-checking a stale local cache here could reject an
+ * already-paid-for unlock.
+ */
+export const recordExpressionPackUnlock = (
+  state: PrototypeSessionState,
+  packId: string,
+  now: string = FALLBACK_NOW
+): RecordExpressionPackUnlockResult => {
+  const pack = getExpressionPackById(packId);
+
+  if (!pack) {
+    return { ok: false, reason: "pack_not_found" };
+  }
+
+  if ((state.inventory.ownedExpressionPackIds ?? []).includes(pack.id)) {
+    return { ok: false, reason: "already_owned" };
+  }
+
+  const inventory: Inventory = {
+    ...state.inventory,
+    ownedExpressionPackIds: [...(state.inventory.ownedExpressionPackIds ?? []), pack.id],
+    updatedAt: now
+  };
+
+  const memories = recordPetMemory(getActivePetBundle(state).memories, {
+    id: `mem_expression_pack_${pack.id}`,
+    type: "expression_pack",
+    occurredAt: now,
+    line: `I picked up some new little expressions to share with you today.`,
+    refs: { itemId: pack.id }
+  });
+
+  return {
+    ok: true,
+    state: withActivePetBundle(
+      {
+        ...state,
         inventory
       },
       () => ({ memories })

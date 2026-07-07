@@ -1,6 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
+import type { AppStateStatus } from "react-native";
 
 import {
   acceptPrototypeGeneratedPet,
@@ -10,6 +13,7 @@ import {
   canCreatePet,
   applyPrototypeTheme,
   confirmPrototypeExpressionPackPurchase,
+  recordExpressionPackUnlock,
   createPersistedSessionEnvelope,
   isValidPrototypeSessionShape,
   runSessionMigrations,
@@ -89,6 +93,7 @@ import { createAsyncActionGuard } from "./asyncActionGuard";
 import { hasActiveGenerationJob } from "./generationJobGuards";
 import { getSupabaseClient } from "./supabaseClient";
 import {
+  hydrateServerCreditBalance,
   pollSupabaseExpressionPackFlow,
   pollSupabaseGenerationFlow,
   retrySupabaseGenerationFlow,
@@ -249,6 +254,8 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   purchaseProduct: (product: CommerceProduct) => Promise<PurchaseProductResult>;
   restorePurchases: () => Promise<RestorePurchasesResult>;
   syncWallet: (wallet: CreditWallet) => void;
+  /** Refreshes wallet.credits from the server (credit_wallets via get_credit_balance) -- see hydrateCreditBalance's doc comment. No-op without a Supabase client or on a failed fetch. */
+  hydrateCreditBalance: () => Promise<void>;
   resetSession: () => Promise<boolean>;
   /** Serializes the current session as shareable backup text (see ExportSessionBackupResult's doc comment). */
   exportSessionBackup: () => ExportSessionBackupResult;
@@ -1462,7 +1469,11 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         // Local/dev fallback: no live backend to poll, so confirm the
         // purchase and merge in mock assets for the pack's states right
         // away -- this is what lets the dev-unlocked wallet path exercise
-        // the full purchase -> gallery flow in the simulator.
+        // the full purchase -> gallery flow in the simulator. There is no
+        // server here, so the local-wallet-spending confirm is correct in
+        // this branch only (see confirmPrototypeExpressionPackPurchase's
+        // doc comment) -- production never reaches this branch
+        // (EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE-gated dev builds only).
         const confirmed = confirmPrototypeExpressionPackPurchase(validationState, pack.id, purchasedAt);
 
         if (!confirmed.ok) {
@@ -1485,25 +1496,66 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         return { ok: true, messageSafe: `New moments unlocked: ${pack.nameEn}!` };
       }
 
-      const started = await startSupabaseExpressionPackFlow(supabaseClient, legacyFlatState, pack.states);
+      // Credit Phase 1c (docs/credit-phase1-design.md §6.3/§6.4): expression
+      // packs are a paid, server-debited generation now, so this purchase is
+      // never optimistic. request_id is minted fresh per purchase *attempt*
+      // (not per retry within the same attempt -- startSupabaseExpressionPackFlow
+      // sends it as-is) and is the idempotency key the Edge Function's
+      // consume_credits call keys its ledger row on, so a dropped response
+      // followed by this same call retrying never double-charges.
+      const requestId = Crypto.randomUUID();
+      const started = await startSupabaseExpressionPackFlow(supabaseClient, legacyFlatState, pack.states, requestId);
 
       if (!started.ok) {
+        // insufficient_credits (402, server-authoritative -- the local
+        // preflight check above only rejects fast on a *known-stale* local
+        // cache) and any network/offline failure both land here: nothing
+        // was charged, so just surface the message and let the player
+        // retry -- no local wallet mutation to roll back, no pending job to
+        // strand. "insufficient_credits" already carries P11's warm,
+        // non-guilt tone (see failureMessages.insufficientCredits in
+        // generate-avatar/index.ts): "You're out of credits for this one.
+        // Grab more and let's try again soon."
         setExpressionPackFailed(pack.id, started.error.messageSafe);
         return { ok: false, messageSafe: started.error.messageSafe };
       }
 
-      // Job actually started server-side -- confirm the charge now.
-      const confirmed = confirmPrototypeExpressionPackPurchase(state, pack.id, purchasedAt);
+      // Job actually started server-side -- credits were already debited by
+      // consume_credits before the job row was created, so this only
+      // records ownership + a memory, never spends the local wallet (that
+      // would double-charge). The local wallet.credits cache is refreshed
+      // separately via hydrateCreditBalance (called right after this
+      // resolves, see the caller in FriendProfileScreen / shop entry
+      // points) rather than threading the new balance through this
+      // response, since the Edge Function's 202 body only carries jobId.
+      const recorded = recordExpressionPackUnlock(state, pack.id, purchasedAt);
 
-      if (!confirmed.ok) {
+      if (!recorded.ok) {
         // Extremely unlikely (validated moments ago), but never strand a
-        // started job without at least surfacing something to the player.
+        // started, already-paid-for job without at least surfacing
+        // something to the player.
         setExpressionPackFailed(pack.id, "Something went sideways starting these new expressions. Try again soon.");
         return { ok: false, messageSafe: "Something went sideways starting these new expressions. Try again soon." };
       }
 
-      setState(confirmed.state);
+      setState(recorded.state);
       setExpressionPackJobIdByPackId((current) => ({ ...current, [pack.id]: started.data.jobId }));
+
+      // Best-effort: sync the local credits cache to the server's post-debit
+      // balance now that the charge is confirmed. Never blocks the purchase
+      // result on this -- a failed hydrate just means the cached balance
+      // stays stale until the next hydrate point (design doc §6.2/§6.4:
+      // "hydrate failure -> last cache + quiet retry", no error surfaced).
+      void hydrateServerCreditBalance(supabaseClient).then((hydrated) => {
+        if (!hydrated.ok) {
+          return;
+        }
+
+        setState((current) => ({
+          ...current,
+          wallet: { ...current.wallet, credits: hydrated.credits, updatedAt: nowIso() }
+        }));
+      });
 
       return { ok: true, messageSafe: "New moments are on their way..." };
     },
@@ -2003,6 +2055,52 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     }));
   }, []);
 
+  // Credit Phase 1c (docs/credit-phase1-design.md §6.2): refreshes
+  // wallet.credits from credit_wallets (server truth) via the
+  // get_credit_balance RPC. Deliberately narrow -- only ever patches
+  // `credits`, never `bonusCredits` (that stays purely local/play-earned)
+  // or any other wallet field. Callers decide *when* to call this: app
+  // foreground resume, shop/friend-page (expression pack gallery) entry,
+  // and right after a purchase/generation completes -- never on a
+  // per-second clock (that would add a home-screen re-render cost, see
+  // readiness-diagnosis). A no-op (not an error) when there's no Supabase
+  // client (dev/local mode) or the RPC call fails -- the caller just keeps
+  // showing the last cached balance, consistent with "hydrate failure ->
+  // last cache + quiet retry, no banner spam" from §6.4.
+  const hydrateCreditBalance = useCallback(async (): Promise<void> => {
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    const hydrated = await hydrateServerCreditBalance(supabaseClient);
+
+    if (!hydrated.ok) {
+      return;
+    }
+
+    setState((current) => ({
+      ...current,
+      wallet: { ...current.wallet, credits: hydrated.credits, updatedAt: nowIso() }
+    }));
+  }, []);
+
+  // Credit Phase 1c trigger point (a): app foreground resume (design doc
+  // §6.2). Only fires on background/inactive -> active transitions, not on
+  // the initial mount's "active" state (AppState's listener only reports
+  // *changes*, so this never double-hydrates alongside a screen's own
+  // mount-time hydrate).
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (nextState === "active") {
+        void hydrateCreditBalance();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [hydrateCreditBalance]);
+
   const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
   const activeEntitlements = useMemo(() => {
     const runtimeEntitlements = getRuntimeActiveEntitlements(apiRuntime.mode, apiEntitlements);
@@ -2102,6 +2200,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     purchaseProduct,
     restorePurchases,
     syncWallet,
+    hydrateCreditBalance,
     resetSession,
     exportSessionBackup,
     importSessionBackup

@@ -279,6 +279,30 @@ const buildGenerationInputSnapshot = (draft: PrototypeSessionState["draft"]) => 
   };
 };
 
+/**
+ * The Edge Function's 402 response distinguishes two different reasons
+ * (`quota_exhausted` -- free 1x generation used up -- vs `insufficient_credits`
+ * -- paid credit_wallets balance too low, see
+ * supabase/functions/generate-avatar/index.ts and
+ * docs/credit-phase1-design.md §4.2/§6.3) that need different copy on the
+ * client. supabase-js's FunctionsHttpError only exposes the raw failed
+ * Response as `context` (no parsed body), so the JSON body has to be read
+ * off it explicitly. Best-effort: a body read failure (already-consumed
+ * stream, non-JSON body, etc) just falls back to the generic quota message
+ * rather than throwing.
+ */
+const readInvokeErrorBody = async (context: unknown): Promise<{ error?: string } | null> => {
+  if (!context || typeof (context as Response).json !== "function") {
+    return null;
+  }
+
+  try {
+    return (await (context as Response).json()) as { error?: string };
+  } catch {
+    return null;
+  }
+};
+
 const invokeGenerateAvatarWithBody = async (
   client: SupabaseClient,
   body: Record<string, unknown>
@@ -290,6 +314,19 @@ const invokeGenerateAvatarWithBody = async (
     const status = context?.status ?? 0;
 
     if (status === 402) {
+      const errorBody = await readInvokeErrorBody(context);
+
+      if (errorBody?.error === "insufficient_credits") {
+        return {
+          ok: false,
+          error: toMobileError(
+            402,
+            "insufficient_credits",
+            "You're out of credits for this one. Grab more and let's try again soon."
+          )
+        };
+      }
+
       return {
         ok: false,
         error: toMobileError(402, "generation_quota_exceeded", "You're out of avatar generations for now. Check back soon.")
@@ -818,11 +855,21 @@ export interface StartExpressionPackFlowResult {
  * deciding when to charge credits (only after this resolves ok) and how to
  * track pending/polling state, since an expression pack purchase is not a
  * replacement for the main generation.status machine.
+ *
+ * As of credit Phase 1c (docs/credit-phase1-design.md §6.3), this is a paid
+ * server-side debit, not a free ride: `requestId` is sent as the request
+ * body's `request_id`, the same idempotency key the Edge Function's
+ * consume_credits call keys its ledger entry on (see
+ * supabase/functions/generate-avatar/index.ts step 4). Passing the *same*
+ * requestId across retries of the same purchase attempt guarantees the
+ * server only ever debits once for it; callers should mint a fresh UUID per
+ * new purchase attempt (not per retry).
  */
 export const startSupabaseExpressionPackFlow = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
-  requestedStates: readonly string[]
+  requestedStates: readonly string[],
+  requestId: string
 ): Promise<SupabaseGenerationFlowResult<StartExpressionPackFlowResult>> => {
   const storagePath = resolveIdleAssetStoragePath(state);
 
@@ -839,7 +886,8 @@ export const startSupabaseExpressionPackFlow = async (
   const invoked = await invokeGenerateAvatarWithBody(client, {
     inputSnapshot: buildGenerationInputSnapshot(state.draft),
     source_asset_path: storagePath.storagePath,
-    requested_states: [...requestedStates]
+    requested_states: [...requestedStates],
+    request_id: requestId
   });
 
   if (!invoked.ok) {
@@ -930,5 +978,71 @@ export const pollSupabaseExpressionPackFlow = async (
     return errorResult(
       toMobileError(0, "generation_job_poll_failed", "Could not check on your companion's new expressions.", true)
     );
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Server credit balance hydration (credit Phase 1c, see
+// docs/credit-phase1-design.md §6.2). credit_wallets.balance is now the
+// server's source of truth for CreditWallet.credits -- bonusCredits stays a
+// purely local bucket (play-earned, fine to lose) and is never touched here.
+// Callers decide *when* to hydrate (foreground resume, shop/gallery entry,
+// right after a purchase/generation completes) -- this function itself is
+// just the read, deliberately not wired to any interval/clock so it can
+// never get looped into a per-second re-render cost on the home screen.
+// ---------------------------------------------------------------------------
+
+export interface HydrateServerCreditBalanceResult {
+  ok: true;
+  credits: number;
+}
+
+export type HydrateServerCreditBalanceOutcome =
+  | HydrateServerCreditBalanceResult
+  | { ok: false; error: MobileApiError };
+
+const hydrateServerCreditBalanceInner = async (client: SupabaseClient): Promise<HydrateServerCreditBalanceOutcome> => {
+  const session = await ensureSupabaseSession(client);
+
+  if (!session.ok) {
+    return session;
+  }
+
+  const balance = await client.rpc("get_credit_balance", { p_user: session.userId });
+
+  if (balance.error || typeof balance.data !== "number") {
+    return {
+      ok: false,
+      error: toMobileError(0, "credit_balance_fetch_failed", "Could not refresh your credit balance.", true)
+    };
+  }
+
+  return { ok: true, credits: balance.data };
+};
+
+/**
+ * Reads the server-authoritative credit balance (credit_wallets.balance, via
+ * the get_credit_balance RPC -- see supabase/migrations/0004_credit_ledger.sql
+ * §3.4) for the current device's Supabase session. Wrapped in the same
+ * try/catch shield as the other poll/flow helpers in this file: a thrown
+ * client-library exception here must never propagate out as an unhandled
+ * rejection, it should just surface as a retryable error the caller can
+ * silently retry later (design doc §6.4: "hydrate failure -> last cache +
+ * quiet retry", no error banner spam).
+ */
+export const hydrateServerCreditBalance = async (
+  client: SupabaseClient
+): Promise<HydrateServerCreditBalanceOutcome> => {
+  try {
+    return await hydrateServerCreditBalanceInner(client);
+  } catch (cause) {
+    console.warn("[credits] hydrate flow threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("credits: hydrate flow threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
+    return {
+      ok: false,
+      error: toMobileError(0, "credit_balance_fetch_failed", "Could not refresh your credit balance.", true)
+    };
   }
 };

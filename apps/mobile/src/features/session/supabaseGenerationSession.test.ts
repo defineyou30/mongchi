@@ -53,6 +53,7 @@ import {
 import type { PetBundle, PrototypeSessionState } from "@mongchi/shared";
 
 import {
+  hydrateServerCreditBalance,
   pollSupabaseExpressionPackFlow,
   pollSupabaseGenerationFlow,
   resolveIdleAssetStoragePath,
@@ -114,11 +115,14 @@ interface FakeSupabaseClientOptions {
   jobError?: { message: string } | null;
   signedUrl?: string | null;
   signedUrlError?: { message: string } | null;
+  rpcData?: unknown;
+  rpcError?: { message: string } | null;
 }
 
 const createFakeSupabaseClient = (options: FakeSupabaseClientOptions = {}) => {
   const invokeCalls: Array<{ name: string; body: unknown }> = [];
   const signedUrlCalls: string[] = [];
+  const rpcCalls: Array<{ fn: string; args: unknown }> = [];
   let currentSession = options.session ?? null;
 
   const client = {
@@ -178,10 +182,19 @@ const createFakeSupabaseClient = (options: FakeSupabaseClientOptions = {}) => {
           })
         }))
       }))
-    }))
+    })),
+    rpc: vi.fn(async (fn: string, args: unknown) => {
+      rpcCalls.push({ fn, args });
+
+      if (options.rpcError) {
+        return { data: null, error: options.rpcError };
+      }
+
+      return { data: options.rpcData ?? null, error: null };
+    })
   };
 
-  return { client, invokeCalls, signedUrlCalls };
+  return { client, invokeCalls, signedUrlCalls, rpcCalls };
 };
 
 describe("supabase generation session start flow", () => {
@@ -803,7 +816,12 @@ describe("supabase expression pack start flow", () => {
       invokeData: { jobId: "job_expression_pack_001" }
     });
 
-    const result = await startSupabaseExpressionPackFlow(client as never, stateWithIdleAsset(), ["curious", "play", "hungry"]);
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      ["curious", "play", "hungry"],
+      "22222222-2222-4222-8222-222222222222"
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -820,7 +838,8 @@ describe("supabase expression pack start flow", () => {
         talkingStyle: "gentle"
       },
       source_asset_path: "avatars/user_existing_001/job_supabase_001/idle.png",
-      requested_states: ["curious", "play", "hungry"]
+      requested_states: ["curious", "play", "hungry"],
+      request_id: "22222222-2222-4222-8222-222222222222"
     });
   });
 
@@ -829,7 +848,12 @@ describe("supabase expression pack start flow", () => {
       session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
     });
 
-    const result = await startSupabaseExpressionPackFlow(client as never, createReadyState(), ["curious"]);
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      createReadyState(),
+      ["curious"],
+      "22222222-2222-4222-8222-222222222222"
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -846,7 +870,12 @@ describe("supabase expression pack start flow", () => {
       invokeError: { message: "rate limited", context: { status: 429 } }
     });
 
-    const result = await startSupabaseExpressionPackFlow(client as never, stateWithIdleAsset(), ["curious"]);
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      ["curious"],
+      "22222222-2222-4222-8222-222222222222"
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -855,6 +884,29 @@ describe("supabase expression pack start flow", () => {
 
     expect(result.error.code).toBe("rate_limited");
     expect(result.error.retryable).toBe(true);
+  });
+
+  it("maps a 402 insufficient_credits response distinctly from generation_quota_exceeded", async () => {
+    const jsonMock = vi.fn(async () => ({ error: "insufficient_credits", message: "not enough credits" }));
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      invokeError: { message: "insufficient credits", context: { status: 402, json: jsonMock } as never }
+    });
+
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      ["curious"],
+      "22222222-2222-4222-8222-222222222222"
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("insufficient_credits");
+    expect(result.error.status).toBe(402);
   });
 });
 
@@ -977,6 +1029,87 @@ describe("supabase expression pack poll flow", () => {
     }
 
     expect(result.error.code).toBe("generation_job_poll_failed");
+    expect(result.error.retryable).toBe(true);
+  });
+});
+
+describe("hydrateServerCreditBalance (credit Phase 1c, design doc §6.2)", () => {
+  it("reads the server balance via get_credit_balance and returns it as credits", async () => {
+    const { client, rpcCalls } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      rpcData: 37
+    });
+
+    const result = await hydrateServerCreditBalance(client as never);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.credits).toBe(37);
+    expect(rpcCalls).toEqual([{ fn: "get_credit_balance", args: { p_user: "user_existing_001" } }]);
+  });
+
+  it("signs in anonymously first when there is no existing session, same as the generation flows", async () => {
+    const { client, rpcCalls } = createFakeSupabaseClient({ session: null, rpcData: 0 });
+
+    const result = await hydrateServerCreditBalance(client as never);
+
+    expect(result.ok).toBe(true);
+    expect(rpcCalls).toEqual([{ fn: "get_credit_balance", args: { p_user: "user_anon_001" } }]);
+  });
+
+  it("returns a retryable error when the RPC call fails, without throwing", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      rpcError: { message: "connection reset" }
+    });
+
+    const result = await hydrateServerCreditBalance(client as never);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("credit_balance_fetch_failed");
+    expect(result.error.retryable).toBe(true);
+  });
+
+  it("returns a retryable error when the RPC resolves with a non-numeric payload", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      rpcData: null
+    });
+
+    const result = await hydrateServerCreditBalance(client as never);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("credit_balance_fetch_failed");
+  });
+
+  it("catches an unexpected throw and returns a retryable error instead of propagating", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+
+    client.rpc = vi.fn(() => {
+      throw new Error("unexpected client failure");
+    }) as never;
+
+    const result = await hydrateServerCreditBalance(client as never);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("credit_balance_fetch_failed");
     expect(result.error.retryable).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { CheckCircle2, Lock } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -214,6 +214,7 @@ export function ShopPreviewScreen() {
     commerceProducts,
     creditBalance,
     devStoreUnlocked,
+    hydrateCreditBalance,
     inventory,
     nativeCheckoutReady,
     purchaseCatalogItem,
@@ -224,6 +225,14 @@ export function ShopPreviewScreen() {
   } = useTerrariumSession();
   const typography = useTypography();
   const fontFamilies = useFontFamilies();
+
+  // Credit Phase 1c trigger point (b): shop entry refreshes wallet.credits
+  // from the server before the player sees prices (design doc §6.2). No-op
+  // without a Supabase client or on a failed fetch -- the credit HUD just
+  // keeps showing the last cached balance.
+  useEffect(() => {
+    void hydrateCreditBalance();
+  }, [hydrateCreditBalance]);
   const useServerCatalog = runtimeMode === "api" && commerceProducts.length > 0;
   const checkoutAvailable = useServerCatalog && nativeCheckoutReady;
   const premiumPass = getPremiumPassShopPresentation(commerceProducts, activeEntitlements);

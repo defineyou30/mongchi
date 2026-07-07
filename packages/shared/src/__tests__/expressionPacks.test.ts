@@ -10,6 +10,7 @@ import {
   getSpendableCreditBalance,
   isExpressionPackUnlocked,
   mergePrototypeGeneratedAssets,
+  recordExpressionPackUnlock,
   validatePrototypeExpressionPackPurchase
 } from "../index";
 import { makeMockGeneratedAsset } from "../mock/mockData";
@@ -113,7 +114,7 @@ describe("validatePrototypeExpressionPackPurchase", () => {
   });
 });
 
-describe("confirmPrototypeExpressionPackPurchase (transactional purchase)", () => {
+describe("confirmPrototypeExpressionPackPurchase (dev-only local wallet purchase, credit Phase 1c)", () => {
   it("spends credits, records ownership, and leaves an expression_pack memory on success", () => {
     const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
     const pack = getExpressionPackById("pack-everyday-moments")!;
@@ -185,6 +186,77 @@ describe("confirmPrototypeExpressionPackPurchase (transactional purchase)", () =
     // 5 bonus credits cover part of the 12cr cost; the rest (7) comes from credits.
     expect(result.state.wallet.bonusCredits).toBe(0);
     expect(result.state.wallet.credits).toBe(100 - (pack.creditCost - 5));
+  });
+});
+
+describe("recordExpressionPackUnlock (server-authoritative purchase, credit Phase 1c)", () => {
+  it("records ownership and leaves an expression_pack memory WITHOUT touching the wallet", () => {
+    const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    const pack = getExpressionPackById("pack-everyday-moments")!;
+    const walletBefore = state.wallet;
+
+    const result = recordExpressionPackUnlock(state, pack.id, "2026-06-24T09:05:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    // The whole point of this function: credits were already debited
+    // server-side (consume_credits) before the job was created, so this
+    // must never spend the local wallet -- neither credits nor
+    // bonusCredits budge by even one unit.
+    expect(result.state.wallet).toEqual(walletBefore);
+    expect(result.state.inventory.ownedExpressionPackIds).toContain(pack.id);
+    const memory = active(result.state).memories.find((entry) => entry.type === "expression_pack");
+    expect(memory).toBeTruthy();
+    expect(memory?.refs?.itemId).toBe(pack.id);
+  });
+
+  it("leaves state completely unchanged when the pack is unknown (failure = no-op)", () => {
+    const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+
+    const result = recordExpressionPackUnlock(state, "pack-missing", now);
+
+    expect(result).toEqual({ ok: false, reason: "pack_not_found" });
+  });
+
+  it("prevents double-recording the same pack (duplicate-purchase guard)", () => {
+    const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    const pack = getExpressionPackById("pack-everyday-moments")!;
+
+    const first = recordExpressionPackUnlock(state, pack.id, "2026-06-24T09:05:00.000Z");
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      return;
+    }
+
+    const second = recordExpressionPackUnlock(first.state, pack.id, "2026-06-24T09:06:00.000Z");
+
+    expect(second).toEqual({ ok: false, reason: "already_owned" });
+    expect(first.state.inventory.ownedExpressionPackIds?.filter((id) => id === pack.id)).toHaveLength(1);
+  });
+
+  it("succeeds even when the local wallet cache reads as broke -- the server already gated the charge", () => {
+    // This is the crux of the Phase 1c contract: state.wallet.credits can be
+    // a stale local cache. recordExpressionPackUnlock must not re-run a
+    // canSpendCredits check, because the *server's* consume_credits call is
+    // what actually gated this purchase (a 402 from that call is what
+    // TerrariumSessionProvider checks before ever calling this function).
+    const baseState = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    const broke = { ...baseState, wallet: { ...baseState.wallet, credits: 0, bonusCredits: 0 } };
+    const pack = getExpressionPackById("pack-everyday-moments")!;
+
+    const result = recordExpressionPackUnlock(broke, pack.id, now);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.state.wallet.credits).toBe(0);
+    expect(result.state.wallet.bonusCredits).toBe(0);
+    expect(result.state.inventory.ownedExpressionPackIds).toContain(pack.id);
   });
 });
 

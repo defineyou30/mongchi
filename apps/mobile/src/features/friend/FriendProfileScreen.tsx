@@ -275,6 +275,7 @@ export function FriendProfileScreen() {
     catalogItems,
     expressionPackPurchaseStatusById,
     generatedAssetUriById,
+    hydrateCreditBalance,
     memories,
     purchaseExpressionPack,
     relationshipState,
@@ -421,6 +422,15 @@ export function FriendProfileScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Credit Phase 1c trigger point (b): this page hosts the expression pack
+  // gallery (the pose cards below), so entering it refreshes wallet.credits
+  // from the server before the player can see/tap a pack's price (design
+  // doc §6.2). No-op without a Supabase client or on a failed fetch --
+  // hydrateCreditBalance silently keeps the last cached balance either way.
+  useEffect(() => {
+    void hydrateCreditBalance();
+  }, [hydrateCreditBalance]);
 
   // Once a pending reveal has actually been computed (and is about to render
   // this pass), mark its pack id(s) seen right away so the showcase plays
