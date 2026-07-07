@@ -14,10 +14,12 @@
 // idle state) is downloaded and used as the seed image for the newly
 // requested states. This mode skips safety classification (the seed is our
 // own generated art, not user photo content) and skips consume_generation_quota
-// (billed against the client's local credit balance instead -- server-side
-// credit accounting is a Phase 1 follow-up), but still runs through the same
-// rate limit, generation, chroma-key, quality gate, and upload pipeline, and
-// never deletes the seed asset.
+// -- it is instead billed server-side against credit_wallets via
+// consume_credits (see step 4 below and supabase/migrations/0004_credit_ledger.sql),
+// with the debit happening before the job row is created so the server, not
+// the client, is authoritative for whether the purchase is allowed. It still
+// runs through the same rate limit, generation, chroma-key, quality gate,
+// and upload pipeline, and never deletes the seed asset.
 //
 // Deno / Supabase Edge Runtime. TypeScript strict.
 
@@ -85,6 +87,13 @@ interface GenerateAvatarRequestBody {
   originalPhotoPath?: string;
   source_asset_path?: string;
   requested_states?: string[];
+  // Idempotency key for any credit-funded request (currently: expression
+  // packs). Client-supplied (a UUID generated once per logical purchase
+  // attempt and reused across retries) so consume_credits never double-
+  // charges a retried request. Optional for now because the client hasn't
+  // been migrated to send it yet (Phase 1c) -- see request_id fallback in
+  // the HTTP handler below.
+  request_id?: string;
 }
 
 interface GenerationJobRow {
@@ -95,6 +104,7 @@ interface GenerationJobRow {
   required_states: string[];
   original_photo_path: string | null;
   source_asset_path: string | null;
+  credit_ref: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +129,13 @@ const DEFAULT_IMAGE_QUALITY = Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "low";
 // rate-limited request never spends a quota unit it can't use.
 const RATE_LIMIT_WINDOW_SECONDS = 300;
 const RATE_LIMIT_MAX_ATTEMPTS = 3;
+
+// Server-authoritative expression pack cost in credit_wallets credits (see
+// supabase/migrations/0004_credit_ledger.sql). Deliberately a server
+// constant, not read from the request body -- the client's credit_reason is
+// never trusted for pricing (see docs/credit-phase1-design.md §4.1), so a
+// tampered request can't buy a paid generation for less than this.
+const EXPRESSION_PACK_CREDIT_COST = 12;
 
 // Hard cap on how many distinct states a single expression-pack request can
 // ask for. Without this, a client could submit requested_states padded with
@@ -349,6 +366,7 @@ const stylePromptLines: string[] = [
 
 const failureMessages = {
   quotaExhausted: "You're out of avatar generations for now. Grab more credits and let's try again soon.",
+  insufficientCredits: "You're out of credits for this one. Grab more and let's try again soon.",
   photoMissing: "We couldn't find that photo. Try uploading it once more.",
   sourceAssetMissing: "We couldn't find that expression to build from. Try again from your companion's page.",
   safetyFailed: "That photo didn't pass our safety check. Try another clear photo of your pet.",
@@ -879,7 +897,8 @@ const markJobFailed = async (
   failureCode: string,
   failureMessageSafe: string,
   refund: boolean,
-  diagnostics?: JobFailureDiagnostics
+  diagnostics?: JobFailureDiagnostics,
+  creditRef?: string | null
 ): Promise<void> => {
   const patch: Record<string, unknown> = {
     status: "failed",
@@ -898,7 +917,20 @@ const markJobFailed = async (
   await updateJobStatus(admin, jobId, patch);
 
   if (refund) {
-    await admin.rpc("refund_generation_quota", { p_user: userId });
+    // Jobs funded by consume_credits (currently: expression packs) carry a
+    // credit_ref -- the request_id used as the consume_credits idempotency
+    // key -- and must be refunded through refund_credits against that same
+    // key, not refund_generation_quota, since no generation_quota unit was
+    // ever spent for them. Jobs funded by the free allowance (credit_ref
+    // null) keep using refund_generation_quota exactly as before. Both
+    // refund RPCs are idempotent, so a retried markJobFailed call (e.g. from
+    // an outer catch running after an inner one already refunded) never
+    // double-refunds.
+    if (creditRef) {
+      await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
+    } else {
+      await admin.rpc("refund_generation_quota", { p_user: userId });
+    }
   }
 };
 
@@ -924,12 +956,18 @@ const runPipeline = async (input: {
   // sprites instead.
   const isExpressionPackMode = Boolean(sourceAssetPath);
 
-  // No server-side generation_quota unit is ever consumed for an expression
-  // pack job (see the HTTP handler's step 4) -- that purchase is billed
-  // against the client's local credit balance instead -- so there is nothing
-  // to refund on failure in this mode. Refunding here regardless would
-  // incorrectly grant a free generation_quota unit the user never spent.
-  const shouldRefundOnFailure = !isExpressionPackMode;
+  // Every job funded a purchase (either consume_credits, recorded as
+  // job.credit_ref, or the free consume_generation_quota allowance when
+  // credit_ref is null) and must refund it on failure -- markJobFailed picks
+  // the right RPC based on job.credit_ref (see markJobFailed above).
+  // Historically this was `!isExpressionPackMode`, i.e. expression packs
+  // were never refunded on failure -- that was correct back when expression
+  // packs skipped server-side charging entirely, but is now a bug: expression
+  // packs are debited via consume_credits before the job is created (see the
+  // HTTP handler's step 4), so a failure that doesn't refund would silently
+  // keep the user's credits without ever delivering the generation.
+  const shouldRefundOnFailure = true;
+  const creditRef = job.credit_ref;
 
   if (!originalPhotoPath && !sourceAssetPath) {
     await markJobFailed(
@@ -939,7 +977,8 @@ const runPipeline = async (input: {
       "original_photo_missing",
       failureMessages.photoMissing,
       shouldRefundOnFailure,
-      { failedStage: "created", internalError: "Job row has no original_photo_path or source_asset_path." }
+      { failedStage: "created", internalError: "Job row has no original_photo_path or source_asset_path." },
+      creditRef
     );
     return;
   }
@@ -962,7 +1001,8 @@ const runPipeline = async (input: {
           internalError:
             toInternalErrorMessage(download.error) ??
             (isExpressionPackMode ? "Source asset download returned no data." : "Original photo download returned no data.")
-        }
+        },
+        creditRef
       );
       return;
     }
@@ -999,7 +1039,8 @@ const runPipeline = async (input: {
           "source_photo_safety_unavailable",
           failureMessages.safetyFailed,
           true,
-          diagnosticsForStage("safety_checking", cause)
+          diagnosticsForStage("safety_checking", cause),
+          creditRef
         );
         return;
       }
@@ -1017,7 +1058,8 @@ const runPipeline = async (input: {
             internalError: truncateInternalError(
               `Manual review required (confidence=${safety.confidence}): ${safety.failedChecks.join(", ") || "no specific checks flagged"}.`
             )
-          }
+          },
+          creditRef
         );
         return;
       }
@@ -1035,7 +1077,8 @@ const runPipeline = async (input: {
             internalError: truncateInternalError(
               `Safety check rejected (confidence=${safety.confidence}): ${safety.failedChecks.join(", ") || "no specific checks flagged"}.`
             )
-          }
+          },
+          creditRef
         );
         return;
       }
@@ -1107,7 +1150,8 @@ const runPipeline = async (input: {
         "generation_failed",
         failureMessages.generationFailed,
         shouldRefundOnFailure,
-        diagnosticsForStage("generating", cause)
+        diagnosticsForStage("generating", cause),
+        creditRef
       );
       return;
     }
@@ -1153,7 +1197,16 @@ const runPipeline = async (input: {
           )
         }
       });
-      await markJobFailed(admin, job.id, job.user_id, "generated_asset_quality_failed", failureMessages.qualityFailed, shouldRefundOnFailure);
+      await markJobFailed(
+        admin,
+        job.id,
+        job.user_id,
+        "generated_asset_quality_failed",
+        failureMessages.qualityFailed,
+        shouldRefundOnFailure,
+        undefined,
+        creditRef
+      );
       return;
     }
 
@@ -1196,7 +1249,8 @@ const runPipeline = async (input: {
         "asset_upload_failed",
         failureMessages.uploadFailed,
         shouldRefundOnFailure,
-        diagnosticsForStage("uploading_assets", cause)
+        diagnosticsForStage("uploading_assets", cause),
+        creditRef
       );
       return;
     }
@@ -1230,7 +1284,8 @@ const runPipeline = async (input: {
       "unexpected_pipeline_error",
       failureMessages.unexpected,
       shouldRefundOnFailure,
-      diagnosticsForStage("unexpected", cause)
+      diagnosticsForStage("unexpected", cause),
+      creditRef
     );
   }
 };
@@ -1376,14 +1431,15 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false }
   });
 
-  // 3. Rate limit: cap burst attempts before touching quota or doing any
-  // paid work. For ordinary photo generations, an RPC error here fails open
-  // (log and continue) rather than blocking every request on this guard's
-  // own availability -- quota consumption right below remains the
-  // authoritative "how many total" check regardless. Expression pack mode
-  // has no quota gate (see step 4 below), so this rate limit is its *only*
-  // server-side guard against amplification -- an RPC error there must fail
-  // closed instead, or the guard disappears exactly when it's needed most.
+  // 3. Rate limit: cap burst attempts before touching quota/credits or doing
+  // any paid work. For ordinary photo generations, an RPC error here fails
+  // open (log and continue) rather than blocking every request on this
+  // guard's own availability -- quota consumption right below remains the
+  // authoritative "how many total" check regardless. Expression pack mode is
+  // now also gated by consume_credits (step 4 below), but the rate limit
+  // still runs first and still fails closed for it -- defense in depth
+  // against burst amplification even though credits are now the primary
+  // guard.
   const { data: rateLimitOk, error: rateLimitError } = await admin.rpc("check_generation_rate_limit", {
     p_user: userId,
     p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
@@ -1408,21 +1464,58 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "rate_limited" }, 429, { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) });
   }
 
-  // 4. Consume quota atomically before doing any paid work. Skipped entirely
-  // in expression pack mode: that purchase is billed against the client's
-  // local credit balance, not server-side generation_quota. Phase 1 will add
-  // server-authoritative credit accounting for expression packs; until then
-  // this mode relies on the rate limit above as its only server-side guard.
-  const { data: quotaConsumed, error: quotaError } = isExpressionPackRequest
-    ? { data: true, error: null }
-    : await admin.rpc("consume_generation_quota", { p_user: userId });
+  // 4. Secure a paid generation slot atomically before doing any paid work.
+  //
+  // Expression pack requests are now billed server-side against
+  // credit_wallets via consume_credits (supabase/migrations/0004_credit_ledger.sql)
+  // instead of skipping server-side accounting entirely -- see
+  // docs/credit-phase1-design.md §4.2. The debit happens here, *before* the
+  // job row exists, so credit_request idempotency has to key off a
+  // client-supplied request_id rather than the not-yet-created job id (see
+  // §3.6 of that design doc). requestId falls back to a server-generated
+  // UUID when the client hasn't been migrated to send one yet (Phase 1c) --
+  // that fallback is only safe here because it's generated fresh per HTTP
+  // call, so it can never coincide with a real retry's key and cause a
+  // false-idempotent skip; it just means an old client's literal button-mash
+  // retries aren't deduplicated until Phase 1c ships, same as before this
+  // change.
+  //
+  // All other (non-expression-pack) requests keep using the free
+  // generation_quota allowance exactly as before -- paid generation-credit
+  // pricing for regeneration/full-set is a later credit phase, not Phase 1.
+  let creditRef: string | null = null;
 
-  if (quotaError) {
-    return jsonResponse({ error: "quota_check_failed" }, 500);
-  }
+  if (isExpressionPackRequest) {
+    const requestId =
+      typeof body.request_id === "string" && body.request_id.trim().length > 0 ? body.request_id.trim() : crypto.randomUUID();
 
-  if (quotaConsumed !== true) {
-    return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
+    const { data: newBalance, error: consumeError } = await admin.rpc("consume_credits", {
+      p_user: userId,
+      p_cost: EXPRESSION_PACK_CREDIT_COST,
+      p_reason: "consume_expression_pack",
+      p_ref_type: "credit_request",
+      p_ref_id: requestId
+    });
+
+    if (consumeError) {
+      return jsonResponse({ error: "credit_check_failed" }, 500);
+    }
+
+    if (newBalance === -1) {
+      return jsonResponse({ error: "insufficient_credits", message: failureMessages.insufficientCredits }, 402);
+    }
+
+    creditRef = requestId;
+  } else {
+    const { data: quotaConsumed, error: quotaError } = await admin.rpc("consume_generation_quota", { p_user: userId });
+
+    if (quotaError) {
+      return jsonResponse({ error: "quota_check_failed" }, 500);
+    }
+
+    if (quotaConsumed !== true) {
+      return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
+    }
   }
 
   // 5. Create the job row and respond immediately; run the pipeline in the background.
@@ -1431,6 +1524,9 @@ Deno.serve(async (req: Request) => {
   // column's DB default ({idle,happy,sleep}) applies unchanged. original_photo_path
   // stays null for expression pack requests; source_asset_path carries the
   // seed sprite's storage path instead (see 0003_expression_pack_source_asset.sql).
+  // credit_ref carries the consume_credits idempotency key from step 4 above
+  // (null for the free-quota path), used to refund the right ledger entry on
+  // pipeline failure -- see markJobFailed/runPipeline.
   const { data: insertedJob, error: insertError } = await admin
     .from("generation_jobs")
     .insert({
@@ -1438,14 +1534,17 @@ Deno.serve(async (req: Request) => {
       status: "created",
       input_snapshot: body.inputSnapshot,
       original_photo_path: isExpressionPackRequest ? null : body.originalPhotoPath,
+      credit_ref: creditRef,
       ...(isExpressionPackRequest ? { source_asset_path: body.source_asset_path, required_states: requestedStates } : {}),
       ...(!isExpressionPackRequest && TEST_STATES_OVERRIDE ? { required_states: TEST_STATES_OVERRIDE } : {})
     })
-    .select("id, user_id, status, input_snapshot, required_states, original_photo_path, source_asset_path")
+    .select("id, user_id, status, input_snapshot, required_states, original_photo_path, source_asset_path, credit_ref")
     .single();
 
   if (insertError || !insertedJob) {
-    if (!isExpressionPackRequest) {
+    if (creditRef) {
+      await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
+    } else {
       await admin.rpc("refund_generation_quota", { p_user: userId });
     }
     return jsonResponse({ error: "job_create_failed" }, 500);
