@@ -44,6 +44,27 @@ const generationIssueLabelByCategory: Record<GenerationIssueCategory, string> = 
   poor_quality: "Blurry result"
 };
 
+// Last updated July 7, 2026 · v1.0.
+const SUPPORT_LAST_UPDATED = "Last updated July 7, 2026 · v1.0";
+
+const faqItems: Array<{ question: string; answer: string }> = [
+  {
+    question: "Is my pet's photo safe?",
+    answer:
+      "Your photo is used only to run a safety check and generate your companion's avatar. It's automatically deleted from our servers the moment generation finishes — we don't keep a copy."
+  },
+  {
+    question: "How do I delete my data?",
+    answer:
+      "You can delete your original photo separately during the photo flow. For a full deletion of your session's data — avatars, profile, server records — email support below and we'll take care of it."
+  },
+  {
+    question: "What happens to my credits if a generation fails?",
+    answer:
+      "A failure caused by a system error, safety check, or quality check on our side should not cost you a paid credit. If you believe a credit was consumed unfairly, report it below or email support."
+  }
+];
+
 export function SupportScreen() {
   const releaseConfig = getPublicReleaseConfig();
   const { showDialog } = useAppDialog();
@@ -64,6 +85,7 @@ export function SupportScreen() {
         <Text accessibilityRole="header" style={styles.title}>
           Help and reports
         </Text>
+        <Text style={styles.versionText}>{SUPPORT_LAST_UPDATED}</Text>
       </View>
 
       <View style={styles.panel}>
@@ -83,6 +105,18 @@ export function SupportScreen() {
             }
           }}
         />
+      </View>
+
+      <View style={styles.panel}>
+        <Text style={styles.panelTitle}>Frequently asked</Text>
+        <View style={styles.reportList}>
+          {faqItems.map((item) => (
+            <View key={item.question} style={styles.faqRow}>
+              <Text style={styles.faqQuestion}>{item.question}</Text>
+              <Text style={styles.panelText}>{item.answer}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={styles.panel}>
@@ -142,6 +176,12 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     fontWeight: "900"
   },
+  versionText: {
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
+  },
   panel: {
     borderRadius: radii.card,
     backgroundColor: colors.white,
@@ -198,6 +238,15 @@ const styles = StyleSheet.create({
   },
   reportAction: {
     width: 112
+  },
+  faqRow: {
+    gap: spacing.xs
+  },
+  faqQuestion: {
+    color: colors.ink,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: "900"
   },
   savedReportText: {
     color: colors.leaf,

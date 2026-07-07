@@ -8,11 +8,34 @@ import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 
+// Last updated July 7, 2026 · v1.0 — keep in sync with docs/legal/terms.md.
+const TERMS_LAST_UPDATED = "Last updated July 7, 2026 · v1.0";
+
 const termsItems = [
+  "Mongchi is AI-generated entertainment — your companion and its chat are not your real pet's consciousness, memory, or medical advice.",
   "The first pet flow keeps your selected photo under your control and lets you delete it separately.",
   "Bad generations, system failures, and quality checks should not consume paid value.",
   "Basic care remains free. Paid items must add expression, not recovery from neglect.",
+  "Credits and paid items have no cash value and refunds follow the App Store or Google Play policy you purchased through.",
   "Generated pet conversations must never claim to be the real pet's consciousness."
+];
+
+const termsSections: Array<{ title: string; body: string }> = [
+  {
+    title: "Acceptable use",
+    body:
+      "Don't upload photos containing people, explicit or graphic content, or anything illegal. Don't try to bypass generation limits or safety checks, or use chat to jailbreak the underlying AI model. We may restrict access for sessions that violate these terms."
+  },
+  {
+    title: "No account portability",
+    body:
+      "Mongchi doesn't use traditional accounts — your session and local game data live on your device. Uninstalling the app or switching devices without a backup may permanently lose your companion's local progress, memories, and credits."
+  },
+  {
+    title: "Disclaimer",
+    body:
+      "Mongchi is provided as-is. AI-generated content may occasionally be inaccurate or fail to generate despite our safety and quality checks. See the full terms for the complete disclaimer and liability limits."
+  }
 ];
 
 export function TermsScreen() {
@@ -27,6 +50,7 @@ export function TermsScreen() {
         <Text accessibilityRole="header" style={styles.title}>
           Fair use and paid value
         </Text>
+        <Text style={styles.versionText}>{TERMS_LAST_UPDATED}</Text>
       </View>
 
       <View style={styles.list}>
@@ -37,6 +61,13 @@ export function TermsScreen() {
           </View>
         ))}
       </View>
+
+      {termsSections.map((section) => (
+        <View key={section.title} style={styles.notice}>
+          <Text style={styles.noticeTitle}>{section.title}</Text>
+          <Text style={styles.noticeText}>{section.body}</Text>
+        </View>
+      ))}
 
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>Terms link</Text>
@@ -74,6 +105,12 @@ const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 36,
     fontWeight: "900"
+  },
+  versionText: {
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
   },
   list: {
     gap: spacing.md

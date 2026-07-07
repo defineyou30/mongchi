@@ -8,11 +8,36 @@ import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 
+// Last updated July 7, 2026 · v1.0 — keep in sync with docs/legal/privacy-policy.md.
+const PRIVACY_LAST_UPDATED = "Last updated July 7, 2026 · v1.0";
+
 const privacyItems = [
-  "Original pet photos are private and can be deleted separately from the generated avatar.",
-  "Free reactions are authored locally and do not call AI.",
+  "No account, no email — the app opens with an anonymous session, not a signup.",
+  "Your pet's original photo is sent to OpenAI only to run a safety check and generate the avatar, then it is automatically deleted from our servers the moment generation finishes.",
+  "Unlocking more expression states later reuses your already-generated avatar art, not your original photo — it no longer exists on our servers by then.",
+  "Generated avatars live in a private storage bucket and are only ever shown through short-lived signed links, never a public URL.",
+  "Care stats, memories, and garden progress are stored locally on your device (not our servers), so uninstalling the app removes them permanently.",
+  "Approximate location, if you allow it, is used once for a weather lookup and is not stored on our servers.",
   "Premium chat is labeled as AI-generated and moderated before messages appear.",
-  "Analytics avoid raw photos, raw chat text, and payment details."
+  "No ad or tracking SDKs, and analytics avoid raw photos, raw chat text, and payment details."
+];
+
+const privacySections: Array<{ title: string; body: string }> = [
+  {
+    title: "Third parties we share data with",
+    body:
+      "OpenAI processes your pet's source photo (safety check + avatar generation) and, for premium chat, your pet's profile and recent conversation context. Supabase hosts our database, private storage, and anonymous auth on our behalf. Apple/Google handle in-app purchase payments directly — we only receive a receipt to grant your credit, never your card details."
+  },
+  {
+    title: "Your rights",
+    body:
+      "You can delete your original photo separately from the generated avatar during the photo flow. You can request full deletion of your session's data — generated avatars, stored profile data, and server-side records — by contacting support below. This covers access, correction, and deletion rights under regimes like GDPR and CCPA."
+  },
+  {
+    title: "Children",
+    body:
+      "Mongchi is not directed at children under 13. Because we don't collect names, emails, or accounts, we have no practical way to link data to a child's identity — if you believe a child provided us information through a photo or chat, contact support and we will delete it."
+  }
 ];
 
 export function PrivacyScreen() {
@@ -27,6 +52,7 @@ export function PrivacyScreen() {
         <Text accessibilityRole="header" style={styles.title}>
           Photo and chat safety
         </Text>
+        <Text style={styles.versionText}>{PRIVACY_LAST_UPDATED}</Text>
       </View>
 
       <View style={styles.list}>
@@ -37,6 +63,13 @@ export function PrivacyScreen() {
           </View>
         ))}
       </View>
+
+      {privacySections.map((section) => (
+        <View key={section.title} style={styles.notice}>
+          <Text style={styles.noticeTitle}>{section.title}</Text>
+          <Text style={styles.noticeText}>{section.body}</Text>
+        </View>
+      ))}
 
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>Policy link</Text>
@@ -83,6 +116,12 @@ const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 36,
     fontWeight: "900"
+  },
+  versionText: {
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
   },
   list: {
     gap: spacing.md
