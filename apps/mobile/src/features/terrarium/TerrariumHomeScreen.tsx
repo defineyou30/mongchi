@@ -43,7 +43,16 @@ import { WeatherSceneLayer } from "../../shared/ui/WeatherSceneLayer";
 import { useTypewriter } from "../../shared/ui/useTypewriter";
 import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
-import { careActionSfxById, playLightImpactHaptic, playSfx, playSuccessHaptic } from "../../shared/audio";
+import {
+  careActionSfxById,
+  duckBgmForMs,
+  isDaytimeNow,
+  playAmbienceForWeather,
+  playBgmForTimeOfDay,
+  playLightImpactHaptic,
+  playSfx,
+  playSuccessHaptic
+} from "../../shared/audio";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { requestNotificationPermissionAfterFirstCareAction } from "../notifications/notificationPermission";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
@@ -155,8 +164,15 @@ const WALK_EARLY_RETURN_CREDIT_COST = 1;
  * event toast (streaks, buffs, days-together milestones) gets the shared,
  * lower-key sfx_toast chime.
  */
+// Jingle length here matches the placeholder jingle_* durations from
+// synth_sfx.py (well under 1s); ducking briefly for it is a "make room for
+// the jingle" dip, not a full BGM pause, so it recovers on its own via
+// duckBgmForMs -- no separate unduck call needed at these call sites.
+const JINGLE_DUCK_MS = 900;
+
 const playEventToastSfx = (toastId: string): void => {
   if (toastId.startsWith("bond-level-")) {
+    duckBgmForMs(JINGLE_DUCK_MS);
     playSfx("jingle_levelup");
     playSuccessHaptic();
     return;
@@ -167,6 +183,7 @@ const playEventToastSfx = (toastId: string): void => {
     toastId === "walk-collection-complete" ||
     toastId.startsWith("expression-pack-")
   ) {
+    duckBgmForMs(JINGLE_DUCK_MS);
     playSfx("jingle_discovery");
     return;
   }
@@ -916,6 +933,25 @@ export function TerrariumHomeScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Sound Phase 2 (see docs/gamefeel-sound-plan.md §2): start BGM for the
+  // current time of day on entering the home screen (BGM is app-global once
+  // started -- it keeps playing if the user navigates away and back, rather
+  // than restarting, since playBgm/playAmbienceForWeather are no-ops when
+  // the requested track is already active). No-ops silently when the
+  // "Music & ambience" setting is off.
+  useEffect(() => {
+    playBgmForTimeOfDay(isDaytimeNow());
+  }, []);
+
+  // Ambience follows the active weather condition (falls back to the
+  // default/clear context when weather scenes are turned off, matching
+  // activeWeather's derivation below) -- swaps only when the mapped track
+  // actually changes.
+  useEffect(() => {
+    const condition = weatherState.settings.enabled ? weatherState.context.condition : defaultWeatherContext.condition;
+    playAmbienceForWeather(condition);
+  }, [weatherState.settings.enabled, weatherState.context.condition]);
 
   const dismissWelcome = () => {
     setWelcomeVisible(false);

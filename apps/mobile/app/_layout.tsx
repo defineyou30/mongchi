@@ -35,7 +35,13 @@ import { TerrariumSessionProvider } from "../src/features/session/TerrariumSessi
 import { AppDialogProvider } from "../src/shared/ui/AppDialog";
 import { useNotificationSync } from "../src/features/notifications/useNotificationSync";
 import { fontPairFamilies } from "../src/shared/design/fontPair";
-import { initSoundManager, preloadSfx } from "../src/shared/audio";
+import {
+  initSoundManager,
+  preloadAmbience,
+  preloadBgm,
+  preloadSfx,
+  registerBackgroundAudioHandling
+} from "../src/shared/audio";
 import { ErrorBoundary } from "../src/shared/errors/ErrorBoundary";
 import { installGlobalErrorHooks } from "../src/shared/errors/globalErrorHooks";
 
@@ -101,13 +107,18 @@ export default function RootLayout() {
     defaultFontApplied = true;
   }, [fontsLoaded]);
 
-  // Sound Phase 1 (SFX only, see docs/gamefeel-sound-plan.md §2): set the
-  // global audio mode (mixWithOthers so a user's own music/podcast never
-  // stops) and preload every SFX id once at startup so the first play has
-  // no load latency. BGM/ambience init is Phase 2.
+  // Sound Phase 1+2 (see docs/gamefeel-sound-plan.md §2): set the global
+  // audio mode (mixWithOthers so a user's own music/podcast never stops),
+  // preload every SFX/BGM/ambience source once at startup so the first play
+  // has no load latency, and register the AppState pause/resume handling
+  // BGM/ambience need since they loop continuously (unlike one-shot SFX,
+  // which need no background handling at all).
   useEffect(() => {
     void initSoundManager();
     preloadSfx();
+    preloadBgm();
+    preloadAmbience();
+    registerBackgroundAudioHandling();
   }, []);
 
   if (!fontsLoaded) {

@@ -32,16 +32,36 @@ describe("useAudioSettings", () => {
     it("defaults sounds to on", () => {
       expect(defaultAudioSettings.soundsEnabled).toBe(true);
     });
+
+    it("defaults music & ambience to on, independent of sounds", () => {
+      expect(defaultAudioSettings.musicEnabled).toBe(true);
+    });
   });
 
   describe("readStoredAudioSettings / writeStoredAudioSettings", () => {
     it("round-trips stored settings", async () => {
       const storage = createMemoryStorage();
 
-      await writeStoredAudioSettings({ soundsEnabled: false }, storage);
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: false }, storage);
 
-      expect(storage.values.get(AUDIO_SETTINGS_STORAGE_KEY)).toBe(JSON.stringify({ soundsEnabled: false }));
-      await expect(readStoredAudioSettings(storage)).resolves.toEqual({ soundsEnabled: false });
+      expect(storage.values.get(AUDIO_SETTINGS_STORAGE_KEY)).toBe(
+        JSON.stringify({ soundsEnabled: false, musicEnabled: false })
+      );
+      await expect(readStoredAudioSettings(storage)).resolves.toEqual({
+        soundsEnabled: false,
+        musicEnabled: false
+      });
+    });
+
+    it("round-trips soundsEnabled and musicEnabled independently", async () => {
+      const storage = createMemoryStorage();
+
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: true }, storage);
+
+      await expect(readStoredAudioSettings(storage)).resolves.toEqual({
+        soundsEnabled: false,
+        musicEnabled: true
+      });
     });
 
     it("falls back to defaults when nothing is stored", async () => {
@@ -74,6 +94,17 @@ describe("useAudioSettings", () => {
 
       await expect(readStoredAudioSettings(storage)).resolves.toEqual(defaultAudioSettings);
     });
+
+    it("defaults musicEnabled to on when reading settings persisted by a pre-Phase-2 app version", async () => {
+      const storage = createMemoryStorage();
+      // Simulates a stored object from before the musicEnabled field existed.
+      await storage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify({ soundsEnabled: false }));
+
+      await expect(readStoredAudioSettings(storage)).resolves.toEqual({
+        soundsEnabled: false,
+        musicEnabled: true
+      });
+    });
   });
 
   describe("getActiveAudioSettings / setActiveAudioSettings", () => {
@@ -82,16 +113,22 @@ describe("useAudioSettings", () => {
     });
 
     it("updates the active settings", () => {
-      setActiveAudioSettings({ soundsEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false });
 
-      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false });
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false });
+    });
+
+    it("updates musicEnabled independently of soundsEnabled", () => {
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: true, musicEnabled: false });
     });
 
     it("is idempotent when set to the same settings already active", () => {
-      setActiveAudioSettings({ soundsEnabled: false });
-      setActiveAudioSettings({ soundsEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false });
 
-      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false });
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false });
     });
   });
 });

@@ -13,7 +13,7 @@ import {
 } from "@mongchi/shared";
 
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
-import { playSfx, playSuccessHaptic } from "../../shared/audio";
+import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
@@ -179,6 +179,12 @@ interface PoseRevealCellProps {
 /** Per-cell stagger delay for the pose reveal showcase -- ~200ms apart per the plan, capped so a large future pack doesn't stall the grid for seconds. */
 const POSE_REVEAL_STAGGER_MS = 200;
 const POSE_REVEAL_MAX_STAGGER_INDEX = 8;
+
+// Matches TerrariumHomeScreen's JINGLE_DUCK_MS: briefly dips BGM volume
+// while a jingle plays (see docs/gamefeel-sound-plan.md §2's ducking API
+// requirement), long enough to cover the placeholder jingle_* durations
+// from synth_sfx.py (well under 1s) with room to spare.
+const JINGLE_DUCK_MS = 900;
 
 /**
  * A single pose gallery cell. Cells flagged `isNewlyRevealed` play a
@@ -429,6 +435,7 @@ export function FriendProfileScreen() {
       new Set([...seenPoseRevealKeys, ...pendingPoseRevealPackIds.map((packId) => getPoseRevealPersistedKey(packId))])
     );
     setSeenPoseRevealKeys(nextSeen);
+    duckBgmForMs(JINGLE_DUCK_MS);
     playSfx("jingle_discovery");
     void AsyncStorage.setItem(POSE_REVEAL_SEEN_PACK_IDS_KEY, JSON.stringify(nextSeen)).catch(() => {
       // Silent: worst case the showcase replays once on a future visit.
@@ -438,6 +445,7 @@ export function FriendProfileScreen() {
 
   const handleOpenMonthlyLetter = () => {
     setHasOpenedMonthlyLetter(true);
+    duckBgmForMs(JINGLE_DUCK_MS);
     playSfx("jingle_letter");
     playSuccessHaptic();
     void AsyncStorage.setItem(MONTHLY_LETTER_OPENED_KEY, new Date().toISOString()).catch(() => {

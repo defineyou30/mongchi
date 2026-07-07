@@ -21,11 +21,11 @@ describe("haptics", () => {
     notificationAsync.mockReset();
     impactAsync.mockResolvedValue(undefined);
     notificationAsync.mockResolvedValue(undefined);
-    setActiveAudioSettings({ soundsEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
   });
 
   afterEach(() => {
-    setActiveAudioSettings({ soundsEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
   });
 
   describe("playLightImpactHaptic", () => {
@@ -36,7 +36,7 @@ describe("haptics", () => {
     });
 
     it("does not trigger when Sounds is off", () => {
-      setActiveAudioSettings({ soundsEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true });
 
       playLightImpactHaptic();
 
@@ -59,7 +59,7 @@ describe("haptics", () => {
     });
 
     it("does not trigger when Sounds is off", () => {
-      setActiveAudioSettings({ soundsEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true });
 
       playSuccessHaptic();
 

@@ -1,9 +1,9 @@
-import { Bug, Camera, CloudRain, FileText, LifeBuoy, MapPin, MessageCircle, Music, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Volume2, VolumeX } from "lucide-react-native";
+import { Bug, Camera, CloudRain, FileText, LifeBuoy, MapPin, MessageCircle, Music, Music2, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Volume2, VolumeX } from "lucide-react-native";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Share, StyleSheet, Text, View } from "react-native";
 
-import { useAudioSettings } from "../../shared/audio";
+import { syncAmbienceWithSettings, syncBgmWithSettings, useAudioSettings } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { fontPairLabels, useFontPair } from "../../shared/design/fontPair";
 import type { FontPairId } from "../../shared/design/fontPair";
@@ -54,6 +54,16 @@ export function SettingsScreen() {
   const activeWeatherIndex = Math.max(0, weatherPreviewOptions.findIndex((option) => option.condition === weatherState.context.condition));
   const activeWeather = weatherPreviewOptions[activeWeatherIndex] ?? fallbackWeatherPreview;
   const nextWeather = weatherPreviewOptions[(activeWeatherIndex + 1) % weatherPreviewOptions.length] ?? fallbackWeatherPreview;
+
+  // Applies the flipped setting to the already-running BGM/ambience players
+  // immediately (see bgmPlayer.ts/ambiencePlayer.ts's syncWithSettings doc
+  // comments) -- otherwise turning Music back on wouldn't take effect until
+  // the home screen next remounts and re-runs its "start BGM" effect.
+  const toggleMusicEnabled = () => {
+    setAudioSettings({ ...audioSettings, musicEnabled: !audioSettings.musicEnabled });
+    syncBgmWithSettings();
+    syncAmbienceWithSettings();
+  };
 
   // Diagnostics (__DEV__ only, see docs/readiness-diagnosis.md item 5): a
   // read-only view into the local error ring buffer for spotting recurring
@@ -303,12 +313,25 @@ export function SettingsScreen() {
             onPress={() => setAudioSettings({ ...audioSettings, soundsEnabled: !audioSettings.soundsEnabled })}
           />
         </View>
-        {/*
-          Music & ambience toggle: Phase 2 (see docs/gamefeel-sound-plan.md
-          §2) once BGM/ambience players exist. Add it as its own row here,
-          not folded into the Sounds toggle above, since a user might want
-          SFX+haptics without background music or vice versa.
-        */}
+
+        <View style={styles.compactRow}>
+          <View style={styles.compactIconFrame}>
+            <Music2 color={audioSettings.musicEnabled ? colors.violet : colors.mutedInk} size={18} strokeWidth={2.6} />
+          </View>
+          <View style={styles.compactCopy}>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Music & ambience</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
+              Soft garden music and background sounds, like birdsong or rain.
+            </Text>
+          </View>
+          <ActionButton
+            label={audioSettings.musicEnabled ? "Turn off" : "Enable"}
+            variant="secondary"
+            size="compact"
+            style={styles.compactAction}
+            onPress={toggleMusicEnabled}
+          />
+        </View>
       </View>
 
       <View style={styles.settingsSection}>

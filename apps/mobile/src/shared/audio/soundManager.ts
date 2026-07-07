@@ -1,4 +1,9 @@
+import { AppState } from "react-native";
+import type { AppStateStatus } from "react-native";
 import { setAudioModeAsync } from "expo-audio";
+
+import { pauseAmbienceForBackground, resumeAmbienceForForeground } from "./ambiencePlayer";
+import { pauseBgmForBackground, resumeBgmForForeground } from "./bgmPlayer";
 
 /**
  * One-time global audio mode init for the whole app (see
@@ -24,9 +29,15 @@ import { setAudioModeAsync } from "expo-audio";
  * - interruptionMode: "mixWithOthers" -- REQUIRED. The user's Spotify/podcast
  *   audio must never stop or duck when this app's SFX plays. QA check from
  *   the plan doc: "Spotify 재생 중 앱 실행 → 음악 안 끊김."
- * - shouldPlayInBackground: false -- Phase 1 is SFX-only, tied to foreground
- *   interactions (taps, care actions). No background playback need yet;
- *   Phase 2 BGM may revisit this.
+ * - shouldPlayInBackground: false -- BGM/ambience (Phase 2) are still
+ *   foreground-only: the app has no `UIBackgroundModes: ["audio"]`
+ *   entitlement declared in app.json, so requesting background playback
+ *   here would not actually work without also adding that entitlement and
+ *   rebuilding the dev client. Instead, BGM/ambience are explicitly paused
+ *   on backgrounding and resumed on foregrounding via the AppState listener
+ *   below (registerBackgroundAudioHandling) -- "stop cleanly" rather than
+ *   "continue in background", which also matches most casual/pet games'
+ *   behavior and avoids surprising battery drain.
  * - allowsRecording: false -- this app never records audio.
  */
 export const SOUND_MANAGER_AUDIO_MODE = {
@@ -54,7 +65,42 @@ export const initSoundManager = (): Promise<void> => {
   return initPromise;
 };
 
+let backgroundHandlingSubscription: { remove: () => void } | null = null;
+
+const handleAppStateChange = (nextState: AppStateStatus): void => {
+  if (nextState === "active") {
+    resumeBgmForForeground();
+    resumeAmbienceForForeground();
+  } else {
+    // "background" or "inactive" -- pause on either rather than only on
+    // "background", since "inactive" (e.g. the iOS app switcher, an
+    // incoming call sheet) can linger and BGM playing under a system UI
+    // overlay reads as a bug, not a feature.
+    pauseBgmForBackground();
+    pauseAmbienceForBackground();
+  }
+};
+
+/**
+ * Registers the BGM/ambience pause-on-background / resume-on-foreground
+ * behavior (see the shouldPlayInBackground doc comment above). Call once
+ * near app startup, alongside initSoundManager -- idempotent, safe to call
+ * multiple times (only the first call actually subscribes).
+ */
+export const registerBackgroundAudioHandling = (): void => {
+  if (backgroundHandlingSubscription) {
+    return;
+  }
+
+  backgroundHandlingSubscription = AppState.addEventListener("change", handleAppStateChange);
+};
+
 /** Test-only: lets each test start from a clean init state. */
 export const resetSoundManagerForTests = (): void => {
   initPromise = null;
+
+  if (backgroundHandlingSubscription) {
+    backgroundHandlingSubscription.remove();
+    backgroundHandlingSubscription = null;
+  }
 };

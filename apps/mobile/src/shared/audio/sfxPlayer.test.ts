@@ -34,13 +34,13 @@ const makeFakePlayer = (): FakePlayer => ({
 describe("sfxPlayer", () => {
   beforeEach(() => {
     resetSfxPlayersForTests();
-    setActiveAudioSettings({ soundsEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
     createAudioPlayer.mockReset();
     createAudioPlayer.mockImplementation(() => makeFakePlayer());
   });
 
   afterEach(() => {
-    setActiveAudioSettings({ soundsEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
   });
 
   describe("preloadSfx", () => {
@@ -85,7 +85,7 @@ describe("sfxPlayer", () => {
     });
 
     it("does not play when the Sounds setting is off", () => {
-      setActiveAudioSettings({ soundsEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true });
       preloadSfx();
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
 
