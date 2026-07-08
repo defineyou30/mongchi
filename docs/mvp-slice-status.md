@@ -1,5 +1,23 @@
 # Native MVP Slice Status
 
+> **최종 갱신일: 2026-07-08.**
+>
+> **현재 상태 요약 (2026-07-08).** 아래 본문은 2026-07-03 mock MVP 슬라이스 시점의 상세 로그로, 당시 `services/api`·`workers/ai` 서버 프로토타입 계약을 서술한다(과정 보존). 그 이후 실제 백엔드는 **Supabase**로 정착했다(`supabase/functions/generate-avatar`·`delete-account`, `supabase/migrations` 0001–0005). 코어 온보딩·케어·리빌·산책 루프는 로컬 프로토타입 모드로 완결되어 있고, 다음이 추가로 랜드됐다:
+>
+> - **버전관리**: 2026-07-07 git init + 원격 push(그 전엔 VCS 0 — 최상위 리스크였음). 이후 20+ 커밋, vitest 1252 그린.
+> - **세션 스키마 v7**: 멀티펫 `pets[petId]` 번들화(W1) + 서버 펫 네임스페이스(W2, `generation_jobs`/`assets` pet_id·`pet_slots`·슬롯 RPC 3종). 멀티펫 표면(구매·2번째 펫)은 출시 후 v1.1로 연기.
+> - **게임필**: Tier 2(케어 순간 컨텍스트 연출)·Tier 3(밤 수면 22–6시·자율 idle·나비 방문객)·Tier 4(간식 취향·장난감/쿠션 개별성·Give now).
+> - **사운드/햅틱**: Phase 1(SFX+햅틱)·Phase 2(주간/야간 BGM + 날씨 앰비언스, 유저 음악 안 끊김).
+> - **크레딧 서버 원장**: `credit_wallets`/`credit_ledger`(0004) + RPC 4종, 표정팩 서버 선차감 게이팅, 멱등 재시도(이중차감 불가). 단, **크레딧 구매 SKU·데일리 파우셋 부재**로 경제는 아직 데드엔드.
+> - **알림 파이프라인 복구**: 첫 케어 후 퍼미션 요청 + 복귀 사다리 + 산책 귀가 로컬 알림.
+> - **웰컴 온보딩**: 셋업 전 3슬라이드 인트로 + Welcome/Photo/Setup/Hatch/Reveal 공용 progress HUD.
+> - **산책 대기 경험 + Bath 액션**: 발자국 연출·실황 라인·귀가 알림·산책 중 채팅 인지, 물 트레이 Bath 진입점.
+> - **관측성/법적/백업/보안**: ErrorBoundary + 로컬 리포터(Sentry 실연동은 후속), 실제 Privacy/Terms/Support, 세션 내보내기/가져오기, 서버 rate-limit 봉합.
+>
+> 출시 전 남은 것은 문서 하단 "출시 전 남은 체크리스트" 참조.
+
+---
+
 Implemented from the current scaffold using the guide docs as source of truth:
 
 - `02-ux-flow.md`: mocked first-session path now runs through splash, onboarding, pet setup, photo review/consent, hatching, reveal, terrarium, first care action, and first walk reward.
@@ -155,7 +173,22 @@ It also validates `docs/product-direction.md`, `npm run validate:mobile-visual-d
 Final completion validation should run `TINY_PET_FINAL_RELEASE_ALLOW_ANDROID=true npm run validate:final-release` after the Android build/device pass is ready. That final gate runs iOS preflight, production release-config validation, strict iOS/Android screenshot coverage, `npm run validate:final-screenshot-freshness`, Android store contact sheet validation, and `npm run validate:android`.
 Current Android store screenshot coverage, Android store contact sheet validation, and Android export validation are green in local evidence. Recapture with `npm run capture:android-store-screenshots` before final submission when UI, art, build, or device inputs change; the full capture also regenerates the Android store contact sheet.
 
-## Remaining Work
+## 출시 전 남은 체크리스트 (2026-07-08)
+
+핵심 훅은 검증 가능. 출시를 막는 급소:
+
+- **크레딧 IAP SKU (매출 급소)** — 크레딧 구매 SKU 없음(구독만). RevenueCat 배선 예정(영수증 검증·환불 웹훅·크로스플랫폼 대행 → 직접 verify-purchase 불필요). 팩 카탈로그·상점 UI·grant 웹훅 Edge 선구축, RC 연결이 최종 "결제 켜기".
+- **데일리 크레딧 파우셋** — 반복 크레딧 획득 경로 부재. 검토 대상.
+- **delete-account Edge Function** — `supabase/functions/delete-account` 진행 중. 서버 데이터 완전 삭제(스토리지+DB+익명계정), Apple 계정삭제 요건·GDPR → 출시 필수.
+- **Sentry 실연동** — ErrorBoundary+로컬 리포터는 랜드, 실 연동은 후속 네이티브 재빌드.
+- **산책 도감 아이콘** — 9종 OS 이모지 → 픽셀 아이콘 미착수.
+- **cleanliness 상시 HUD** — Bath·delta 칩·표정 연동은 됨, 상단 상시 게이지 미노출.
+- **스토어/RevenueCat 셋업 (사장 액션)** — 스토어 상품 생성 + RC 대시보드 매핑.
+- **인프라** — dev/prod Supabase 분리, free_limit 복원, 익명 로그인 rate-limit/CAPTCHA.
+
+> 아래 목록은 2026-07-03 mock 서버 프로토타입(services/api·workers/ai) 시점의 배포 전 잔여 항목이며 과정 보존용이다. 현 백엔드는 Supabase로 정착했으므로 상위 체크리스트가 실제 출시 기준이다.
+
+## Remaining Work (2026-07-03 mock 서버 프로토타입 시점, 과정 보존)
 
 - Provide real backend auth provider issuer/audience/JWKS values and connect the tested mobile token refresh hook to the provider SDK before any production private upload; mobile secure token storage plus mobile/API production mock-fallback guards, production auth config validation, and a tested JWT/JWKS verifier are in place, but no production provider issues tokens yet.
 - Deploy the tested Postgres API server process with `npm run start:api`, production auth settings, probe wiring, safe operational logger shipping/retention, infrastructure-level distributed rate limits, the `pg` database client adapter, and secret management.

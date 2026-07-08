@@ -1,5 +1,7 @@
 # iOS Manual QA Checklist
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 This checklist is the intermediate device QA path while implementation continues on the iOS simulator and iOS builds. Android validation and TalkBack are final completion checks, not part of the intermediate loop.
 
 ## Scope And Evidence

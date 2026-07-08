@@ -1,5 +1,7 @@
 # Device QA Checks
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 This file tracks visual QA evidence gathered while moving the app toward closed-test readiness.
 
 ## Captured

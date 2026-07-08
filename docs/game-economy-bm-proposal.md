@@ -1,5 +1,8 @@
 # 몽치 게임 요소 & BM 디자인 제안 v1
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+> 이후 재설계: 이 문서는 2026-07-02 시점 제안이다. 이후 방향은 launch-plan §3.3(간식 중심 보상)·크레딧 Phase 1(서버 원장)·retention-gap 분석을 우선 참조할 것. 아래 본문은 당시 설계 기록으로 보존한다.
+
 > 2026-07-02. 기존 코드의 훅(아이템 효과 테이블, lane 고정 슬롯, 식물 성장, 지갑/크레딧/티켓, 본드 XP, 케어 스트릭)을 기반으로 한 확장 설계.
 > 관련 코드: `packages/shared/src/care/localCare.ts`(아이템 효과), `packages/shared/src/domain/inventory.ts`(lane/배치), `domain/relationship.ts`(본드), `domain/walk.ts`.
 

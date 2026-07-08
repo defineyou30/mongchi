@@ -1,5 +1,7 @@
 # Mobile Native Runbook
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 Mongchi is an iOS/Android app. Expo is used as the React Native toolchain, not as a web-first target.
 
 ## Local Development

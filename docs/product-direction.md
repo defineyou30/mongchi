@@ -1,5 +1,7 @@
 # Product Direction
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 Guide source of truth: `new-concepts/mongchi-guide/README.md`.
 
 Mongchi is an iOS/Android cozy pet-life game plus healing companion. The first emotional promise is simple: a user's real dog or cat becomes a tiny avatar living in a cozy miniature pet world.

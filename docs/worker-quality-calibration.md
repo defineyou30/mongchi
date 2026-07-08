@@ -1,5 +1,7 @@
 # Worker Quality Calibration
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 Production generation quality thresholds must be backed by a calibration record before release.
 
 Required production env:

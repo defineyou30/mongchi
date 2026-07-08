@@ -1,5 +1,7 @@
 # Security And Provider Boundaries
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 This scaffold intentionally does not connect production services.
 
 ## Mobile App Must Not Contain

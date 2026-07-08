@@ -1,5 +1,7 @@
 # 크레딧 Phase 1 — 서버 크레딧 원장 구현 설계서
 
+> **구현 상태(2026-07-08):** P1a+1b 커밋 `1114ff9`에서 랜드·배포(서버 원장 `credit_wallets`/`credit_ledger` + RPC 4종 + 표정팩 서버 선차감 게이팅). P1c 커밋 `f881743`(클라 서버잔액 하이드레이트, 표정팩 로컬차감→서버 선차감, bonusCredits 로컬 진실 유지). 크레딧 안전 커밋 `c5d405c`(start-flow throw 실드, `request_id` 멱등 재시도로 이중차감 불가). **P1d(IAP)는 RevenueCat으로 방향 전환** — 직접 영수증검증 불필요(RC가 검증·환불 웹훅·크로스플랫폼 대행), 스토어 상품 생성+RC 대시보드 매핑은 사장 액션, 셋업 무관 코드 토대(크레딧 팩 카탈로그·상점 UI·grant 웹훅 Edge)는 후속 구축. 아래 설계 기록은 원안 보존.
+
 > 작성: 2026-07-07 · deep-reasoner 읽기전용 분석 산출물. 후속 구현 에이전트가 그대로 실행하는 정밀 설계서.
 > 관련: `docs/launch-plan.md` §3.5(원장 정합), `docs/readiness-diagnosis.md` 항목 2(보안 critical), `docs/multi-pet-slot-plan.md`(슬롯 선행 블로커)
 > 검증 대상 실측 완료: `supabase/migrations/0001_init.sql`, `supabase/functions/generate-avatar/index.ts`(1475줄), `packages/shared/src/domain/wallet.ts`, `packages/shared/src/session/prototypeSession.ts`, `apps/mobile/src/features/session/{TerrariumSessionProvider,supabaseGenerationSession}.tsx?`

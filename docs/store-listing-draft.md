@@ -1,5 +1,7 @@
 # Store Listing Draft
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 This draft is for App Store Connect and Google Play Console setup. It should stay aligned with the implemented native iOS/Android flow: Welcome -> Photo upload -> Pet setup -> Hatching -> Pet reveal -> Main terrarium -> AI chat / premium bond -> Shop.
 
 ## App Store Connect

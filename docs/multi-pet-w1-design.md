@@ -1,5 +1,7 @@
 # Multi-Pet W1 — 정밀 구현 설계서 (도메인 번들화 + 마이그레이션 v7)
 
+> **구현 상태:** 커밋 `031f483`에서 랜드(세션 상태 `pets[petId]` 번들화 + 마이그레이션 v7 + 렌즈 헬퍼, 첫 펫 파괴 버그 제거, UI 완전 무변경 · 통합검증 vitest 1252 그린). 아래 설계 기록은 원안 보존.
+
 2026-07-07. 대상: `deep-reasoner` 분석 → 후속 구현 에이전트가 그대로 실행. 배경: `docs/multi-pet-slot-plan.md`(아키텍처 섹션), `docs/readiness-diagnosis.md`.
 
 ## 0. W1의 한 줄 정의

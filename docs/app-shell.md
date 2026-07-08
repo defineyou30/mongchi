@@ -1,5 +1,7 @@
 # App Shell
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 The mobile app is scaffolded around the first-session and daily-loop screens from the guide.
 
 ## Routes

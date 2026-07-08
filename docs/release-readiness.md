@@ -1,8 +1,28 @@
 # Release Readiness
 
+> **최종 갱신일: 2026-07-08.**
+>
+> **현재 상태 요약 (2026-07-08).** 아래 본문(“Implemented In This Pass” 이하)은 2026-07-03 mock 서버 프로토타입(`services/api`·`workers/ai`) 시점의 상세 준비 로그로, 과정 보존을 위해 그대로 둔다. 그 이후 실제 백엔드는 **Supabase**로 정착했다(`supabase/functions`·`supabase/migrations` 0001–0005 배포). 아래 프로토타입 계약의 상당수는 Supabase 배선으로 대체되었으므로, 실제 출시 게이팅은 이 상단 섹션과 문서 하단 "출시 전 남은 체크리스트"를 기준으로 판단한다.
+>
+> **출시 전까지 해결된 것**(2026-07-04 retention-gap·2026-07-07 readiness 분석 이후):
+> - 버전관리(최상위 리스크) → git 도입 + 원격 push(2026-07-07). vitest 1252 그린.
+> - 관측성 → ErrorBoundary + 로컬 에러 리포터(Sentry 실연동은 후속 네이티브 재빌드).
+> - 법적 → 실제 Privacy/Terms/Support 내용 + `docs/legal`.
+> - 데이터 백업 → 세션 내보내기/가져오기.
+> - 보안 → 표정팩 rate-limit 봉합, 크레딧 서버 원장(`credit_wallets`/`credit_ledger` 0004) + 표정팩 서버 선차감(로컬 변조 무한 무료생성 봉합).
+> - 알림 파이프라인 데드코드 → 복구(첫 케어 후 퍼미션 + 복귀 사다리 + 산책 귀가 알림).
+> - 게임필/사운드 → Tier 2·3·4 + 사운드 Phase 1·2.
+> - 산책 도감 날씨 시드 고정 버그 → 수정(무과금 축 복구).
+> - 케어 밸런스("다 해줬는데 게이지 안 오름") → 캐치업 배수 + 감쇠 바닥 + 에너지 회복.
+> - 웰컴 온보딩 + 산책 대기 경험 + Bath 액션 데드엔드 수리.
+>
+> 출시 전 남은 것은 문서 하단 "출시 전 남은 체크리스트" 참조.
+
+---
+
 This project is moving from mock MVP slice toward pre-release iOS/Android readiness. The guide remains the source of truth.
 
-## Implemented In This Pass
+## Implemented In This Pass (2026-07-03 mock 서버 프로토타입 시점, 과정 보존)
 
 - Native photo picker path with Expo Image Picker.
 - Camera/photo permission request handling before native prompts.
@@ -180,6 +200,20 @@ This project is moving from mock MVP slice toward pre-release iOS/Android readin
 - Privacy SDK boundary validation for unapproved crash, diagnostics, tracking, advertising, and third-party analytics SDK additions.
 - EAS build profiles for development, preview, and production.
 
+## 출시 전 남은 체크리스트 (2026-07-08)
+
+핵심 훅("한 마리라도 되는가")은 검증 가능한 상태. 실제 출시를 막는 급소는 아래로 좁혀졌다. (하단의 "Still Required Before Closed Test / Public Launch"는 2026-07-03 mock 서버 프로토타입 시점 목록으로 과정 보존용이며, 현 백엔드 Supabase 정착으로 상당수 대체됨.)
+
+- **크레딧 IAP SKU (매출 급소)** — 현 코드에 크레딧 구매 SKU 없음(구독 `premium_chat_monthly`만). 소비처(표정팩·재생성)는 있는데 버는 곳·사는 곳이 없어 크레딧 경제 데드엔드. RevenueCat으로 배선(영수증 검증·환불 웹훅·크로스플랫폼 대행 → 직접 verify-purchase 불필요). 팩 카탈로그·상점 UI·grant 웹훅 Edge 선구축, RC 연결이 "결제 켜기" 최종 단계.
+- **데일리 크레딧 파우셋** — 반복 크레딧 획득 경로 부재(무료 채팅 티켓만 하루 1회 리필). 검토 대상.
+- **delete-account Edge Function** — `supabase/functions/delete-account` 진행 중. 서버 데이터 완전 삭제(스토리지+DB행+익명계정), Apple 계정삭제 요건·GDPR 삭제권 → 출시 필수. 완결 확인 필요.
+- **Sentry 실연동** — ErrorBoundary + 로컬 리포터는 랜드, 실 연동은 후속 네이티브 재빌드 묶음.
+- **세이프티 에스컬레이션 별도 검수** — 위기/전문 상담 폴백 카피는 있으나 자해 신호 전용 흐름·검수는 출시 전 필수.
+- **산책 도감 아이콘** — 9종 OS 이모지 → 픽셀 아이콘 미착수.
+- **cleanliness 상시 HUD** — Bath 액션·delta 칩·표정 연동은 됨, 상단 상시 게이지 미노출.
+- **스토어/RevenueCat 셋업 (사장 액션)** — 스토어 상품 생성 + RC 대시보드 매핑.
+- **인프라 마무리** — dev/prod Supabase 분리, free_limit 복원, 익명 로그인 rate-limit/CAPTCHA(사장 대시보드).
+
 ## Current Release Gates
 
 Passing:
@@ -228,7 +262,7 @@ Passing:
 - API runtime command tests cover the deployable server/worker command boundary.
 - Static DB migration validation.
 
-Still Required Before Closed Test:
+Still Required Before Closed Test (2026-07-03 mock 서버 프로토타입 시점, 과정 보존 — 현 백엔드 Supabase 정착으로 상당수 대체. 실제 출시 기준은 상단 "출시 전 남은 체크리스트"):
 
 - Replace bundled sample generated-pet assets with approved final generated art if needed; the dog/cat fallback set already includes later reaction/seasonal states, while production provider output expansion remains tied to calibrated generation quality thresholds.
 - Replace local v1 plant stage art with approved final transparent PNGs from `docs/design/plant-stage-asset-manifest.json` if art direction changes, then pass `TINY_PET_REQUIRE_FINAL_PLANT_STAGE_ASSETS=true npm run validate:plant-stage-assets` before store screenshot recapture. After recapture, run `npm run validate:final-screenshot-freshness` so final screenshots are newer than the latest visual UI/art source.
@@ -245,7 +279,7 @@ Still Required Before Closed Test:
 - Set final `EXPO_PUBLIC_TINY_PET_PRIVACY_URL`, `EXPO_PUBLIC_TINY_PET_TERMS_URL`, and `EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL` for production release config validation.
 - Replace generated placeholder icon/splash/item art with approved final brand/store art if needed; final plant stage PNG coverage is guarded by `TINY_PET_REQUIRE_FINAL_PLANT_STAGE_ASSETS=true npm run validate:plant-stage-assets`, and iPhone 16 Pro iOS development-client store preset screenshots plus the current Android store screenshot set must be recaptured when final art changes.
 
-Still Required Before Public Launch:
+Still Required Before Public Launch (2026-07-03 mock 서버 프로토타입 시점, 과정 보존 — 실제 출시 기준은 상단 "출시 전 남은 체크리스트"):
 
 - Production threshold calibration for provider-backed generation quality signals, including an approved `TINY_PET_WORKER_QUALITY_CALIBRATION_ID`.
 - Provider keys only in backend/worker secrets; mobile secret-boundary validation now fails if server-only env keys or real-looking provider/storage/payment secrets appear in the mobile app surface.

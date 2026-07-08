@@ -1,5 +1,7 @@
 # Initial Implementation Plan
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
 ## Pass 1: Project Scaffold
 
 - Create Expo + TypeScript mobile app shell in `apps/mobile`.

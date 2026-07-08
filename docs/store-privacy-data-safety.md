@@ -1,5 +1,7 @@
 # Store Privacy And Data Safety Draft
 
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준). 계정 삭제는 `supabase/functions/delete-account`(진행 중)로 서버 데이터 완전 삭제 경로가 구축 중이며, 원본 사진은 아바타 생성 후 별도 삭제 경로가 있고, OpenAI가 사진 안전성/아바타 생성·프리미엄 챗을 처리하는 서드파티 처리자로 반영되어 있다.
+
 This draft maps the current Mongchi iOS/Android implementation to App Store privacy labels and Google Play Data safety answers. It is not a final legal review. Re-check it after choosing the production auth provider, hosting, storage, AI provider config, commerce verifier, analytics, crash reporting, and privacy-policy text.
 
 ## Evidence Scope
