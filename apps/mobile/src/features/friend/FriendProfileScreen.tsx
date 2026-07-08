@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ArrowLeft, Mail, Share2, Sparkles } from "lucide-react-native";
+import { ArrowLeft, Flame, Footprints, Heart, Mail, PawPrint, Share2, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
+import type { ComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
 
@@ -265,6 +266,86 @@ const poseRevealStyles = StyleSheet.create({
   }
 });
 
+interface StatTileProps {
+  Icon: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
+  iconColor: string;
+  value: string;
+  label: string;
+  accessibilityLabel: string;
+  /** Present only for the Bond tile -- renders a thin progress bar under the value. */
+  progressFraction?: number;
+}
+
+/**
+ * One mini tile in the stat ribbon (Bond / Streak / Together). Deliberately
+ * plain -- icon, one big number, one label -- so all three sit on a single
+ * row even on an iPhone SE. The fuller warm copy that used to live in three
+ * separate full-width cards (streak headline/subline, moved-in line) still
+ * reaches screen readers via accessibilityLabel, it's just not printed on
+ * screen anymore.
+ */
+function StatTile({ Icon, iconColor, value, label, accessibilityLabel, progressFraction }: StatTileProps) {
+  const typography = useTypography();
+  const fontFamilies = useFontFamilies();
+  const hasProgress = progressFraction !== undefined;
+
+  return (
+    <View
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={hasProgress ? "progressbar" : undefined}
+      accessibilityValue={hasProgress ? { min: 0, max: 100, now: Math.round((progressFraction ?? 0) * 100) } : undefined}
+      style={statTileStyles.tile}
+    >
+      <Icon color={iconColor} size={18} strokeWidth={2.6} />
+      <Text style={[statTileStyles.value, { fontFamily: fontFamilies.display }]}>{value}</Text>
+      <Text style={[statTileStyles.label, typography.label]}>{label}</Text>
+      {hasProgress ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={statTileStyles.progressTrack}>
+          <View style={[statTileStyles.progressFill, { width: `${Math.round((progressFraction ?? 0) * 100)}%` }]} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const statTileStyles = StyleSheet.create({
+  tile: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+    borderRadius: radii.panel,
+    backgroundColor: colors.cream,
+    borderWidth: 3,
+    borderBottomWidth: 5,
+    borderColor: colors.line,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    ...shadows.tile
+  },
+  value: {
+    color: colors.ink,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "900"
+  },
+  label: {
+    color: colors.mutedInk
+  },
+  progressTrack: {
+    marginTop: 2,
+    width: "100%",
+    height: 6,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(122,110,102,0.18)",
+    overflow: "hidden"
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: radii.pill,
+    backgroundColor: colors.honey
+  }
+});
+
 export function FriendProfileScreen() {
   const {
     acceptedAsset,
@@ -466,7 +547,6 @@ export function FriendProfileScreen() {
 
   const petAssetId = acceptedAsset?.id ?? activePet.activeAssetId ?? null;
   const petAssetUri = petAssetId ? generatedAssetUriById[petAssetId] ?? null : null;
-  const introLine = activePet.memoryNote?.trim() ? activePet.memoryNote : movedInLine;
 
   const handleShare = async () => {
     if (isSharing) {
@@ -491,162 +571,196 @@ export function FriendProfileScreen() {
       contentStyle={styles.content}
       innerStyle={styles.inner}
     >
-      <ScreenHeaderRow
-        title={activePet.name}
-        titleFontFamily={fontFamilies.display}
-        backAccessibilityLabel="Back home"
-        style={styles.headerRow}
-        onBack={() => router.push("/terrarium")}
-      />
+      {/* 1. HERO STAGE -- the page's first beat: back button overlaid on the
+          garden backdrop (GardenSceneFrame's own background art already
+          supplies the "garden" behind everything below), the pet big and
+          centered, name + moved-in line grounded on a little plaque. */}
+      <View style={styles.heroStage}>
+        <View style={styles.heroHeaderOverlay}>
+          <ScreenHeaderRow
+            title={activePet.name}
+            titleFontFamily={fontFamilies.display}
+            backAccessibilityLabel="Back home"
+            onBack={() => router.push("/terrarium")}
+          />
+        </View>
 
-      <View style={styles.heroCard}>
-        <View style={styles.petFrame}>
+        <View style={styles.heroPetStage}>
+          <View style={styles.heroPetShadow} />
           <GeneratedPetAssetImage
             accessibilityLabel={`${activePet.name}'s portrait`}
             assetId={petAssetId}
             remoteUri={petAssetUri}
-            style={styles.petSprite}
+            style={styles.heroPetSprite}
           />
         </View>
-        <Text style={[styles.introLine, typography.body]}>{introLine}</Text>
+
+        <View style={styles.heroNamePlate}>
+          <Text style={[styles.heroName, { fontFamily: fontFamilies.display }]}>{activePet.name}</Text>
+          <Text style={[styles.heroMovedInLine, typography.label]}>{movedInLine}</Text>
+        </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={[styles.cardTitle, typography.title]}>Bond</Text>
-          <View style={styles.levelBadge}>
-            <Text style={[styles.levelBadgeText, typography.label]}>{bond.levelLabel}</Text>
-          </View>
-        </View>
-        <View accessibilityLabel={`Bond progress toward level ${bond.level + 1}`} accessibilityRole="progressbar" style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(bond.progressFraction * 100)}%` }]} />
-        </View>
-        <Text style={[styles.cardCaption, typography.label]}>Every bit of care grows this bar.</Text>
+      {/* 2. STAT RIBBON -- Bond / Streak / Together condensed into one row
+          of tiles, replacing three separate full-width cards. */}
+      <View style={styles.statRibbon}>
+        <StatTile
+          accessibilityLabel={`Bond progress toward level ${bond.level + 1}: ${bond.levelLabel}`}
+          Icon={Heart}
+          iconColor={colors.rose}
+          label="Bond"
+          progressFraction={bond.progressFraction}
+          value={bond.levelLabel}
+        />
+        <StatTile
+          accessibilityLabel={`${streak.headline}. ${streak.subline}`}
+          Icon={Flame}
+          iconColor={colors.honey}
+          label="Streak"
+          value={String(streak.current)}
+        />
+        <StatTile accessibilityLabel={movedInLine} Icon={PawPrint} iconColor={colors.leaf} label="Together" value={String(daysTogether)} />
       </View>
 
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, typography.title]}>Lately, {activePet.name}...</Text>
+      {/* 3. PERSONALITY NOTE -- "Lately, {name}..." reads like a handwritten
+          note tucked into the page, not another data card. */}
+      <View style={styles.noteCard}>
+        <View style={styles.noteGlyphBadge}>
+          <PawPrint color={colors.gold} size={14} strokeWidth={2.6} />
+        </View>
+        <Text style={[styles.noteTitle, typography.title]}>Lately, {activePet.name}...</Text>
         {habitSummary.habitLines.map((line, index) => (
-          <Text key={`habit-${index}`} style={[styles.streakHeadline, typography.body]}>
+          <Text key={`habit-${index}`} style={[styles.noteLine, typography.body]}>
             {activePet.name} {line}
           </Text>
         ))}
         {habitSummary.favoriteThingLine ? (
-          <Text style={[styles.cardCaption, typography.label]}>{habitSummary.favoriteThingLine}</Text>
+          <Text style={[styles.noteCaption, typography.label]}>{habitSummary.favoriteThingLine}</Text>
         ) : null}
         {habitSummary.favoriteTreatLine ? (
-          <Text style={[styles.cardCaption, typography.label]}>{habitSummary.favoriteTreatLine}</Text>
+          <Text style={[styles.noteCaption, typography.label]}>{habitSummary.favoriteTreatLine}</Text>
         ) : null}
       </View>
 
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, typography.title]}>Streak</Text>
-        <Text style={[styles.streakHeadline, typography.body]}>{streak.headline}</Text>
-        <Text style={[styles.cardCaption, typography.label]}>{streak.subline}</Text>
-      </View>
+      {/* 4. COLLECTIONS -- walk finds + pose gallery share one textured
+          panel so they read as a single "collecting" zone. */}
+      <View style={styles.collectionsPanel}>
+        <Text style={[styles.collectionsTitle, typography.title]}>Collections</Text>
 
-      <View style={styles.card}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={[styles.cardTitle, typography.title]}>Walk finds</Text>
-          <Text style={[styles.cardCaption, typography.label]}>{walkFinds.progressLabel}</Text>
+        <View style={styles.collectionsSection}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.collectionsSectionHeading}>
+              <Footprints color={colors.moss} size={16} strokeWidth={2.6} />
+              <Text style={[styles.cardTitle, typography.body]}>Walk finds</Text>
+            </View>
+            <Text style={[styles.cardCaption, typography.label]}>{walkFinds.progressLabel}</Text>
+          </View>
+          <View style={styles.walkGrid}>
+            {walkFinds.cells.map((cell) => (
+              <View
+                key={cell.id}
+                accessibilityLabel={cell.found ? `${cell.name}, found ${cell.count} time${cell.count === 1 ? "" : "s"}` : "Undiscovered walk find"}
+                style={[styles.walkCell, cell.found ? null : styles.walkCellLocked]}
+              >
+                <Image
+                  accessibilityIgnoresInvertColors
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  resizeMode="contain"
+                  source={walkCollectibleAssets[cell.id]}
+                  style={[styles.walkIcon, cell.found ? null : styles.walkIconLocked]}
+                />
+                <Text numberOfLines={1} style={[styles.walkName, typography.label]}>
+                  {cell.name}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-        <View style={styles.walkGrid}>
-          {walkFinds.cells.map((cell) => (
-            <View
-              key={cell.id}
-              accessibilityLabel={cell.found ? `${cell.name}, found ${cell.count} time${cell.count === 1 ? "" : "s"}` : "Undiscovered walk find"}
-              style={[styles.walkCell, cell.found ? null : styles.walkCellLocked]}
-            >
-              <Image
-                accessibilityIgnoresInvertColors
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                resizeMode="contain"
-                source={walkCollectibleAssets[cell.id]}
-                style={[styles.walkIcon, cell.found ? null : styles.walkIconLocked]}
+
+        <View style={styles.collectionsDivider} />
+
+        <View style={styles.collectionsSection}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.collectionsSectionHeading}>
+              <Sparkles color={colors.gold} size={16} strokeWidth={2.6} />
+              <Text style={[styles.cardTitle, typography.body]}>Poses</Text>
+            </View>
+          </View>
+          {poseRevealBannerLine ? (
+            <Text accessibilityLiveRegion="polite" style={[styles.streakHeadline, typography.body]}>
+              {poseRevealBannerLine}
+            </Text>
+          ) : null}
+          <View style={styles.poseGrid}>
+            {poseGallery.cells.map((cell, index) => (
+              <PoseRevealCell
+                key={cell.state}
+                cell={cell}
+                petName={activePet.name}
+                assetUri={cell.assetId ? generatedAssetUriById[cell.assetId] ?? null : null}
+                isNewlyRevealed={newlyRevealedPoseStates.includes(cell.state)}
+                staggerIndex={index}
+                reduceMotionEnabled={reduceMotionEnabled}
               />
-              <Text numberOfLines={1} style={[styles.walkName, typography.label]}>
-                {cell.name}
-              </Text>
+            ))}
+          </View>
+          {poseGallery.cards.map((card) => (
+            <View key={card.packId} style={styles.poseCard}>
+              <Text style={[styles.streakHeadline, typography.body]}>{card.label}</Text>
+              {card.status === "purchasing" && card.progressLine ? (
+                <Text style={[styles.cardCaption, typography.label]}>{card.progressLine}</Text>
+              ) : null}
+              {card.status === "failed" && card.failureLine ? (
+                <Text style={[styles.cardCaption, typography.label]}>{card.failureLine}</Text>
+              ) : null}
+              {card.status !== "purchasing" ? (
+                <ActionButton
+                  accessibilityLabel={`Unlock ${card.nameEn} for ${activePet.name}`}
+                  label={card.status === "failed" ? "Try again" : "Unlock"}
+                  Icon={Sparkles}
+                  size="compact"
+                  onPress={() => void handleUnlockPosePack(card.packId)}
+                />
+              ) : null}
             </View>
           ))}
+          {purchasingPackMessage ? <Text style={[styles.cardCaption, typography.label]}>{purchasingPackMessage}</Text> : null}
         </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={[styles.cardTitle, typography.title]}>{activePet.name}'s moments</Text>
-          <View style={styles.letterEnvelopeBadge}>
-            <Sparkles color={colors.gold} size={16} strokeWidth={2.4} />
-          </View>
-        </View>
-        {poseRevealBannerLine ? (
-          <Text accessibilityLiveRegion="polite" style={[styles.streakHeadline, typography.body]}>
-            {poseRevealBannerLine}
-          </Text>
-        ) : null}
-        <View style={styles.poseGrid}>
-          {poseGallery.cells.map((cell, index) => (
-            <PoseRevealCell
-              key={cell.state}
-              cell={cell}
-              petName={activePet.name}
-              assetUri={cell.assetId ? generatedAssetUriById[cell.assetId] ?? null : null}
-              isNewlyRevealed={newlyRevealedPoseStates.includes(cell.state)}
-              staggerIndex={index}
-              reduceMotionEnabled={reduceMotionEnabled}
-            />
-          ))}
-        </View>
-        {poseGallery.cards.map((card) => (
-          <View key={card.packId} style={styles.poseCard}>
-            <Text style={[styles.streakHeadline, typography.body]}>{card.label}</Text>
-            {card.status === "purchasing" && card.progressLine ? (
-              <Text style={[styles.cardCaption, typography.label]}>{card.progressLine}</Text>
-            ) : null}
-            {card.status === "failed" && card.failureLine ? (
-              <Text style={[styles.cardCaption, typography.label]}>{card.failureLine}</Text>
-            ) : null}
-            {card.status !== "purchasing" ? (
-              <ActionButton
-                accessibilityLabel={`Unlock ${card.nameEn} for ${activePet.name}`}
-                label={card.status === "failed" ? "Try again" : "Unlock"}
-                Icon={Sparkles}
-                size="compact"
-                onPress={() => void handleUnlockPosePack(card.packId)}
-              />
-            ) : null}
-          </View>
-        ))}
-        {purchasingPackMessage ? <Text style={[styles.cardCaption, typography.label]}>{purchasingPackMessage}</Text> : null}
-      </View>
-
-      <View style={styles.card}>
+      {/* 5. SCRAPBOOK -- memories laid out as a connected timeline instead
+          of a plain list. */}
+      <View style={styles.scrapbookPanel}>
         <Text style={[styles.cardTitle, typography.title]}>Our little moments</Text>
-        {memoryAlbum.rows.map((row) => (
-          <View key={row.id} style={styles.memoryRow}>
-            <View style={styles.memoryGlyphBadge}>
-              <Text style={styles.memoryGlyphText}>{row.glyph}</Text>
+        <View style={styles.timelineWrap}>
+          {memoryAlbum.rows.length > 1 ? <View style={styles.timelineLine} /> : null}
+          {memoryAlbum.rows.map((row) => (
+            <View key={row.id} style={styles.memoryRow}>
+              <View style={styles.memoryGlyphBadge}>
+                <Text style={styles.memoryGlyphText}>{row.glyph}</Text>
+              </View>
+              <View style={styles.memoryRowText}>
+                <Text style={[styles.memoryLine, typography.body]}>{row.line}</Text>
+                <Text style={[styles.cardCaption, typography.label]}>{row.dayLabel}</Text>
+              </View>
             </View>
-            <View style={styles.memoryRowText}>
-              <Text style={[styles.memoryLine, typography.body]}>{row.line}</Text>
-              <Text style={[styles.cardCaption, typography.label]}>{row.dayLabel}</Text>
-            </View>
-          </View>
-        ))}
-        {memoryAlbum.isSparse ? (
-          <Text style={[styles.cardCaption, typography.label]}>{memoryAlbum.sparseLine}</Text>
-        ) : null}
+          ))}
+        </View>
+        {memoryAlbum.isSparse ? <Text style={[styles.cardCaption, typography.label]}>{memoryAlbum.sparseLine}</Text> : null}
         {memoryAlbum.hasMore ? <Text style={[styles.cardCaption, typography.label]}>{MEMORY_ALBUM_FOOTLINE}</Text> : null}
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={[styles.cardTitle, typography.title]}>{activePet.name}'s letter</Text>
-          <View style={styles.letterEnvelopeBadge}>
-            <Mail color={colors.gold} size={16} strokeWidth={2.4} />
+      {/* 6. LETTER -- the 30-day letter gets envelope-special treatment (a
+          wax-seal badge, warm gold border); MonthlyLetterCardBody's open
+          animation and status handling below are untouched. */}
+      <View style={styles.letterCard}>
+        <View style={styles.letterSealWrap}>
+          <View style={styles.letterSealBadge}>
+            <Mail color={colors.cream} size={18} strokeWidth={2.6} />
           </View>
         </View>
+        <Text style={[styles.cardTitle, typography.title]}>{activePet.name}'s letter</Text>
 
         {monthlyLetter.status === "locked" ? (
           <>
@@ -671,31 +785,34 @@ export function FriendProfileScreen() {
       </View>
 
       {activePet.memoryNote?.trim() ? (
-        <View style={styles.card}>
+        <View style={styles.plainCard}>
           <Text style={[styles.cardTitle, typography.title]}>Memory note</Text>
           <Text style={[styles.memoryText, { fontFamily: fontFamilies.body }]}>{activePet.memoryNote}</Text>
         </View>
       ) : null}
 
-      <ActionButton
-        accessibilityLabel={`Share ${activePet.name}`}
-        label={`Share ${activePet.name}`}
-        Icon={Share2}
-        variant="secondary"
-        size="compact"
-        disabled={isSharing}
-        style={styles.footerAction}
-        onPress={handleShare}
-      />
+      {/* 7. Share + Back home */}
+      <View style={styles.footerActions}>
+        <ActionButton
+          accessibilityLabel={`Share ${activePet.name}`}
+          label={`Share ${activePet.name}`}
+          Icon={Share2}
+          variant="secondary"
+          size="compact"
+          disabled={isSharing}
+          style={styles.footerAction}
+          onPress={handleShare}
+        />
 
-      <ActionButton
-        accessibilityLabel="Back home"
-        label="Back home"
-        Icon={ArrowLeft}
-        size="compact"
-        style={styles.footerAction}
-        onPress={() => router.push("/terrarium")}
-      />
+        <ActionButton
+          accessibilityLabel="Back home"
+          label="Back home"
+          Icon={ArrowLeft}
+          size="compact"
+          style={styles.footerAction}
+          onPress={() => router.push("/terrarium")}
+        />
+      </View>
     </GardenSceneFrame>
   );
 }
@@ -710,53 +827,131 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg
   },
   inner: {
-    gap: spacing.md
+    // Group-to-group rhythm: each direct child below is one "beat" of the
+    // page (hero / stats / note / collections / scrapbook / letter /
+    // footer) -- a generous gap here reads as room-to-room movement, while
+    // each group below sets its own tighter internal gap.
+    gap: spacing.xl
   },
-  headerRow: {
-    // No marginTop here: content.paddingTop already provides the gap below
-    // the safe area. Adding marginTop on top of that padding used to double
-    // up the top margin (see settings-screen audit, applied here too).
-    marginBottom: spacing.xs
-  },
-  heroCard: {
+
+  // --- 1. Hero stage ------------------------------------------------------
+  heroStage: {
+    position: "relative",
     alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radii.panel,
-    backgroundColor: "rgba(255,245,222,0.92)",
+    paddingTop: 58,
+    gap: spacing.sm
+  },
+  heroHeaderOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 30
+  },
+  heroPetStage: {
+    width: 200,
+    height: 200,
+    alignItems: "center",
+    justifyContent: "flex-end"
+  },
+  heroPetShadow: {
+    position: "absolute",
+    bottom: 8,
+    width: 120,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: "rgba(60,45,35,0.22)"
+  },
+  heroPetSprite: {
+    width: 196,
+    height: 196
+  },
+  heroNamePlate: {
+    alignItems: "center",
+    gap: 2,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(255,245,222,0.9)",
     borderWidth: 3,
-    borderBottomWidth: 6,
     borderColor: "rgba(255,255,255,0.86)",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-    ...shadows.gamePanel
-  },
-  petFrame: {
-    width: 140,
-    height: 140,
-    borderRadius: 30,
-    backgroundColor: colors.cream,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.84)",
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: spacing.sm,
     ...shadows.tile
   },
-  petSprite: {
-    width: 118,
-    height: 118
+  heroName: {
+    color: colors.ink,
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: "900"
   },
-  introLine: {
-    color: colors.mutedInk,
-    textAlign: "center"
+  heroMovedInLine: {
+    color: colors.mutedInk
   },
-  card: {
+
+  // --- 2. Stat ribbon ------------------------------------------------------
+  statRibbon: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+
+  // --- 3. Personality note -------------------------------------------------
+  noteCard: {
+    borderRadius: radii.card,
+    backgroundColor: colors.parchment,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: colors.parchmentDeep,
+    padding: spacing.md,
+    gap: spacing.xs,
+    transform: [{ rotate: "-1deg" }],
+    ...shadows.soft
+  },
+  noteGlyphBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(217,149,56,0.22)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2
+  },
+  noteTitle: {
+    color: colors.ink
+  },
+  noteLine: {
+    color: colors.ink,
+    fontStyle: "italic"
+  },
+  noteCaption: {
+    color: colors.mutedInk
+  },
+
+  // --- 4. Collections panel -------------------------------------------------
+  collectionsPanel: {
     borderRadius: radii.panel,
-    backgroundColor: "rgba(255,245,222,0.9)",
+    backgroundColor: "rgba(201,240,255,0.55)",
     borderWidth: 3,
     borderColor: "rgba(255,255,255,0.82)",
     padding: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.md,
     ...shadows.gamePanel
+  },
+  collectionsTitle: {
+    color: colors.skyDeep
+  },
+  collectionsSection: {
+    gap: spacing.sm
+  },
+  collectionsSectionHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs
+  },
+  collectionsDivider: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "rgba(255,255,255,0.6)"
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -769,40 +964,6 @@ const styles = StyleSheet.create({
   },
   cardCaption: {
     color: colors.mutedInk
-  },
-  levelBadge: {
-    borderRadius: radii.pill,
-    backgroundColor: "rgba(246,184,79,0.24)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4
-  },
-  levelBadgeText: {
-    color: colors.gold
-  },
-  letterEnvelopeBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.pill,
-    backgroundColor: "rgba(246,184,79,0.24)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  progressTrack: {
-    height: 16,
-    borderRadius: radii.pill,
-    backgroundColor: "rgba(122,110,102,0.18)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
-    overflow: "hidden"
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: radii.pill,
-    backgroundColor: colors.honey
   },
   streakHeadline: {
     color: colors.ink
@@ -854,6 +1015,30 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.8)",
     padding: spacing.sm
   },
+
+  // --- 5. Scrapbook timeline -------------------------------------------------
+  scrapbookPanel: {
+    borderRadius: radii.panel,
+    backgroundColor: "rgba(255,245,222,0.85)",
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.82)",
+    padding: spacing.md,
+    gap: spacing.md,
+    transform: [{ rotate: "0.6deg" }],
+    ...shadows.gamePanel
+  },
+  timelineWrap: {
+    position: "relative",
+    gap: spacing.md
+  },
+  timelineLine: {
+    position: "absolute",
+    top: 14,
+    bottom: 14,
+    left: 13,
+    width: 2,
+    backgroundColor: colors.line
+  },
   memoryText: {
     color: colors.mutedInk,
     fontSize: 13,
@@ -886,6 +1071,55 @@ const styles = StyleSheet.create({
   },
   memoryLine: {
     color: colors.ink
+  },
+
+  // --- 6. Letter (30-day) ----------------------------------------------------
+  letterCard: {
+    position: "relative",
+    borderRadius: radii.panel,
+    backgroundColor: "rgba(246,184,79,0.22)",
+    borderWidth: 3,
+    borderColor: colors.honey,
+    padding: spacing.md,
+    paddingTop: spacing.xl,
+    gap: spacing.sm,
+    ...shadows.gamePanel
+  },
+  letterSealWrap: {
+    position: "absolute",
+    top: -22,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 5
+  },
+  letterSealBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.gold,
+    borderWidth: 3,
+    borderBottomWidth: 5,
+    borderColor: colors.honey,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.tile
+  },
+
+  // --- Plain fallback card (memory note) --------------------------------------
+  plainCard: {
+    borderRadius: radii.panel,
+    backgroundColor: "rgba(255,245,222,0.9)",
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.82)",
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadows.gamePanel
+  },
+
+  // --- 7. Footer ------------------------------------------------------------
+  footerActions: {
+    gap: spacing.sm
   },
   footerAction: {
     alignSelf: "stretch"
