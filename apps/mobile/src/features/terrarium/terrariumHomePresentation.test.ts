@@ -609,8 +609,25 @@ describe("HUD gauge guide popup", () => {
     expect(energy.actionIcons).toEqual(["rest", "food"]);
   });
 
+  it("points the cleanliness gauge at the Bath action, with a number-free, no-guilt how-to line", () => {
+    const guide = getHudMeterGuidePresentation("cleanliness", 12);
+
+    expect(guide.title).toBe("Clean");
+    expect(guide.howTo).toBe("A warm bath freshens this right up.");
+    expect(guide.actionIcons).toEqual(["clean"]);
+    expect(guide.statusLine).toBe("Feeling pretty grubby — a bath would feel really nice.");
+    expect(guide.statusLine).not.toMatch(/danger|warning|!|\d/);
+  });
+
+  it("celebrates a fully clean pet and never shames a dirty one, across every cleanliness band", () => {
+    expect(getHudMeterGuidePresentation("cleanliness", 90).statusLine).toBe("So fresh and clean!");
+    expect(getHudMeterGuidePresentation("cleanliness", 60).statusLine).toBe("Comfortably clean for now.");
+    expect(getHudMeterGuidePresentation("cleanliness", 30).statusLine).toBe("Getting a little dusty over here.");
+    expect(getHudMeterGuidePresentation("cleanliness", 5).statusLine).not.toMatch(/dirty|filthy|gross|bad/i);
+  });
+
   it("gives warm, non-alarming copy across every band for each gauge, and leads the accessibility label with the action guidance", () => {
-    const keys = ["fullness", "thirst", "mood", "energy"] as const;
+    const keys = ["fullness", "thirst", "mood", "energy", "cleanliness"] as const;
     const values = [5, 30, 60, 90];
 
     for (const key of keys) {

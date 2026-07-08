@@ -27,7 +27,7 @@ export interface HomeEventTogglePresentation {
   accessibilityLabel: string;
 }
 
-export type HudMeterKey = "fullness" | "thirst" | "mood" | "energy";
+export type HudMeterKey = "fullness" | "thirst" | "mood" | "energy" | "cleanliness";
 
 export interface HomeThoughtPresentation {
   icon: HomeThoughtIcon;
@@ -628,7 +628,8 @@ const hudMeterActionIconsByKey: Record<HudMeterKey, HomeCareActionFeedbackIcon[]
   fullness: ["food"],
   thirst: ["water"],
   mood: ["play", "heart"],
-  energy: ["rest", "food"]
+  energy: ["rest", "food"],
+  cleanliness: ["clean"]
 };
 
 export interface HudMeterGuideCopy {
@@ -663,6 +664,12 @@ const hudMeterGuideCopy: Record<HudMeterKey, HudMeterGuideCopy> = {
     title: "Energy",
     description: "How rested and ready to play your pet is.",
     howTo: "Some rest — or a good meal — brings this right back."
+  },
+  cleanliness: {
+    key: "cleanliness",
+    title: "Clean",
+    description: "How fresh and tidy your pet is feeling.",
+    howTo: "A warm bath freshens this right up."
   }
 };
 
@@ -690,6 +697,12 @@ const hudMeterStatusLineByBand: Record<HudMeterKey, Record<CareStatBand, string>
     low: "A little tired.",
     okay: "Feeling steady.",
     great: "Bursting with energy."
+  },
+  cleanliness: {
+    critical: "Feeling pretty grubby — a bath would feel really nice.",
+    low: "Getting a little dusty over here.",
+    okay: "Comfortably clean for now.",
+    great: "So fresh and clean!"
   }
 };
 
@@ -697,7 +710,7 @@ export interface HudMeterGuidePresentation {
   title: string;
   description: string;
   howTo: string;
-  /** Care-tray icons (same art as the matching bottom care buttons) this meter's guidance points at -- 1 for a single-action meter (fullness/thirst), 2 for a two-action one (mood/energy). */
+  /** Care-tray icons (same art as the matching bottom care buttons) this meter's guidance points at -- 1 for a single-action meter (fullness/thirst/cleanliness), 2 for a two-action one (mood/energy). */
   actionIcons: HomeCareActionFeedbackIcon[];
   statusLine: string;
   accessibilityLabel: string;

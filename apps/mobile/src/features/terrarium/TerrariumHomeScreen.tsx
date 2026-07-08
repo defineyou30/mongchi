@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { Droplets, Flame, Footprints, Gift, Heart, MessageCircle, Moon, PawPrint, Utensils, Zap } from "lucide-react-native";
+import { Bath, Droplets, Flame, Footprints, Gift, Heart, MessageCircle, Moon, PawPrint, Utensils, Zap } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Animated, Easing, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -131,7 +131,7 @@ interface CareButtonConfig {
   item?: GameItemAssetKey;
 }
 
-type HudMeterIcon = "food" | "heart" | "zap" | "water";
+type HudMeterIcon = "food" | "heart" | "zap" | "water" | "clean";
 
 interface HudMeterConfig {
   key: HudMeterKey;
@@ -236,11 +236,25 @@ const homeActionAssetPreference: Record<CareActionType, GeneratedAssetState> = {
   water_garden: "happy"
 };
 
-const hudButtonAssets: Record<HudMeterIcon, ImageSourcePropType> = {
+/**
+ * Raster HUD meter icons -- the one place to swap in a new PNG (e.g. the
+ * upcoming pixel-art meter icon set). A key with no entry here falls back to
+ * hudMeterVectorIconsByKey's lucide glyph below (currently just "clean",
+ * standing in for the not-yet-landed cleanliness pixel icon) -- see
+ * HudMeterIconGlyph, the single render call site that picks between the two.
+ * Once a "clean" PNG lands, add it here and delete its vector entry below;
+ * nothing else needs to change.
+ */
+const hudButtonAssets: Partial<Record<HudMeterIcon, ImageSourcePropType>> = {
   food: require("../../../assets/game-buttons/feed.png"),
   heart: require("../../../assets/game-buttons/affection.png"),
   zap: require("../../../assets/game-buttons/energy.png"),
   water: require("../../../assets/game-buttons/water.png")
+};
+
+/** Vector fallback for HUD meter icons with no raster asset yet -- see hudButtonAssets above. */
+const hudMeterVectorIconsByKey: Partial<Record<HudMeterIcon, ComponentType<{ color?: string; size?: number; strokeWidth?: number }>>> = {
+  clean: Bath
 };
 
 const sideRailButtonAssets = {
@@ -320,6 +334,36 @@ const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
       return <Heart color={colors.rose} fill={colors.rose} size={21} strokeWidth={2.4} />;
   }
 };
+
+/**
+ * Renders a top-bar HUD meter's icon -- raster (hudButtonAssets) when one
+ * exists, otherwise the matching vector glyph (hudMeterVectorIconsByKey).
+ * The single call site the two icon maps above feed into, so swapping in a
+ * pixel-art PNG later is a one-line change with no render logic to touch.
+ */
+function HudMeterIconGlyph({ accessibilityLabel, color, icon }: { accessibilityLabel: string; color: string; icon: HudMeterIcon }) {
+  const source = hudButtonAssets[icon];
+
+  if (source) {
+    return (
+      <Image
+        accessibilityIgnoresInvertColors
+        accessibilityLabel={accessibilityLabel}
+        resizeMode="contain"
+        source={source}
+        style={styles.resourceButtonIcon}
+      />
+    );
+  }
+
+  const VectorIcon = hudMeterVectorIconsByKey[icon];
+
+  if (!VectorIcon) {
+    return null;
+  }
+
+  return <VectorIcon color={color} size={24} strokeWidth={2.6} />;
+}
 
 function BreathingPetLayer({ children }: { children: ReactNode }) {
   const breath = useRef(new Animated.Value(0)).current;
@@ -1746,10 +1790,11 @@ export function TerrariumHomeScreen() {
         { key: "fullness", label: "Full", value: careState.satiety, icon: "food", color: colors.coral },
         { key: "thirst", label: "Water", value: careState.gardenHealth, icon: "water", color: colors.skyDeep },
         { key: "mood", label: "Mood", value: moodValue, icon: "heart", color: colors.rose },
-        { key: "energy", label: "Energy", value: careState.energy, icon: "zap", color: colors.honey }
+        { key: "energy", label: "Energy", value: careState.energy, icon: "zap", color: colors.honey },
+        { key: "cleanliness", label: "Clean", value: careState.cleanliness, icon: "clean", color: colors.mint }
       ];
     },
-    [careState.affection, careState.energy, careState.gardenHealth, careState.happiness, careState.satiety]
+    [careState.affection, careState.cleanliness, careState.energy, careState.gardenHealth, careState.happiness, careState.satiety]
   );
   const openHudMeter = hudGuideMeterKey ? hudMeters.find((meter) => meter.key === hudGuideMeterKey) ?? null : null;
   const hudGuidePresentation = openHudMeter ? getHudMeterGuidePresentation(openHudMeter.key, openHudMeter.value) : null;
@@ -1764,10 +1809,11 @@ export function TerrariumHomeScreen() {
         fullness: careState.satiety - lastActionSnapshot.previousCareState.satiety,
         thirst: careState.gardenHealth - lastActionSnapshot.previousCareState.gardenHealth,
         energy: careState.energy - lastActionSnapshot.previousCareState.energy,
+        cleanliness: careState.cleanliness - lastActionSnapshot.previousCareState.cleanliness,
         mood: Math.round(careState.happiness * 0.65 + careState.affection * 0.35) -
           Math.round(lastActionSnapshot.previousCareState.happiness * 0.65 + lastActionSnapshot.previousCareState.affection * 0.35)
       }
-    : { fullness: 0, thirst: 0, energy: 0, mood: 0 };
+    : { fullness: 0, thirst: 0, energy: 0, cleanliness: 0, mood: 0 };
 
   const floatingDockButtons = homeFloatingDockActions
     .map((action) => careButtons.find((button) => button.action === action))
@@ -1806,13 +1852,7 @@ export function TerrariumHomeScreen() {
                 onPress={() => setHudGuideMeterKey(meter.key)}
               >
                 <View style={styles.resourceIconFrame}>
-                  <Image
-                    accessibilityIgnoresInvertColors
-                    accessibilityLabel={`${meter.label} HUD art`}
-                    resizeMode="contain"
-                    source={hudButtonAssets[meter.icon]}
-                    style={styles.resourceButtonIcon}
-                  />
+                  <HudMeterIconGlyph accessibilityLabel={`${meter.label} HUD art`} color={meter.color} icon={meter.icon} />
                 </View>
                 <AnimatedResourceTrack color={meter.color} value={meter.value} />
                 {hudMeterDeltaByKey[meter.key] !== 0 ? (
@@ -2333,9 +2373,18 @@ const styles = StyleSheet.create({
     borderColor: colors.cream,
     ...shadows.tile
   },
+  // Sized for 5 chips (fullness/thirst/mood/energy/cleanliness) fitting the
+  // smallest supported screen (iPhone SE-class, 375pt window, gameHud's
+  // left/right:18 leaves 339pt) without wrapping to a second row: at gap 5
+  // and chip paddingLeft/Right 30/5, each of the 5 chips lands at ~64pt with
+  // ~25pt of visible track -- narrower than the old 4-chip layout's ~39pt,
+  // but still comfortably above resourceTrack's minWidth:14 floor. Trimmed
+  // down from the previous 6/35/6/42 values (used when there were only 4
+  // meters) uniformly across all chips so cleanliness doesn't read as a
+  // smaller, bolted-on 5th meter next to the original four.
   resourceBar: {
     flexDirection: "row",
-    gap: 6,
+    gap: 5,
     alignItems: "center",
     justifyContent: "space-between"
   },
@@ -2347,8 +2396,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderBottomWidth: 4,
     borderColor: colors.cream,
-    paddingLeft: 35,
-    paddingRight: 6,
+    paddingLeft: 30,
+    paddingRight: 5,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2362,9 +2411,9 @@ const styles = StyleSheet.create({
   },
   resourceIconFrame: {
     position: "absolute",
-    left: -8,
-    width: 42,
-    height: 42,
+    left: -7,
+    width: 37,
+    height: 37,
     borderRadius: 15,
     backgroundColor: "transparent",
     borderWidth: 0,
@@ -2374,8 +2423,8 @@ const styles = StyleSheet.create({
     zIndex: 2
   },
   resourceButtonIcon: {
-    width: 43,
-    height: 43
+    width: 38,
+    height: 38
   },
   resourceTrack: {
     flex: 1,
