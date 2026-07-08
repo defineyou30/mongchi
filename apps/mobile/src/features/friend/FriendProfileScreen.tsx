@@ -1,9 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ArrowLeft, Flame, Footprints, Heart, Mail, PawPrint, Share2, Sparkles } from "lucide-react-native";
+import { ArrowLeft, Flame, Footprints, Heart, Mail, PawPrint, Share2 } from "lucide-react-native";
 import { router } from "expo-router";
 import type { ComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   expressionPacks,
@@ -17,13 +18,12 @@ import { useReducedMotionPreference } from "../../shared/accessibility/useReduce
 import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
-import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
-import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
+import { BackButton } from "../../shared/ui/BackButton";
 import { walkCollectibleAssets } from "../../shared/assets/walkCollectibleAssets";
 import { buildFriendShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
-import type { FriendPoseCell } from "./friendProfilePresentation";
+import { HeroPoseSlider } from "./FriendHeroPoseSlider";
 import {
   getDaysTogether,
   getFriendBondPresentation,
@@ -169,102 +169,11 @@ const letterStyles = StyleSheet.create({
   }
 });
 
-interface PoseRevealCellProps {
-  cell: FriendPoseCell;
-  petName: string;
-  assetUri: string | null;
-  isNewlyRevealed: boolean;
-  staggerIndex: number;
-  reduceMotionEnabled: boolean;
-}
-
-/** Per-cell stagger delay for the pose reveal showcase -- ~200ms apart per the plan, capped so a large future pack doesn't stall the grid for seconds. */
-const POSE_REVEAL_STAGGER_MS = 200;
-const POSE_REVEAL_MAX_STAGGER_INDEX = 8;
-
 // Matches TerrariumHomeScreen's JINGLE_DUCK_MS: briefly dips BGM volume
 // while a jingle plays (see docs/gamefeel-sound-plan.md §2's ducking API
 // requirement), long enough to cover the placeholder jingle_* durations
 // from synth_sfx.py (well under 1s) with room to spare.
 const JINGLE_DUCK_MS = 900;
-
-/**
- * A single pose gallery cell. Cells flagged `isNewlyRevealed` play a
- * staggered fade+scale entrance (the "reveal showcase" for a just-completed
- * expression pack); every other cell (already-owned, still-locked) renders
- * immediately with no animation so re-visits of the friend page never
- * replay motion for old poses.
- */
-function PoseRevealCell({ cell, petName, assetUri, isNewlyRevealed, staggerIndex, reduceMotionEnabled }: PoseRevealCellProps) {
-  const reveal = useRef(new Animated.Value(isNewlyRevealed && !reduceMotionEnabled ? 0 : 1)).current;
-
-  useEffect(() => {
-    if (!isNewlyRevealed || reduceMotionEnabled) {
-      return;
-    }
-
-    const delayMs = Math.min(staggerIndex, POSE_REVEAL_MAX_STAGGER_INDEX) * POSE_REVEAL_STAGGER_MS;
-    const animation = Animated.sequence([
-      Animated.delay(delayMs),
-      Animated.timing(reveal, { toValue: 1, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true })
-    ]);
-
-    animation.start();
-
-    return () => animation.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <Animated.View
-      style={[
-        poseRevealStyles.poseCell,
-        cell.status === "locked" ? poseRevealStyles.poseCellLocked : null,
-        {
-          opacity: reveal,
-          transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]
-        }
-      ]}
-    >
-      {cell.status === "owned" ? (
-        <GeneratedPetAssetImage
-          accessibilityLabel={`${petName}'s ${cell.state} pose`}
-          assetId={cell.assetId}
-          remoteUri={assetUri}
-          style={poseRevealStyles.poseSprite}
-        />
-      ) : (
-        <Text style={poseRevealStyles.poseLockedGlyph}>?</Text>
-      )}
-    </Animated.View>
-  );
-}
-
-const poseRevealStyles = StyleSheet.create({
-  poseCell: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.95)"
-  },
-  poseCellLocked: {
-    backgroundColor: "rgba(122,110,102,0.14)",
-    borderColor: "rgba(255,255,255,0.55)"
-  },
-  poseSprite: {
-    width: 52,
-    height: 52
-  },
-  poseLockedGlyph: {
-    color: colors.mutedInk,
-    fontSize: 22,
-    fontWeight: "900"
-  }
-});
 
 interface StatTileProps {
   Icon: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
@@ -366,6 +275,12 @@ export function FriendProfileScreen() {
   const typography = useTypography();
   const fontFamilies = useFontFamilies();
   const reduceMotionEnabled = useReducedMotionPreference();
+  // Only the hero's floating back button needs to sit inside the safe-area
+  // top inset -- the hero stage itself is pulled up past it (see heroStage's
+  // marginTop below) so the garden backdrop and pet pager bleed all the way
+  // behind the status bar / dynamic island instead of stopping at a flat
+  // safe-area strip.
+  const insets = useSafeAreaInsets();
   const [now] = useState(() => new Date().toISOString());
   const [isSharing, setIsSharing] = useState(false);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
@@ -571,32 +486,34 @@ export function FriendProfileScreen() {
       contentStyle={styles.content}
       innerStyle={styles.inner}
     >
-      {/* 1. HERO STAGE -- the page's first beat: back button overlaid on the
-          garden backdrop (GardenSceneFrame's own background art already
-          supplies the "garden" behind everything below), the pet big and
-          centered, name + moved-in line grounded on a little plaque. */}
-      <View style={styles.heroStage}>
-        <View style={styles.heroHeaderOverlay}>
-          <ScreenHeaderRow
-            title={activePet.name}
-            titleFontFamily={fontFamilies.display}
-            backAccessibilityLabel="Back home"
-            onBack={() => router.push("/terrarium")}
-          />
+      {/* 1. HERO STAGE -- the page's first beat: a back button overlaid on
+          the garden backdrop (GardenSceneFrame's own background art already
+          supplies the "garden" behind everything below, bled up past the
+          safe-area top via this stage's negative marginTop), a swipeable
+          pager of the pet's poses front and center, name + moved-in line
+          grounded on a little plaque. */}
+      <View style={[styles.heroStage, { marginTop: -insets.top }]}>
+        <View style={[styles.heroHeaderOverlay, { paddingTop: insets.top + spacing.sm }]}>
+          <BackButton accessibilityLabel="Back home" onPress={() => router.push("/terrarium")} />
         </View>
 
-        <View style={styles.heroPetStage}>
-          <View style={styles.heroPetShadow} />
-          <GeneratedPetAssetImage
-            accessibilityLabel={`${activePet.name}'s portrait`}
-            assetId={petAssetId}
-            remoteUri={petAssetUri}
-            style={styles.heroPetSprite}
-          />
-        </View>
+        <HeroPoseSlider
+          bannerLine={poseRevealBannerLine}
+          cards={poseGallery.cards}
+          cells={poseGallery.cells}
+          generatedAssetUriById={generatedAssetUriById}
+          newlyRevealedPoseStates={newlyRevealedPoseStates}
+          petName={activePet.name}
+          petSpecies={activePet.species}
+          purchasingPackMessage={purchasingPackMessage}
+          reduceMotionEnabled={reduceMotionEnabled}
+          onUnlockPack={(packId) => void handleUnlockPosePack(packId)}
+        />
 
         <View style={styles.heroNamePlate}>
-          <Text style={[styles.heroName, { fontFamily: fontFamilies.display }]}>{activePet.name}</Text>
+          <Text accessibilityRole="header" style={[styles.heroName, { fontFamily: fontFamilies.display }]}>
+            {activePet.name}
+          </Text>
           <Text style={[styles.heroMovedInLine, typography.label]}>{movedInLine}</Text>
         </View>
       </View>
@@ -642,90 +559,37 @@ export function FriendProfileScreen() {
         ) : null}
       </View>
 
-      {/* 4. COLLECTIONS -- walk finds + pose gallery share one textured
-          panel so they read as a single "collecting" zone. */}
+      {/* 4. WALK FINDS -- the pose gallery has moved up into the hero pager
+          (see HeroPoseSlider above), so this panel is walk-collectible
+          discovery only now. */}
       <View style={styles.collectionsPanel}>
-        <Text style={[styles.collectionsTitle, typography.title]}>Collections</Text>
-
-        <View style={styles.collectionsSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.collectionsSectionHeading}>
-              <Footprints color={colors.moss} size={16} strokeWidth={2.6} />
-              <Text style={[styles.cardTitle, typography.body]}>Walk finds</Text>
-            </View>
-            <Text style={[styles.cardCaption, typography.label]}>{walkFinds.progressLabel}</Text>
+        <View style={styles.cardHeaderRow}>
+          <View style={styles.collectionsSectionHeading}>
+            <Footprints color={colors.moss} size={16} strokeWidth={2.6} />
+            <Text style={[styles.collectionsTitle, typography.title]}>Walk finds</Text>
           </View>
-          <View style={styles.walkGrid}>
-            {walkFinds.cells.map((cell) => (
-              <View
-                key={cell.id}
-                accessibilityLabel={cell.found ? `${cell.name}, found ${cell.count} time${cell.count === 1 ? "" : "s"}` : "Undiscovered walk find"}
-                style={[styles.walkCell, cell.found ? null : styles.walkCellLocked]}
-              >
-                <Image
-                  accessibilityIgnoresInvertColors
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                  resizeMode="contain"
-                  source={walkCollectibleAssets[cell.id]}
-                  style={[styles.walkIcon, cell.found ? null : styles.walkIconLocked]}
-                />
-                <Text numberOfLines={1} style={[styles.walkName, typography.label]}>
-                  {cell.name}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Text style={[styles.cardCaption, typography.label]}>{walkFinds.progressLabel}</Text>
         </View>
-
-        <View style={styles.collectionsDivider} />
-
-        <View style={styles.collectionsSection}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.collectionsSectionHeading}>
-              <Sparkles color={colors.gold} size={16} strokeWidth={2.6} />
-              <Text style={[styles.cardTitle, typography.body]}>Poses</Text>
-            </View>
-          </View>
-          {poseRevealBannerLine ? (
-            <Text accessibilityLiveRegion="polite" style={[styles.streakHeadline, typography.body]}>
-              {poseRevealBannerLine}
-            </Text>
-          ) : null}
-          <View style={styles.poseGrid}>
-            {poseGallery.cells.map((cell, index) => (
-              <PoseRevealCell
-                key={cell.state}
-                cell={cell}
-                petName={activePet.name}
-                assetUri={cell.assetId ? generatedAssetUriById[cell.assetId] ?? null : null}
-                isNewlyRevealed={newlyRevealedPoseStates.includes(cell.state)}
-                staggerIndex={index}
-                reduceMotionEnabled={reduceMotionEnabled}
+        <View style={styles.walkGrid}>
+          {walkFinds.cells.map((cell) => (
+            <View
+              key={cell.id}
+              accessibilityLabel={cell.found ? `${cell.name}, found ${cell.count} time${cell.count === 1 ? "" : "s"}` : "Undiscovered walk find"}
+              style={[styles.walkCell, cell.found ? null : styles.walkCellLocked]}
+            >
+              <Image
+                accessibilityIgnoresInvertColors
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                resizeMode="contain"
+                source={walkCollectibleAssets[cell.id]}
+                style={[styles.walkIcon, cell.found ? null : styles.walkIconLocked]}
               />
-            ))}
-          </View>
-          {poseGallery.cards.map((card) => (
-            <View key={card.packId} style={styles.poseCard}>
-              <Text style={[styles.streakHeadline, typography.body]}>{card.label}</Text>
-              {card.status === "purchasing" && card.progressLine ? (
-                <Text style={[styles.cardCaption, typography.label]}>{card.progressLine}</Text>
-              ) : null}
-              {card.status === "failed" && card.failureLine ? (
-                <Text style={[styles.cardCaption, typography.label]}>{card.failureLine}</Text>
-              ) : null}
-              {card.status !== "purchasing" ? (
-                <ActionButton
-                  accessibilityLabel={`Unlock ${card.nameEn} for ${activePet.name}`}
-                  label={card.status === "failed" ? "Try again" : "Unlock"}
-                  Icon={Sparkles}
-                  size="compact"
-                  onPress={() => void handleUnlockPosePack(card.packId)}
-                />
-              ) : null}
+              <Text numberOfLines={1} style={[styles.walkName, typography.label]}>
+                {cell.name}
+              </Text>
             </View>
           ))}
-          {purchasingPackMessage ? <Text style={[styles.cardCaption, typography.label]}>{purchasingPackMessage}</Text> : null}
         </View>
       </View>
 
@@ -835,10 +699,16 @@ const styles = StyleSheet.create({
   },
 
   // --- 1. Hero stage ------------------------------------------------------
+  // marginTop on this View (applied inline, see JSX -- it needs the runtime
+  // safe-area inset) pulls the whole stage up past the SafeAreaView's top
+  // padding so the garden backdrop keeps going behind the status bar /
+  // dynamic island instead of stopping at a flat safe-area-colored strip.
+  // Only heroHeaderOverlay's back button re-adds that inset for itself
+  // (also inline) so it doesn't creep into the unsafe area.
   heroStage: {
     position: "relative",
     alignItems: "center",
-    paddingTop: 58,
+    paddingTop: spacing.sm,
     gap: spacing.sm
   },
   heroHeaderOverlay: {
@@ -847,24 +717,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 30
-  },
-  heroPetStage: {
-    width: 200,
-    height: 200,
-    alignItems: "center",
-    justifyContent: "flex-end"
-  },
-  heroPetShadow: {
-    position: "absolute",
-    bottom: 8,
-    width: 120,
-    height: 24,
-    borderRadius: 999,
-    backgroundColor: "rgba(60,45,35,0.22)"
-  },
-  heroPetSprite: {
-    width: 196,
-    height: 196
   },
   heroNamePlate: {
     alignItems: "center",
@@ -940,18 +792,10 @@ const styles = StyleSheet.create({
   collectionsTitle: {
     color: colors.skyDeep
   },
-  collectionsSection: {
-    gap: spacing.sm
-  },
   collectionsSectionHeading: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs
-  },
-  collectionsDivider: {
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: "rgba(255,255,255,0.6)"
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -1001,19 +845,6 @@ const styles = StyleSheet.create({
   },
   walkName: {
     color: colors.ink
-  },
-  poseGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm
-  },
-  poseCard: {
-    gap: spacing.xs,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.55)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.8)",
-    padding: spacing.sm
   },
 
   // --- 5. Scrapbook timeline -------------------------------------------------
