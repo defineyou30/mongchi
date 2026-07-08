@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 
+import { useFontFamilies } from "../../shared/design/tokens";
+
 /**
  * Tier 3 "world autonomy" night dressing (docs/gamefeel-sound-plan.md §1
  * Tier 3): a soft navy wash over the whole scene plus a few floating "zzz"
@@ -29,8 +31,20 @@ interface NightZzzFloatProps {
   reduceMotionEnabled: boolean;
 }
 
+/**
+ * Kept as literal "Zzz" text rather than converted to an SVG glyph (unlike
+ * CareMomentLayer's heart/bubble particles): "z" is already a legible,
+ * universally-understood sleep symbol on its own -- there's no emoji or
+ * platform-glyph-font mismatch here the way "❤"/"○" had, since these are
+ * plain ASCII characters rendered in the app's own font. The pixel-tone gap
+ * was purely typographic (the system default font), so the fix is to pull
+ * the glyph onto the same pixel display face (fontFamilies.display,
+ * "PixelifySans_700Bold" for the shipped pair) the rest of the game's
+ * headers/titles already use, rather than reaching for a heavier SVG shape.
+ */
 export function NightZzzFloat({ petStageBottomPx, reduceMotionEnabled }: NightZzzFloatProps) {
   const progress = useRef(new Animated.Value(0)).current;
+  const fontFamilies = useFontFamilies();
 
   useEffect(() => {
     if (reduceMotionEnabled) {
@@ -57,7 +71,7 @@ export function NightZzzFloat({ petStageBottomPx, reduceMotionEnabled }: NightZz
     // reduce-motion pattern of holding still instead of animating.
     return (
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={[styles.zzzAnchor, { bottom: petStageBottomPx + 150 }]}>
-        <Text style={styles.zzzGlyph}>{"z z z"}</Text>
+        <Text style={[styles.zzzGlyph, { fontFamily: fontFamilies.display }]}>{"z z z"}</Text>
       </View>
     );
   }
@@ -68,7 +82,7 @@ export function NightZzzFloat({ petStageBottomPx, reduceMotionEnabled }: NightZz
 
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={[styles.zzzAnchor, { bottom: petStageBottomPx + 150 }]}>
-      <Animated.Text style={[styles.zzzGlyph, { opacity, transform: [{ translateY }, { scale }] }]}>{"Zzz"}</Animated.Text>
+      <Animated.Text style={[styles.zzzGlyph, { fontFamily: fontFamilies.display, opacity, transform: [{ translateY }, { scale }] }]}>{"Zzz"}</Animated.Text>
     </View>
   );
 }
@@ -94,6 +108,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 22,
     fontWeight: "700",
+    letterSpacing: 1,
     color: "rgba(255,255,255,0.88)",
     textShadowColor: "rgba(22,28,64,0.6)",
     textShadowOffset: { width: 0, height: 1 },

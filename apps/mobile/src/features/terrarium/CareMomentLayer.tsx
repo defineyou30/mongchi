@@ -4,6 +4,8 @@ import { Animated, Easing, StyleSheet, View } from "react-native";
 import type { CareActionType } from "@mongchi/shared";
 
 import { GameItemImage } from "../../shared/ui/GameIllustrations";
+import { BubbleShape } from "../../shared/ui/effects/BubbleShape";
+import { HeartShape } from "../../shared/ui/effects/HeartShape";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { getCareMomentStaging } from "./terrariumHomeCareMoment";
 import type {
@@ -247,10 +249,10 @@ function HeartBurstMoment({
         });
 
         return (
-          <Animated.Text
+          <Animated.View
             key={offsetX}
             style={[
-              styles.heartGlyph,
+              styles.heartParticle,
               {
                 left: offsetX,
                 opacity: localProgress.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 1, 1, 0] }),
@@ -261,8 +263,8 @@ function HeartBurstMoment({
               }
             ]}
           >
-            {"❤"}
-          </Animated.Text>
+            <HeartShape size={20} />
+          </Animated.View>
         );
       })}
     </View>
@@ -330,16 +332,15 @@ function BubbleBurstMoment({
           outputRange: [0, 0, 1],
           extrapolate: "clamp"
         });
-        // Unicode circle glyphs, not emoji (see CLAUDE.md's no-emoji copy
-        // rule) -- alternating sizes read as a small cluster of bubbles
-        // rather than one repeated shape.
-        const glyph = index % 2 === 0 ? "○" : "◦";
+        // Alternating sizes read as a small cluster of bubbles rather than
+        // one repeated shape (previously alternating "○"/"◦" glyphs).
+        const bubbleSize = index % 2 === 0 ? 18 : 13;
 
         return (
-          <Animated.Text
+          <Animated.View
             key={offsetX}
             style={[
-              styles.bubbleGlyph,
+              styles.bubbleParticle,
               {
                 left: offsetX,
                 opacity: localProgress.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 1, 1, 0] }),
@@ -350,8 +351,8 @@ function BubbleBurstMoment({
               }
             ]}
           >
-            {glyph}
-          </Animated.Text>
+            <BubbleShape size={bubbleSize} />
+          </Animated.View>
         );
       })}
     </View>
@@ -405,11 +406,8 @@ const styles = StyleSheet.create({
     width: 60,
     height: 20
   },
-  heartGlyph: {
-    position: "absolute",
-    fontSize: 20,
-    lineHeight: 22,
-    color: "#FF6B8A"
+  heartParticle: {
+    position: "absolute"
   },
   bubbleAnchor: {
     position: "absolute",
@@ -420,13 +418,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 20
   },
-  bubbleGlyph: {
-    position: "absolute",
-    fontSize: 18,
-    lineHeight: 20,
-    color: "rgba(255,255,255,0.94)",
-    textShadowColor: "rgba(122,168,255,0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+  bubbleParticle: {
+    position: "absolute"
   }
 });
