@@ -16,8 +16,8 @@
 
 # Mongchi Privacy Policy
 
-**Last updated:** July 7, 2026
-**Version:** 1.0
+**Last updated:** July 8, 2026
+**Version:** 1.1
 
 Mongchi ("the app", "we", "us") is a pet-care healing app that turns a photo
 of your real pet into an AI-generated pixel companion you can care for. This
@@ -136,9 +136,17 @@ rights map onto your device session:
 
 - **Delete your original photo** — available directly in the app during the
   photo/generation flow.
-- **Delete your data entirely** — contact us (see §9) with your request. We
-  will delete your generated avatars, stored profile data, and associated
-  server-side records tied to your anonymous session identifier.
+- **Delete your data entirely** — available directly in the app: go to
+  Settings and choose "Delete pet data." This deletes this device's local
+  data and also asks our servers to delete your uploaded photo, generated
+  avatars, and every database record tied to your anonymous account
+  (generation history, credit balance, and pet slots), then deletes the
+  anonymous account itself. If the app can't reach our servers when you do
+  this (for example, you're offline), your local data is still cleared
+  immediately and the app will tell you to try again later so the
+  server-side deletion can complete. You can also contact us (see §9) if
+  you'd rather request this by email, or if you run into trouble with the
+  in-app option.
 - **Local game data** — since care stats, memories, and progress live only
   on your device, uninstalling the app or clearing its storage removes that
   data immediately, without needing to contact us. Note that this data does

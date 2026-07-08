@@ -8,8 +8,8 @@ import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 
-// Last updated July 7, 2026 · v1.0 — keep in sync with docs/legal/privacy-policy.md.
-const PRIVACY_LAST_UPDATED = "Last updated July 7, 2026 · v1.0";
+// Last updated July 8, 2026 · v1.1 — keep in sync with docs/legal/privacy-policy.md.
+const PRIVACY_LAST_UPDATED = "Last updated July 8, 2026 · v1.1";
 
 const privacyItems = [
   "No account, no email — the app opens with an anonymous session, not a signup.",
@@ -31,7 +31,7 @@ const privacySections: Array<{ title: string; body: string }> = [
   {
     title: "Your rights",
     body:
-      "You can delete your original photo separately from the generated avatar during the photo flow. You can request full deletion of your session's data — generated avatars, stored profile data, and server-side records — by contacting support below. This covers access, correction, and deletion rights under regimes like GDPR and CCPA."
+      "You can delete your original photo separately from the generated avatar during the photo flow. For full deletion, go to Settings and choose \"Delete pet data\" — this clears this device's local data and asks our servers to delete your photo, generated avatars, and every database record tied to your anonymous account, then deletes the account itself. If we can't reach our servers at that moment, your local data still clears right away and the app will ask you to retry later so the server-side part finishes. You can also reach support below if you'd rather request this by email. This covers access, correction, and deletion rights under regimes like GDPR and CCPA."
   },
   {
     title: "Children",

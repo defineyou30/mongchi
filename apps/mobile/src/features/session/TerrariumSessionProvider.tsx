@@ -92,6 +92,7 @@ import {
 import { createAsyncActionGuard } from "./asyncActionGuard";
 import { hasActiveGenerationJob } from "./generationJobGuards";
 import { getSupabaseClient } from "./supabaseClient";
+import { deleteSupabaseAccountData } from "./supabaseAccountDeletion";
 import {
   hydrateServerCreditBalance,
   pollSupabaseExpressionPackFlow,
@@ -175,6 +176,19 @@ export type PurchaseExpressionPackResult =
   | { ok: true; messageSafe: string }
   | { ok: false; messageSafe: string };
 
+/**
+ * resetSession's result. `ok` mirrors the pre-existing boolean contract:
+ * false only when the legacy api-mode block (services/api's deletePrivacyPet)
+ * fails and aborts before any local wipe happens -- callers should not
+ * navigate away in that case, same as before this type existed. `true`
+ * means the local device reset happened (as it unconditionally does once
+ * that legacy block is past); `serverDeleteWarning`, when present, means the
+ * Supabase-backed delete-account call (see supabaseAccountDeletion.ts)
+ * could not confirm full server-side deletion and the caller should surface
+ * a warm "try again later" notice -- see resetSession's doc comment.
+ */
+export type ResetSessionResult = { ok: boolean; serverDeleteWarning?: string };
+
 /** "Back up your friend": hands back the exact JSON text to share/save. Pure read of the current in-memory session -- never touches storage. */
 export type ExportSessionBackupResult = { ok: true; backupText: string } | { ok: false; messageSafe: string };
 
@@ -256,7 +270,7 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   syncWallet: (wallet: CreditWallet) => void;
   /** Refreshes wallet.credits from the server (credit_wallets via get_credit_balance) -- see hydrateCreditBalance's doc comment. No-op without a Supabase client or on a failed fetch. */
   hydrateCreditBalance: () => Promise<void>;
-  resetSession: () => Promise<boolean>;
+  resetSession: () => Promise<ResetSessionResult>;
   /** Serializes the current session as shareable backup text (see ExportSessionBackupResult's doc comment). */
   exportSessionBackup: () => ExportSessionBackupResult;
   /** Validates, migrates, and restores a pasted backup (see ImportSessionBackupResult's doc comment). */
@@ -1952,7 +1966,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     };
   }, [apiRuntime, apiCommerceProducts, nativeCheckoutReady, purchaseStatusMessage, setApiError, setPurchaseError]);
 
-  const resetSession = useCallback(async () => {
+  const resetSession = useCallback(async (): Promise<ResetSessionResult> => {
     if (apiRuntime.mode === "api" && activeBundle.petProfile?.id) {
       setApiSyncStatus("syncing");
       setApiErrorMessage(null);
@@ -1961,10 +1975,51 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
       if (!result.ok) {
         setApiError(result.error);
-        return false;
+        return { ok: false };
       }
 
       setApiSyncStatus("ready");
+    }
+
+    // Supabase-backed generation flow (see supabaseGenerationSession.ts):
+    // when this device holds a live anonymous Supabase auth session, ask
+    // the delete-account Edge Function to erase every server-side trace --
+    // pet-media storage, generation_jobs/generated_assets/generation_quota/
+    // credit_wallets/credit_ledger/pet_slots rows, and the anonymous auth
+    // user itself (see supabase/functions/delete-account/index.ts) -- before
+    // wiping the local session below. Unlike the api-mode block above, a
+    // failure here never blocks the local reset: the device-local data is
+    // the user's to clear regardless of server reachability, and the local
+    // reset only ever promised to remove "this device's" setup/care state.
+    let serverDeleteWarning: string | undefined;
+    const supabaseClient = getSupabaseClient();
+
+    if (supabaseClient) {
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+
+      if (sessionData.session) {
+        setApiSyncStatus("syncing");
+        setApiErrorMessage(null);
+
+        const deletion = await deleteSupabaseAccountData(supabaseClient);
+
+        if (deletion.ok || deletion.reason === "unauthorized") {
+          // Either genuinely deleted server-side, or the session was
+          // already stale/pointing at an account with nothing left to
+          // delete -- either way there's nothing to retry, so drop the
+          // local Supabase session instead of keeping a dead JWT around.
+          await supabaseClient.auth.signOut().catch(() => {});
+        } else {
+          // Real transient failure (offline, 5xx, unexpected throw, or a
+          // partial server-side failure -- see deleteSupabaseAccountData's
+          // doc comment). Keep the session alive so a later retry from
+          // Settings can still reach the same account.
+          serverDeleteWarning =
+            "This device is reset, but we couldn't finish deleting your data from our servers. Please try again later from Settings once you're back online.";
+        }
+
+        setApiSyncStatus("ready");
+      }
     }
 
     const initialState = createInitialPrototypeSession(nowIso());
@@ -1976,7 +2031,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       AsyncStorage.removeItem(CORRUPT_SESSION_BACKUP_KEY)
     ]);
 
-    return true;
+    return { ok: true, ...(serverDeleteWarning ? { serverDeleteWarning } : {}) };
   }, [apiRuntime, activeBundle.petProfile?.id, setApiError]);
 
   /**

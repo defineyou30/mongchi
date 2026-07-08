@@ -192,14 +192,21 @@ export function SettingsScreen() {
 
   const handleReset = () => {
     showDialog({
-      title: "Delete pet data?",
-      message: "This resets this device's pet setup, generated pet, care state, inventory, and deletion markers.",
+      title: "Delete all your data?",
+      message:
+        "This deletes this device's pet setup, generated pet, care state, and inventory, and also asks our servers to delete your photo, generated avatars, and account data. This can't be undone.",
       primaryLabel: "Delete",
       secondaryLabel: "Cancel",
       onPrimary: () => {
-        void resetSession().then((deleted) => {
-          if (deleted) {
-            router.replace("/onboarding");
+        void resetSession().then((result) => {
+          if (!result.ok) {
+            return;
+          }
+
+          router.replace("/onboarding");
+
+          if (result.serverDeleteWarning) {
+            showDialog({ title: "Server delete needs a retry", message: result.serverDeleteWarning });
           }
         });
       }
