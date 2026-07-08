@@ -19,6 +19,7 @@ import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
+import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { walkCollectibleAssets } from "../../shared/assets/walkCollectibleAssets";
 import { buildFriendShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
@@ -42,6 +43,11 @@ import {
 
 /** Persists whether the 30-day letter has been opened, so it stays readable on every future visit. */
 const MONTHLY_LETTER_OPENED_KEY = "mongchi.friend.monthlyLetter.openedAt.v1";
+
+// The 30-day letter's "a gift is waiting" motif -- looped while locked/arrived,
+// never shown once opened (see MonthlyLetterCardBody and the letter card's
+// locked branch below). Required at module scope so it's bundled once.
+const giftBoxAnimation = require("../../../assets/lottie/gift-box.json");
 
 /** Persists which expression packs' reveal showcase (stagger + banner line) has already played once. */
 const POSE_REVEAL_SEEN_PACK_IDS_KEY = "mongchi.friend.poseReveal.seenPackIds.v1";
@@ -119,6 +125,11 @@ function MonthlyLetterCardBody({
   };
 
   if (showEnvelope) {
+    // Arrived-but-unopened: the gift box takes over as the visual lead --
+    // a little brighter/bigger than the locked-state loop below, since this
+    // one's actually ready to open -- with the existing preview line + Open
+    // CTA underneath. Both fade and shake together with the rest of this
+    // view during handleOpen's anticipation + unfold sequence.
     return (
       <Animated.View
         style={{
@@ -126,6 +137,12 @@ function MonthlyLetterCardBody({
           transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ["-3deg", "3deg"] }) }]
         }}
       >
+        <LottieAnimation
+          accessibilityLabel={`${petName}'s letter is wrapped as a gift, ready to open`}
+          loop
+          source={giftBoxAnimation}
+          style={letterStyles.arrivedGiftBox}
+        />
         <Text style={[letterStyles.streakHeadline, letterStyles.body]}>{previewLine}</Text>
         <ActionButton
           accessibilityLabel={`Open ${petName}'s one-month letter`}
@@ -160,6 +177,11 @@ const letterStyles = StyleSheet.create({
   body: {
     fontSize: 15,
     lineHeight: 21
+  },
+  arrivedGiftBox: {
+    alignSelf: "center",
+    width: 108,
+    height: 108
   },
   memoryText: {
     color: colors.mutedInk,
@@ -628,7 +650,14 @@ export function FriendProfileScreen() {
 
         {monthlyLetter.status === "locked" ? (
           <>
-            <Text style={[styles.streakHeadline, typography.body]}>{monthlyLetter.previewLine}</Text>
+            {/* A quietly looping gift box stands in for the old sealed-envelope
+                preview line -- "a treasure waiting to be opened" -- while the
+                day-count progress read stays as plain text underneath. The
+                previewLine copy still reaches screen readers via this
+                wrapper's accessibilityLabel. */}
+            <View accessibilityLabel={monthlyLetter.previewLine} style={styles.letterGiftBoxLockedWrap}>
+              <LottieAnimation loop source={giftBoxAnimation} style={styles.letterGiftBoxLocked} />
+            </View>
             <Text style={[styles.cardCaption, typography.label]}>{monthlyLetter.progressLabel}</Text>
           </>
         ) : null}
@@ -935,6 +964,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...shadows.tile
+  },
+  // Locked state's quiet "waiting to be opened" loop -- smaller and calmer
+  // than the arrived state's gift box (see letterStyles.arrivedGiftBox)
+  // since there's nothing to do yet but watch it sit there.
+  letterGiftBoxLockedWrap: {
+    alignSelf: "center"
+  },
+  letterGiftBoxLocked: {
+    width: 72,
+    height: 72
   },
 
   // --- Plain fallback card (memory note) --------------------------------------

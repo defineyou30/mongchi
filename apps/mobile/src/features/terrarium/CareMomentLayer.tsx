@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 
 import type { CareActionType } from "@mongchi/shared";
 
 import { GameItemImage } from "../../shared/ui/GameIllustrations";
 import { BubbleShape } from "../../shared/ui/effects/BubbleShape";
-import { HeartShape } from "../../shared/ui/effects/HeartShape";
+import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { getCareMomentStaging } from "./terrariumHomeCareMoment";
 import type {
@@ -14,6 +14,11 @@ import type {
   CareMomentBubbleBurstStaging,
   CareMomentHeartBurstStaging
 } from "./terrariumHomeCareMoment";
+
+// The affection care moment's one-shot burst (see HeartBurstMoment below) --
+// required at module scope like TerrariumHomeScreen's paws-animation so the
+// asset is bundled once, not re-required on every remount.
+const heartBurstAnimation = require("../../../assets/lottie/heart-burst.json");
 
 interface CareMomentLayerProps {
   /** The most recent care action, or null when nothing has fired yet this session. */
@@ -195,6 +200,10 @@ function BallMoment({
   );
 }
 
+// How long the burst's opacity takes to fade to nothing once the Lottie
+// playthrough finishes, so the last frame never just sits there frozen.
+const HEART_BURST_FADE_OUT_MS = 280;
+
 function HeartBurstMoment({
   staging,
   petStageBottomPx,
@@ -204,79 +213,51 @@ function HeartBurstMoment({
   petStageBottomPx: number;
   reduceMotionEnabled: boolean;
 }) {
-  const progress = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const [hasFinishedPlaying, setHasFinishedPlaying] = useState(false);
 
   useEffect(() => {
-    if (reduceMotionEnabled) {
+    if (!hasFinishedPlaying) {
       return;
     }
 
-    const animation = Animated.timing(progress, {
-      toValue: 1,
-      duration: staging.totalMs,
-      easing: Easing.out(Easing.quad),
+    const animation = Animated.timing(opacity, {
+      toValue: 0,
+      duration: HEART_BURST_FADE_OUT_MS,
+      easing: Easing.in(Easing.quad),
       useNativeDriver: true
     });
 
     animation.start();
 
     return () => animation.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasFinishedPlaying, opacity]);
 
   if (reduceMotionEnabled) {
     return null;
   }
 
-  // 2-3 small hearts drift up and fade near the tap point (just above the
-  // pet's body), each offset slightly in x and with a small stagger so they
-  // don't read as one blob.
-  const heartOffsets = heartOffsetsByCount[staging.heartCount] ?? defaultHeartOffsets;
-
+  // A single heart-burst Lottie plays once over the pet, then fades out --
+  // replacing the old 2-3 drifting SVG hearts (BubbleBurstMoment below keeps
+  // its SVG bubbles; only affection's moment moved to Lottie).
   return (
-    <View
+    <Animated.View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       pointerEvents="none"
-      style={[styles.heartAnchor, { bottom: petStageBottomPx + 140 }]}
+      style={[styles.heartBurstAnchor, { bottom: petStageBottomPx + 30, opacity }]}
     >
-      {heartOffsets.map((offsetX, index) => {
-        const staggerStart = index * 0.12;
-        const localProgress = progress.interpolate({
-          inputRange: [0, Math.min(0.999, staggerStart), 1],
-          outputRange: [0, 0, 1],
-          extrapolate: "clamp"
-        });
-
-        return (
-          <Animated.View
-            key={offsetX}
-            style={[
-              styles.heartParticle,
-              {
-                left: offsetX,
-                opacity: localProgress.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 1, 1, 0] }),
-                transform: [
-                  { translateY: localProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -54] }) },
-                  { scale: localProgress.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.4, 1, 0.9] }) }
-                ]
-              }
-            ]}
-          >
-            <HeartShape size={20} />
-          </Animated.View>
-        );
-      })}
-    </View>
+      <LottieAnimation
+        accessibilityLabel={staging.accessibilityLabel}
+        autoPlay
+        loop={false}
+        source={heartBurstAnimation}
+        style={styles.heartBurstAnimation}
+        onAnimationFinish={() => setHasFinishedPlaying(true)}
+      />
+    </Animated.View>
   );
 }
-
-const defaultHeartOffsets = [-26, 0, 26];
-
-const heartOffsetsByCount: Record<number, number[]> = {
-  2: [-18, 18],
-  3: defaultHeartOffsets
-};
 
 function BubbleBurstMoment({
   staging,
@@ -397,17 +378,20 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44
   },
-  heartAnchor: {
+  heartBurstAnchor: {
     position: "absolute",
     alignSelf: "center",
     left: "50%",
-    marginLeft: -30,
+    marginLeft: -80,
     zIndex: 56,
-    width: 60,
-    height: 20
+    width: 160,
+    height: 160,
+    alignItems: "center",
+    justifyContent: "center"
   },
-  heartParticle: {
-    position: "absolute"
+  heartBurstAnimation: {
+    width: 160,
+    height: 160
   },
   bubbleAnchor: {
     position: "absolute",
