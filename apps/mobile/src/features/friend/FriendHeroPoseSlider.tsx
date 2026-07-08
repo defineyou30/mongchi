@@ -8,7 +8,7 @@ import type { GeneratedAssetId, PetSpecies } from "@mongchi/shared";
 import { getFallbackGeneratedPetAssetId, GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
 import { colors, radii, shadows, spacing } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
-import { buildHeroPoseSlides } from "./friendHeroPosePresentation";
+import { buildHeroPoseSlides, getRemainingPoseCountByPackId, getUnlockOverlayHeadline } from "./friendHeroPosePresentation";
 import type { FriendPoseCard, FriendPoseCell } from "./friendProfilePresentation";
 
 /** Slide + shadow footprint -- matches the size the pre-pager single-portrait hero used, so the rest of the hero layout (name plate spacing, shadow placement) needed no further tuning. */
@@ -93,6 +93,8 @@ interface LockedPoseSlideProps {
   petName: string;
   petSpecies: PetSpecies;
   card: FriendPoseCard | null;
+  /** How many locked slides (across the whole pager) belong to this same pack -- see getRemainingPoseCountByPackId. */
+  remainingCount: number;
   onUnlock: (packId: string) => void;
 }
 
@@ -103,8 +105,14 @@ interface LockedPoseSlideProps {
  * art to preview here (the pose doesn't exist until generated), so this
  * intentionally reuses the pet's fallback idle asset rather than a "?"
  * glyph, keeping the pager visually continuous while it's mid-swipe.
+ *
+ * The overlay leads with the pack name, then a pack-wide headline ("Unlock 3
+ * more moments · 12cr") built from remainingCount rather than card.label --
+ * the same card repeats on every locked slide of a multi-state pack, so a
+ * flat "· 12cr" price read like a per-slide tag; spelling out the count
+ * makes clear the price buys the pack's remaining poses all at once.
  */
-function LockedPoseSlide({ petName, petSpecies, card, onUnlock }: LockedPoseSlideProps) {
+function LockedPoseSlide({ petName, petSpecies, card, remainingCount, onUnlock }: LockedPoseSlideProps) {
   const fallbackAssetId = getFallbackGeneratedPetAssetId(petSpecies, "idle");
 
   return (
@@ -117,8 +125,11 @@ function LockedPoseSlide({ petName, petSpecies, card, onUnlock }: LockedPoseSlid
       />
       {card ? (
         <View style={styles.unlockOverlay}>
+          <Text numberOfLines={1} style={styles.unlockPackName}>
+            {card.nameEn}
+          </Text>
           <Text numberOfLines={2} style={styles.unlockLabel}>
-            {card.label}
+            {getUnlockOverlayHeadline(remainingCount, card.creditCost)}
           </Text>
           {card.status === "purchasing" && card.progressLine ? <Text style={styles.unlockCaption}>{card.progressLine}</Text> : null}
           {card.status === "failed" && card.failureLine ? <Text style={styles.unlockCaption}>{card.failureLine}</Text> : null}
@@ -161,6 +172,7 @@ export function HeroPoseSlider({
   onUnlockPack
 }: HeroPoseSliderProps) {
   const slides = useMemo(() => buildHeroPoseSlides(cells, cards), [cells, cards]);
+  const remainingCountByPackId = useMemo(() => getRemainingPoseCountByPackId(slides), [slides]);
   const [activeIndex, setActiveIndex] = useState(0);
 
   const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -201,7 +213,13 @@ export function HeroPoseSlider({
                   staggerIndex={index}
                 />
               ) : (
-                <LockedPoseSlide card={slide.lockedCard} petName={petName} petSpecies={petSpecies} onUnlock={onUnlockPack} />
+                <LockedPoseSlide
+                  card={slide.lockedCard}
+                  petName={petName}
+                  petSpecies={petSpecies}
+                  remainingCount={slide.lockedCard ? (remainingCountByPackId[slide.lockedCard.packId] ?? 0) : 0}
+                  onUnlock={onUnlockPack}
+                />
               )}
             </View>
           ))}
@@ -286,6 +304,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     ...shadows.tile
+  },
+  unlockPackName: {
+    color: colors.mutedInk,
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    textAlign: "center"
   },
   unlockLabel: {
     color: colors.ink,

@@ -224,6 +224,9 @@ const playEventToastSfx = (toastId: string): void => {
 const speechBubbleAsset = require("../../../assets/generated/ui/speech-bubble-v1.png");
 const pawsAnimation = require("../../../assets/lottie/paws-animation.json");
 const pathButtonAsset = require("../../../assets/game-buttons/path.png");
+const restFeedbackAsset = require("../../../assets/game-buttons/feedback/moon.png");
+const cleanFeedbackAsset = require("../../../assets/game-buttons/feedback/clean.png");
+const heartFeedbackAsset = require("../../../assets/game-buttons/feedback/heart.png");
 const homeActionAssetPreference: Record<CareActionType, GeneratedAssetState> = {
   affection: "happy",
   clean: "happy",
@@ -324,11 +327,35 @@ const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
         />
       );
     case "rest":
-      return <Moon color={colors.skyDeep} size={22} strokeWidth={3} />;
+      return (
+        <Image
+          accessibilityIgnoresInvertColors
+          accessibilityLabel="Rest feedback"
+          resizeMode="contain"
+          source={restFeedbackAsset}
+          style={styles.careFeedbackItemIcon}
+        />
+      );
     case "clean":
-      return <Droplets color={colors.lavender} size={22} strokeWidth={3} />;
+      return (
+        <Image
+          accessibilityIgnoresInvertColors
+          accessibilityLabel="Clean feedback"
+          resizeMode="contain"
+          source={cleanFeedbackAsset}
+          style={styles.careFeedbackItemIcon}
+        />
+      );
     case "heart":
-      return <Heart color={colors.rose} fill={colors.rose} size={21} strokeWidth={2.4} />;
+      return (
+        <Image
+          accessibilityIgnoresInvertColors
+          accessibilityLabel="Heart feedback"
+          resizeMode="contain"
+          source={heartFeedbackAsset}
+          style={styles.careFeedbackItemIcon}
+        />
+      );
   }
 };
 

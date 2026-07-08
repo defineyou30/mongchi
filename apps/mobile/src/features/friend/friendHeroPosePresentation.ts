@@ -51,3 +51,31 @@ export const buildHeroPoseSlides = (cells: readonly FriendPoseCell[], cards: rea
 
     return { cell, lockedCard };
   });
+
+/**
+ * How many locked slides in this pager belong to each pack. A pack's unlock
+ * card renders identically on every one of its locked slides (see
+ * buildHeroPoseSlides above), which used to read like a per-slide price tag
+ * -- this count lets the hero pager's overlay instead say "Unlock 3 more
+ * moments · 12cr", making it unmistakable that the price buys the whole
+ * pack's remaining poses at once, not just the one slide it happens to be
+ * showing.
+ */
+export const getRemainingPoseCountByPackId = (slides: readonly HeroPoseSlide[]): Record<string, number> => {
+  const counts: Record<string, number> = {};
+
+  for (const slide of slides) {
+    if (slide.cell.status !== "locked" || !slide.lockedCard) {
+      continue;
+    }
+
+    const packId = slide.lockedCard.packId;
+    counts[packId] = (counts[packId] ?? 0) + 1;
+  }
+
+  return counts;
+};
+
+/** "Unlock 3 more moments · 12cr" -- the hero pager's locked-slide overlay headline, built from the pack-wide remaining count rather than the (misleadingly per-slide-looking) card.label. */
+export const getUnlockOverlayHeadline = (remainingCount: number, creditCost: number): string =>
+  `Unlock ${remainingCount} more moment${remainingCount === 1 ? "" : "s"} · ${creditCost}cr`;

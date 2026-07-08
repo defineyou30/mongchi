@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makeMockGeneratedAsset } from "@mongchi/shared";
 import type { GeneratedAsset } from "@mongchi/shared";
 
-import { buildHeroPoseSlides, orderHeroPoseCells } from "./friendHeroPosePresentation";
+import { buildHeroPoseSlides, getRemainingPoseCountByPackId, getUnlockOverlayHeadline, orderHeroPoseCells } from "./friendHeroPosePresentation";
 import { getFriendPoseGalleryPresentation } from "./friendProfilePresentation";
 
 const freeTrioAssets: GeneratedAsset[] = (["idle", "happy", "sleep"] as const).map((state) =>
@@ -101,5 +101,37 @@ describe("buildHeroPoseSlides", () => {
 
     expect(slides.every((slide) => slide.cell.status === "owned")).toBe(true);
     expect(slides.every((slide) => slide.lockedCard === null)).toBe(true);
+  });
+});
+
+describe("getRemainingPoseCountByPackId", () => {
+  it("counts every locked slide belonging to the same pack, keyed by packId", () => {
+    const { cells, cards } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
+    const slides = buildHeroPoseSlides(cells, cards);
+
+    const counts = getRemainingPoseCountByPackId(slides);
+
+    expect(counts["pack-everyday-moments"]).toBe(3);
+  });
+
+  it("returns an empty map once every pack is fully owned (no locked slides left)", () => {
+    const allAssets: GeneratedAsset[] = [
+      ...freeTrioAssets,
+      ...(["curious", "play", "hungry"] as const).map((state) =>
+        makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_pack_001" })
+      )
+    ];
+    const { cells, cards } = getFriendPoseGalleryPresentation(allAssets, "Momo");
+    const slides = buildHeroPoseSlides(cells, cards);
+
+    expect(getRemainingPoseCountByPackId(slides)).toEqual({});
+  });
+});
+
+describe("getUnlockOverlayHeadline", () => {
+  it("pluralizes 'moments' for counts other than one, and singularizes for exactly one", () => {
+    expect(getUnlockOverlayHeadline(3, 12)).toBe("Unlock 3 more moments · 12cr");
+    expect(getUnlockOverlayHeadline(1, 12)).toBe("Unlock 1 more moment · 12cr");
+    expect(getUnlockOverlayHeadline(0, 12)).toBe("Unlock 0 more moments · 12cr");
   });
 });

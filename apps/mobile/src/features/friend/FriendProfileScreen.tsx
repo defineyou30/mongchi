@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import type { ComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   expressionPacks,
@@ -297,12 +296,6 @@ export function FriendProfileScreen() {
   const typography = useTypography();
   const fontFamilies = useFontFamilies();
   const reduceMotionEnabled = useReducedMotionPreference();
-  // Only the hero's floating back button needs to sit inside the safe-area
-  // top inset -- the hero stage itself is pulled up past it (see heroStage's
-  // marginTop below) so the garden backdrop and pet pager bleed all the way
-  // behind the status bar / dynamic island instead of stopping at a flat
-  // safe-area strip.
-  const insets = useSafeAreaInsets();
   const [now] = useState(() => new Date().toISOString());
   const [isSharing, setIsSharing] = useState(false);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
@@ -510,13 +503,24 @@ export function FriendProfileScreen() {
     >
       {/* 1. HERO STAGE -- the page's first beat: a back button overlaid on
           the garden backdrop (GardenSceneFrame's own background art already
-          supplies the "garden" behind everything below, bled up past the
-          safe-area top via this stage's negative marginTop), a swipeable
-          pager of the pet's poses front and center, name + moved-in line
-          grounded on a little plaque. */}
-      <View style={[styles.heroStage, { marginTop: -insets.top }]}>
-        <View style={[styles.heroHeaderOverlay, { paddingTop: insets.top + spacing.sm }]}>
+          supplies the "garden" behind everything below), the name +
+          moved-in line pinned above the pet as a fixed plaque, then a
+          swipeable pager of the pet's poses underneath. The name plate is
+          the stage's first flow element (sitting safely in the SafeAreaView
+          top inset GardenSceneFrame already applies) so it's always the
+          topmost thing on the page -- swiping the pager to an unowned pose's
+          "Unlock" overlay stays inside the pager frame below, never floating
+          over the name. */}
+      <View style={styles.heroStage}>
+        <View style={styles.heroHeaderOverlay}>
           <BackButton accessibilityLabel="Back home" onPress={() => router.push("/terrarium")} />
+        </View>
+
+        <View style={styles.heroNamePlate}>
+          <Text accessibilityRole="header" style={[styles.heroName, { fontFamily: fontFamilies.display }]}>
+            {activePet.name}
+          </Text>
+          <Text style={[styles.heroMovedInLine, typography.label]}>{movedInLine}</Text>
         </View>
 
         <HeroPoseSlider
@@ -531,13 +535,6 @@ export function FriendProfileScreen() {
           reduceMotionEnabled={reduceMotionEnabled}
           onUnlockPack={(packId) => void handleUnlockPosePack(packId)}
         />
-
-        <View style={styles.heroNamePlate}>
-          <Text accessibilityRole="header" style={[styles.heroName, { fontFamily: fontFamilies.display }]}>
-            {activePet.name}
-          </Text>
-          <Text style={[styles.heroMovedInLine, typography.label]}>{movedInLine}</Text>
-        </View>
       </View>
 
       {/* 2. STAT RIBBON -- Bond / Streak / Together condensed into one row
@@ -728,12 +725,11 @@ const styles = StyleSheet.create({
   },
 
   // --- 1. Hero stage ------------------------------------------------------
-  // marginTop on this View (applied inline, see JSX -- it needs the runtime
-  // safe-area inset) pulls the whole stage up past the SafeAreaView's top
-  // padding so the garden backdrop keeps going behind the status bar /
-  // dynamic island instead of stopping at a flat safe-area-colored strip.
-  // Only heroHeaderOverlay's back button re-adds that inset for itself
-  // (also inline) so it doesn't creep into the unsafe area.
+  // GardenSceneFrame's own SafeAreaView already keeps everything here clear
+  // of the status bar / dynamic island, so this stage is plain in-flow
+  // content -- no manual inset math needed. heroHeaderOverlay floats the
+  // back button over the name plate's row (same paddingTop as this stage's
+  // own, so both start at the same height) without adding to the flow.
   heroStage: {
     position: "relative",
     alignItems: "center",
@@ -745,6 +741,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    paddingTop: spacing.sm,
     zIndex: 30
   },
   heroNamePlate: {
