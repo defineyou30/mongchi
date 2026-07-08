@@ -169,3 +169,47 @@ export function getHomeStageHorizontalMarginLeftPx(windowWidth: number, elementW
 export function clearsCareTray(bottomPx: number): boolean {
   return bottomPx >= CARE_TRAY_TOP_PX_FROM_BOTTOM;
 }
+
+/**
+ * Walk paw-trail Lottie (walkPawsLayer in TerrariumHomeScreen): shown
+ * centered and enlarged while a walk is in progress, replacing the pet
+ * sprite entirely for that window. User feedback on the 3-minute wait was
+ * that the small, off-center trail (132px, left 18%/bottom 64) read as
+ * "nothing is happening" -- this scales it up toward 2x and centers it in
+ * the garden, but only as far as the screen actually has room for, so it
+ * never crowds the side-rail icons (shop/chat/settings/friend) above it or
+ * the walk status panel below it.
+ */
+const WALK_PAWS_BASE_SIZE_PX = 132;
+/** Roughly 2x the original trail -- the target size on any screen tall enough to fit it. */
+const WALK_PAWS_TARGET_SIZE_PX = WALK_PAWS_BASE_SIZE_PX * 2;
+/** Side-rail icon stack's bottom edge (sceneSideRailLeft/Right: top 126 + 2 * 58 buttons + 16 gap), from the top of the screen. */
+const WALK_PAWS_RAIL_CLEARANCE_PX_FROM_TOP = 258;
+/** Walk status panel's top edge (walkPanel: bottom 118 + ~78px of title/subcopy/button content), from the bottom of the screen. */
+const WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM = 200;
+/** Minimum breathing room kept clear of both clearance lines above, on top of the lines themselves. */
+const WALK_PAWS_SAFETY_MARGIN_PX = 16;
+
+/**
+ * The paw layer's square size for a given window height: as close to 2x the
+ * original trail as the vertical gap between the side rails and the walk
+ * panel allows, never smaller than the original size. Reaches the full 2x
+ * target on ordinary/tall screens; only shrinks (gracefully, never
+ * disappears) on the smallest supported screen where that gap is tight.
+ */
+export function getWalkPawsLayerSizePx(windowHeight: number): number {
+  const availableBandPx = windowHeight - WALK_PAWS_RAIL_CLEARANCE_PX_FROM_TOP - WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM;
+
+  return Math.max(WALK_PAWS_BASE_SIZE_PX, Math.min(WALK_PAWS_TARGET_SIZE_PX, availableBandPx - WALK_PAWS_SAFETY_MARGIN_PX));
+}
+
+/**
+ * Bottom offset (px, from screen bottom) that centers a `sizePx`-tall paw
+ * layer within the same safe vertical band `getWalkPawsLayerSizePx` sized
+ * against, so the two always agree on where the layer sits.
+ */
+export function getWalkPawsLayerBottomPx(windowHeight: number, sizePx: number): number {
+  const availableBandPx = windowHeight - WALK_PAWS_RAIL_CLEARANCE_PX_FROM_TOP - WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM;
+
+  return WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM + Math.max(0, (availableBandPx - sizePx) / 2);
+}

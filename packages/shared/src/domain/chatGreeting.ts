@@ -81,12 +81,20 @@ const defaultGreetingLines: readonly string[] = [
   "There you are. I've been waiting."
 ];
 
+/** Shown instead of any memory/care-based greeting while a walk is in progress -- see ChatGreetingLineInput.isOnWalk. */
+const walkGreetingLines: readonly string[] = [
+  "On my walk! Smells amazing out here.",
+  "Can't talk long -- I'm out and about right now."
+];
+
 export interface ChatGreetingLineInput {
   petName: string;
   memories: readonly MemoryEntry[];
   careStats: CareStats;
   careState?: Pick<CareState, "lastInteractionAt" | "updatedAt"> | undefined;
   now: string;
+  /** True while the pet is out on an active walk -- takes priority over every other greeting tier below. */
+  isOnWalk?: boolean;
 }
 
 const hashString = (value: string): number => {
@@ -149,13 +157,18 @@ const getMostRecentMilestoneWithinWindow = (memories: readonly MemoryEntry[], no
 /**
  * Builds the pet's free, ticket-less first chat greeting -- the "this pet
  * remembers me" moment shown before any paywall interaction. Priority:
- * 1) a milestone memory from the last 24-48h, 2) today's most-performed care
- * action, 3) the owner's all-time favorite care action, 4) a default warm
- * hello. Selection within each tier is deterministic (seeded by petName +
- * now + the chosen memory/action) so the same state renders the same line
- * across re-renders, while still varying across days/situations.
+ * 0) currently out on a walk, 1) a milestone memory from the last 24-48h,
+ * 2) today's most-performed care action, 3) the owner's all-time favorite
+ * care action, 4) a default warm hello. Selection within each tier is
+ * deterministic (seeded by petName + now + the chosen memory/action) so the
+ * same state renders the same line across re-renders, while still varying
+ * across days/situations.
  */
-export const buildChatGreetingLine = ({ petName, memories, careStats, careState, now }: ChatGreetingLineInput): string => {
+export const buildChatGreetingLine = ({ petName, memories, careStats, careState, now, isOnWalk }: ChatGreetingLineInput): string => {
+  if (isOnWalk) {
+    return chooseLine(walkGreetingLines, [petName, "walk", now.slice(0, 10)].join("|"));
+  }
+
   const milestone = getMostRecentMilestoneWithinWindow(memories, now);
 
   if (milestone) {

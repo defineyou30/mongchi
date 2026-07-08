@@ -73,6 +73,25 @@ const baseOptionByAction: Record<HomeFloatingDockAction, HomeCareMenuOption> = {
   }
 };
 
+/**
+ * "Bath" lives in the Water tray rather than owning a floating-dock button
+ * of its own -- clean's domain (cleanliness decay, cooldown) was already
+ * complete, but had no home-screen entry point at all, so a "Bath, please"
+ * reaction line had nothing for the owner to tap. This mirrors the base
+ * options above: always owned, no itemId, but its `action` is "clean"
+ * (outside HomeFloatingDockAction) rather than "water_garden" -- the same
+ * pattern base-feed's treat items already use via getOptionActionForItem.
+ */
+const bathOption: HomeCareMenuOption = {
+  id: "base-clean",
+  action: "clean",
+  title: "Bath",
+  meta: "+Fresh",
+  quantity: 1,
+  assetKey: "wateringCan",
+  owned: true
+};
+
 const isSpecialCareItemForAction = (action: HomeFloatingDockAction, item: Item): boolean => {
   switch (action) {
     case "affection":
@@ -135,6 +154,10 @@ export const getVisibleHomeCareMenuOptions = ({
   const ownedOptions = specialOptions.filter((option) => option.owned);
   const previewOptions = specialOptions.filter((option) => !option.owned).slice(0, Math.max(0, limit - 1));
   const visibleSpecialOptions = devStoreUnlocked ? ownedOptions : [...ownedOptions, ...previewOptions].slice(0, Math.max(0, limit - 1));
+  // Bath is a second always-visible base option, not one of the
+  // limit-bounded special/preview slots above (same reasoning as the base
+  // option itself never counting against `limit`).
+  const leadingOptions = action === "water_garden" ? [baseOptionByAction[action], bathOption] : [baseOptionByAction[action]];
 
-  return [baseOptionByAction[action], ...visibleSpecialOptions];
+  return [...leadingOptions, ...visibleSpecialOptions];
 };

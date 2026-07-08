@@ -23,6 +23,7 @@ export type ReactionCategory =
   | "walk_return_rare"
   | "garden_needs_water"
   | "garden_watered"
+  | "clean_done"
   | "rested"
   | "play_start"
   | "play_done"

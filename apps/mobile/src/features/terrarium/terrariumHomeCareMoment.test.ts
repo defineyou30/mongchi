@@ -55,8 +55,21 @@ describe("terrarium home care moment staging", () => {
     expect(staging.heartCount).toBeLessThanOrEqual(3);
   });
 
-  it("has no staging for actions outside the Tier 2 scope (walk, rest, talk, clean, treat)", () => {
-    const unstagedActions: CareActionType[] = ["walk", "rest", "talk", "clean", "treat"];
+  it("stages a 2-3 bubble burst for clean (Bath)", () => {
+    const staging = getCareMomentStaging("clean");
+
+    expect(staging?.kind).toBe("bubbleBurst");
+    if (staging?.kind !== "bubbleBurst") {
+      throw new Error("expected bubbleBurst staging");
+    }
+
+    expect(staging.bubbleCount).toBeGreaterThanOrEqual(2);
+    expect(staging.bubbleCount).toBeLessThanOrEqual(3);
+    expect(staging.totalMs).toBeGreaterThan(0);
+  });
+
+  it("has no staging for actions outside the Tier 2 scope (walk, rest, talk, treat)", () => {
+    const unstagedActions: CareActionType[] = ["walk", "rest", "talk", "treat"];
 
     for (const action of unstagedActions) {
       expect(getCareMomentStaging(action)).toBeNull();

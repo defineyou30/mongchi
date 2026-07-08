@@ -9,10 +9,16 @@ import {
   getHomeStageHorizontalMarginLeftPx,
   getHomeThoughtBubbleBottomPx,
   getHomeThoughtBubbleHeightPx,
-  getHomeThoughtBubbleVerticalPaddingPx
+  getHomeThoughtBubbleVerticalPaddingPx,
+  getWalkPawsLayerBottomPx,
+  getWalkPawsLayerSizePx
 } from "./homeStageLayout";
 
 const HUD_BOTTOM_PX_FROM_TOP = 100;
+/** Side-rail icon stack's bottom edge, re-derived independently from TerrariumHomeScreen's sceneSideRailLeft/Right + sceneRailButton styles (top 126 + 2 * 58 + gap 16). */
+const RAIL_BOTTOM_PX_FROM_TOP = 126 + 58 * 2 + 16;
+/** Walk panel's rough top edge, re-derived independently from TerrariumHomeScreen's walkPanel style (bottom 118 + content). */
+const WALK_PANEL_TOP_PX_FROM_BOTTOM = 196;
 
 // Bubble art safe-zone fractions, independently re-derived here (not
 // imported) from the same pixel sampling of
@@ -88,6 +94,62 @@ describe("getHomeThoughtBubbleBottomPx", () => {
     const bottom = getHomeThoughtBubbleBottomPx(HOME_STAGE_SMALLEST_SUPPORTED_SCREEN_HEIGHT_PX, threeLineBubbleHeightPx);
 
     expect(bottom + threeLineBubbleHeightPx).toBeLessThanOrEqual(HOME_STAGE_SMALLEST_SUPPORTED_SCREEN_HEIGHT_PX);
+  });
+});
+
+describe("getWalkPawsLayerSizePx", () => {
+  it("reaches the full ~2x target size on an ordinary/tall screen", () => {
+    expect(getWalkPawsLayerSizePx(844)).toBe(264);
+    expect(getWalkPawsLayerSizePx(926)).toBe(264);
+  });
+
+  it("never shrinks below the original 132px trail, even on the smallest supported screen", () => {
+    expect(getWalkPawsLayerSizePx(HOME_STAGE_SMALLEST_SUPPORTED_SCREEN_HEIGHT_PX)).toBeGreaterThanOrEqual(132);
+  });
+
+  it("is still noticeably larger than the original trail on the smallest supported screen", () => {
+    expect(getWalkPawsLayerSizePx(HOME_STAGE_SMALLEST_SUPPORTED_SCREEN_HEIGHT_PX)).toBeGreaterThan(132);
+  });
+
+  it("grows monotonically (or holds at the 2x cap) as the screen gets taller", () => {
+    const short = getWalkPawsLayerSizePx(667);
+    const mid = getWalkPawsLayerSizePx(760);
+    const tall = getWalkPawsLayerSizePx(926);
+
+    expect(mid).toBeGreaterThanOrEqual(short);
+    expect(tall).toBeGreaterThanOrEqual(mid);
+  });
+});
+
+describe("getWalkPawsLayerBottomPx", () => {
+  it("never overlaps the side-rail icon stack or the walk panel, on the smallest supported screen", () => {
+    const windowHeight = HOME_STAGE_SMALLEST_SUPPORTED_SCREEN_HEIGHT_PX;
+    const sizePx = getWalkPawsLayerSizePx(windowHeight);
+    const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
+    const topPxFromTop = windowHeight - (bottomPx + sizePx);
+
+    expect(bottomPx).toBeGreaterThanOrEqual(WALK_PANEL_TOP_PX_FROM_BOTTOM);
+    expect(topPxFromTop).toBeGreaterThanOrEqual(RAIL_BOTTOM_PX_FROM_TOP);
+  });
+
+  it("never overlaps the side-rail icon stack or the walk panel, on a common reference screen", () => {
+    const windowHeight = 844;
+    const sizePx = getWalkPawsLayerSizePx(windowHeight);
+    const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
+    const topPxFromTop = windowHeight - (bottomPx + sizePx);
+
+    expect(bottomPx).toBeGreaterThanOrEqual(WALK_PANEL_TOP_PX_FROM_BOTTOM);
+    expect(topPxFromTop).toBeGreaterThanOrEqual(RAIL_BOTTOM_PX_FROM_TOP);
+  });
+
+  it("never overlaps the side-rail icon stack or the walk panel, on a tall screen", () => {
+    const windowHeight = 926;
+    const sizePx = getWalkPawsLayerSizePx(windowHeight);
+    const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
+    const topPxFromTop = windowHeight - (bottomPx + sizePx);
+
+    expect(bottomPx).toBeGreaterThanOrEqual(WALK_PANEL_TOP_PX_FROM_BOTTOM);
+    expect(topPxFromTop).toBeGreaterThanOrEqual(RAIL_BOTTOM_PX_FROM_TOP);
   });
 });
 

@@ -77,6 +77,52 @@ describe("chat gate presentation", () => {
     expect(line).toBe("I always look forward to the good brushes with you.");
   });
 
+  it("greets with a walk-aware line when isOnWalk is true, ahead of the memory-aware greeting", () => {
+    const careStats: CareStats = { ...createInitialCareStats(), actionCounts: { clean: 3 }, totalCareActions: 3 };
+    const memories: MemoryEntry[] = [];
+
+    const line = getShortChatReplyText({
+      petName: "Miso",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      memories,
+      careStats,
+      now: "2026-06-24T09:00:00.000Z",
+      isOnWalk: true
+    });
+
+    expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("greets with a walk-aware line when isOnWalk is true even with no memories/careStats passed", () => {
+    const line = getShortChatReplyText({
+      petName: "Miso",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      now: "2026-06-24T09:00:00.000Z",
+      isOnWalk: true
+    });
+
+    expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("does not use the walk greeting once a quick-talk reply is already in progress", () => {
+    const line = getShortChatReplyText({
+      petName: "Miso",
+      quickTalkStartedAtMs: new Date("2026-06-27T08:00:00.000Z").getTime(),
+      recentReactions: [
+        {
+          ruleId: "old_reaction",
+          line: "Older line",
+          shownAt: "2026-06-27T07:59:59.000Z"
+        }
+      ],
+      isOnWalk: true
+    });
+
+    expect(line).toBe("Miso is listening...");
+  });
+
   it("shows the latest reaction created by the short talk action", () => {
     expect(
       getShortChatReplyText({

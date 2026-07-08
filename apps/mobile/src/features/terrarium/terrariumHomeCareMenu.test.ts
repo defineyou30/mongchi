@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { mockItems } from "@mongchi/shared";
+import { mockInventory, mockItems } from "@mongchi/shared";
 import type { Item } from "@mongchi/shared";
 
-import { getHomeDockActionForItem } from "./terrariumHomeCareMenu";
+import { getHomeDockActionForItem, getVisibleHomeCareMenuOptions } from "./terrariumHomeCareMenu";
 
 const findItem = (itemId: string): Item => {
   const item = mockItems.find((candidate) => candidate.id === itemId);
@@ -35,5 +35,47 @@ describe("getHomeDockActionForItem", () => {
 
   it("returns null for an item with no special care use (e.g. the starter food bowl)", () => {
     expect(getHomeDockActionForItem(findItem("item_food_bowl_basic"))).toBeNull();
+  });
+});
+
+describe("getVisibleHomeCareMenuOptions", () => {
+  it("offers a Bath option in the water tray, wired to the clean care action", () => {
+    const options = getVisibleHomeCareMenuOptions({
+      action: "water_garden",
+      catalogItems: mockItems,
+      devStoreUnlocked: false,
+      inventory: mockInventory
+    });
+
+    const bath = options.find((option) => option.id === "base-clean");
+
+    expect(bath).toBeDefined();
+    expect(bath?.action).toBe("clean");
+    expect(bath?.title).toBe("Bath");
+    expect(bath?.owned).toBe(true);
+    expect(bath?.itemId).toBeUndefined();
+  });
+
+  it("keeps the base Water option (action water_garden) ahead of Bath in the tray", () => {
+    const options = getVisibleHomeCareMenuOptions({
+      action: "water_garden",
+      catalogItems: mockItems,
+      devStoreUnlocked: false,
+      inventory: mockInventory
+    });
+
+    expect(options[0]?.action).toBe("water_garden");
+    expect(options[1]?.id).toBe("base-clean");
+  });
+
+  it("does not leak the Bath option into unrelated trays (e.g. feed)", () => {
+    const options = getVisibleHomeCareMenuOptions({
+      action: "feed",
+      catalogItems: mockItems,
+      devStoreUnlocked: false,
+      inventory: mockInventory
+    });
+
+    expect(options.some((option) => option.id === "base-clean")).toBe(false);
   });
 });

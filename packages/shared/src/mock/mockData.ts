@@ -645,6 +645,19 @@ const baseStarterReactionRules: ReactionRule[] = [
     safetyLevel: "safe"
   },
   {
+    id: "ko_clean_done_001",
+    locale: "ko-KR",
+    category: "clean_done",
+    conditions: {
+      recentActionAny: ["clean"]
+    },
+    lines: ["이제 엄청 폭신폭신해. 나 좀 봐줘!", "뽀득뽀득 깨끗해졌어. 뿌듯해.", "발도 뽀송뽀송, 기분도 상쾌해."],
+    animation: "happy",
+    priority: 80,
+    cooldownHours: 2,
+    safetyLevel: "safe"
+  },
+  {
     id: "ko_missed_soft_001",
     locale: "ko-KR",
     category: "missed_one_day",
@@ -973,6 +986,19 @@ const baseStarterReactionRules: ReactionRule[] = [
     },
     lines: ["That little rest helped. I feel softer now.", "Tiny nap complete. I can move slowly again."],
     animation: "sleepy",
+    priority: 80,
+    cooldownHours: 2,
+    safetyLevel: "safe"
+  },
+  {
+    id: "en_clean_done_001",
+    locale: "en-US",
+    category: "clean_done",
+    conditions: {
+      recentActionAny: ["clean"]
+    },
+    lines: ["So fluffy now. Look at me!", "Squeaky clean and so proud of it.", "Fresh paws, fresh start."],
+    animation: "happy",
     priority: 80,
     cooldownHours: 2,
     safetyLevel: "safe"

@@ -1,4 +1,4 @@
-import { buildChatGreetingLine, getCareStatBand, getTimeBucket, selectPetStatusLine } from "@mongchi/shared";
+import { buildChatGreetingLine, createInitialCareStats, getCareStatBand, getTimeBucket, selectPetStatusLine } from "@mongchi/shared";
 import type {
   CareState,
   CareSatisfactionSummary,
@@ -22,6 +22,8 @@ interface ShortChatReplyInput {
   memories?: readonly MemoryEntry[] | undefined;
   /** Accumulated care-pattern counters, paired with `memories` for the free memory-aware greeting. */
   careStats?: CareStats | undefined;
+  /** True while the pet is out on an active walk -- outranks every other initial-greeting tier below (see buildChatGreetingLine). */
+  isOnWalk?: boolean | undefined;
 }
 
 export interface PremiumChatAccessPresentationInput {
@@ -143,9 +145,25 @@ export const getShortChatReplyText = ({
   now,
   daysAway,
   memories,
-  careStats
+  careStats,
+  isOnWalk
 }: ShortChatReplyInput): string => {
   if (!quickTalkStartedAtMs) {
+    // Walking outranks every other greeting tier, including a fresh
+    // milestone memory -- memories/careStats may not be loaded yet in every
+    // caller, so this falls back to empty/initial values rather than
+    // requiring them just to say "I'm out on a walk".
+    if (isOnWalk) {
+      return buildChatGreetingLine({
+        petName,
+        memories: memories ?? [],
+        careStats: careStats ?? createInitialCareStats(),
+        careState,
+        now: now ?? "2026-06-24T09:00:00.000Z",
+        isOnWalk: true
+      });
+    }
+
     if (memories && careStats) {
       return buildChatGreetingLine({
         petName,

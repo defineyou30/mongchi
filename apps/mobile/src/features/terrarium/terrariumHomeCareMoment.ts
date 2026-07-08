@@ -10,7 +10,7 @@ import type { GameItemAssetKey } from "../../shared/ui/GameIllustrations";
  * TerrariumHomeScreen) makes it independently testable and easy to extend
  * with a new action's staging without touching the render tree.
  */
-export type CareMomentKind = "bowl" | "ball" | "heartBurst";
+export type CareMomentKind = "bowl" | "ball" | "heartBurst" | "bubbleBurst";
 
 export interface CareMomentBowlStaging {
   kind: "bowl";
@@ -39,7 +39,19 @@ export interface CareMomentHeartBurstStaging {
   totalMs: number;
 }
 
-export type CareMomentStaging = CareMomentBowlStaging | CareMomentBallStaging | CareMomentHeartBurstStaging;
+export interface CareMomentBubbleBurstStaging {
+  kind: "bubbleBurst";
+  accessibilityLabel: string;
+  /** How many soap bubbles float up and pop (2-3 per the Tier 2 spec, same range as heartBurst). */
+  bubbleCount: number;
+  totalMs: number;
+}
+
+export type CareMomentStaging =
+  | CareMomentBowlStaging
+  | CareMomentBallStaging
+  | CareMomentHeartBurstStaging
+  | CareMomentBubbleBurstStaging;
 
 const BOWL_APPEAR_MS = 260;
 const BOWL_HOLD_MS = 1700;
@@ -47,6 +59,7 @@ const BOWL_DISAPPEAR_MS = 340;
 const BOWL_TOTAL_MS = BOWL_APPEAR_MS + BOWL_HOLD_MS + BOWL_DISAPPEAR_MS;
 const BALL_TOTAL_MS = 1450;
 const HEART_BURST_TOTAL_MS = 1100;
+const BUBBLE_BURST_TOTAL_MS = 1100;
 
 const feedStaging: CareMomentBowlStaging = {
   kind: "bowl",
@@ -82,11 +95,19 @@ const affectionStaging: CareMomentHeartBurstStaging = {
   totalMs: HEART_BURST_TOTAL_MS
 };
 
+const cleanStaging: CareMomentBubbleBurstStaging = {
+  kind: "bubbleBurst",
+  accessibilityLabel: "Little soap bubbles float up and pop",
+  bubbleCount: 3,
+  totalMs: BUBBLE_BURST_TOTAL_MS
+};
+
 const careMomentByAction: Partial<Record<CareActionType, CareMomentStaging>> = {
   feed: feedStaging,
   water_garden: waterStaging,
   play: playStaging,
-  affection: affectionStaging
+  affection: affectionStaging,
+  clean: cleanStaging
 };
 
 /** Returns the one-shot staging for a care action, or null when that action has no Tier 2 moment. */

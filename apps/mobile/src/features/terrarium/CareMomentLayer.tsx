@@ -6,7 +6,12 @@ import type { CareActionType } from "@mongchi/shared";
 import { GameItemImage } from "../../shared/ui/GameIllustrations";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { getCareMomentStaging } from "./terrariumHomeCareMoment";
-import type { CareMomentBallStaging, CareMomentBowlStaging, CareMomentHeartBurstStaging } from "./terrariumHomeCareMoment";
+import type {
+  CareMomentBallStaging,
+  CareMomentBowlStaging,
+  CareMomentBubbleBurstStaging,
+  CareMomentHeartBurstStaging
+} from "./terrariumHomeCareMoment";
 
 interface CareMomentLayerProps {
   /** The most recent care action, or null when nothing has fired yet this session. */
@@ -51,6 +56,10 @@ export function CareMomentLayer({ action, actedAtMs, petStageBottomPx }: CareMom
 
   if (staging.kind === "ball") {
     return <BallMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
+  }
+
+  if (staging.kind === "bubbleBurst") {
+    return <BubbleBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
   }
 
   return <HeartBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
@@ -267,6 +276,95 @@ const heartOffsetsByCount: Record<number, number[]> = {
   3: defaultHeartOffsets
 };
 
+function BubbleBurstMoment({
+  staging,
+  petStageBottomPx,
+  reduceMotionEnabled
+}: {
+  staging: CareMomentBubbleBurstStaging;
+  petStageBottomPx: number;
+  reduceMotionEnabled: boolean;
+}) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      return;
+    }
+
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: staging.totalMs,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true
+    });
+
+    animation.start();
+
+    return () => animation.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (reduceMotionEnabled) {
+    return null;
+  }
+
+  // 2-3 small soap bubbles drift up from just above the pet's body, each
+  // offset slightly in x with a small stagger, same choreography as
+  // HeartBurstMoment -- but instead of a steady shrink-and-fade, each bubble
+  // scales up past 1x right at the end of its life so it reads as "popping"
+  // rather than just drifting off screen.
+  const bubbleOffsets = bubbleOffsetsByCount[staging.bubbleCount] ?? defaultBubbleOffsets;
+
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={[styles.bubbleAnchor, { bottom: petStageBottomPx + 140 }]}
+    >
+      {bubbleOffsets.map((offsetX, index) => {
+        const staggerStart = index * 0.12;
+        const localProgress = progress.interpolate({
+          inputRange: [0, Math.min(0.999, staggerStart), 1],
+          outputRange: [0, 0, 1],
+          extrapolate: "clamp"
+        });
+        // Unicode circle glyphs, not emoji (see CLAUDE.md's no-emoji copy
+        // rule) -- alternating sizes read as a small cluster of bubbles
+        // rather than one repeated shape.
+        const glyph = index % 2 === 0 ? "○" : "◦";
+
+        return (
+          <Animated.Text
+            key={offsetX}
+            style={[
+              styles.bubbleGlyph,
+              {
+                left: offsetX,
+                opacity: localProgress.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 1, 1, 0] }),
+                transform: [
+                  { translateY: localProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -54] }) },
+                  { scale: localProgress.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0.4, 1, 1.05, 1.4] }) }
+                ]
+              }
+            ]}
+          >
+            {glyph}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+
+const defaultBubbleOffsets = [-22, 0, 22];
+
+const bubbleOffsetsByCount: Record<number, number[]> = {
+  2: [-16, 16],
+  3: defaultBubbleOffsets
+};
+
 const styles = StyleSheet.create({
   bowlAnchor: {
     position: "absolute",
@@ -312,5 +410,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 22,
     color: "#FF6B8A"
+  },
+  bubbleAnchor: {
+    position: "absolute",
+    alignSelf: "center",
+    left: "50%",
+    marginLeft: -30,
+    zIndex: 56,
+    width: 60,
+    height: 20
+  },
+  bubbleGlyph: {
+    position: "absolute",
+    fontSize: 18,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.94)",
+    textShadowColor: "rgba(122,168,255,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
   }
 });

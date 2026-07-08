@@ -21,5 +21,6 @@ export * from "./plants";
 export * from "./reactions";
 export * from "./relationship";
 export * from "./walk";
+export * from "./walkCommentary";
 export * from "./wallet";
 export * from "./weather";

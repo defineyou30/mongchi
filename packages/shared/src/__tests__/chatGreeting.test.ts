@@ -142,4 +142,64 @@ describe("buildChatGreetingLine", () => {
 
     expect(line).toBe("You gave me the gentle pets today.");
   });
+
+  it("greets with a walk-aware line when isOnWalk is true, ahead of a recent milestone memory", () => {
+    const memories: MemoryEntry[] = [
+      makeMemory({ id: "mem_bond_3", type: "bond_level", occurredAt: "2026-06-23T09:00:00.000Z" })
+    ];
+    const careStats = makeCareStats({ actionCounts: { clean: 5 }, totalCareActions: 5 });
+
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories,
+      careStats,
+      careState: { lastInteractionAt: now, updatedAt: now },
+      now,
+      isOnWalk: true
+    });
+
+    expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("greets with a walk-aware line when isOnWalk is true even with no memories or care stats to fall back on", () => {
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories: [],
+      careStats: createInitialCareStats(),
+      now,
+      isOnWalk: true
+    });
+
+    expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("is deterministic for the walk greeting across the same day", () => {
+    const input = {
+      petName: "Miso",
+      memories: [],
+      careStats: createInitialCareStats(),
+      now,
+      isOnWalk: true
+    };
+
+    expect(buildChatGreetingLine(input)).toBe(buildChatGreetingLine(input));
+  });
+
+  it("falls back to the normal greeting priority once isOnWalk is false again", () => {
+    const memories: MemoryEntry[] = [
+      makeMemory({ id: "mem_bond_3", type: "bond_level", occurredAt: "2026-06-23T09:00:00.000Z" })
+    ];
+    const careStats = makeCareStats({ actionCounts: { clean: 5 }, totalCareActions: 5 });
+
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories,
+      careStats,
+      careState: { lastInteractionAt: now, updatedAt: now },
+      now,
+      isOnWalk: false
+    });
+
+    expect(line).toMatch(/bond|close/i);
+  });
 });

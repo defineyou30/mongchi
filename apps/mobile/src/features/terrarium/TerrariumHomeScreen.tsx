@@ -14,12 +14,16 @@ import {
   getAvailableTreatItemId,
   getCareDaysAway,
   getWalkCollectibleById,
+  getWalkCommentaryIntervalMs,
+  getWalkCommentaryStage,
+  getWalkProgress,
   defaultWeatherContext,
   getWeatherScenePresentation,
   hasCaredToday,
   isNightTime,
   pickAutonomousBehavior,
   pickButterflyTapLine,
+  pickWalkCommentaryLine,
   projectCareStreakForNow,
   pruneActiveCareBuffs,
   selectEpisodeLine,
@@ -62,6 +66,7 @@ import {
 } from "../../shared/audio";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { requestNotificationPermissionAfterFirstCareAction } from "../notifications/notificationPermission";
+import { cancelWalkReturnNotification, scheduleWalkReturnNotification } from "../notifications/walkReturnNotification";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
 import { CareMomentLayer } from "./CareMomentLayer";
 import { NightWashLayer, NightZzzFloat } from "./NightOverlayLayer";
@@ -100,6 +105,7 @@ import {
   getHomeCarePressDecision,
   homeActionFeedbackMs,
   homeFloatingDockActions,
+  homeWalkDurationMs,
   type HomeFloatingDockAction,
   isHomeFloatingDockAction
 } from "./terrariumHomeInteractionContract";
@@ -111,7 +117,9 @@ import {
   getHomeStageHorizontalMarginLeftPx,
   getHomeThoughtBubbleBottomPx,
   getHomeThoughtBubbleHeightPx,
-  getHomeThoughtBubbleVerticalPaddingPx
+  getHomeThoughtBubbleVerticalPaddingPx,
+  getWalkPawsLayerBottomPx,
+  getWalkPawsLayerSizePx
 } from "./homeStageLayout";
 
 interface CareButtonConfig {
@@ -164,6 +172,19 @@ const HOME_EVENT_TOAST_SHOWN_KEYS_KEY = "mongchi.home.eventToast.shownKeys.v1";
 const MONTHLY_LETTER_OPENED_KEY = "mongchi.friend.monthlyLetter.openedAt.v1";
 /** Local-wallet cost of the "Bring home now" early-walk-return button. */
 const WALK_EARLY_RETURN_CREDIT_COST = 1;
+/**
+ * Persists the currently-scheduled walk-return notification's id across a
+ * navigate-away-and-back remount of this screen (the schedule/cancel pair
+ * itself lives in walkReturnNotification.ts) -- without this, leaving Home
+ * mid-walk and coming back to tap "Bring home now" would have no id left to
+ * cancel, and the player would still get a "you're home!" ping for a walk
+ * that already ended early.
+ */
+const WALK_RETURN_NOTIFICATION_ID_KEY = "mongchi.walk.returnNotificationId.v1";
+/** Fade in/hold/out timings for each running-commentary line over the walk paw trail. */
+const WALK_COMMENTARY_APPEAR_MS = 420;
+const WALK_COMMENTARY_HOLD_MS = 3400;
+const WALK_COMMENTARY_DISAPPEAR_MS = 480;
 
 /**
  * Picks the event toast's SFX by its id prefix (HomeEventTogglePresentation
@@ -674,6 +695,81 @@ function FriendRailButton({ accessibilityLabel, onPress, showBadge = false }: Fr
   );
 }
 
+interface WalkCommentaryLineProps {
+  /** The current commentary line, or null when nothing should be showing. */
+  line: string | null;
+  reduceMotionEnabled: boolean;
+}
+
+/**
+ * Running "live commentary" text that floats up over the paw trail during a
+ * walk (see the walk-commentary timer effect in TerrariumHomeScreen). Fades
+ * in, holds, then fades out on its own -- under reduced motion it renders
+ * statically (no fade choreography) instead of animating, matching this
+ * screen's existing reduce-motion pattern elsewhere.
+ */
+function WalkCommentaryLine({ line, reduceMotionEnabled }: WalkCommentaryLineProps) {
+  const appear = useRef(new Animated.Value(0)).current;
+  const fontFamilies = useFontFamilies();
+
+  useEffect(() => {
+    if (!line) {
+      return;
+    }
+
+    if (reduceMotionEnabled) {
+      appear.setValue(1);
+      return;
+    }
+
+    const sequence = Animated.sequence([
+      Animated.timing(appear, {
+        toValue: 1,
+        duration: WALK_COMMENTARY_APPEAR_MS,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true
+      }),
+      Animated.delay(WALK_COMMENTARY_HOLD_MS),
+      Animated.timing(appear, {
+        toValue: 0,
+        duration: WALK_COMMENTARY_DISAPPEAR_MS,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true
+      })
+    ]);
+
+    sequence.start();
+
+    return () => sequence.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line, reduceMotionEnabled]);
+
+  if (!line) {
+    return null;
+  }
+
+  return (
+    <Animated.View
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={line}
+      pointerEvents="none"
+      style={[
+        styles.walkCommentaryBubble,
+        reduceMotionEnabled
+          ? undefined
+          : {
+              opacity: appear,
+              transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }]
+            }
+      ]}
+    >
+      <Text numberOfLines={2} style={[styles.walkCommentaryText, { fontFamily: fontFamilies.body }]}>
+        {line}
+      </Text>
+    </Animated.View>
+  );
+}
+
 export function TerrariumHomeScreen() {
   const {
     activeBuffs,
@@ -717,6 +813,16 @@ export function TerrariumHomeScreen() {
   // return, then settles back to translateX 0 for the rest of the visit.
   const walkGreetEntrance = useRef(new Animated.Value(0)).current;
   const hasPlayedWalkGreetEntranceRef = useRef(false);
+  // Running walk commentary (user feedback: the 3-minute wait read as dead
+  // air) -- a short line fades in over the paw trail every 40-60s, tied to
+  // how far along the walk is (see getWalkCommentaryStage). null while
+  // nothing should be showing yet/anymore.
+  const [walkCommentaryLine, setWalkCommentaryLine] = useState<string | null>(null);
+  // The id of the currently scheduled "welcome home" local notification for
+  // this walk (see walkReturnNotification.ts) -- read back from
+  // AsyncStorage on mount too, so a "Bring home now" tap after navigating
+  // away and back still has something to cancel.
+  const walkReturnNotificationIdRef = useRef<string | null>(null);
   // Bond level-up toast: watches relationshipState.bondLevel for an increase
   // and celebrates every crossed level, independent of which care action (or
   // walk claim) caused it -- see getBondLevelUpTogglePresentation.
@@ -978,6 +1084,29 @@ export function TerrariumHomeScreen() {
     };
   }, []);
 
+  // Restores any walk-return notification id scheduled before this screen's
+  // last mount (see the WALK_RETURN_NOTIFICATION_ID_KEY comment above) --
+  // only matters if the walk is still actually in progress; a walk that
+  // already resolved while away leaves a harmless stale id that the next
+  // walk's schedule call overwrites.
+  useEffect(() => {
+    let cancelled = false;
+
+    void AsyncStorage.getItem(WALK_RETURN_NOTIFICATION_ID_KEY)
+      .then((storedId) => {
+        if (!cancelled && storedId) {
+          walkReturnNotificationIdRef.current = storedId;
+        }
+      })
+      .catch(() => {
+        // Silent: worst case a later early-return can't cancel a stale notification.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Applies the "Give now" route param exactly once per navigation into this
   // screen (a ref guard, not a dependency on the param value itself) -- once
   // applied, closing the tray manually must stick even though the param
@@ -1043,6 +1172,59 @@ export function TerrariumHomeScreen() {
 
     return () => clearInterval(interval);
   }, [activeWalk?.status, refreshWalk]);
+
+  // Running walk commentary (user feedback: the paw trail + countdown alone
+  // read as "nothing is happening" during the 3-minute wait): every 40-60s
+  // while a walk is in progress, roll a short line tied to how far along the
+  // walk is and hold it for a beat before clearing it again. The timer keeps
+  // running under reduced motion too -- lines still appear/disappear on
+  // schedule, WalkCommentaryLine just renders each swap instantly instead of
+  // fading it (see its reduceMotionEnabled branch). Only stops once the walk
+  // is no longer "walking" (returned early or naturally).
+  useEffect(() => {
+    if (activeWalk?.status !== "walking") {
+      setWalkCommentaryLine(null);
+      return;
+    }
+
+    let cancelled = false;
+    let beatTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let clearTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    const startedAtMs = new Date(activeWalk.startedAt).getTime();
+    const durationMs = new Date(activeWalk.returnAt).getTime() - startedAtMs;
+    const lineVisibleMs = WALK_COMMENTARY_APPEAR_MS + WALK_COMMENTARY_HOLD_MS + WALK_COMMENTARY_DISAPPEAR_MS;
+
+    const scheduleNextBeat = () => {
+      beatTimeoutId = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+
+        const stage = getWalkCommentaryStage(getWalkProgress(Date.now() - startedAtMs, durationMs));
+        setWalkCommentaryLine(pickWalkCommentaryLine(stage, Math.random(), activePet.name));
+
+        clearTimeoutId = setTimeout(() => {
+          if (!cancelled) {
+            setWalkCommentaryLine(null);
+          }
+        }, lineVisibleMs);
+
+        scheduleNextBeat();
+      }, getWalkCommentaryIntervalMs(Math.random()));
+    };
+
+    scheduleNextBeat();
+
+    return () => {
+      cancelled = true;
+      if (beatTimeoutId) {
+        clearTimeout(beatTimeoutId);
+      }
+      if (clearTimeoutId) {
+        clearTimeout(clearTimeoutId);
+      }
+    };
+  }, [activeWalk?.status, activeWalk?.startedAt, activeWalk?.returnAt, activePet.name]);
 
   useEffect(() => {
     if (!lastActionSnapshot) {
@@ -1271,6 +1453,31 @@ export function TerrariumHomeScreen() {
     });
     setLastAction(action);
 
+    // Local "welcome home" reminder (user feedback: closing the app during
+    // the 3-minute wait felt risky, like you might miss the return) --
+    // scheduled the moment a walk actually starts, so backgrounding the app
+    // still surfaces a ping when Mong is due back. Silently skipped by
+    // scheduleWalkReturnNotification itself if notification permission was
+    // never granted -- never blocks the walk from starting either way.
+    if (action === "walk") {
+      void scheduleWalkReturnNotification({
+        petName: activePet.name,
+        returnInSeconds: homeWalkDurationMs / 1000
+      })
+        .then((result) => {
+          walkReturnNotificationIdRef.current = result.notificationId;
+
+          if (result.notificationId) {
+            void AsyncStorage.setItem(WALK_RETURN_NOTIFICATION_ID_KEY, result.notificationId);
+          } else {
+            void AsyncStorage.removeItem(WALK_RETURN_NOTIFICATION_ID_KEY);
+          }
+        })
+        .catch(() => {
+          // Silent: worst case the player just doesn't get the local reminder for this walk.
+        });
+    }
+
     // Night care, no penalty (docs/gamefeel-sound-plan.md §1 Tier 3): a care
     // tap during the 22:00-06:00 sleep window still fully applies (no stat
     // changed, no cooldown skipped) -- this only swaps the speech bubble to a
@@ -1311,6 +1518,20 @@ export function TerrariumHomeScreen() {
     }
 
     completeWalkEarly();
+
+    // Coming home early means the scheduled "welcome home" ping (see
+    // handleCareAction's "walk" branch) would otherwise still fire at the
+    // walk's original return time, for a walk the player can already see
+    // has ended -- cancel it and clear the persisted id so it can't be
+    // double-cancelled or leak into the next walk's schedule.
+    const notificationId = walkReturnNotificationIdRef.current;
+    walkReturnNotificationIdRef.current = null;
+    void cancelWalkReturnNotification(notificationId).catch(() => {
+      // Silent: worst case a stale "welcome home" notification still fires once.
+    });
+    void AsyncStorage.removeItem(WALK_RETURN_NOTIFICATION_ID_KEY).catch(() => {
+      // Silent: same worst case as above.
+    });
   };
 
   // "Greet & claim" used to just call claimWalkReward() directly, so the
@@ -1324,6 +1545,13 @@ export function TerrariumHomeScreen() {
   const handleClaimWalkReward = () => {
     claimWalkReward();
     setJustClaimedWalkAt(Date.now());
+    // The walk-return notification already fired (or is about to, right
+    // around now) by the time there's something to claim -- nothing to
+    // cancel, just clear the stored id so it can't linger into the next walk.
+    walkReturnNotificationIdRef.current = null;
+    void AsyncStorage.removeItem(WALK_RETURN_NOTIFICATION_ID_KEY).catch(() => {
+      // Silent: worst case a stale id lingers until the next walk overwrites it.
+    });
   };
 
   // Butterfly visitor tap (docs/gamefeel-sound-plan.md §1 Tier 3): the
@@ -1503,6 +1731,13 @@ export function TerrariumHomeScreen() {
   const homePetStageBottomPx = getHomePetStageBottomPx(windowHeight);
   const homeThoughtBubbleBottomPx = getHomeThoughtBubbleBottomPx(windowHeight, homeThoughtBubbleHeightPx);
   const homeStageHorizontalMarginLeftPx = getHomeStageHorizontalMarginLeftPx(windowWidth, HOME_THOUGHT_BUBBLE_WIDTH_PX);
+  // Walk paw trail (user feedback: too small and off-center during the
+  // 3-minute wait) -- centered and scaled toward 2x, but only as far as the
+  // actual window has room for without crowding the side rails above or the
+  // walk panel below (see homeStageLayout.ts).
+  const walkPawsLayerSizePx = getWalkPawsLayerSizePx(windowHeight);
+  const walkPawsLayerBottomPx = getWalkPawsLayerBottomPx(windowHeight, walkPawsLayerSizePx);
+  const walkPawsLayerMarginLeftPx = getHomeStageHorizontalMarginLeftPx(windowWidth, walkPawsLayerSizePx);
   const hudMeters = useMemo<HudMeterConfig[]>(
     () => {
       const moodValue = Math.max(0, Math.min(100, Math.round(careState.happiness * 0.65 + careState.affection * 0.35)));
@@ -1636,13 +1871,25 @@ export function TerrariumHomeScreen() {
             // Pet is away on the path: no sprite, no speech bubble — the
             // paw trail below carries the "gone for a walk" read instead of
             // an idle pet standing in an empty conversation.
-            <View pointerEvents="none" style={styles.walkPawsLayer}>
+            <View
+              pointerEvents="none"
+              style={[
+                styles.walkPawsLayer,
+                {
+                  width: walkPawsLayerSizePx,
+                  height: walkPawsLayerSizePx,
+                  bottom: walkPawsLayerBottomPx,
+                  marginLeft: walkPawsLayerMarginLeftPx
+                }
+              ]}
+            >
               <LottieAnimation
                 accessibilityLabel={`${activePet.name} walking paw steps`}
                 loop
                 source={pawsAnimation}
                 style={styles.walkPawsAnimation}
               />
+              <WalkCommentaryLine line={walkCommentaryLine} reduceMotionEnabled={reduceMotionEnabled} />
             </View>
           ) : (
             <>
@@ -1758,6 +2005,9 @@ export function TerrariumHomeScreen() {
         <View style={styles.walkPanel}>
           <Text style={[styles.walkPanelTitle, { fontFamily: fontFamilies.body }]}>
             {activePet.name} is on the path · back in {formatCooldownBadge(walkSecondsLeft * 1000)}
+          </Text>
+          <Text style={[styles.walkPanelSubcopy, { fontFamily: fontFamilies.body }]}>
+            Feel free to close the app -- we'll let you know when {activePet.name} is back.
           </Text>
           <View style={styles.walkPanelButtons}>
             <Pressable
@@ -2197,6 +2447,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center"
   },
+  walkPanelSubcopy: {
+    color: colors.mutedInk,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: "700",
+    textAlign: "center"
+  },
   walkPanelButtons: {
     flexDirection: "row",
     justifyContent: "center",
@@ -2466,22 +2723,45 @@ const styles = StyleSheet.create({
     bottom: 104,
     left: 0
   },
-  // Low, off-center "grass band" trail: crosses the garden floor in front of
-  // where the pet normally stands, instead of stamping on top of the pet's
-  // body (the pet is hidden during the walk anyway) or a decor slot — decor
-  // near-slots sit around 71-75% of window height, this stays below them.
+  // Centered, enlarged trail across the garden lawn during a walk (user
+  // feedback: the old small, off-center version at left 18%/bottom 64 read
+  // as "nothing is happening" during the 3-minute wait). width/height/
+  // bottom/marginLeft are set inline per-render from getWalkPawsLayerSizePx/
+  // BottomPx (homeStageLayout.ts) since they scale with the actual window
+  // size -- this only holds the parts that never change.
   walkPawsLayer: {
     position: "absolute",
-    left: "18%",
-    bottom: 64,
-    width: 132,
-    height: 132,
-    opacity: 0.82,
-    zIndex: 40
+    left: "50%",
+    opacity: 0.85,
+    zIndex: 40,
+    alignItems: "center"
   },
   walkPawsAnimation: {
     width: "100%",
     height: "100%"
+  },
+  // Anchored just inside the top of walkPawsLayer's own (already
+  // rail/panel-safe) bounds rather than floating above it -- the paw trail
+  // Lottie has plenty of empty canvas above the footprints themselves, so
+  // this reads as a caption over the scene instead of crowding anything else.
+  walkCommentaryBubble: {
+    position: "absolute",
+    top: 6,
+    alignSelf: "center",
+    maxWidth: 220,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,245,222,0.95)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  walkCommentaryText: {
+    color: colors.ink,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
+    textAlign: "center"
   },
   rightCharm: {
     position: "absolute",

@@ -74,6 +74,27 @@ describe("local reaction selection", () => {
     expect(reaction.ruleId).toBe("en_rested_001");
   });
 
+  it("uses a clean_done reaction after the clean (bath) care action", () => {
+    const reaction = selectLocalReaction(
+      starterReactionRules,
+      {
+        locale: "en-US",
+        now: "2026-06-24T09:00:00.000Z",
+        pet: mockPetProfile,
+        careState: mockCareState,
+        recentAction: "clean",
+        recentReactions: []
+      },
+      {
+        random: () => 0
+      }
+    );
+
+    expect(reaction.category).toBe("clean_done");
+    expect(reaction.ruleId).toBe("en_clean_done_001");
+    expect(reaction.animation).toBe("happy");
+  });
+
   it("prefers a soft return reaction after days away", () => {
     const reaction = selectLocalReaction(
       starterReactionRules,

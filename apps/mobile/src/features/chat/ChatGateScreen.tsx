@@ -87,6 +87,7 @@ export function ChatGateScreen() {
     acceptedAsset,
     acceptedAssets,
     activePet,
+    activeWalk,
     careState,
     careStats,
     creditBalance,
@@ -101,6 +102,10 @@ export function ChatGateScreen() {
     weatherState,
     wallet
   } = useTerrariumSession();
+  // Chat's own "is Mong on a walk" read -- swaps the ticket-less initial
+  // greeting to a walk-aware line (see getShortChatReplyText/isOnWalk)
+  // instead of a memory/care-status one while the pet is genuinely away.
+  const isPetOnWalk = activeWalk?.status === "walking";
   const fontFamilies = useFontFamilies();
   const [apiRuntime] = useState(() => createConfiguredDailyLoopApiClient());
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -144,9 +149,22 @@ export function ChatGateScreen() {
         now: replyNow,
         daysAway: careDaysAway,
         memories,
-        careStats
+        careStats,
+        isOnWalk: isPetOnWalk
       }),
-    [activePet.name, quickTalkStartedAtMs, recentReactions, satisfactionSummary, careState, activeWeather, replyNow, careDaysAway, memories, careStats]
+    [
+      activePet.name,
+      quickTalkStartedAtMs,
+      recentReactions,
+      satisfactionSummary,
+      careState,
+      activeWeather,
+      replyNow,
+      careDaysAway,
+      memories,
+      careStats,
+      isPetOnWalk
+    ]
   );
   const reduceMotionEnabled = useReducedMotionPreference();
   const conversationStarters = useMemo(
