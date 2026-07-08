@@ -49,7 +49,9 @@ export const careActionSfxById: Partial<Record<string, SfxId>> = {
   play: "sfx_play",
   affection: "sfx_affection",
   rest: "sfx_rest",
-  treat: "sfx_treat"
+  treat: "sfx_treat",
+  // Bath reuses the water pour — swap for a dedicated splash when SFX get curated.
+  clean: "sfx_water"
 };
 
 export const sfxIds: SfxId[] = Object.keys(sfxAssetSources) as SfxId[];
