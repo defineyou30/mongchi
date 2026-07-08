@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import { Droplets, Flame, Footprints, Gift, Heart, MessageCircle, Moon, PawPrint, Utensils, Zap } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Animated, Easing, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ImageSourcePropType } from "react-native";
@@ -727,6 +727,13 @@ export function TerrariumHomeScreen() {
   // FriendRailButton's pressed translateY -- purely cosmetic, no gesture logic.
   const [petPressed, setPetPressed] = useState(false);
   const [openCareMenu, setOpenCareMenu] = useState<HomeFloatingDockAction | null>(null);
+  // "Give now" from the Inventory screen (docs/gamefeel-sound-plan.md §1 Tier
+  // 4): a card tap there navigates here with an `openTray` route param naming
+  // the dock tray to auto-open (see getHomeDockActionForItem). This is a
+  // route-param handoff only -- prototypeSession's own shape is untouched.
+  const { openTray: requestedOpenTrayRawParam } = useLocalSearchParams();
+  const requestedOpenTrayParam = Array.isArray(requestedOpenTrayRawParam) ? requestedOpenTrayRawParam[0] : requestedOpenTrayRawParam;
+  const hasAppliedRequestedOpenTrayRef = useRef(false);
   const [actionLockedUntil, setActionLockedUntil] = useState(0);
   const actionLockedUntilRef = useRef(0);
   const [clock, setClock] = useState(() => Date.now());
@@ -970,6 +977,23 @@ export function TerrariumHomeScreen() {
       cancelled = true;
     };
   }, []);
+
+  // Applies the "Give now" route param exactly once per navigation into this
+  // screen (a ref guard, not a dependency on the param value itself) -- once
+  // applied, closing the tray manually must stick even though the param
+  // stays in the URL for the rest of this screen's lifetime.
+  useEffect(() => {
+    if (hasAppliedRequestedOpenTrayRef.current || !requestedOpenTrayParam) {
+      return;
+    }
+
+    hasAppliedRequestedOpenTrayRef.current = true;
+    const matchedAction = homeFloatingDockActions.find((action) => action === requestedOpenTrayParam);
+
+    if (matchedAction) {
+      setOpenCareMenu(matchedAction);
+    }
+  }, [requestedOpenTrayParam]);
 
   // Sound Phase 2 (see docs/gamefeel-sound-plan.md §2): start BGM for the
   // current time of day on entering the home screen (BGM is app-global once

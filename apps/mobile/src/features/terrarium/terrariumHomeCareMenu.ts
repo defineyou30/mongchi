@@ -3,6 +3,7 @@ import type { CareActionType, Inventory, Item, ItemId } from "@mongchi/shared";
 
 import { gameItemAssetByCatalogId } from "../../shared/assets/gameItemCatalogMapping";
 import type { GameItemAssetKey } from "../../shared/assets/gameItemCatalogMapping";
+import { homeFloatingDockActions } from "./terrariumHomeInteractionContract";
 import type { HomeFloatingDockAction } from "./terrariumHomeInteractionContract";
 
 export interface HomeCareMenuOption {
@@ -94,6 +95,17 @@ const getOptionActionForItem = (action: HomeFloatingDockAction, item: Item): Car
 
   return action;
 };
+
+/**
+ * Inverse of isSpecialCareItemForAction -- given an owned item, which home
+ * dock tray would offer it? Used by the Inventory screen's "Give now" card
+ * tap (docs/gamefeel-sound-plan.md §1 Tier 4) to know which tray to
+ * auto-open after navigating home. Returns null for items with no dock tray
+ * of their own (e.g. the starter food bowl) -- those cards still navigate
+ * home, just without opening a specific tray.
+ */
+export const getHomeDockActionForItem = (item: Item): HomeFloatingDockAction | null =>
+  homeFloatingDockActions.find((action) => isSpecialCareItemForAction(action, item)) ?? null;
 
 export const getVisibleHomeCareMenuOptions = ({
   action,

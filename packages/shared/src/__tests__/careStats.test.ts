@@ -9,6 +9,9 @@ import {
   getCompanionHabitHints,
   getFavoriteCareAction,
   getFavoriteTreatItemId,
+  getItemUsageCount,
+  isFavoriteTreatItem,
+  isFirstTimeTreatItem,
   shouldGrantPlayBondXp,
   shouldGrantTalkBondXp,
   shouldGrantTreatBondXp,
@@ -56,6 +59,24 @@ describe("bumpCareStats", () => {
     expect(stats.actionCounts.play).toBeUndefined();
     expect(next).not.toBe(stats);
   });
+
+  it("tracks per-item usage counts only when a usedItemId is given, independent of treatItemId", () => {
+    let stats = createInitialCareStats();
+    stats = bumpCareStats(stats, "play", undefined, "item_plush_toy_buddy");
+    stats = bumpCareStats(stats, "play", undefined, "item_plush_toy_buddy");
+    stats = bumpCareStats(stats, "affection", undefined, "item_cushion_rose");
+    stats = bumpCareStats(stats, "play");
+
+    expect(getItemUsageCount(stats, "item_plush_toy_buddy")).toBe(2);
+    expect(getItemUsageCount(stats, "item_cushion_rose")).toBe(1);
+    expect(getItemUsageCount(stats, "item_toy_ball_mint")).toBe(0);
+  });
+});
+
+describe("getItemUsageCount", () => {
+  it("returns 0 for a brand-new stats snapshot", () => {
+    expect(getItemUsageCount(createInitialCareStats(), "item_plush_toy_buddy")).toBe(0);
+  });
 });
 
 describe("getFavoriteCareAction", () => {
@@ -93,6 +114,61 @@ describe("getFavoriteTreatItemId", () => {
     stats = bumpCareStats(stats, "treat", "item_milk_pup_cup");
 
     expect(getFavoriteTreatItemId(stats)).toBe("item_apple_biscuit");
+  });
+});
+
+describe("isFavoriteTreatItem", () => {
+  it("returns false for a brand-new stats snapshot", () => {
+    expect(isFavoriteTreatItem(createInitialCareStats(), "item_apple_biscuit")).toBe(false);
+  });
+
+  it("returns false on a treat item's very first gift (pre-gift stats snapshot has count 0)", () => {
+    // performPrototypeCareAction calls this with the stats snapshot from
+    // *before* the current gift is bumped -- a first-ever gift should never
+    // already read as the favorite.
+    const stats = createInitialCareStats();
+
+    expect(isFavoriteTreatItem(stats, "item_apple_biscuit")).toBe(false);
+  });
+
+  it("returns true once an item is the sole most-gifted treat", () => {
+    let stats = createInitialCareStats();
+    stats = bumpCareStats(stats, "treat", "item_apple_biscuit");
+    stats = bumpCareStats(stats, "treat", "item_apple_biscuit");
+    stats = bumpCareStats(stats, "treat", "item_milk_pup_cup");
+
+    expect(isFavoriteTreatItem(stats, "item_apple_biscuit")).toBe(true);
+    expect(isFavoriteTreatItem(stats, "item_milk_pup_cup")).toBe(false);
+  });
+
+  it("on a tie, only the first-counted item (getFavoriteTreatItemId's own tie-break) reads as favorite", () => {
+    let stats = createInitialCareStats();
+    stats = bumpCareStats(stats, "treat", "item_apple_biscuit");
+    stats = bumpCareStats(stats, "treat", "item_milk_pup_cup");
+
+    expect(getFavoriteTreatItemId(stats)).toBe("item_apple_biscuit");
+    expect(isFavoriteTreatItem(stats, "item_apple_biscuit")).toBe(true);
+    expect(isFavoriteTreatItem(stats, "item_milk_pup_cup")).toBe(false);
+  });
+});
+
+describe("isFirstTimeTreatItem", () => {
+  it("returns true for an item never given before", () => {
+    expect(isFirstTimeTreatItem(createInitialCareStats(), "item_apple_biscuit")).toBe(true);
+  });
+
+  it("returns false once an item has been given at least once", () => {
+    let stats = createInitialCareStats();
+    stats = bumpCareStats(stats, "treat", "item_apple_biscuit");
+
+    expect(isFirstTimeTreatItem(stats, "item_apple_biscuit")).toBe(false);
+  });
+
+  it("stays true for a different, still-untried item even after another treat was given", () => {
+    let stats = createInitialCareStats();
+    stats = bumpCareStats(stats, "treat", "item_apple_biscuit");
+
+    expect(isFirstTimeTreatItem(stats, "item_milk_pup_cup")).toBe(true);
   });
 });
 

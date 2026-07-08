@@ -62,7 +62,13 @@ const careMeterKeys = ["satiety", "happiness", "cleanliness", "energy", "gardenH
 
 const specialItemEffectsByAction: Partial<Record<CareActionRequest["action"], Record<ItemId, CareMeterPatch>>> = {
   affection: {
-    item_cushion_rose: { affection: 10, happiness: 4 },
+    // Rose Cushion doubles as a rest moment (docs/gamefeel-sound-plan.md §1
+    // Tier 4 -- rest's own dock button stays retired to avoid a 6th dock
+    // slot, so this is the cushion's "cozy nap" stand-in). +14 energy is half
+    // of rest's own +28 gain -- a real nap-sized bonus on top of the base
+    // affection effect, without letting one cushion tap fully substitute for
+    // the dedicated rest action.
+    item_cushion_rose: { affection: 10, happiness: 4, energy: 14 },
     item_plush_toy_buddy: { affection: 8, happiness: 4 }
   },
   play: {

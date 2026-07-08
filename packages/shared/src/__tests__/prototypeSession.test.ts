@@ -995,3 +995,97 @@ describe("memory + care stats spine", () => {
     expect(active(state).relationshipState.bondXp).toBe(beforeNextDay + 2);
   });
 });
+
+describe("item individuality reactions (docs/gamefeel-sound-plan.md §1 Tier 4)", () => {
+  const buildAcceptedPet = (now: string) =>
+    acceptPrototypeGeneratedPet(updatePrototypeDraft(createInitialPrototypeSession(now), { name: "Miso" }), now);
+
+  const grantItem = (state: ReturnType<typeof buildAcceptedPet>, itemId: string, quantity: number, acquiredAt: string) => ({
+    ...state,
+    inventory: {
+      ...state.inventory,
+      items: [...state.inventory.items, { itemId, quantity, acquiredAt, source: "purchase" as const }]
+    }
+  });
+
+  it("gives a curious first-taste reaction the first time a treat item is given, not the generic treat_common line", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_treat_plate_biscuit", 5, "2026-06-24T09:00:00.000Z");
+
+    state = performPrototypeCareAction(state, "treat", "2026-06-24T09:01:00.000Z", "item_treat_plate_biscuit");
+
+    expect(active(state).currentReaction?.category).toBe("treat_common");
+    expect(active(state).currentReaction?.ruleId).toBe("en_treat_first_time_001");
+  });
+
+  it("gives the favorite-treat reaction once a treat item is the pet's most-gifted, but not on its first-ever gift", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_treat_plate_biscuit", 5, "2026-06-24T09:00:00.000Z");
+
+    state = performPrototypeCareAction(state, "treat", "2026-06-24T09:01:00.000Z", "item_treat_plate_biscuit");
+    expect(active(state).currentReaction?.ruleId).not.toBe("en_treat_favorite_001");
+
+    state = performPrototypeCareAction(state, "treat", "2026-06-24T09:05:00.000Z", "item_treat_plate_biscuit");
+
+    expect(active(state).currentReaction?.category).toBe("treat_special");
+    expect(active(state).currentReaction?.ruleId).toBe("en_treat_favorite_001");
+    expect(active(state).currentReaction?.line).toMatch(/favorite/i);
+  });
+
+  it("does not treat a still-tied treat item as the favorite yet", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_treat_plate_biscuit", 5, "2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_bone_biscuit", 5, "2026-06-24T09:00:00.000Z");
+
+    state = performPrototypeCareAction(state, "treat", "2026-06-24T09:01:00.000Z", "item_treat_plate_biscuit");
+    state = performPrototypeCareAction(state, "treat", "2026-06-24T09:03:00.000Z", "item_bone_biscuit");
+
+    // Each item was only given once so far -- a tie, not a favorite.
+    expect(active(state).currentReaction?.ruleId).not.toBe("en_treat_favorite_001");
+  });
+
+  it("gives Buddy Plush its own dedicated play reaction instead of the generic play line", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_plush_toy_buddy", 3, "2026-06-24T09:00:00.000Z");
+
+    state = performPrototypeCareAction(state, "play", "2026-06-24T09:01:00.000Z", "item_plush_toy_buddy");
+
+    expect(active(state).currentReaction?.ruleId).toBe("en_toy_buddy_plush_001");
+    expect(active(state).currentReaction?.line).toMatch(/buddy/i);
+  });
+
+  it("leaves the base ball play reaction untouched when no special toy item is used", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+
+    state = performPrototypeCareAction(state, "play", "2026-06-24T09:01:00.000Z");
+
+    expect(active(state).currentReaction?.ruleId).not.toBe("en_toy_buddy_plush_001");
+  });
+
+  it("gives Rose Cushion its own cozy-nap reaction and a bonus energy lift on top of the base affection effect", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_cushion_rose", 3, "2026-06-24T09:00:00.000Z");
+
+    const energyBefore = active(state).careState.energy;
+    const basePet = performPrototypeCareAction(buildAcceptedPet("2026-06-24T09:00:00.000Z"), "affection", "2026-06-24T09:01:00.000Z");
+
+    state = performPrototypeCareAction(state, "affection", "2026-06-24T09:01:00.000Z", "item_cushion_rose");
+
+    expect(active(state).currentReaction?.ruleId).toBe("en_cushion_rose_nap_001");
+    expect(active(state).careState.energy).toBeGreaterThan(energyBefore);
+    expect(active(state).careState.energy).toBeGreaterThan(active(basePet).careState.energy);
+  });
+
+  it("tracks Buddy Plush and Rose Cushion usage counts in careStats, independent of each other", () => {
+    let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_plush_toy_buddy", 3, "2026-06-24T09:00:00.000Z");
+    state = grantItem(state, "item_cushion_rose", 3, "2026-06-24T09:00:00.000Z");
+
+    state = performPrototypeCareAction(state, "play", "2026-06-24T09:01:00.000Z", "item_plush_toy_buddy");
+    state = performPrototypeCareAction(state, "play", "2026-06-24T09:22:00.000Z", "item_plush_toy_buddy");
+    state = performPrototypeCareAction(state, "affection", "2026-06-24T09:23:00.000Z", "item_cushion_rose");
+
+    expect(active(state).careStats.itemUsageCounts?.item_plush_toy_buddy).toBe(2);
+    expect(active(state).careStats.itemUsageCounts?.item_cushion_rose).toBe(1);
+  });
+});

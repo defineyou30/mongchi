@@ -32,6 +32,17 @@ export interface CareStats {
    */
   playXpDayKey?: string;
   playXpCountToday?: number;
+  /**
+   * Per-item usage counts across every care action -- broader than
+   * treatItemCounts, which only tracks treats (for the favorite-treat
+   * reaction). This is what backs the toy/cushion individuality reactions'
+   * "how many times has this owner reached for Buddy Plush / the Rose
+   * Cushion" bookkeeping (see mongchi Tier 4 item individuality). Optional so
+   * existing persisted saves without it default to "never used" on read --
+   * no schema version bump needed, same pattern as the XP daily counters
+   * above.
+   */
+  itemUsageCounts?: Record<string, number>;
 }
 
 export const createInitialCareStats = (): CareStats => ({
@@ -114,8 +125,14 @@ export const bumpPlayXpCounter = (stats: CareStats, now: ISODateTime): CareStats
   };
 };
 
-/** Call once per care action performed. Pass `treatItemId` when `action` is "treat". */
-export const bumpCareStats = (stats: CareStats, action: CareActionType, treatItemId?: string): CareStats => {
+/**
+ * Call once per care action performed. Pass `treatItemId` when `action` is
+ * "treat" (feeds treatItemCounts, the favorite-treat tie-break). Pass
+ * `usedItemId` whenever *any* item participated in the action (treat or
+ * special toy/cushion alike) to bump the broader itemUsageCounts bookkeeping
+ * -- callers typically pass the same value to both when action is "treat".
+ */
+export const bumpCareStats = (stats: CareStats, action: CareActionType, treatItemId?: string, usedItemId?: string): CareStats => {
   const nextActionCounts = {
     ...stats.actionCounts,
     [action]: (stats.actionCounts[action] ?? 0) + 1
@@ -127,6 +144,16 @@ export const bumpCareStats = (stats: CareStats, action: CareActionType, treatIte
           [treatItemId]: (stats.treatItemCounts[treatItemId] ?? 0) + 1
         }
       : stats.treatItemCounts;
+  // Only ever set when usedItemId is given -- exactOptionalPropertyTypes
+  // forbids explicitly assigning `itemUsageCounts: undefined` below, so an
+  // unchanged (or still-absent) itemUsageCounts is left untouched by
+  // `...stats` instead of being re-assigned.
+  const nextItemUsageCounts = usedItemId
+    ? {
+        ...stats.itemUsageCounts,
+        [usedItemId]: (stats.itemUsageCounts?.[usedItemId] ?? 0) + 1
+      }
+    : undefined;
 
   return {
     // Preserve the optional daily XP-cap counters (treatXpDayKey/
@@ -136,10 +163,14 @@ export const bumpCareStats = (stats: CareStats, action: CareActionType, treatIte
     ...stats,
     actionCounts: nextActionCounts,
     treatItemCounts: nextTreatItemCounts,
+    ...(nextItemUsageCounts ? { itemUsageCounts: nextItemUsageCounts } : {}),
     walkCount: action === "walk" ? stats.walkCount + 1 : stats.walkCount,
     totalCareActions: stats.totalCareActions + 1
   };
 };
+
+/** How many times a given item has been used across every care action. 0 for an item never used (or a brand-new stats snapshot). */
+export const getItemUsageCount = (stats: CareStats, itemId: string): number => stats.itemUsageCounts?.[itemId] ?? 0;
 
 /** The most-performed care action, or null if there's no clear favorite (no actions yet, or a tie). */
 export const getFavoriteCareAction = (stats: CareStats): CareActionType | null => {
@@ -172,6 +203,21 @@ export const getFavoriteTreatItemId = (stats: CareStats): string | null => {
 
   return top ? top[0] : null;
 };
+
+/**
+ * True when `treatItemId` is (tied for) the most-gifted treat *and* it has
+ * been given at least once before now -- used to gate the "that's my
+ * favorite!" reaction so a brand-new treat's very first gift reads as
+ * curious-tasting instead of already being crowned a favorite. Call with the
+ * stats snapshot from *before* this gift is counted (see
+ * performPrototypeCareAction) so a single gift of a new item can't
+ * immediately declare itself the favorite by tying at count 1.
+ */
+export const isFavoriteTreatItem = (stats: CareStats, treatItemId: string): boolean =>
+  stats.treatItemCounts[treatItemId] !== undefined && stats.treatItemCounts[treatItemId]! > 0 && getFavoriteTreatItemId(stats) === treatItemId;
+
+/** True when `treatItemId` has never been given before (count is 0 or absent in `stats`). Pass the pre-gift stats snapshot, same as isFavoriteTreatItem. */
+export const isFirstTimeTreatItem = (stats: CareStats, treatItemId: string): boolean => (stats.treatItemCounts[treatItemId] ?? 0) === 0;
 
 /**
  * Derived "habit" identifiers from accumulated care patterns -- the raw

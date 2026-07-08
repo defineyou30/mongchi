@@ -173,4 +173,28 @@ describe("local care actions", () => {
     expect(plushPlay.nextState.happiness).toBeGreaterThan(basePlay.nextState.happiness);
     expect(plushPlay.nextState.affection).toBeGreaterThan(basePlay.nextState.affection);
   });
+
+  it("gives the Rose Cushion affection action a bonus energy lift, standing in for a rest moment (see mongchi Tier 4 item individuality)", () => {
+    const baseAffection = applyLocalCareAction(
+      { ...mockCareState, energy: 50 },
+      {
+        action: "affection",
+        occurredAt: "2026-06-24T10:05:00.000Z"
+      }
+    );
+    const cushionAffection = applyLocalCareAction(
+      { ...mockCareState, energy: 50 },
+      {
+        action: "affection",
+        itemId: "item_cushion_rose",
+        occurredAt: "2026-06-24T10:05:00.000Z"
+      }
+    );
+
+    // Base affection has no energy effect at all; the cushion adds one on
+    // top, roughly half of rest's own +28 gain -- a real nap-sized bonus
+    // without fully substituting for the dedicated rest action.
+    expect(baseAffection.nextState.energy).toBe(50);
+    expect(cushionAffection.nextState.energy).toBeGreaterThan(baseAffection.nextState.energy);
+  });
 });

@@ -65,6 +65,8 @@ import {
   getLocalDayKey,
   getStreakGraceReturnLine,
   grantRelationshipBondXp,
+  isFavoriteTreatItem,
+  isFirstTimeTreatItem,
   pruneActiveCareBuffs,
   shouldGrantPlayBondXp,
   shouldGrantTalkBondXp,
@@ -1221,6 +1223,32 @@ export const performPrototypeCareAction = (
     : buffsAfterUse;
   const buffStarted = usedBuffTemplate !== undefined && !buffsBeforeAction.some((buff) => buff.buffId === usedBuffTemplate.buffId);
 
+  // Individuality reactions (docs/gamefeel-sound-plan.md §1 Tier 4): favorite
+  // treats and the two special toy/cushion items each get their own reaction
+  // line via a dedicated eventContext. These are checked *before*
+  // buff_started -- item_plush_toy_buddy/item_cushion_rose both also start an
+  // action_gain_boost buff on first use (see careBuffTemplatesByItem), so
+  // without this ordering every first use would show the generic "a special
+  // power charged up!" buff line instead of the item's own dialogue, which
+  // defeats the point of giving these items a distinct personality. The buff
+  // itself still starts either way; only which reaction line is shown here
+  // changes. getFavoriteTreatItemId/isFavoriteTreatItem/isFirstTimeTreatItem
+  // read `bundle.careStats` *before* this gift is bumped below, so a
+  // brand-new treat's very first gift can never immediately tie itself into
+  // "favorite".
+  const individualityEventContext =
+    action === "treat" && consumableTreatItemId && isFavoriteTreatItem(bundle.careStats, consumableTreatItemId)
+      ? "treat_favorite"
+      : action === "treat" && consumableTreatItemId && isFirstTimeTreatItem(bundle.careStats, consumableTreatItemId)
+        ? "treat_first_time"
+        : action === "play" && resolvedActionItemId === "item_plush_toy_buddy"
+          ? "toy_buddy_plush"
+          : action === "affection" && resolvedActionItemId === "item_cushion_rose"
+            ? "cushion_rose_nap"
+            : buffStarted
+              ? "buff_started"
+              : undefined;
+
   const selectedReaction = selectLocalReaction(starterReactionRules, {
     locale: DEFAULT_PROTOTYPE_LOCALE,
     now,
@@ -1230,7 +1258,7 @@ export const performPrototypeCareAction = (
     daysAway: 0,
     weather: state.weatherState.context,
     recentReactions: bundle.recentReactions,
-    ...(buffStarted ? { eventContext: "buff_started" } : {})
+    ...(individualityEventContext ? { eventContext: individualityEventContext } : {})
   });
 
   const consumedInventory = action === "treat" && consumableTreatItemId ? consumeInventoryItem(state.inventory, consumableTreatItemId, now) : null;
@@ -1279,7 +1307,11 @@ export const performPrototypeCareAction = (
   // A bond level-up is the emotional peak of the loop and outranks everything
   // else; a streak snack still beats the regular action reaction.
   const finalReaction = bondReward.celebrationReaction ?? streakReward.celebrationReaction ?? selectedReaction;
-  const bumpedCareStats = bumpCareStats(bundle.careStats, action, consumableTreatItemId ?? undefined);
+  // usedItemId tracks *every* item's usage (treats and special toy/cushion
+  // items alike, see itemUsageCounts on CareStats) -- resolvedActionItemId
+  // already covers both cases, so it's passed through as-is even though it
+  // duplicates consumableTreatItemId for treat actions.
+  const bumpedCareStats = bumpCareStats(bundle.careStats, action, consumableTreatItemId ?? undefined, resolvedActionItemId ?? undefined);
   const careStats =
     action === "treat"
       ? bumpTreatXpCounter(bumpedCareStats, now)

@@ -1,7 +1,7 @@
 import { ArrowLeft, Store } from "lucide-react-native";
 import { router } from "expo-router";
 import { useMemo } from "react";
-import { ImageBackground, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors, radii, shadows, spacing, useTypography } from "../../shared/design/tokens";
@@ -9,6 +9,7 @@ import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { GameItemImage, gameItemAssetByCatalogId } from "../../shared/ui/GameIllustrations";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+import { getHomeDockActionForItem } from "../terrarium/terrariumHomeCareMenu";
 import { getInventorySummaryPresentation } from "./inventoryPresentation";
 
 const inventoryBackground = require("../../../assets/generated/backgrounds/pixel-garden-premium-v1.png");
@@ -33,22 +34,41 @@ export function InventoryScreen() {
 
           {ownedItems.length > 0 ? (
             <View style={styles.itemGrid}>
-              {ownedItems.map(({ entry, item }) => (
-                <View key={item.id} style={styles.itemCard}>
-                  <View style={styles.itemIconFrame}>
-                    <GameItemImage
-                      accessibilityLabel={`${item.name} inventory icon`}
-                      item={gameItemAssetByCatalogId[item.id] ?? "flowerPot"}
-                      style={styles.itemIcon}
-                    />
-                  </View>
-                  <View style={styles.itemCopy}>
-                    <Text style={[styles.itemName, typography.body]}>{item.name}</Text>
-                    <Text style={[styles.itemDescription, typography.label]}>{item.description}</Text>
-                  </View>
-                  <Text style={[styles.quantity, typography.label]}>x{entry.quantity}</Text>
-                </View>
-              ))}
+              {ownedItems.map(({ entry, item }) => {
+                // "Give now" (docs/gamefeel-sound-plan.md §1 Tier 4): tapping a
+                // card jumps home and auto-opens the tray this item belongs to
+                // (e.g. Buddy Plush -> the play tray) so an owner can hand it
+                // over in one tap instead of navigating home and hunting for
+                // it themselves. getHomeDockActionForItem returns null for
+                // items with no dock tray of their own (e.g. the starter food
+                // bowl) -- those cards still go home, just without opening a
+                // specific tray.
+                const dockAction = getHomeDockActionForItem(item);
+
+                return (
+                  <Pressable
+                    key={item.id}
+                    accessibilityHint="Goes home and opens this item's tray"
+                    accessibilityLabel={`Give ${item.name} now`}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.itemCard, pressed ? styles.itemCardPressed : null]}
+                    onPress={() => router.push(dockAction ? `/terrarium?openTray=${dockAction}` : "/terrarium")}
+                  >
+                    <View style={styles.itemIconFrame}>
+                      <GameItemImage
+                        accessibilityLabel={`${item.name} inventory icon`}
+                        item={gameItemAssetByCatalogId[item.id] ?? "flowerPot"}
+                        style={styles.itemIcon}
+                      />
+                    </View>
+                    <View style={styles.itemCopy}>
+                      <Text style={[styles.itemName, typography.body]}>{item.name}</Text>
+                      <Text style={[styles.itemDescription, typography.label]}>{item.description}</Text>
+                    </View>
+                    <Text style={[styles.quantity, typography.label]}>x{entry.quantity}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : (
             <View style={styles.emptyState}>
@@ -128,6 +148,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
     ...shadows.tile
+  },
+  itemCardPressed: {
+    transform: [{ scale: 0.97 }],
+    opacity: 0.88
   },
   itemIconFrame: {
     width: 74,

@@ -1140,6 +1140,74 @@ const enExpandedReactionRules: ReactionRule[] = [
     priority: 77,
     cooldownHours: 6,
     safetyLevel: "safe"
+  },
+  // --- Item individuality (docs/gamefeel-sound-plan.md §1 Tier 4) ---
+  // Favorite-treat / first-time-treat / toy & cushion reactions are gated by
+  // a dedicated eventContext (see performPrototypeCareAction) rather than a
+  // new ReactionConditions field, matching the buff_started pattern. Priority
+  // is kept clear of treat_common (76) and treat_special (64) by more than 8
+  // points either way (see localReactionEngine.scoreRule's tie-pool window)
+  // so these never end up sharing a random pick with the generic lines.
+  {
+    id: "en_treat_favorite_001",
+    locale: "en-US",
+    category: "treat_special",
+    conditions: { recentActionAny: ["treat"], eventContext: ["treat_favorite"] },
+    lines: [
+      "That's my favorite! You remembered.",
+      "My favorite, my favorite! You always know.",
+      "Out of everything, this is my favorite. Thank you for remembering."
+    ],
+    animation: "treat",
+    priority: 88,
+    cooldownHours: 2,
+    safetyLevel: "safe"
+  },
+  {
+    id: "en_treat_first_time_001",
+    locale: "en-US",
+    category: "treat_common",
+    conditions: { recentActionAny: ["treat"], eventContext: ["treat_first_time"] },
+    lines: [
+      "Ooh, what is this one? ...I like it. Can I have this again sometime?",
+      "A new taste! Let me think about this for a second. ...Yes, good.",
+      "I have never had this before. Curious sniff, then a happy verdict."
+    ],
+    animation: "treat",
+    priority: 90,
+    cooldownHours: 2,
+    safetyLevel: "safe"
+  },
+  {
+    id: "en_toy_buddy_plush_001",
+    locale: "en-US",
+    category: "play_done",
+    conditions: { recentActionAny: ["play"], eventContext: ["toy_buddy_plush"] },
+    lines: [
+      "Buddy never stood a chance!",
+      "Shake, shake, shake! Buddy is officially defeated.",
+      "Buddy and I had the best battle. I won. Obviously.",
+      "I carried Buddy around the whole time. We are a team now."
+    ],
+    animation: "play",
+    priority: 92,
+    cooldownHours: 2,
+    safetyLevel: "safe"
+  },
+  {
+    id: "en_cushion_rose_nap_001",
+    locale: "en-US",
+    category: "petting",
+    conditions: { recentActionAny: ["affection"], eventContext: ["cushion_rose_nap"] },
+    lines: [
+      "This cushion was made for exactly this kind of curl-up.",
+      "One little nap on the rose cushion and everything feels softer.",
+      "I am officially a puddle on this cushion now. A happy puddle."
+    ],
+    animation: "idle_happy",
+    priority: 92,
+    cooldownHours: 2,
+    safetyLevel: "safe"
   }
 ];
 
