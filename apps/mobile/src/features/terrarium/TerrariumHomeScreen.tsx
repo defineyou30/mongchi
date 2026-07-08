@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { Bath, Droplets, Flame, Footprints, Gift, Heart, MessageCircle, Moon, PawPrint, Utensils, Zap } from "lucide-react-native";
+import { Droplets, Flame, Footprints, Gift, Heart, MessageCircle, Moon, Utensils, Zap } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Animated, Easing, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -239,28 +239,25 @@ const homeActionAssetPreference: Record<CareActionType, GeneratedAssetState> = {
 /**
  * Raster HUD meter icons -- the one place to swap in a new PNG (e.g. the
  * upcoming pixel-art meter icon set). A key with no entry here falls back to
- * hudMeterVectorIconsByKey's lucide glyph below (currently just "clean",
- * standing in for the not-yet-landed cleanliness pixel icon) -- see
- * HudMeterIconGlyph, the single render call site that picks between the two.
- * Once a "clean" PNG lands, add it here and delete its vector entry below;
- * nothing else needs to change.
+ * hudMeterVectorIconsByKey's lucide glyph below -- see HudMeterIconGlyph, the
+ * single render call site that picks between the two.
  */
 const hudButtonAssets: Partial<Record<HudMeterIcon, ImageSourcePropType>> = {
   food: require("../../../assets/game-buttons/feed.png"),
   heart: require("../../../assets/game-buttons/affection.png"),
   zap: require("../../../assets/game-buttons/energy.png"),
-  water: require("../../../assets/game-buttons/water.png")
+  water: require("../../../assets/game-buttons/water.png"),
+  clean: require("../../../assets/game-buttons/clean.png")
 };
 
 /** Vector fallback for HUD meter icons with no raster asset yet -- see hudButtonAssets above. */
-const hudMeterVectorIconsByKey: Partial<Record<HudMeterIcon, ComponentType<{ color?: string; size?: number; strokeWidth?: number }>>> = {
-  clean: Bath
-};
+const hudMeterVectorIconsByKey: Partial<Record<HudMeterIcon, ComponentType<{ color?: string; size?: number; strokeWidth?: number }>>> = {};
 
 const sideRailButtonAssets = {
   shop: require("../../../assets/game-buttons/side-nav/shop.png"),
   chat: require("../../../assets/game-buttons/side-nav/chat.png"),
-  settings: require("../../../assets/game-buttons/side-nav/settings.png")
+  settings: require("../../../assets/game-buttons/side-nav/settings.png"),
+  friend: require("../../../assets/game-buttons/side-nav/friend.png")
 } satisfies Record<string, ImageSourcePropType>;
 
 // Seeded (not Math.random) on purpose: see getAmbientReactionSeed for why an
@@ -719,10 +716,9 @@ interface FriendRailButtonProps {
 }
 
 /**
- * The friend page's side-rail entry has no PNG art yet (shop/chat/settings
- * do), so it's built from existing tokens instead of require()'d art — a
- * cream pixel-bordered tile (shadows.tile) matching the other rail buttons'
- * footprint, with a paw glyph so it reads as "this pet's page" at a glance.
+ * The friend page's side-rail entry -- a cream pixel-bordered tile
+ * (shadows.tile) matching the other rail buttons' footprint, with the
+ * friend-page PNG tile (same require()'d-art pattern as shop/chat/settings).
  */
 function FriendRailButton({ accessibilityLabel, onPress, showBadge = false }: FriendRailButtonProps) {
   return (
@@ -733,7 +729,13 @@ function FriendRailButton({ accessibilityLabel, onPress, showBadge = false }: Fr
       style={({ pressed }) => [styles.friendRailButton, pressed ? styles.friendRailButtonPressed : null]}
       onPress={onPress}
     >
-      <PawPrint color={colors.woodDark} size={24} strokeWidth={2.6} />
+      <Image
+        accessibilityIgnoresInvertColors
+        accessibilityLabel="Friend button art"
+        resizeMode="contain"
+        source={sideRailButtonAssets.friend}
+        style={styles.friendRailButtonImage}
+      />
       {showBadge ? <View accessibilityElementsHidden importantForAccessibility="no" style={styles.friendRailBadgeDot} /> : null}
     </Pressable>
   );
@@ -3207,6 +3209,10 @@ const styles = StyleSheet.create({
   friendRailButtonPressed: {
     transform: [{ translateY: 2 }],
     borderBottomWidth: 3
+  },
+  friendRailButtonImage: {
+    width: 34,
+    height: 34
   },
   friendRailBadgeDot: {
     position: "absolute",

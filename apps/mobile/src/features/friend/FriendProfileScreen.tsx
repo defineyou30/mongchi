@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ArrowLeft, Mail, Share2, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
 
 import {
   expressionPacks,
@@ -18,6 +18,7 @@ import { colors, radii, shadows, spacing, useFontFamilies, useTypography } from 
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
 import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
+import { walkCollectibleAssets } from "../../shared/assets/walkCollectibleAssets";
 import { buildFriendShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
@@ -556,7 +557,14 @@ export function FriendProfileScreen() {
               accessibilityLabel={cell.found ? `${cell.name}, found ${cell.count} time${cell.count === 1 ? "" : "s"}` : "Undiscovered walk find"}
               style={[styles.walkCell, cell.found ? null : styles.walkCellLocked]}
             >
-              <Text style={[styles.walkEmoji, cell.found ? null : styles.walkEmojiLocked]}>{cell.emoji}</Text>
+              <Image
+                accessibilityIgnoresInvertColors
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                resizeMode="contain"
+                source={walkCollectibleAssets[cell.id]}
+                style={[styles.walkIcon, cell.found ? null : styles.walkIconLocked]}
+              />
               <Text numberOfLines={1} style={[styles.walkName, typography.label]}>
                 {cell.name}
               </Text>
@@ -819,13 +827,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(122,110,102,0.14)",
     borderColor: "rgba(255,255,255,0.55)"
   },
-  walkEmoji: {
-    fontSize: 22
+  walkIcon: {
+    width: 28,
+    height: 28
   },
-  walkEmojiLocked: {
-    color: colors.mutedInk,
-    fontSize: 18,
-    fontWeight: "900"
+  // Locked cells still render the real pixel icon (never a placeholder "?")
+  // but dimmed and tinted into a flat silhouette, so the shape/rarity reads
+  // as "something's there, not yet discovered" rather than spoiling it.
+  walkIconLocked: {
+    opacity: 0.4,
+    tintColor: colors.mutedInk
   },
   walkName: {
     color: colors.ink

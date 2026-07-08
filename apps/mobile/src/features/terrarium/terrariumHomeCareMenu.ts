@@ -88,7 +88,7 @@ const bathOption: HomeCareMenuOption = {
   title: "Bath",
   meta: "+Fresh",
   quantity: 1,
-  assetKey: "wateringCan",
+  assetKey: "bath",
   owned: true
 };
 

@@ -42,7 +42,8 @@ export type GameItemAssetKey =
   | "cushion"
   | "doghouse"
   | "gift"
-  | "lantern";
+  | "lantern"
+  | "bath";
 
 export const gameItemAssetByCatalogId: Record<string, GameItemAssetKey> = {
   item_food_bowl_basic: "foodBowl",

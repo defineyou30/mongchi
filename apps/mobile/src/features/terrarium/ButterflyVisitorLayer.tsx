@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing, Pressable, StyleSheet } from "react-native";
 
+const butterflyAsset = require("../../../assets/game-fx/butterfly.png");
+
 /**
  * Tier 3 "world autonomy" daytime visitor (docs/gamefeel-sound-plan.md §1
- * Tier 3): a small butterfly glyph drifts across the scene on a sine-ish
+ * Tier 3): a small pixel butterfly drifts across the scene on a sine-ish
  * path, once per home-screen entry at most (see shouldSpawnButterflyVisit in
  * @mongchi/shared). Tapping it fires onCaught (the caller reacts with a
  * curious expression + a short tap line) and the butterfly disappears --
  * this layer only owns the flight path and the tap target, never the pet's
- * reaction. No new artwork: a plain text glyph, same technique as
- * CareMomentLayer's heart-burst "❤" glyphs.
+ * reaction.
  */
 interface ButterflyVisitorLayerProps {
   windowWidth: number;
@@ -78,7 +79,12 @@ export function ButterflyVisitorLayer({ windowWidth, windowHeight, reduceMotionE
         style={styles.tapTarget}
         onPress={onCaught}
       >
-        <Animated.Text style={[styles.glyph, { transform: [{ rotate }] }]}>{"\u{1F98B}"}</Animated.Text>
+        <Animated.Image
+          accessibilityIgnoresInvertColors
+          resizeMode="contain"
+          source={butterflyAsset}
+          style={[styles.glyph, { transform: [{ rotate }] }]}
+        />
       </Pressable>
     </Animated.View>
   );
@@ -98,7 +104,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   glyph: {
-    fontSize: 24,
-    lineHeight: 28
+    width: 28,
+    height: 28
   }
 });

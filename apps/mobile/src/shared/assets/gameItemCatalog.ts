@@ -266,6 +266,7 @@ const itemSources = {
     | "doghouse"
     | "gift"
     | "lantern"
+    | "bath"
   >,
   Record<GameItemVariant, ImageSourcePropType>
 >;
@@ -326,6 +327,13 @@ const plantStageSources = {
   | "springPatchBloom",
   Record<GameItemVariant, ImageSourcePropType>
 >;
+
+/**
+ * Bath tray icon (terrariumHomeCareMenu's always-visible "Bath" option in the
+ * Water tray) -- a single pixel-art icon reused across all four variants,
+ * same technique as plantStageSources above.
+ */
+const bathSources = defineSingleImageSources(require("../../../assets/game-items/action/bath.png"));
 
 export const gameItemDefinitions: Record<GameItemAssetKey, GameItemDefinition> = {
   foodBowl: defineItem("scene_food_bowl", "food", "small", 96, ["foodSlot"], "petAdjacent", itemSources.foodBowl),
@@ -389,7 +397,8 @@ export const gameItemDefinitions: Record<GameItemAssetKey, GameItemDefinition> =
   lantern: defineItem("scene_hanging_lantern_alias", "light", "medium", 128, ["lightSlot"], "background", itemSources.hangingLantern, {
     anchorY: 0.12,
     contactShadow: "none"
-  })
+  }),
+  bath: defineItem("scene_bath_tray", "water", "small", 96, ["waterSlot", "rightPlantSlot"], "foreground", bathSources)
 };
 
 export const gameItemAssetByCatalogId = catalogAssetMapping satisfies Record<string, GameItemAssetKey>;
