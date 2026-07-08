@@ -21,6 +21,18 @@
 // runs through the same rate limit, generation, chroma-key, quality gate,
 // and upload pipeline, and never deletes the seed asset.
 //
+// Multi-pet namespace (supabase/migrations/0005_pet_namespace.sql): requests
+// may carry an optional pet_id identifying which of the caller's pets this
+// job/asset belongs to. Omitted (or absent) pet_id means the pre-multi-pet
+// first/only pet -- every existing client falls into this bucket, so this is
+// a pure backward-compat default, not a special case. When pet_id is
+// present, generated asset storage paths are namespaced under it
+// (avatars/{userId}/{petId}/{jobId}/{state}.png instead of
+// avatars/{userId}/{jobId}/{state}.png) and a first-ever (non-expression-
+// pack) generation for a pet_id beyond the user's first is gated on
+// pet_slots rather than the free generation_quota allowance -- see step 4
+// and reserve_pet_generation_slot below.
+//
 // Deno / Supabase Edge Runtime. TypeScript strict.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
@@ -94,6 +106,13 @@ interface GenerateAvatarRequestBody {
   // been migrated to send it yet (Phase 1c) -- see request_id fallback in
   // the HTTP handler below.
   request_id?: string;
+  // Which of the caller's pets this request is for (see 0005_pet_namespace.sql
+  // and the module doc comment above). Optional and, as of this migration,
+  // never sent by any shipped client -- omitted means the pre-multi-pet
+  // first/only pet. When present, must match PET_ID_PATTERN below (it's
+  // used as a literal storage path segment, so it's restricted to a safe
+  // charset rather than accepting arbitrary strings).
+  pet_id?: string;
 }
 
 interface GenerationJobRow {
@@ -105,6 +124,7 @@ interface GenerationJobRow {
   original_photo_path: string | null;
   source_asset_path: string | null;
   credit_ref: string | null;
+  pet_id: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +165,14 @@ const EXPRESSION_PACK_CREDIT_COST = 12;
 // cap is enforced (see the isExpressionPackRequest validation below), so the
 // cap always bounds distinct, billable states -- not raw array length.
 const MAX_EXPRESSION_PACK_STATES = 6;
+
+// Charset for an incoming pet_id (see the GenerateAvatarRequestBody.pet_id
+// doc comment above). This is used verbatim as a storage path segment
+// (avatars/{userId}/{petId}/...), so it's restricted to a safe, boring
+// charset rather than accepting arbitrary strings -- in particular no "/" or
+// "..", which would otherwise let a crafted pet_id escape the intended
+// per-pet storage prefix.
+const PET_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // Per-OpenAI-call abort timeout. Chosen so that safety check (1 call) +
 // state generation (calls now run in parallel, so this is ~1 call's worth of
@@ -367,6 +395,7 @@ const stylePromptLines: string[] = [
 const failureMessages = {
   quotaExhausted: "You're out of avatar generations for now. Grab more credits and let's try again soon.",
   insufficientCredits: "You're out of credits for this one. Grab more and let's try again soon.",
+  petSlotRequired: "Looks like this little one needs a bit more room first. Grab a new friend slot and let's get them settled in.",
   photoMissing: "We couldn't find that photo. Try uploading it once more.",
   sourceAssetMissing: "We couldn't find that expression to build from. Try again from your companion's page.",
   safetyFailed: "That photo didn't pass our safety check. Try another clear photo of your pet.",
@@ -898,7 +927,8 @@ const markJobFailed = async (
   failureMessageSafe: string,
   refund: boolean,
   diagnostics?: JobFailureDiagnostics,
-  creditRef?: string | null
+  creditRef?: string | null,
+  usedPetSlotBundle?: boolean
 ): Promise<void> => {
   const patch: Record<string, unknown> = {
     status: "failed",
@@ -921,13 +951,24 @@ const markJobFailed = async (
     // credit_ref -- the request_id used as the consume_credits idempotency
     // key -- and must be refunded through refund_credits against that same
     // key, not refund_generation_quota, since no generation_quota unit was
-    // ever spent for them. Jobs funded by the free allowance (credit_ref
-    // null) keep using refund_generation_quota exactly as before. Both
-    // refund RPCs are idempotent, so a retried markJobFailed call (e.g. from
-    // an outer catch running after an inner one already refunded) never
-    // double-refunds.
+    // ever spent for them. Jobs funded by a purchased pet slot's bundled
+    // generation grant (usedPetSlotBundle, see reserve_pet_generation_slot in
+    // 0005_pet_namespace.sql) similarly never touched generation_quota or
+    // credit_wallets, and must instead have that bundle restored via
+    // refund_pet_generation_slot so a transient failure doesn't burn the one
+    // free generation a purchased slot grants. Every other job (credit_ref
+    // null, usedPetSlotBundle false/undefined) was funded by the free
+    // allowance and keeps using refund_generation_quota exactly as before.
+    // All three refund RPCs are safe against a retried markJobFailed call
+    // (e.g. from an outer catch running after an inner one already
+    // refunded) -- refund_credits is ref-keyed idempotent, and refund_
+    // generation_quota/refund_pet_generation_slot rely on this function only
+    // ever being called once per job (every failure path returns
+    // immediately after calling it -- see runPipeline below).
     if (creditRef) {
       await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
+    } else if (usedPetSlotBundle) {
+      await admin.rpc("refund_pet_generation_slot", { p_user: userId });
     } else {
       await admin.rpc("refund_generation_quota", { p_user: userId });
     }
@@ -944,8 +985,15 @@ const runPipeline = async (input: {
   openAiApiKey: string;
   imageModel: string;
   dryRun: boolean;
+  // Whether this job was funded by a purchased pet slot's bundled generation
+  // grant (see reserve_pet_generation_slot in 0005_pet_namespace.sql) rather
+  // than consume_credits or the free generation_quota allowance. Threaded in
+  // from the HTTP handler's step 4 funding decision, the same way dryRun is
+  // -- it's an outcome of that request-time decision, not something re-
+  // derivable from the job row alone.
+  usedPetSlotBundle: boolean;
 }): Promise<void> => {
-  const { admin, job, openAiApiKey, imageModel, dryRun } = input;
+  const { admin, job, openAiApiKey, imageModel, dryRun, usedPetSlotBundle } = input;
   const originalPhotoPath = job.original_photo_path;
   const sourceAssetPath = job.source_asset_path;
 
@@ -957,15 +1005,17 @@ const runPipeline = async (input: {
   const isExpressionPackMode = Boolean(sourceAssetPath);
 
   // Every job funded a purchase (either consume_credits, recorded as
-  // job.credit_ref, or the free consume_generation_quota allowance when
-  // credit_ref is null) and must refund it on failure -- markJobFailed picks
-  // the right RPC based on job.credit_ref (see markJobFailed above).
-  // Historically this was `!isExpressionPackMode`, i.e. expression packs
-  // were never refunded on failure -- that was correct back when expression
-  // packs skipped server-side charging entirely, but is now a bug: expression
-  // packs are debited via consume_credits before the job is created (see the
-  // HTTP handler's step 4), so a failure that doesn't refund would silently
-  // keep the user's credits without ever delivering the generation.
+  // job.credit_ref, a purchased pet slot's bundled generation grant
+  // (usedPetSlotBundle), or the free consume_generation_quota allowance when
+  // neither of those applies) and must refund it on failure -- markJobFailed
+  // picks the right RPC based on creditRef/usedPetSlotBundle (see
+  // markJobFailed above). Historically this was `!isExpressionPackMode`,
+  // i.e. expression packs were never refunded on failure -- that was correct
+  // back when expression packs skipped server-side charging entirely, but is
+  // now a bug: expression packs are debited via consume_credits before the
+  // job is created (see the HTTP handler's step 4), so a failure that
+  // doesn't refund would silently keep the user's credits without ever
+  // delivering the generation.
   const shouldRefundOnFailure = true;
   const creditRef = job.credit_ref;
 
@@ -978,7 +1028,8 @@ const runPipeline = async (input: {
       failureMessages.photoMissing,
       shouldRefundOnFailure,
       { failedStage: "created", internalError: "Job row has no original_photo_path or source_asset_path." },
-      creditRef
+      creditRef,
+      usedPetSlotBundle
     );
     return;
   }
@@ -1002,7 +1053,8 @@ const runPipeline = async (input: {
             toInternalErrorMessage(download.error) ??
             (isExpressionPackMode ? "Source asset download returned no data." : "Original photo download returned no data.")
         },
-        creditRef
+        creditRef,
+        usedPetSlotBundle
       );
       return;
     }
@@ -1040,7 +1092,8 @@ const runPipeline = async (input: {
           failureMessages.safetyFailed,
           true,
           diagnosticsForStage("safety_checking", cause),
-          creditRef
+          creditRef,
+          usedPetSlotBundle
         );
         return;
       }
@@ -1059,7 +1112,8 @@ const runPipeline = async (input: {
               `Manual review required (confidence=${safety.confidence}): ${safety.failedChecks.join(", ") || "no specific checks flagged"}.`
             )
           },
-          creditRef
+          creditRef,
+          usedPetSlotBundle
         );
         return;
       }
@@ -1078,7 +1132,8 @@ const runPipeline = async (input: {
               `Safety check rejected (confidence=${safety.confidence}): ${safety.failedChecks.join(", ") || "no specific checks flagged"}.`
             )
           },
-          creditRef
+          creditRef,
+          usedPetSlotBundle
         );
         return;
       }
@@ -1151,7 +1206,8 @@ const runPipeline = async (input: {
         failureMessages.generationFailed,
         shouldRefundOnFailure,
         diagnosticsForStage("generating", cause),
-        creditRef
+        creditRef,
+        usedPetSlotBundle
       );
       return;
     }
@@ -1205,7 +1261,8 @@ const runPipeline = async (input: {
         failureMessages.qualityFailed,
         shouldRefundOnFailure,
         undefined,
-        creditRef
+        creditRef,
+        usedPetSlotBundle
       );
       return;
     }
@@ -1214,8 +1271,17 @@ const runPipeline = async (input: {
     await updateJobStatus(admin, job.id, { status: "uploading_assets" });
 
     try {
+      // pet_id-namespaced storage path when the job carries one, otherwise
+      // the original (pre-multi-pet) layout unchanged -- see
+      // 0005_pet_namespace.sql's backward-compat principle. Inserting
+      // job.pet_id right after the userId segment keeps the RLS storage
+      // policies (which key off (storage.foldername(name))[2] == userId,
+      // see 0001_init.sql) correct in both cases: userId stays the segment
+      // right after "avatars" either way.
       for (const { state, result } of generated) {
-        const storagePath = `avatars/${job.user_id}/${job.id}/${state}.png`;
+        const storagePath = job.pet_id
+          ? `avatars/${job.user_id}/${job.pet_id}/${job.id}/${state}.png`
+          : `avatars/${job.user_id}/${job.id}/${state}.png`;
         const contentHash = `sha256:${await sha256Hex(result.bytes)}`;
 
         const upload = await admin.storage.from(BUCKET).upload(storagePath, result.bytes, {
@@ -1230,6 +1296,7 @@ const runPipeline = async (input: {
         const insert = await admin.from("generated_assets").insert({
           job_id: job.id,
           user_id: job.user_id,
+          pet_id: job.pet_id,
           state,
           storage_path: storagePath,
           width: result.width,
@@ -1250,7 +1317,8 @@ const runPipeline = async (input: {
         failureMessages.uploadFailed,
         shouldRefundOnFailure,
         diagnosticsForStage("uploading_assets", cause),
-        creditRef
+        creditRef,
+        usedPetSlotBundle
       );
       return;
     }
@@ -1285,7 +1353,8 @@ const runPipeline = async (input: {
       failureMessages.unexpected,
       shouldRefundOnFailure,
       diagnosticsForStage("unexpected", cause),
-      creditRef
+      creditRef,
+      usedPetSlotBundle
     );
   }
 };
@@ -1383,6 +1452,21 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "invalid_request" }, 400);
   }
 
+  // pet_id (see 0005_pet_namespace.sql and the GenerateAvatarRequestBody doc
+  // comment): optional, and as of this migration no shipped client sends it
+  // yet -- absent/undefined means the pre-multi-pet first/only pet. When
+  // present it's validated against PET_ID_PATTERN since it's used verbatim
+  // as a storage path segment further down.
+  let requestedPetId: string | null = null;
+
+  if (body.pet_id !== undefined) {
+    if (typeof body.pet_id !== "string" || !PET_ID_PATTERN.test(body.pet_id)) {
+      return jsonResponse({ error: "invalid_request" }, 400);
+    }
+
+    requestedPetId = body.pet_id;
+  }
+
   // Expression pack mode: source_asset_path is present, so there is no
   // original photo to require (it was already deleted after the first
   // generation -- see runPipeline's privacy-driven deletion). Every other
@@ -1392,6 +1476,13 @@ Deno.serve(async (req: Request) => {
   if (!isExpressionPackRequest && (typeof body.originalPhotoPath !== "string" || body.originalPhotoPath.trim().length === 0)) {
     return jsonResponse({ error: "invalid_request" }, 400);
   }
+
+  // service_role client for privileged writes (quota, job rows, storage) --
+  // created here (rather than further down) because the expression pack
+  // pet-ownership check right below needs it.
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false }
+  });
 
   let requestedStates: string[] = [];
 
@@ -1419,17 +1510,38 @@ Deno.serve(async (req: Request) => {
     // (bypasses RLS) and downloads whatever path it's given, so an
     // unscoped source_asset_path would let one user seed a generation from
     // another user's generated_assets storage path. Mirrors the
-    // avatars/{user_id}/{job_id}/{state}.png layout this same function
-    // writes to on upload (see the "f. Upload assets" step below).
+    // avatars/{user_id}/{job_id}/{state}.png (or, pet-namespaced,
+    // avatars/{user_id}/{pet_id}/{job_id}/{state}.png) layout this same
+    // function writes to on upload (see the "f. Upload assets" step below).
     if (!body.source_asset_path!.startsWith(`avatars/${userId}/`)) {
       return jsonResponse({ error: "invalid_request" }, 400);
     }
-  }
 
-  // service_role client for privileged writes (quota, job rows, storage).
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false }
-  });
+    // Per-pet seed ownership: the prefix check above only proves the asset
+    // belongs to this *user* -- once storage paths are pet-namespaced, a
+    // user with two pets could otherwise seed pet B's expression pack from
+    // pet A's sprite (same user, wrong pet -- docs/multi-pet-slot-plan.md's
+    // "표정 팩 시드 소유권 강화"). Confirm the seed path is actually recorded
+    // against the requested pet_id (or, when pet_id is absent, against the
+    // legacy null-pet-id pet) in generated_assets.
+    let seedOwnershipQuery = admin
+      .from("generated_assets")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("storage_path", body.source_asset_path!);
+    seedOwnershipQuery =
+      requestedPetId === null ? seedOwnershipQuery.is("pet_id", null) : seedOwnershipQuery.eq("pet_id", requestedPetId);
+
+    const { data: seedAssetRow, error: seedAssetError } = await seedOwnershipQuery.maybeSingle();
+
+    if (seedAssetError) {
+      return jsonResponse({ error: "source_asset_check_failed" }, 500);
+    }
+
+    if (!seedAssetRow) {
+      return jsonResponse({ error: "invalid_request" }, 400);
+    }
+  }
 
   // 3. Rate limit: cap burst attempts before touching quota/credits or doing
   // any paid work. For ordinary photo generations, an RPC error here fails
@@ -1480,10 +1592,17 @@ Deno.serve(async (req: Request) => {
   // retries aren't deduplicated until Phase 1c ships, same as before this
   // change.
   //
-  // All other (non-expression-pack) requests keep using the free
-  // generation_quota allowance exactly as before -- paid generation-credit
-  // pricing for regeneration/full-set is a later credit phase, not Phase 1.
+  // All other (non-expression-pack) requests are, by default, funded by the
+  // free generation_quota allowance exactly as before -- paid generation-
+  // credit pricing for regeneration/full-set is a later credit phase, not
+  // Phase 1. The one exception (multi-pet W2): a non-expression-pack request
+  // for a genuinely new pet beyond the user's first is instead gated on
+  // pet_slots (reserve_pet_generation_slot, 0005_pet_namespace.sql) --
+  // free_limit is per-USER, not per-pet, so it would otherwise already be
+  // exhausted by the time a second pet exists, which is exactly the
+  // multi-pet-slot-plan.md blocker this closes.
   let creditRef: string | null = null;
+  let usedPetSlotBundle = false;
 
   if (isExpressionPackRequest) {
     const requestId =
@@ -1507,14 +1626,36 @@ Deno.serve(async (req: Request) => {
 
     creditRef = requestId;
   } else {
-    const { data: quotaConsumed, error: quotaError } = await admin.rpc("consume_generation_quota", { p_user: userId });
+    const { data: slotDecision, error: slotError } = await admin.rpc("reserve_pet_generation_slot", {
+      p_user: userId,
+      p_pet_id: requestedPetId
+    });
 
-    if (quotaError) {
-      return jsonResponse({ error: "quota_check_failed" }, 500);
+    if (slotError) {
+      return jsonResponse({ error: "pet_slot_check_failed" }, 500);
     }
 
-    if (quotaConsumed !== true) {
-      return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
+    if (slotDecision === "slot_required") {
+      return jsonResponse({ error: "pet_slot_required", message: failureMessages.petSlotRequired }, 402);
+    }
+
+    if (slotDecision === "ok_slot_bundle") {
+      // Already fully paid for at slot-purchase time (grant_pet_slot) --
+      // skip both generation_quota and consume_credits for this request.
+      usedPetSlotBundle = true;
+    } else {
+      // "ok_default": either this user's first pet, or a from-photo
+      // regeneration of a pet that already has a completed generation --
+      // both keep going through the existing free quota allowance.
+      const { data: quotaConsumed, error: quotaError } = await admin.rpc("consume_generation_quota", { p_user: userId });
+
+      if (quotaError) {
+        return jsonResponse({ error: "quota_check_failed" }, 500);
+      }
+
+      if (quotaConsumed !== true) {
+        return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
+      }
     }
   }
 
@@ -1525,8 +1666,9 @@ Deno.serve(async (req: Request) => {
   // stays null for expression pack requests; source_asset_path carries the
   // seed sprite's storage path instead (see 0003_expression_pack_source_asset.sql).
   // credit_ref carries the consume_credits idempotency key from step 4 above
-  // (null for the free-quota path), used to refund the right ledger entry on
-  // pipeline failure -- see markJobFailed/runPipeline.
+  // (null for the free-quota and pet-slot-bundle paths), used to refund the
+  // right ledger entry on pipeline failure -- see markJobFailed/runPipeline.
+  // pet_id is requestedPetId verbatim (null for the pre-multi-pet default).
   const { data: insertedJob, error: insertError } = await admin
     .from("generation_jobs")
     .insert({
@@ -1535,15 +1677,18 @@ Deno.serve(async (req: Request) => {
       input_snapshot: body.inputSnapshot,
       original_photo_path: isExpressionPackRequest ? null : body.originalPhotoPath,
       credit_ref: creditRef,
+      pet_id: requestedPetId,
       ...(isExpressionPackRequest ? { source_asset_path: body.source_asset_path, required_states: requestedStates } : {}),
       ...(!isExpressionPackRequest && TEST_STATES_OVERRIDE ? { required_states: TEST_STATES_OVERRIDE } : {})
     })
-    .select("id, user_id, status, input_snapshot, required_states, original_photo_path, source_asset_path, credit_ref")
+    .select("id, user_id, status, input_snapshot, required_states, original_photo_path, source_asset_path, credit_ref, pet_id")
     .single();
 
   if (insertError || !insertedJob) {
     if (creditRef) {
       await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
+    } else if (usedPetSlotBundle) {
+      await admin.rpc("refund_pet_generation_slot", { p_user: userId });
     } else {
       await admin.rpc("refund_generation_quota", { p_user: userId });
     }
@@ -1560,7 +1705,14 @@ Deno.serve(async (req: Request) => {
   // impossible otherwise) -- runPipeline's dryRun branches never dereference
   // it in that case, so the empty-string fallback here is unreachable in
   // practice and exists purely to satisfy the non-optional parameter type.
-  const pipelinePromise = runPipeline({ admin, job, openAiApiKey: openAiApiKey ?? "", imageModel, dryRun: DRY_RUN });
+  const pipelinePromise = runPipeline({
+    admin,
+    job,
+    openAiApiKey: openAiApiKey ?? "",
+    imageModel,
+    dryRun: DRY_RUN,
+    usedPetSlotBundle
+  });
 
   if (runtime && typeof runtime.waitUntil === "function") {
     runtime.waitUntil(pipelinePromise);

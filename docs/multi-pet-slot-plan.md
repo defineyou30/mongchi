@@ -38,12 +38,14 @@
 | W | 내용 | 규모 |
 |---|---|---|
 | W1 | 도메인 번들화 + 마이그레이션 v7 + 렌즈 헬퍼 + 생성 상태머신을 onboardingFlow로 격리(첫 펫 파괴 방지) | 대 ~4-6일 |
-| W2 | 서버 펫 네임스페이스: generation_jobs/assets에 pet_id, 스토리지 avatars/{userId}/{petId}/, pet_slots 테이블 + 생성 게이트 | 중 ~2-3일 |
+| W2 | ✅ 서버 펫 네임스페이스: generation_jobs/assets에 pet_id, 스토리지 avatars/{userId}/{petId}/, pet_slots 테이블 + 생성 게이트 | 중 ~2-3일 |
 | W3 | 슬롯 구매 + 두 번째 펫 온보딩(기존 플로우 무파괴 재사용) + Splash 라우팅 pets 개수 기반 | 중대 ~3-5일 |
 | W4 | 멀티펫 표면: 홈 펫 전환, 친구/채팅/설정 petId 스코프, 알림 복수형 | 대 ~4-6일 |
 | W5 | 폴리시: 두 펫 상호작용 연출, 도감 보상 재점검, 스트릭 카피, 백업 키 정리 | 소중 ~2-3일 |
 
 각 웨이브는 그린 상태로 랜드 가능(W1~W2는 UI가 여전히 첫 펫만 보여도 통과).
+
+**2026-07-08 W2 완료 (서버 배포됨)**: `supabase/migrations/0005_pet_namespace.sql` — `generation_jobs`/`generated_assets`에 nullable `pet_id TEXT` 추가(NULL = 기존/첫 펫, 하위호환 기본값) + `pet_slots(user_id PK, extra_slots INT ≤1 CHECK, bundled_generation_available BOOLEAN)` 테이블(RLS 본인 읽기 전용) + RPC 3종: `grant_pet_slot`(50cr `consume_credits` 차감과 `extra_slots`+1·번들 부여를 한 트랜잭션으로 원자 처리, 상한 도달 시 과금 전 차단, `request_id` 멱등) / `reserve_pet_generation_slot`(완료된 펫 수를 `generation_jobs`의 `status='completed' AND original_photo_path IS NOT NULL` distinct `pet_id`로 산정 — `NULL`도 1마리로 카운트, 첫 펫·기존 펫 재생성은 `'ok_default'`로 기존 무료 쿼터 그대로, 신규 두 번째 펫은 슬롯 여유+번들 가용 시 `'ok_slot_bundle'`, 아니면 `'slot_required'`→402) / `refund_pet_generation_slot`(생성 실패 시 번들 환불, 크레딧/쿼터 환불과 동일 원칙). `generate-avatar`(`supabase/functions/generate-avatar/index.ts`) 수정: 요청 body에 optional `pet_id`(검증용 `PET_ID_PATTERN`, 스토리지 경로 세그먼트로 쓰이므로 영숫자/`_`/`-`만 허용) 추가 → 있으면 잡·에셋에 기록하고 업로드 경로를 `avatars/{userId}/{petId}/{jobId}/...`로(없으면 기존 경로 유지, `pet_media_select_own` RLS 정책은 userId가 여전히 인덱스 2라 무변경). 표정 팩 시드 소유권 검사를 기존 `avatars/{userId}/` 접두어 체크에 더해 `generated_assets` 조회로 `pet_id` 일치까지 확인(다른 펫 스프라이트 오시딩 방지). DRY_RUN은 HTTP 핸들러의 게이트(3·4단계) 이후에만 분기하므로 그대로 통과. 검증: `npm run typecheck` + `npx vitest run`(1252/1252 그린, 클라 무변경) + `deno check`(클린) + `deno lint`(기존 `no-import-prefix` 경고만 잔존). 마이그레이션 push + 함수 배포 완료. 슬롯 구매 UI/두 번째 펫 온보딩은 W3로 이월.
 
 ## ⚠️ 선행 과제 (블로커)
 
