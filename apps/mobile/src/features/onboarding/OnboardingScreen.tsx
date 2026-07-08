@@ -4,7 +4,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
-import { TerrariumArt } from "../../shared/ui/GameIllustrations";
+import { OnboardingStoryArt } from "../../shared/ui/OnboardingStoryArt";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 
 export function OnboardingScreen() {
@@ -13,12 +13,16 @@ export function OnboardingScreen() {
   const fontFamilies = useFontFamilies();
 
   return (
-    <GardenSceneFrame accessibilityLabel="Tiny pet welcome" contentStyle={compact ? styles.compactContent : null} innerStyle={compact ? styles.compactInner : null}>
-      <TerrariumArt
-        accessibilityLabel="Magical tiny garden entry scene"
-        scene="welcome"
-        showAmbientItems={false}
-        variant="empty"
+    <GardenSceneFrame
+      accessibilityLabel="Tiny pet photo intro"
+      contentStyle={compact ? styles.compactContent : null}
+      includeBottomEdge
+      innerStyle={compact ? styles.compactInner : null}
+    >
+      <OnboardingStoryArt
+        accessibilityLabel="One pet photo opening into a tiny garden home"
+        compact={compact}
+        variant="welcome"
         style={[styles.hero, compact ? styles.compactHero : null]}
       />
 
@@ -29,10 +33,10 @@ export function OnboardingScreen() {
             accessibilityRole="header"
             style={[styles.title, { fontFamily: fontFamilies.display }, compact ? styles.compactTitle : null]}
           >
-            Start with one pet photo
+            Raise your beloved pet in your hands
           </Text>
           <Text style={[styles.welcomeCopy, { fontFamily: fontFamilies.body }, compact ? styles.compactWelcomeCopy : null]}>
-            Add one pet photo, choose a tiny personality, then meet the little friend that lives in your garden.
+            Start with one clear photo, give them a tiny name and voice, then meet the little friend waiting in your garden.
           </Text>
         </View>
 
@@ -47,26 +51,26 @@ export function OnboardingScreen() {
           </View>
           <View style={styles.questPip}>
             <Heart color={colors.coral} size={16} strokeWidth={2.8} />
-            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>Meet</Text>
+            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>Move in</Text>
           </View>
         </View>
 
         <View style={styles.photoNotice}>
           <ShieldCheck color={colors.moss} size={18} strokeWidth={2.5} />
           <Text style={[styles.noticeText, { fontFamily: fontFamilies.body }, compact ? styles.compactNoticeText : null]}>
-            Use one clear dog or cat photo. Delete the original anytime after your friend moves in.
+            Your photo is only used to create your tiny friend. Delete the original anytime after they move in.
           </Text>
         </View>
       </View>
 
-      <ActionButton label="Start" Icon={Camera} onPress={() => router.push("/photo-upload")} />
+      <ActionButton label="Choose pet photo" Icon={Camera} onPress={() => router.push("/photo-upload")} />
     </GardenSceneFrame>
   );
 }
 
 const styles = StyleSheet.create({
   hero: {
-    minHeight: 330,
+    minHeight: 318,
     justifyContent: "flex-end"
   },
   compactContent: {
@@ -77,91 +81,7 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   compactHero: {
-    minHeight: 245
-  },
-  heroHud: {
-    position: "absolute",
-    top: spacing.md,
-    left: spacing.md,
-    right: spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.sm
-  },
-  heroBadge: {
-    minHeight: 34,
-    maxWidth: "58%",
-    borderRadius: radii.pill,
-    borderWidth: 2,
-    borderBottomWidth: 4,
-    borderColor: colors.cream,
-    backgroundColor: colors.parchment,
-    paddingHorizontal: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    ...shadows.tile
-  },
-  heroBadgeText: {
-    color: colors.woodDark,
-    fontSize: 12,
-    fontWeight: "900"
-  },
-  rewardBadge: {
-    minHeight: 34,
-    maxWidth: "42%",
-    borderRadius: radii.pill,
-    borderWidth: 2,
-    borderBottomWidth: 4,
-    borderColor: colors.cream,
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    ...shadows.tile
-  },
-  rewardGem: {
-    width: 20,
-    height: 20
-  },
-  rewardBadgeText: {
-    color: colors.ink,
-    fontSize: 11,
-    fontWeight: "900"
-  },
-  heroTray: {
-    position: "absolute",
-    left: spacing.md,
-    right: spacing.md,
-    bottom: spacing.md,
-    minHeight: 62,
-    borderRadius: radii.panel,
-    borderWidth: 2,
-    borderBottomWidth: 5,
-    borderColor: "rgba(255,255,255,0.8)",
-    backgroundColor: "rgba(255,245,222,0.9)",
-    padding: spacing.sm,
-    flexDirection: "row",
-    gap: spacing.sm,
-    ...shadows.gamePanel
-  },
-  heroTile: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: radii.control,
-    borderWidth: 2,
-    borderBottomWidth: 4,
-    borderColor: colors.line,
-    backgroundColor: colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3
-  },
-  heroTileText: {
-    color: colors.ink,
-    fontSize: 11,
-    fontWeight: "900"
+    minHeight: 232
   },
   entryPanel: {
     borderRadius: radii.panel,

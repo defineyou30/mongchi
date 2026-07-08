@@ -24,7 +24,7 @@ describe("store screenshot session presets", () => {
       "shop"
     ]);
     expect(storeScreenshotPresetRoutes).toMatchObject({
-      welcome: "/onboarding",
+      welcome: "/welcome",
       "pet-setup": "/pet-setup",
       "photo-upload": "/photo-upload",
       hatching: "/generation",

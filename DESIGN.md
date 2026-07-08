@@ -97,6 +97,11 @@ All spacing derives from 4px. Use the existing `spacing` tokens: `xs=4`, `sm=8`,
 - **Structure**: custom dialog layered over onboarding, Happy Dog Lottie, friendly title, one primary action.
 - **Rules**: no native alert; no long explanatory paragraph.
 
+### First-Run Welcome Onboarding
+- **Structure**: three image-led mobile slides before photo setup; one large generated story image, step label, short emotional headline, one body line, pagination dots, primary Next/Start action, and Skip.
+- **Tone**: explain the promise before the setup task: beloved pet close by, one real photo, tiny friend moving into the garden.
+- **Rules**: no emoji icons; use app-generated pixel story art and tokenized game UI buttons. Once completed or skipped, continue into the photo setup intro instead of repeating every launch.
+
 ### Official Landing Page
 - **Structure**: compact official game-site flow: image-led hero, "What is Mongchi?" explainer, four-icon play row, screenshot feature bands, download panel.
 - **Visual source**: reuse app garden backgrounds, pet sprites, glossy button PNGs, and store screenshots before generating new web-only art.

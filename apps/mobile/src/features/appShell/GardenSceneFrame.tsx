@@ -9,6 +9,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, shadows, spacing } from "../../shared/design/tokens";
 
 const gardenSceneBackground = require("../../../assets/generated/backgrounds/candidates/home-garden-premium-v2-portrait.png");
+const defaultSafeAreaEdges = ["top", "left", "right"] as const;
+const bottomSafeAreaEdges = ["top", "left", "right", "bottom"] as const;
 
 interface GardenSceneFrameProps {
   accessibilityLabel?: string;
@@ -23,6 +25,7 @@ interface GardenSceneFrameProps {
   backHref?: Href;
   children: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
+  includeBottomEdge?: boolean;
   innerStyle?: StyleProp<ViewStyle>;
 }
 
@@ -32,6 +35,7 @@ export function GardenSceneFrame({
   backHref,
   children,
   contentStyle,
+  includeBottomEdge = false,
   innerStyle
 }: GardenSceneFrameProps) {
   return (
@@ -39,7 +43,11 @@ export function GardenSceneFrame({
       <ImageBackground accessibilityElementsHidden resizeMode="cover" source={gardenSceneBackground} style={styles.background}>
         <View style={styles.wash} />
       </ImageBackground>
-      <SafeAreaView accessibilityLabel={accessibilityLabel} edges={["top", "left", "right"]} style={styles.safeArea}>
+      <SafeAreaView
+        accessibilityLabel={accessibilityLabel}
+        edges={includeBottomEdge ? bottomSafeAreaEdges : defaultSafeAreaEdges}
+        style={styles.safeArea}
+      >
         {backHref ? (
           <Pressable
             accessibilityLabel={backAccessibilityLabel}

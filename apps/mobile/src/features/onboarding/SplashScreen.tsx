@@ -8,6 +8,7 @@ import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { getConfiguredQaScreenPresetRoute } from "../session/qaScreenSession";
 import { getConfiguredStoreScreenshotPresetRoute } from "../session/storeScreenshotSession";
+import { hasSeenWelcomeOnboarding } from "./welcomeOnboardingStorage";
 
 const appLogo = require("../../../assets/generated/brand/app-logo-v1.png");
 const loadingBackground = require("../../../assets/generated/brand/loading-screen-v2.png");
@@ -24,11 +25,24 @@ export function SplashScreen() {
       return;
     }
 
+    let cancelled = false;
+
     const timeout = setTimeout(() => {
-      router.replace(storeScreenshotPresetRoute ?? qaScreenPresetRoute ?? (petProfile && acceptedAsset ? "/terrarium" : "/onboarding"));
+      void hasSeenWelcomeOnboarding().then((seenWelcome) => {
+        if (cancelled) {
+          return;
+        }
+
+        router.replace(
+          storeScreenshotPresetRoute ?? qaScreenPresetRoute ?? (petProfile && acceptedAsset ? "/terrarium" : seenWelcome ? "/onboarding" : "/welcome")
+        );
+      });
     }, 850);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [acceptedAsset, isHydrated, petProfile, qaScreenPresetRoute, storeScreenshotPresetRoute]);
 
   return (

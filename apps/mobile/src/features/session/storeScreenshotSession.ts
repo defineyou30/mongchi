@@ -24,7 +24,7 @@ export const storeScreenshotPresets = [
 export type StoreScreenshotPreset = (typeof storeScreenshotPresets)[number];
 
 export const storeScreenshotPresetRoutes: Record<StoreScreenshotPreset, string> = {
-  welcome: "/onboarding",
+  welcome: "/welcome",
   "pet-setup": "/pet-setup",
   "photo-upload": "/photo-upload",
   hatching: "/generation",
