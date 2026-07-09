@@ -88,6 +88,11 @@ All spacing derives from 4px. Use the existing `spacing` tokens: `xs=4`, `sm=8`,
 - **Variants**: info, confirm, permission, purchase, error, loading.
 - **Motion**: 180-220ms opacity/scale entry; Lottie may loop inside.
 
+### Friend Profile Surface
+- **Structure**: hero pose stage, compact stat ribbon, readable discovery panels, scrapbook timeline, and a warm letter panel.
+- **Material tokens**: use `profileSurfaces.heroPlate`, `skyPanel`, `skyCell`, `skyCellLocked`, `parchmentPanel`, `letterPanel`, `letterGlow`, `lightRim`, `softRim`, and `mutedTrack` from `tokens.ts`.
+- **Rules**: Walk finds and Mong's Letter must stay readable over the garden background; avoid ad hoc raw translucent fills in new profile UI.
+
 ### Shop Shelf
 - **Structure**: full-screen shop background, top back button + title + credit HUD, large selected preview, category tabs, item grid.
 - **Categories**: treats, themes, inventory. Plant/placement/decor shelves are archived until layout placement returns.

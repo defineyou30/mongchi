@@ -30,6 +30,19 @@ export const colors = {
   white: "#FFFFFF"
 };
 
+export const profileSurfaces = {
+  heroPlate: "rgba(255,245,222,0.94)",
+  skyPanel: "rgba(201,240,255,0.88)",
+  skyCell: "rgba(255,255,255,0.9)",
+  skyCellLocked: "rgba(122,110,102,0.2)",
+  parchmentPanel: "rgba(255,245,222,0.94)",
+  letterPanel: "rgba(255,232,199,0.96)",
+  letterGlow: "rgba(246,184,79,0.34)",
+  lightRim: "rgba(255,255,255,0.88)",
+  softRim: "rgba(255,255,255,0.66)",
+  mutedTrack: "rgba(122,110,102,0.18)"
+};
+
 export const spacing = {
   xs: 4,
   sm: 8,

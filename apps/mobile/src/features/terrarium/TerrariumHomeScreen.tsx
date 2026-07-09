@@ -737,17 +737,72 @@ function SceneRailButton({ accessibilityLabel, imageLabel, delayMs, source, onPr
 
 interface FriendRailButtonProps {
   accessibilityLabel: string;
+  reduceMotionEnabled: boolean;
   onPress: () => void;
   /** Small unread-letter dot -- shown once the 30-day letter has arrived and stays unopened. */
   showBadge?: boolean;
 }
 
 /**
- * The friend page's side-rail entry -- a cream pixel-bordered tile
- * (shadows.tile) matching the other rail buttons' footprint, with the
- * friend-page PNG tile (same require()'d-art pattern as shop/chat/settings).
+ * The friend page's side-rail entry uses the same direct PNG footprint as
+ * shop/chat/settings so the side rail reads as one button family.
  */
-function FriendRailButton({ accessibilityLabel, onPress, showBadge = false }: FriendRailButtonProps) {
+function FriendRailButton({ accessibilityLabel, reduceMotionEnabled, onPress, showBadge = false }: FriendRailButtonProps) {
+  const motion = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      motion.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.delay(300),
+        Animated.timing(motion, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true
+        }),
+        Animated.timing(motion, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true
+        }),
+        Animated.delay(1800)
+      ])
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [motion, reduceMotionEnabled]);
+
+  const animatedStyle = {
+    transform: [
+      {
+        translateY: motion.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -3]
+        })
+      },
+      {
+        scale: motion.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 1.035]
+        })
+      },
+      {
+        rotate: motion.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["-0.7deg", "0.7deg"]
+        })
+      }
+    ]
+  };
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -756,12 +811,12 @@ function FriendRailButton({ accessibilityLabel, onPress, showBadge = false }: Fr
       style={({ pressed }) => [styles.friendRailButton, pressed ? styles.friendRailButtonPressed : null]}
       onPress={onPress}
     >
-      <Image
+      <Animated.Image
         accessibilityIgnoresInvertColors
         accessibilityLabel="Friend button art"
         resizeMode="contain"
         source={sideRailButtonAssets.friend}
-        style={styles.friendRailButtonImage}
+        style={[styles.friendRailButtonImage, animatedStyle]}
       />
       {showBadge ? <View accessibilityElementsHidden importantForAccessibility="no" style={styles.friendRailBadgeDot} /> : null}
     </Pressable>
@@ -1923,6 +1978,7 @@ export function TerrariumHomeScreen() {
         <View pointerEvents="box-none" style={styles.sceneSideRailRight}>
           <FriendRailButton
             accessibilityLabel={`Open ${activePet.name}'s friend page`}
+            reduceMotionEnabled={reduceMotionEnabled}
             showBadge={showFriendEntryBadge}
             onPress={() => router.push("/friend")}
           />
@@ -3221,25 +3277,21 @@ const styles = StyleSheet.create({
     height: 58
   },
   friendRailButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 20,
+    width: 58,
+    height: 58,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
-    backgroundColor: "rgba(255,245,222,0.94)",
-    borderWidth: 3,
-    borderBottomWidth: 5,
-    borderColor: "rgba(255,255,255,0.86)",
-    ...shadows.tile
+    backgroundColor: "transparent",
+    borderWidth: 0
   },
   friendRailButtonPressed: {
-    transform: [{ translateY: 2 }],
-    borderBottomWidth: 3
+    transform: [{ scale: 0.92 }],
+    opacity: 0.85
   },
   friendRailButtonImage: {
-    width: 34,
-    height: 34
+    width: 58,
+    height: 58
   },
   friendRailBadgeDot: {
     position: "absolute",

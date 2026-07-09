@@ -15,7 +15,7 @@ import {
 
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
-import { colors, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
+import { colors, profileSurfaces, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
@@ -147,8 +147,10 @@ function MonthlyLetterCardBody({
           accessibilityLabel={`Open ${petName}'s one-month letter`}
           label="Open"
           Icon={Mail}
+          variant="secondary"
           size="compact"
           disabled={isAnimating}
+          style={letterStyles.openButton}
           onPress={handleOpen}
         />
       </Animated.View>
@@ -183,10 +185,15 @@ const letterStyles = StyleSheet.create({
     height: 108
   },
   memoryText: {
-    color: colors.mutedInk,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700"
+    color: colors.ink,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "800"
+  },
+  openButton: {
+    alignSelf: "center",
+    backgroundColor: colors.parchment,
+    borderColor: colors.honey
   }
 });
 
@@ -266,7 +273,7 @@ const statTileStyles = StyleSheet.create({
     width: "100%",
     height: 6,
     borderRadius: radii.pill,
-    backgroundColor: "rgba(122,110,102,0.18)",
+    backgroundColor: profileSurfaces.mutedTrack,
     overflow: "hidden"
   },
   progressFill: {
@@ -587,7 +594,9 @@ export function FriendProfileScreen() {
             <Footprints color={colors.moss} size={16} strokeWidth={2.6} />
             <Text style={[styles.collectionsTitle, typography.title]}>Walk finds</Text>
           </View>
-          <Text style={[styles.cardCaption, typography.label]}>{walkFinds.progressLabel}</Text>
+          <View style={styles.progressChip}>
+            <Text style={[typography.label, styles.progressChipText]}>{walkFinds.progressLabel}</Text>
+          </View>
         </View>
         <View style={styles.walkGrid}>
           {walkFinds.cells.map((cell) => (
@@ -604,7 +613,7 @@ export function FriendProfileScreen() {
                 source={walkCollectibleAssets[cell.id]}
                 style={[styles.walkIcon, cell.found ? null : styles.walkIconLocked]}
               />
-              <Text numberOfLines={1} style={[styles.walkName, typography.label]}>
+              <Text numberOfLines={2} style={[typography.label, styles.walkName]}>
                 {cell.name}
               </Text>
             </View>
@@ -657,6 +666,10 @@ export function FriendProfileScreen() {
             </View>
             <Text style={[styles.cardCaption, typography.label]}>{monthlyLetter.progressLabel}</Text>
           </>
+        ) : null}
+
+        {!monthlyLetterLoaded && monthlyLetter.status !== "locked" ? (
+          <Text style={[styles.letterLoadingText, typography.body]}>Checking today's letter...</Text>
         ) : null}
 
         {(monthlyLetter.status === "arrived" || monthlyLetter.status === "opened") &&
@@ -748,9 +761,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 2,
     borderRadius: radii.pill,
-    backgroundColor: "rgba(255,245,222,0.9)",
+    backgroundColor: profileSurfaces.heroPlate,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.86)",
+    borderColor: profileSurfaces.lightRim,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     ...shadows.tile
@@ -808,15 +821,16 @@ const styles = StyleSheet.create({
   // --- 4. Collections panel -------------------------------------------------
   collectionsPanel: {
     borderRadius: radii.panel,
-    backgroundColor: "rgba(201,240,255,0.55)",
+    backgroundColor: profileSurfaces.skyPanel,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.82)",
+    borderBottomWidth: 5,
+    borderColor: profileSurfaces.lightRim,
     padding: spacing.md,
     gap: spacing.md,
     ...shadows.gamePanel
   },
   collectionsTitle: {
-    color: colors.skyDeep
+    color: colors.ink
   },
   collectionsSectionHeading: {
     flexDirection: "row",
@@ -828,6 +842,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm
+  },
+  progressChip: {
+    borderRadius: radii.pill,
+    backgroundColor: colors.cream,
+    borderWidth: 2,
+    borderColor: profileSurfaces.lightRim,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    ...shadows.tile
+  },
+  progressChipText: {
+    color: colors.moss
   },
   cardTitle: {
     color: colors.ink
@@ -844,23 +870,28 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   walkCell: {
-    width: 76,
+    flexBasis: "30.8%",
+    flexGrow: 1,
+    minHeight: 92,
     alignItems: "center",
-    gap: 3,
+    justifyContent: "center",
+    gap: spacing.xs,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.8)",
+    backgroundColor: profileSurfaces.skyCell,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.95)",
-    paddingVertical: 8,
-    paddingHorizontal: 4
+    borderBottomWidth: 4,
+    borderColor: profileSurfaces.lightRim,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    ...shadows.tile
   },
   walkCellLocked: {
-    backgroundColor: "rgba(122,110,102,0.14)",
-    borderColor: "rgba(255,255,255,0.55)"
+    backgroundColor: profileSurfaces.skyCellLocked,
+    borderColor: profileSurfaces.softRim
   },
   walkIcon: {
-    width: 28,
-    height: 28
+    width: 34,
+    height: 34
   },
   // Locked cells still render the real pixel icon (never a placeholder "?")
   // but dimmed and tinted into a flat silhouette, so the shape/rarity reads
@@ -870,15 +901,17 @@ const styles = StyleSheet.create({
     tintColor: colors.mutedInk
   },
   walkName: {
-    color: colors.ink
+    color: colors.ink,
+    minHeight: 28,
+    textAlign: "center"
   },
 
   // --- 5. Scrapbook timeline -------------------------------------------------
   scrapbookPanel: {
     borderRadius: radii.panel,
-    backgroundColor: "rgba(255,245,222,0.85)",
+    backgroundColor: profileSurfaces.parchmentPanel,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.82)",
+    borderColor: profileSurfaces.lightRim,
     padding: spacing.md,
     gap: spacing.md,
     transform: [{ rotate: "0.6deg" }],
@@ -911,9 +944,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: radii.pill,
-    backgroundColor: "rgba(246,184,79,0.24)",
+    backgroundColor: profileSurfaces.letterGlow,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: profileSurfaces.softRim,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -934,9 +967,10 @@ const styles = StyleSheet.create({
   letterCard: {
     position: "relative",
     borderRadius: radii.panel,
-    backgroundColor: "rgba(246,184,79,0.22)",
+    backgroundColor: profileSurfaces.letterPanel,
     borderWidth: 3,
-    borderColor: colors.honey,
+    borderBottomWidth: 5,
+    borderColor: profileSurfaces.lightRim,
     padding: spacing.md,
     paddingTop: spacing.xl,
     gap: spacing.sm,
@@ -957,7 +991,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gold,
     borderWidth: 3,
     borderBottomWidth: 5,
-    borderColor: colors.honey,
+    borderColor: profileSurfaces.lightRim,
     alignItems: "center",
     justifyContent: "center",
     ...shadows.tile
@@ -972,13 +1006,17 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72
   },
+  letterLoadingText: {
+    color: colors.ink,
+    textAlign: "center"
+  },
 
   // --- Plain fallback card (memory note) --------------------------------------
   plainCard: {
     borderRadius: radii.panel,
-    backgroundColor: "rgba(255,245,222,0.9)",
+    backgroundColor: profileSurfaces.parchmentPanel,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.82)",
+    borderColor: profileSurfaces.lightRim,
     padding: spacing.md,
     gap: spacing.sm,
     ...shadows.gamePanel
