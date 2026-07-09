@@ -83,6 +83,12 @@ All spacing derives from 4px. Use the existing `spacing` tokens: `xs=4`, `sm=8`,
 - **Variants**: meal/treats, play toys, walk passes, affection gifts, drinks.
 - **States**: available, cooldown, premium/dev open, empty.
 
+### Home Retention Prompt
+- **Structure**: compact floating parchment card above the bottom care dock, with a D-day chip, short relationship promise, and one CTA.
+- **Variants**: D1 daily hello, D3 reward rhythm, D7 memory, D14 habit, D30 letter.
+- **Material tokens**: use `homeRetentionSurfaces.card`, `cardReward`, `cardMemory`, `cardLetter`, `rim`, `softRim`, and `progressTrack` from `tokens.ts`.
+- **Rules**: hide while walk panels or care trays own the bottom surface; CTA should route to either the recommended care action or the friend profile, never a dead end.
+
 ### Game Dialog
 - **Structure**: dim overlay, parchment panel, pixel-gloss icon/animation, title, short message, primary/secondary buttons.
 - **Variants**: info, confirm, permission, purchase, error, loading.

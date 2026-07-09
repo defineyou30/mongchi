@@ -43,6 +43,16 @@ export const profileSurfaces = {
   mutedTrack: "rgba(122,110,102,0.18)"
 };
 
+export const homeRetentionSurfaces = {
+  card: "rgba(255,245,222,0.95)",
+  cardReward: "rgba(244,255,240,0.96)",
+  cardMemory: "rgba(232,247,255,0.95)",
+  cardLetter: "rgba(255,232,199,0.96)",
+  rim: "rgba(255,255,255,0.9)",
+  softRim: "rgba(255,255,255,0.68)",
+  progressTrack: "rgba(122,110,102,0.16)"
+};
+
 export const spacing = {
   xs: 4,
   sm: 8,

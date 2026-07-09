@@ -72,6 +72,9 @@ import { CareMomentLayer } from "./CareMomentLayer";
 import { NightWashLayer, NightZzzFloat } from "./NightOverlayLayer";
 import { ButterflyVisitorLayer } from "./ButterflyVisitorLayer";
 import { HomeCareActionTray } from "./HomeCareActionTray";
+import { HomeRetentionPromptCard } from "./HomeRetentionPromptCard";
+import type { HomeRetentionPromptAction } from "./homeRetentionPresentation";
+import { getHomeRetentionPromptPresentation } from "./homeRetentionPresentation";
 import type {
   HomeCareActionFeedbackIcon,
   HomeCareActionFeedbackPresentation,
@@ -1907,6 +1910,29 @@ export function TerrariumHomeScreen() {
       ? satisfactionSummary.recommendedAction
       : null
     : null;
+  const handleRetentionPromptPress = (action: HomeRetentionPromptAction) => {
+    if (action === "friend") {
+      router.push("/friend");
+      return;
+    }
+
+    if (satisfactionSummary.recommendedAction) {
+      handleCareButtonPress(satisfactionSummary.recommendedAction);
+      return;
+    }
+
+    setFirstCareGuideVisible(true);
+  };
+  const homeRetentionPrompt = getHomeRetentionPromptPresentation({
+    petName: activePet.name,
+    daysTogether,
+    hasCaredToday: hasCaredToday(careStreak, reactionNow),
+    hasOpenedMonthlyLetter,
+    isOnWalk: activeWalk?.status === "walking" || activeWalk?.status === "returned"
+  });
+  const showHomeRetentionPrompt =
+    Boolean(homeRetentionPrompt) && !openCareMenu && !firstCareGuideVisible && !welcomeVisible;
+
   return (
     <View style={styles.homeRoot}>
       <ImageBackground
@@ -2189,6 +2215,10 @@ export function TerrariumHomeScreen() {
           </Text>
           <View style={styles.firstCareGuideArrow} />
         </View>
+      ) : null}
+
+      {showHomeRetentionPrompt && homeRetentionPrompt ? (
+        <HomeRetentionPromptCard prompt={homeRetentionPrompt} onPress={handleRetentionPromptPress} />
       ) : null}
 
       {openCareMenu ? (
