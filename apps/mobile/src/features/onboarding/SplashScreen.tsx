@@ -47,7 +47,7 @@ export function SplashScreen() {
 
   return (
     <View style={styles.root}>
-      <ImageBackground accessibilityLabel="Tiny pet terrarium loading garden" resizeMode="cover" source={loadingBackground} style={styles.background}>
+      <ImageBackground accessibilityLabel="Tiny pet phone home loading screen" resizeMode="cover" source={loadingBackground} style={styles.background}>
         <View style={styles.vignette} />
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.copy}>
@@ -67,7 +67,7 @@ export function SplashScreen() {
               source={loadingAnimation}
               style={styles.loadingAnimation}
             />
-            <Text style={[styles.body, { fontFamily: fontFamilies.body }]}>{isHydrated ? "Opening tiny home" : "Warming tiny world"}</Text>
+            <Text style={[styles.body, { fontFamily: fontFamilies.body }]}>{isHydrated ? "Opening tiny home" : "Warming cozy room"}</Text>
           </View>
         </SafeAreaView>
       </ImageBackground>
