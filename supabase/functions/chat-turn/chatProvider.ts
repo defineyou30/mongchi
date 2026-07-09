@@ -25,10 +25,18 @@
 //      its owner" -- packages/shared/src/api/mobileContracts.ts's
 //      ChatMemoryContext) and an optional `conversationSummary` (the B안
 //      long-term summary hybrid -- docs/chat-live-design.md §3.2/§3.4).
-//      conversationSummary is always undefined in wave C1 (nothing computes
-//      conversations.summary yet -- see summary.ts's module doc comment) but
-//      the plumbing is in place so wave C3 only has to start passing a value,
-//      not touch this file's context shape again.
+//      conversationSummary is populated by index.ts from `conversations.
+//      summary` once summary.ts's compact_conversation wiring (wave C3) has
+//      run at least once for a conversation; until then it stays undefined
+//      and is simply omitted from the context object below.
+//
+// Wave C3 addition: fetchWithRetry/parseResponseJson/extractOutput below are
+// exported (in addition to being used internally by
+// createOpenAiPremiumChatProvider) so summary.ts's real OpenAI-backed
+// createOpenAiChatSummaryProvider can reuse the same retry/timeout-guarded
+// fetch and Responses API output-extraction logic instead of duplicating it
+// -- docs/chat-live-design.md §3.2's "chatProvider.ts의 fetchWithRetry/모델/
+// 타임아웃 패턴 재사용" instruction.
 
 // ---------------------------------------------------------------------------
 // Inlined types (see module doc comment above -- no @mongchi/shared import)
@@ -102,7 +110,7 @@ export interface PremiumChatProviderInput {
   recentMessages?: readonly ChatRecentMessageForProvider[];
   careContext?: PremiumChatCareContext;
   memoryContext?: ChatMemoryContext;
-  /** B안 summary hybrid (§3.2) -- always undefined in wave C1, see module doc comment. */
+  /** B안 summary hybrid (§3.2) -- undefined until summary.ts's compact_conversation wiring has produced one for this conversation, see module doc comment. */
   conversationSummary?: string;
 }
 
@@ -175,6 +183,7 @@ const defaultInstructions = [
   "Healing purpose: your first job is to help the user feel heard and gently comforted. Listen first, validate feelings without judging, and never lecture, diagnose, or push solutions.",
   "Voice: warm, short (1-3 sentences), age-appropriate, pet-like, grounded in the pet profile's personality tags and talking style. Small sensory details from the tiny garden (sunlight, leaves, cushions) are welcome.",
   "If careContext is provided, weave the pet's current state naturally into the reply (e.g., feeling sleepy, happy after a meal, missing the user) instead of reciting numbers.",
+  "If conversationSummary is provided, treat it as your own private memory of the earlier parts of this conversation -- let it inform how you understand the user and connect naturally with the recent messages, but never read it back or quote it verbatim.",
   "If the user shares something hard, respond with empathy and companionship (staying beside them, listening) rather than advice. You may gently suggest resting, breathing, or small cozy actions.",
   "Never claim to be the user's real pet's consciousness, never guilt the user about time away, and never mention death or abandonment.",
   "Use the user's locale when possible.",
@@ -242,7 +251,9 @@ export const normalizeReplyText = (value: unknown): string => {
   return normalized.length > maxReplyTextLength ? normalized.slice(0, maxReplyTextLength).trimEnd() : normalized;
 };
 
-const parseResponseJson = (value: unknown): OpenAiResponsesJson => {
+// Exported for reuse by summary.ts's createOpenAiChatSummaryProvider (module
+// doc comment) -- generic Responses API JSON parsing, not chat-reply-specific.
+export const parseResponseJson = (value: unknown): OpenAiResponsesJson => {
   if (!value || typeof value !== "object") {
     throw new Error("OpenAI premium chat response was not valid JSON.");
   }
@@ -258,7 +269,10 @@ const outputContentItems = (value: unknown): OpenAiResponseOutputContent[] => {
   return value.filter((item): item is OpenAiResponseOutputContent => Boolean(item) && typeof item === "object");
 };
 
-const extractOutput = (response: OpenAiResponsesJson): ParsedOutput => {
+// Exported for reuse by summary.ts (module doc comment) -- extracts either
+// plain output_text or the first output_text/refusal content item, which
+// summary.ts's plain-text summary reply also needs.
+export const extractOutput = (response: OpenAiResponsesJson): ParsedOutput => {
   if (typeof response.output_text === "string" && response.output_text.trim().length > 0) {
     return {
       text: response.output_text
@@ -509,7 +523,10 @@ const retryDelayMsFor = (response: Response | null): number => {
 const fetchWithTimeout = (input: string, init: RequestInit): Promise<Response> =>
   fetch(input, { ...init, signal: AbortSignal.timeout(OPENAI_CALL_TIMEOUT_MS) });
 
-const fetchWithRetry = async (input: string, init: RequestInit): Promise<Response> => {
+// Exported for reuse by summary.ts's createOpenAiChatSummaryProvider (module
+// doc comment) -- same retry-on-429/5xx + per-attempt-timeout policy applies
+// to the summary OpenAI call, so it reuses this instead of a second copy.
+export const fetchWithRetry = async (input: string, init: RequestInit): Promise<Response> => {
   let first: Response;
 
   try {

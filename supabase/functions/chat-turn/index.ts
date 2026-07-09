@@ -52,17 +52,31 @@
 //      refund round-trip on provider failure, since a failed provider call
 //      never reaches the charge step at all), and persist both the user and
 //      pet_ai messages.
+//   7. Long-term memory (summary.ts, B안 hybrid, §3.2, Chat Live Wave C3):
+//      after either message-save above, evaluate shouldTriggerChatSummary
+//      against the messages that have fallen out of the recent-8 window
+//      without ever being folded into `conversations.summary`. When due,
+//      summarize that batch (merging with any existing summary) and persist
+//      it through the `compact_conversation` RPC, which atomically advances
+//      the `summarized_through` watermark and deletes the now-summarized raw
+//      rows (privacy-first, §3.5) -- see maybeCompactConversationSummary
+//      below. This step is strictly best-effort: any failure (network,
+//      OpenAI, RPC) is caught and logged, never surfaced to the caller, so a
+//      summary hiccup can never fail an otherwise-successful chat turn; the
+//      unsummarized backlog simply persists and re-triggers on a later turn.
 //
 // DRY_RUN (docs/chat-live-design.md §7.1): CHAT_DRY_RUN=true and no
 // OPENAI_API_KEY configured together bypass the real OpenAI call with a
 // deterministic local mock (chatProvider.ts's createLocalPremiumChatProvider)
 // -- the same double-gated pattern as generate-avatar/index.ts's
 // GENERATION_DRY_RUN, so a real OPENAI_API_KEY always wins and this can never
-// silently activate in a properly configured production environment. Every
-// other step (find-or-create, moderation, rate limit, charging, message
-// persistence) runs through its real code path unchanged. Never invoke this
-// function against real OpenAI credentials in a test -- see
-// docs/chat-live-design.md §7.1's "실호출 금지" principle.
+// silently activate in a properly configured production environment. The same
+// gate selects summary.ts's createLocalChatSummaryProvider over
+// createOpenAiChatSummaryProvider for step 7. Every other step (find-or-
+// create, moderation, rate limit, charging, message persistence) runs through
+// its real code path unchanged. Never invoke this function against real
+// OpenAI credentials in a test -- see docs/chat-live-design.md §7.1's
+// "실호출 금지" principle.
 //
 // CORS: none, matching generate-avatar/delete-account -- this is only ever
 // called via the Supabase JS client's functions.invoke from React Native, not
@@ -79,6 +93,12 @@ import {
   createOpenAiPremiumChatProvider
 } from "./chatProvider.ts";
 import { moderatePremiumChatInput, moderatePremiumChatProviderReply } from "./moderation.ts";
+import {
+  type ChatSummaryRecentMessage,
+  createLocalChatSummaryProvider,
+  createOpenAiChatSummaryProvider,
+  planChatSummaryCompaction
+} from "./summary.ts";
 
 // ---------------------------------------------------------------------------
 // Config / constants
@@ -110,6 +130,16 @@ const RATE_LIMIT_MAX_USER_MESSAGES = 10;
 // rate-limit window count above (comfortably, since the window cap is 10) and
 // buildProviderContext's own recent-8 slice (chatProvider.ts).
 const RECENT_MESSAGE_FETCH_LIMIT = 24;
+
+// Short-term context window size (summary.ts §3.2/§3.1) -- matches
+// chatProvider.ts's buildProviderContext, which slices recentMessages to the
+// last 8. Everything older than this window (and not yet folded into
+// conversations.summary) is a candidate for the next summary compaction --
+// see maybeCompactConversationSummary below. RECENT_MESSAGE_FETCH_LIMIT (24)
+// comfortably covers this window plus SUMMARY_BATCH_THRESHOLD (12, summary.ts)
+// worth of backlog, so the batch trigger always fires before backlog could
+// silently exceed what a single fetch sees.
+const CHAT_SUMMARY_KEEP_RECENT_COUNT = 8;
 
 const PET_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 const MAX_MESSAGE_TEXT_LENGTH = 500; // enforced again inside moderatePremiumChatInput; checked early to fail fast.
@@ -396,6 +426,91 @@ const fetchCreditBalance = async (admin: SupabaseClient, userId: string): Promis
   return data;
 };
 
+const toSummaryMessage = (row: MessageRow): ChatSummaryRecentMessage => ({
+  sender: row.sender,
+  text: row.text,
+  createdAt: row.created_at
+});
+
+// ---------------------------------------------------------------------------
+// Long-term memory: summary compaction (summary.ts, §3.2, Chat Live Wave C3
+// -- see module doc comment step 7). Called after every message save (both
+// the crisis-referral branch and the normal turn branch) with:
+//   - combinedMessagesAsc: every currently-known message for this
+//     conversation in ascending order -- the pre-turn recent window plus the
+//     two messages just saved this turn. Every raw row still in the table is
+//     by definition newer than `summarized_through` (compact_conversation
+//     deletes anything at or before it), so this list *is* the unsummarized
+//     backlog; no separate DB query is needed to compute it.
+//   - previousLastMessageCreatedAt: created_at of the most recent message
+//     that existed *before* this turn (null for a brand-new conversation) --
+//     used only for the stale-resume trigger (shouldTriggerChatSummary's
+//     second condition), which measures the gap between that prior message
+//     and `now`. Using `now` for both sides of that comparison would zero the
+//     gap and silently disable the stale-resume trigger.
+//
+// Best-effort (module doc comment step 7): this function never throws --
+// every failure (OpenAI, RPC) is caught and logged so a summary hiccup can
+// never fail an otherwise-successful chat turn. summarized_through is only
+// advanced by a successful compact_conversation call, so a failed attempt
+// leaves the backlog exactly where it was and the same batch re-triggers on
+// the next turn (or the next stale-resume).
+// ---------------------------------------------------------------------------
+
+const maybeCompactConversationSummary = async (
+  admin: SupabaseClient,
+  conversation: ConversationRow,
+  combinedMessagesAsc: readonly ChatSummaryRecentMessage[],
+  previousLastMessageCreatedAt: string | null,
+  now: string,
+  locale: string,
+  openAiApiKey: string | undefined
+): Promise<void> => {
+  // Trigger decision + batch/watermark selection is pure and lives in
+  // summary.ts's planChatSummaryCompaction (unit tested there) -- this
+  // function only owns the side-effecting provider call + RPC persistence.
+  const plan = planChatSummaryCompaction({
+    combinedMessagesAsc,
+    previousLastMessageCreatedAt,
+    now,
+    keepRecentCount: CHAT_SUMMARY_KEEP_RECENT_COUNT
+  });
+
+  if (!plan) {
+    return;
+  }
+
+  try {
+    const provider = DRY_RUN
+      ? createLocalChatSummaryProvider()
+      : createOpenAiChatSummaryProvider({ apiKey: openAiApiKey ?? "" });
+
+    const { summary } = await provider.summarize({
+      existingSummary: conversation.summary,
+      messages: plan.batch,
+      locale
+    });
+
+    // Atomic: advances summarized_through to plan.through and deletes every
+    // raw message at or before it in the same transaction (supabase/
+    // migrations/0006_conversations.sql's compact_conversation) -- summary is
+    // only ever persisted together with the delete of the raw text it was
+    // built from, never the raw text kept around after a successful summary
+    // (§3.5 privacy-first option A).
+    const { error } = await admin.rpc("compact_conversation", {
+      p_conversation_id: conversation.id,
+      p_summary: summary,
+      p_through: plan.through
+    });
+
+    if (error) {
+      console.error("[chat-turn] compact_conversation RPC failed (best-effort, will retry later)", error);
+    }
+  } catch (error) {
+    console.error("[chat-turn] summary compaction failed (best-effort, will retry later)", error);
+  }
+};
+
 // ---------------------------------------------------------------------------
 // HTTP handler
 // ---------------------------------------------------------------------------
@@ -560,6 +675,13 @@ Deno.serve(async (req: Request) => {
 
   const recentAsc = [...recentDesc].reverse();
 
+  // Most recent message that existed *before* this turn, if any -- used only
+  // by maybeCompactConversationSummary's stale-resume trigger (see its doc
+  // comment). Captured here, before this turn's own messages are saved below,
+  // so the gap it measures is "how long was this thread quiet before this
+  // message arrived", not zero.
+  const previousLastMessageCreatedAt = recentAsc.length > 0 ? (recentAsc.at(-1)?.created_at ?? null) : null;
+
   // 6. Input moderation (moderation.ts, §5.2 layer 1).
   const moderation = moderatePremiumChatInput(body.text, body.locale);
 
@@ -597,6 +719,18 @@ Deno.serve(async (req: Request) => {
     }
 
     await admin.from("conversations").update({ updated_at: now }).eq("id", conversation.id);
+
+    // 7. Long-term memory (module doc comment step 7) -- best-effort, never
+    // fails this response (see maybeCompactConversationSummary's doc comment).
+    await maybeCompactConversationSummary(
+      admin,
+      conversation,
+      [...recentAsc.map(toSummaryMessage), ...(savedMessages as MessageRow[]).map(toSummaryMessage)],
+      previousLastMessageCreatedAt,
+      now,
+      body.locale,
+      openAiApiKey
+    );
 
     return jsonResponse(
       {
@@ -644,10 +778,10 @@ Deno.serve(async (req: Request) => {
       recentMessages: recentAsc.map((row) => ({ sender: row.sender, text: row.text, createdAt: row.created_at })),
       ...(body.careContext ? { careContext: body.careContext } : {}),
       ...(body.memoryContext ? { memoryContext: body.memoryContext } : {}),
-      // conversationSummary is always undefined in wave C1 -- nothing writes
-      // conversations.summary yet (chat-turn/summary.ts is an unwired
-      // skeleton, see its module doc comment). Passed through as-is so wave
-      // C3 only has to start populating the column, not touch this call site.
+      // conversationSummary is undefined until maybeCompactConversationSummary
+      // (module doc comment step 7, summary.ts) has run at least once for this
+      // conversation. Once it has, conversations.summary holds the merged B안
+      // long-term summary and is injected here on every subsequent turn.
       ...(conversation.summary ? { conversationSummary: conversation.summary } : {})
     });
   } catch {
@@ -721,6 +855,18 @@ Deno.serve(async (req: Request) => {
   }
 
   await admin.from("conversations").update({ updated_at: now }).eq("id", conversation.id);
+
+  // 11. Long-term memory (module doc comment step 7) -- best-effort, never
+  // fails this response (see maybeCompactConversationSummary's doc comment).
+  await maybeCompactConversationSummary(
+    admin,
+    conversation,
+    [...recentAsc.map(toSummaryMessage), ...(savedMessages as MessageRow[]).map(toSummaryMessage)],
+    previousLastMessageCreatedAt,
+    now,
+    body.locale,
+    openAiApiKey
+  );
 
   return jsonResponse(
     {
