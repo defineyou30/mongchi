@@ -90,12 +90,27 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@expo-google-fonts/baloo-2@~0.4.2",
+        "npm:@expo-google-fonts/fredoka@~0.4.1",
+        "npm:@expo-google-fonts/nunito@~0.4.2",
+        "npm:@expo-google-fonts/pixelify-sans@~0.4.2",
+        "npm:expo-font@~56.0.7",
+        "npm:expo@~56.0.12",
         "npm:pngjs@^3.4.0",
+        "npm:react-native@0.85.3",
+        "npm:react@19.2.3",
         "npm:typescript@6.0.3",
         "npm:vitest@^4.1.9"
       ]
     },
     "members": {
+      "apps/landing": {
+        "packageJson": {
+          "dependencies": [
+            "npm:vite@8.1.0"
+          ]
+        }
+      },
       "apps/mobile": {
         "packageJson": {
           "dependencies": [
@@ -103,10 +118,13 @@
             "npm:@react-native-async-storage/async-storage@2.2.0",
             "npm:@supabase/supabase-js@^2.109.0",
             "npm:@types/react@19.2.17",
+            "npm:expo-audio@~56.0.12",
+            "npm:expo-constants@^56.0.20",
             "npm:expo-crypto@^56.0.4",
             "npm:expo-dev-client@~56.0.20",
             "npm:expo-file-system@~56.0.8",
             "npm:expo-font@~56.0.7",
+            "npm:expo-haptics@~56.0.3",
             "npm:expo-iap@^4.3.3",
             "npm:expo-image-manipulator@~56.0.20",
             "npm:expo-image-picker@~56.0.18",

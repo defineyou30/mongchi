@@ -66,7 +66,9 @@ const CASCADED_TABLES = [
   "generation_rate_limits", // 0002_rate_limit.sql
   "credit_wallets", // 0004_credit_ledger.sql
   "credit_ledger", // 0004_credit_ledger.sql
-  "pet_slots" // 0005_pet_namespace.sql
+  "pet_slots", // 0005_pet_namespace.sql
+  "conversations", // 0006_conversations.sql (conversation_messages cascade from conversation_id -> conversations)
+  "conversation_messages" // 0006_conversations.sql (also user_id -> auth.users ON DELETE CASCADE)
 ] as const;
 
 type CascadedTable = (typeof CASCADED_TABLES)[number];
