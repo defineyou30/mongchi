@@ -35,7 +35,8 @@ const sourcePhotoJpegCompression = 0.8;
 const addMs = (timestamp: string, durationMs: number): string =>
   new Date(new Date(timestamp).getTime() + durationMs).toISOString();
 
-const toMobileError = (
+/** Exported for reuse by other Supabase-transport session modules (see ensureSupabaseSession's doc comment above). */
+export const toMobileError = (
   status: number,
   code: string,
   messageSafe: string,
@@ -86,19 +87,23 @@ const toLocalGenerationState = (
   };
 };
 
-interface EnsuredSupabaseSession {
+export interface EnsuredSupabaseSession {
   ok: true;
   userId: string;
 }
 
-type EnsureSupabaseSessionResult = EnsuredSupabaseSession | { ok: false; error: MobileApiError };
+export type EnsureSupabaseSessionResult = EnsuredSupabaseSession | { ok: false; error: MobileApiError };
 
 /**
  * Signs the device in anonymously if it doesn't already hold a session. Only
  * called from the start flow, never on app boot, so a user never gets an
  * anonymous identity until they actually try to move a pet in.
+ *
+ * Exported for reuse by other Supabase-transport session modules (chat's
+ * supabasePremiumChatSession.ts) that need the same "ensure an identity
+ * before invoking an Edge Function" step -- see docs/chat-live-design.md §6.1.
  */
-const ensureSupabaseSession = async (client: SupabaseClient): Promise<EnsureSupabaseSessionResult> => {
+export const ensureSupabaseSession = async (client: SupabaseClient): Promise<EnsureSupabaseSessionResult> => {
   const existing = await client.auth.getSession();
 
   if (existing.data.session?.user.id) {
@@ -291,7 +296,8 @@ const buildGenerationInputSnapshot = (draft: PrototypeSessionState["draft"]) => 
  * stream, non-JSON body, etc) just falls back to the generic quota message
  * rather than throwing.
  */
-const readInvokeErrorBody = async (context: unknown): Promise<{ error?: string } | null> => {
+/** Exported for reuse by other Supabase-transport session modules (see ensureSupabaseSession's doc comment above). */
+export const readInvokeErrorBody = async (context: unknown): Promise<{ error?: string; message?: string } | null> => {
   if (!context || typeof (context as Response).json !== "function") {
     return null;
   }

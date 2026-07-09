@@ -99,8 +99,6 @@ describe("mobile API client", () => {
     await client.deletePrivacyPet("pet id/1");
     await client.pollGenerationJob("gen id/1");
     await client.getGeneratedAssetSignedUrl("asset id/1");
-    await client.getConversationThread("conv id/1");
-    await client.deleteConversation("conv id/1");
 
     expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([
       "GET https://api.example.com/v1/pets",
@@ -110,9 +108,7 @@ describe("mobile API client", () => {
       "DELETE https://api.example.com/v1/privacy/chat-history",
       "DELETE https://api.example.com/v1/privacy/pet/pet%20id%2F1",
       "POST https://api.example.com/v1/generation-jobs/gen%20id%2F1/poll",
-      "GET https://api.example.com/v1/assets/asset%20id%2F1/signed-url",
-      "GET https://api.example.com/v1/conversations/conv%20id%2F1",
-      "DELETE https://api.example.com/v1/conversations/conv%20id%2F1"
+      "GET https://api.example.com/v1/assets/asset%20id%2F1/signed-url"
     ]);
     expect(calls[1]?.init.body).toBe(JSON.stringify({ name: "Nori" }));
     expect(calls[3]?.init.body).toBe(JSON.stringify({ petId: "pet id/1" }));

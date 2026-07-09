@@ -20,13 +20,9 @@ import type {
   CareState,
   CommerceProduct,
   CommerceProductsResponse,
-  ConversationThreadResponse,
-  CreateConversationRequest,
-  CreateConversationResponse,
   CreditWallet,
   CurrentUserResponse,
   DeleteChatHistoryResponse,
-  DeleteConversationResponse,
   DeleteOriginalPhotosRequest,
   DeleteOriginalPhotosResponse,
   DeletePetResponse,
@@ -52,8 +48,6 @@ import type {
   RestorePurchasesRequest,
   RelationshipState,
   SelectedReaction,
-  SendConversationMessageRequest,
-  SendConversationMessageResponse,
   WeatherLookupRequest,
   WeatherLookupResponse,
   WalkSession
@@ -106,10 +100,15 @@ export interface DailyLoopApiClient {
   deleteChatHistory: () => Promise<MobileApiResult<DeleteChatHistoryResponse>>;
   deletePrivacyPet: (petId: string) => Promise<MobileApiResult<DeletePetResponse>>;
   restorePurchases: (body: RestorePurchasesRequest) => Promise<MobileApiResult<PurchaseVerificationResponse>>;
-  createPremiumConversation: (body: CreateConversationRequest) => Promise<MobileApiResult<CreateConversationResponse>>;
-  getConversationThread: (conversationId: string) => Promise<MobileApiResult<ConversationThreadResponse>>;
-  deleteConversation: (conversationId: string) => Promise<MobileApiResult<DeleteConversationResponse>>;
-  sendPremiumConversationMessage: (body: SendConversationMessageRequest) => Promise<MobileApiResult<SendConversationMessageResponse>>;
+  // Premium chat's createPremiumConversation/getConversationThread/
+  // deleteConversation/sendPremiumConversationMessage methods used to live
+  // here -- removed in Chat Live wave C2 (docs/chat-live-design.md §6.1/§9
+  // risk 5). Live chat now talks to the chat-turn Edge Function directly via
+  // supabasePremiumChatSession.ts, never through this services/api HTTP
+  // client (that backend is not deployed to production). services/api's own
+  // server-side chat route (services/api/src/postgresApiService.ts et al.)
+  // is unaffected and stays frozen/undeleted -- only this dead mobile-client
+  // call surface was removed.
 }
 
 export interface ApiDailyLoopState {

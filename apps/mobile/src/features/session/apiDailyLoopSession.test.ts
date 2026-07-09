@@ -4,8 +4,6 @@ import {
   createInitialPrototypeSession,
   getActivePetBundle,
   mockCareState,
-  mockConversation,
-  mockConversationMessages,
   mockCreditWallet,
   mockInventory,
   mockItems,
@@ -276,56 +274,11 @@ const createFakeClient = (
       entitlements: [],
       serverVerified: true
     }),
-  createPremiumConversation: async () =>
-    ok(
-      {
-        conversation: mockConversation,
-        disclosureText:
-          "This is an AI-generated conversation shaped by your pet's profile. It is not your real pet's consciousness."
-      },
-      201
-    ),
-  getConversationThread: async () =>
-    ok({
-      conversation: mockConversation,
-      messages: mockConversationMessages
-    }),
-  deleteConversation: async () =>
-    ok({
-      deletedConversationId: mockConversation.id,
-      deletedMessageIds: mockConversationMessages.map((message) => message.id),
-      deletedAt: "2026-06-24T09:00:00.000Z"
-    }),
-  sendPremiumConversationMessage: async (_body) =>
-    ok({
-      userMessage: {
-        id: "msg_user_001",
-        conversationId: mockConversation.id,
-        sender: "user",
-        text: "Hello",
-        safetyFlags: [],
-        createdAt: "2026-06-24T09:00:01.000Z"
-      },
-      petMessage: {
-        id: "msg_pet_001",
-        conversationId: mockConversation.id,
-        sender: "pet_ai",
-        text: "Miso tilts closer.",
-        safetyFlags: [],
-        createdAt: "2026-06-24T09:00:01.000Z"
-      },
-      safetyFlags: [],
-      wallet: {
-        ...mockCreditWallet,
-        freeChatTickets: 2,
-        updatedAt: "2026-06-24T09:00:01.000Z"
-      },
-      walletSpend: {
-        freeChatTicketsSpent: 1,
-        bonusCreditsSpent: 0,
-        creditsSpent: 0
-      }
-    }),
+  // Premium chat's createPremiumConversation/getConversationThread/
+  // deleteConversation/sendPremiumConversationMessage fakes used to live
+  // here -- removed alongside their DailyLoopApiClient methods in Chat Live
+  // wave C2 (docs/chat-live-design.md §6.1/§9 risk 5); see
+  // supabasePremiumChatSession.test.ts for live chat-turn coverage.
   ...overrides
 });
 

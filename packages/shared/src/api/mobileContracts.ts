@@ -543,3 +543,98 @@ export const buildChatMemoryContext = (state: { memories: MemoryEntry[]; careSta
   favoriteCareAction: getFavoriteCareAction(state.careStats),
   favoriteTreatItemId: getFavoriteTreatItemId(state.careStats)
 });
+
+// ---------------------------------------------------------------------------
+// Live chat-turn Edge Function contract (Chat Live wave C2,
+// docs/chat-live-design.md §6.2/§1.1). The single-function `chat-turn`
+// transport (supabase/functions/chat-turn) replaces the dead services/api
+// three-call contract above (CreateConversationRequest/
+// ConversationThreadResponse/SendConversationMessageRequest -- those stay
+// only for services/api's own frozen chat route, docs/chat-live-design.md §9
+// risk 5) as the mobile client's live chat transport.
+// ---------------------------------------------------------------------------
+
+/** Mirrors supabase/functions/chat-turn/chatProvider.ts's PremiumChatCareContext. */
+export interface ChatCareContext {
+  satiety: number;
+  energy: number;
+  happiness: number;
+  affection: number;
+  cleanliness: number;
+  gardenHealth: number;
+  daysAway?: number;
+}
+
+/** Just what chat-turn's prompt needs from a pet profile -- mirrors supabase/functions/chat-turn/index.ts's ValidatedPetProfile. */
+export interface ChatTurnPetProfile {
+  name: string;
+  species: string;
+  personalityTags?: string[];
+  talkingStyle?: string;
+  favoriteThing?: string;
+  memoryNote?: string;
+}
+
+export interface ChatTurnRequest {
+  petId: PetId;
+  conversationId?: string;
+  text: string;
+  disclosureAccepted: boolean;
+  requestId: string;
+  /** "free" = client already spent a local ticket/Plus turn (§4.1 truth-source split, ticket=local truth); "credit" = server debits credit_wallets via consume_credits. */
+  charge: "free" | "credit";
+  locale?: Locale;
+  timezone?: string;
+  petProfile: ChatTurnPetProfile;
+  memoryContext?: ChatMemoryContext;
+  careContext?: ChatCareContext;
+}
+
+export interface ChatTurnResponse {
+  conversation: Conversation;
+  userMessage: ConversationMessage;
+  petMessage: ConversationMessage;
+  safetyFlags: string[];
+  /** credit_wallets.balance after this turn -- only changes when charge === "credit". */
+  serverBalance: number;
+  chargedCredit: number;
+  /** True when the input matched the crisis-referral pattern (§5.2 layer 1) -- petMessage is a `sender: "system"` resource message and nothing was charged. */
+  crisisReferral: boolean;
+}
+
+/**
+ * Assembles the chat-turn care band the pet's live reply leans on -- mirrors
+ * buildChatMemoryContext above (client-prepared, pure, no network). daysAway
+ * is threaded in separately since CareState itself has no notion of "now"
+ * (see getCareDaysAway).
+ */
+export const buildChatCareContext = (
+  careState: Pick<CareState, "satiety" | "energy" | "happiness" | "affection" | "cleanliness" | "gardenHealth">,
+  daysAway: number
+): ChatCareContext => ({
+  satiety: careState.satiety,
+  energy: careState.energy,
+  happiness: careState.happiness,
+  affection: careState.affection,
+  cleanliness: careState.cleanliness,
+  gardenHealth: careState.gardenHealth,
+  daysAway
+});
+
+/**
+ * Trims a full PetProfile down to the inline snapshot chat-turn requires on
+ * every request. There is no `pets` table in the live schema
+ * (0005_pet_namespace.sql), so the pet's name/species/personality/etc. travel
+ * with every request instead of being looked up server-side -- the same
+ * inputSnapshot pattern generate-avatar already uses for the identical gap.
+ */
+export const buildChatTurnPetProfile = (
+  pet: Pick<PetProfile, "name" | "species" | "personalityTags" | "talkingStyle" | "favoriteThing" | "memoryNote">
+): ChatTurnPetProfile => ({
+  name: pet.name,
+  species: pet.species,
+  ...(pet.personalityTags.length > 0 ? { personalityTags: [...pet.personalityTags] } : {}),
+  ...(pet.talkingStyle ? { talkingStyle: pet.talkingStyle } : {}),
+  ...(pet.favoriteThing ? { favoriteThing: pet.favoriteThing } : {}),
+  ...(pet.memoryNote ? { memoryNote: pet.memoryNote } : {})
+});

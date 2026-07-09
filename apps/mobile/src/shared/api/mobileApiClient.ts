@@ -8,14 +8,10 @@ import type {
   CommerceProductsResponse,
   CompletePhotoUploadRequest,
   CompletePhotoUploadResponse,
-  ConversationThreadResponse,
-  CreateConversationRequest,
-  CreateConversationResponse,
   CreateGenerationJobRequest,
   CreatePetRequest,
   CurrentUserResponse,
   DeleteChatHistoryResponse,
-  DeleteConversationResponse,
   DeleteOriginalPhotosRequest,
   DeleteOriginalPhotosResponse,
   DeletePetResponse,
@@ -46,8 +42,6 @@ import type {
   RestorePurchasesRequest,
   ReactionCatalogResponse,
   RelationshipState,
-  SendConversationMessageRequest,
-  SendConversationMessageResponse,
   StartWalkResponse,
   UpdatePetRequest,
   WeatherLookupRequest,
@@ -290,13 +284,11 @@ export function createMobileApiClient(options: MobileApiClientOptions) {
     verifyPurchase: (body: PurchaseVerificationRequest) =>
       request<PurchaseVerificationResponse>("POST", "/v1/commerce/purchases/verify", body),
     restorePurchases: (body: RestorePurchasesRequest) =>
-      request<PurchaseVerificationResponse>("POST", "/v1/commerce/restore", body),
-    createPremiumConversation: (body: CreateConversationRequest) => request<CreateConversationResponse>("POST", "/v1/conversations", body),
-    getConversationThread: (conversationId: string) =>
-      request<ConversationThreadResponse>("GET", `/v1/conversations/${encodePathSegment(conversationId)}`),
-    deleteConversation: (conversationId: string) =>
-      request<DeleteConversationResponse>("DELETE", `/v1/conversations/${encodePathSegment(conversationId)}`),
-    sendPremiumConversationMessage: (body: SendConversationMessageRequest) =>
-      request<SendConversationMessageResponse>("POST", `/v1/conversations/${encodePathSegment(body.conversationId)}/messages`, body)
+      request<PurchaseVerificationResponse>("POST", "/v1/commerce/restore", body)
+    // Premium chat's /v1/conversations* methods used to live here -- removed
+    // in Chat Live wave C2 (docs/chat-live-design.md §6.1/§9 risk 5). Live
+    // chat now calls the chat-turn Edge Function directly
+    // (supabasePremiumChatSession.ts), never this dead services/api HTTP
+    // backend.
   };
 }

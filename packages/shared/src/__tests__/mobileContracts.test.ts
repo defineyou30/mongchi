@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   buildCareActionRequest,
   buildApproximateWeatherLookupRequest,
+  buildChatCareContext,
   buildChatMemoryContext,
+  buildChatTurnPetProfile,
   buildCreateGenerationJobRequest,
   buildCreatePetRequest,
   buildPhotoUploadUrlRequest,
   createInitialCareStats,
+  mockCareState,
+  mockPetProfile,
   validateLocalPhotoCandidate
 } from "../index";
 import type { CareStats, CreateConversationRequest, MemoryEntry, PurchaseVerificationRequest, RestorePurchasesRequest } from "../index";
@@ -228,5 +232,52 @@ describe("mobile API contract mappers", () => {
 
     expect(withoutContext.memoryContext).toBeUndefined();
     expect(withContext.memoryContext?.favoriteCareAction).toBeNull();
+  });
+
+  it("builds a chat-turn care context from the six live care meters plus daysAway", () => {
+    expect(buildChatCareContext(mockCareState, 2)).toEqual({
+      satiety: 48,
+      energy: 74,
+      happiness: 70,
+      affection: 66,
+      cleanliness: 76,
+      gardenHealth: 58,
+      daysAway: 2
+    });
+  });
+
+  it("includes a zero daysAway rather than omitting it", () => {
+    expect(buildChatCareContext(mockCareState, 0)).toEqual({
+      satiety: 48,
+      energy: 74,
+      happiness: 70,
+      affection: 66,
+      cleanliness: 76,
+      gardenHealth: 58,
+      daysAway: 0
+    });
+  });
+
+  it("trims a full pet profile down to the chat-turn snapshot, dropping empty optional fields", () => {
+    expect(buildChatTurnPetProfile(mockPetProfile)).toEqual({
+      name: "Miso",
+      species: "dog",
+      personalityTags: ["curious", "affectionate"],
+      talkingStyle: "gentle",
+      favoriteThing: "cloud-shaped leaves"
+    });
+
+    const { favoriteThing: _favoriteThing, memoryNote: _memoryNote, ...petProfileWithoutOptionalFields } = mockPetProfile;
+
+    expect(
+      buildChatTurnPetProfile({
+        ...petProfileWithoutOptionalFields,
+        personalityTags: []
+      })
+    ).toEqual({
+      name: "Miso",
+      species: "dog",
+      talkingStyle: "gentle"
+    });
   });
 });

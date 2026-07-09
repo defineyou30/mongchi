@@ -6,6 +6,8 @@ import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
+  buildChatCareContext,
+  buildChatMemoryContext,
   defaultWeatherContext,
   getCareDaysAway,
   getPremiumChatPaymentPreview,
@@ -23,8 +25,8 @@ import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/d
 import { BackButton } from "../../shared/ui/BackButton";
 import { useTypewriter } from "../../shared/ui/useTypewriter";
 import { WeatherSceneLayer } from "../../shared/ui/WeatherSceneLayer";
-import { createConfiguredDailyLoopApiClient } from "../session/apiDailyLoopSession";
 import { sendApiPremiumChatTurn, startApiPremiumChatThread } from "../session/apiPremiumChatSession";
+import { getSupabaseClient } from "../session/supabaseClient";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import {
   getChatConversationStarters,
@@ -95,7 +97,6 @@ export function ChatGateScreen() {
     hasPremiumChatEntitlement,
     memories,
     recentReactions,
-    runtimeMode,
     satisfactionScore,
     satisfactionSummary,
     syncWallet,
@@ -107,8 +108,14 @@ export function ChatGateScreen() {
   // instead of a memory/care-status one while the pet is genuinely away.
   const isPetOnWalk = activeWalk?.status === "walking";
   const fontFamilies = useFontFamilies();
-  const [apiRuntime] = useState(() => createConfiguredDailyLoopApiClient());
+  const [supabaseClient] = useState(() => getSupabaseClient());
   const [conversationId, setConversationId] = useState<string | null>(null);
+  // True once handleStartPremiumChat has locally opened the chat surface --
+  // separate from conversationId, which stays null until chat-turn's
+  // find-or-create actually returns a server conversation on the first send
+  // (docs/chat-live-design.md §1.2/§6.1: starting a thread is now a local-only
+  // transition, no network round trip).
+  const [chatStarted, setChatStarted] = useState(false);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
@@ -123,7 +130,7 @@ export function ChatGateScreen() {
   const chatPayment = getPremiumChatPaymentPreview(wallet, hasPremiumChatEntitlement);
   const premiumChatAccess = getPremiumChatAccessPresentation({
     petName: activePet.name,
-    apiReady: runtimeMode === "api" && apiRuntime.mode === "api",
+    apiReady: supabaseClient != null,
     payment: chatPayment,
     hasPremiumChatEntitlement,
     freeChatTickets: wallet.freeChatTickets,
@@ -178,17 +185,17 @@ export function ChatGateScreen() {
       }),
     [activePet.name, careState, activeWeather, replyNow, careDaysAway]
   );
-  const showConversationStarters = premiumChatReady && !!conversationId && !trimmedDraft && chatStatus !== "sending";
+  const showConversationStarters = premiumChatReady && chatStarted && !trimmedDraft && chatStatus !== "sending";
 
   const handleStartPremiumChat = async () => {
-    if (!premiumChatReady || apiRuntime.mode !== "api") {
+    if (!premiumChatReady || !supabaseClient) {
       return;
     }
 
     setChatStatus("starting");
     setChatError(null);
 
-    const started = await startApiPremiumChatThread(apiRuntime.client, activePet.id);
+    const started = await startApiPremiumChatThread(supabaseClient);
 
     if (!started.ok) {
       setChatError(started.error.messageSafe);
@@ -196,14 +203,14 @@ export function ChatGateScreen() {
       return;
     }
 
+    setChatStarted(true);
     setConversationId(started.thread.conversationId);
     setMessages(started.thread.messages);
-    setChatError(started.warning?.messageSafe ?? null);
     setChatStatus("ready");
   };
 
   const handleSendPremiumMessage = async () => {
-    if (!premiumChatReady || apiRuntime.mode !== "api" || !conversationId || !trimmedDraft) {
+    if (!premiumChatReady || !supabaseClient || !chatStarted || !trimmedDraft) {
       return;
     }
 
@@ -212,11 +219,16 @@ export function ChatGateScreen() {
     setChatError(null);
 
     const sent = await sendApiPremiumChatTurn(
-      apiRuntime.client,
+      supabaseClient,
       {
-        conversationId,
-        messages
+        petId: activePet.id,
+        petProfile: activePet,
+        wallet,
+        hasPremiumChatEntitlement,
+        memoryContext: buildChatMemoryContext({ memories, careStats }),
+        careContext: buildChatCareContext(careState, careDaysAway)
       },
+      { conversationId, messages },
       draft
     );
 
@@ -227,6 +239,7 @@ export function ChatGateScreen() {
     }
 
     syncWallet(sent.wallet);
+    setConversationId(sent.thread.conversationId);
     setMessages(sent.thread.messages);
     setDraft("");
     setChatStatus("ready");
@@ -285,9 +298,9 @@ export function ChatGateScreen() {
             />
 
             <View style={styles.chatTray}>
-              {conversationId && messages.length > 0 ? (
+              {chatStarted && messages.length > 0 ? (
               <View style={styles.messageStack}>
-                {conversationId && messages.length > 0 ? (
+                {chatStarted && messages.length > 0 ? (
                   messages.slice(-3).map(renderMessage)
                 ) : null}
               </View>
@@ -343,7 +356,7 @@ export function ChatGateScreen() {
                   </View>
                 </View>
                 <Text numberOfLines={1} style={[styles.chatPaymentText, { fontFamily: fontFamilies.body }]}>
-                  {conversationId ? chatPayment.detail : premiumChatAccess.detail}
+                  {chatStarted ? chatPayment.detail : premiumChatAccess.detail}
                 </Text>
               </View>
 
@@ -371,9 +384,9 @@ export function ChatGateScreen() {
                 </View>
                 <TextInput
                   accessibilityLabel="Premium chat message"
-                  editable={premiumChatReady && !!conversationId && chatStatus !== "sending"}
+                  editable={premiumChatReady && chatStarted && chatStatus !== "sending"}
                   value={draft}
-                  placeholder={premiumChatReady && conversationId ? `Message ${activePet.name}` : premiumChatAccess.inputPlaceholder}
+                  placeholder={premiumChatReady && chatStarted ? `Message ${activePet.name}` : premiumChatAccess.inputPlaceholder}
                   placeholderTextColor={colors.mutedInk}
                   maxLength={240}
                   style={[styles.chatInput, { fontFamily: fontFamilies.body }]}
@@ -381,15 +394,15 @@ export function ChatGateScreen() {
                 />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={conversationId ? "Send premium chat message" : premiumChatAccess.ctaLabel}
-                  accessibilityState={{ disabled: conversationId ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting" }}
-                  disabled={conversationId ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting"}
+                  accessibilityLabel={chatStarted ? "Send premium chat message" : premiumChatAccess.ctaLabel}
+                  accessibilityState={{ disabled: chatStarted ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting" }}
+                  disabled={chatStarted ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting"}
                   style={({ pressed }) => [
                     styles.sendButton,
                     pressed ? styles.sendButtonPressed : null,
-                    conversationId ? (trimmedDraft ? null : styles.sendButtonDisabled) : null
+                    chatStarted ? (trimmedDraft ? null : styles.sendButtonDisabled) : null
                   ]}
-                  onPress={conversationId ? () => void handleSendPremiumMessage() : premiumChatReady ? () => void handleStartPremiumChat() : () => router.push("/shop")}
+                  onPress={chatStarted ? () => void handleSendPremiumMessage() : premiumChatReady ? () => void handleStartPremiumChat() : () => router.push("/shop")}
                 >
                   <Send color={colors.white} size={22} strokeWidth={3} />
                 </Pressable>
