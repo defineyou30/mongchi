@@ -3,7 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { generationStepStatuses } from "@mongchi/shared";
+import { canCreatePet, generationStepStatuses } from "@mongchi/shared";
 import type {
   GeneratedAsset,
   GeneratedAssetState,
@@ -268,11 +268,6 @@ interface InvokeGenerateAvatarResult {
 
 type InvokeGenerateAvatarOutcome = InvokeGenerateAvatarResult | { ok: false; error: MobileApiError };
 
-// Generation can now start right after the photo is confirmed, before the
-// setup screen has collected a name/personality/voice -- draft.name is still
-// "" at that point. The edge function's inputSnapshot validation treats
-// petName/personalityTags/talkingStyle as optional, so blank/empty draft
-// fields are omitted here rather than sent as empty placeholders.
 const buildGenerationInputSnapshot = (draft: PrototypeSessionState["draft"]) => {
   const petName = draft.name.trim();
 
@@ -389,6 +384,12 @@ const startSupabaseGenerationFlowInner = async (
 
   if (!sourcePhoto.ok) {
     return sourcePhoto;
+  }
+
+  if (!canCreatePet(state)) {
+    return errorResult(
+      toMobileError(0, "pet_setup_required", "Choose your pet's name and personality before they move in.")
+    );
   }
 
   const session = await ensureSupabaseSession(client);
@@ -924,6 +925,7 @@ export interface StartExpressionPackFlowResult {
 const startSupabaseExpressionPackFlowInner = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
+  packId: string,
   requestedStates: readonly string[],
   requestId: string
 ): Promise<SupabaseGenerationFlowResult<StartExpressionPackFlowResult>> => {
@@ -942,6 +944,7 @@ const startSupabaseExpressionPackFlowInner = async (
   const invoked = await invokeGenerateAvatarWithBody(client, {
     inputSnapshot: buildGenerationInputSnapshot(state.draft),
     source_asset_path: storagePath.storagePath,
+    expression_pack_id: packId,
     requested_states: [...requestedStates],
     request_id: requestId
   });
@@ -979,11 +982,12 @@ const startSupabaseExpressionPackFlowInner = async (
 export const startSupabaseExpressionPackFlow = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
+  packId: string,
   requestedStates: readonly string[],
   requestId: string
 ): Promise<SupabaseGenerationFlowResult<StartExpressionPackFlowResult>> => {
   try {
-    return await startSupabaseExpressionPackFlowInner(client, state, requestedStates, requestId);
+    return await startSupabaseExpressionPackFlowInner(client, state, packId, requestedStates, requestId);
   } catch (cause) {
     console.warn("[expressionPack] start flow threw:", cause instanceof Error ? cause.message : String(cause));
     reporter.captureMessage("expressionPack: start flow threw", {

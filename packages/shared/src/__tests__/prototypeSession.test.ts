@@ -14,6 +14,7 @@ import {
   getMonotonicGenerationProgress,
   getPrototypeGenerationPollSnapshot,
   getSpendableCreditBalance,
+  normalizeRestoredPetSetupDraft,
   normalizeRestoredGeneration,
   pollPrototypeGenerationJob,
   performPrototypeCareAction,
@@ -38,6 +39,7 @@ import {
 } from "../index";
 import { generatedAssetStates } from "../domain";
 import type { GeneratedAsset } from "../domain";
+import { makeMockGeneratedAsset } from "../mock/mockData";
 import type { PrototypeSessionState } from "../session/prototypeSession";
 
 const active = getActivePetBundle;
@@ -154,6 +156,20 @@ describe("prototype first-session state", () => {
     expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "garden_help")?.state).toBe("garden_help");
     expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "chat_portrait")?.state).toBe("chat_portrait");
     expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "walk_out")?.state).toBe("idle");
+  });
+
+  it("falls back to the closest free expression when a paid pack state has not been generated", () => {
+    const freeAssets: GeneratedAsset[] = (["idle", "happy", "sleep"] as const).map((state) =>
+      makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_free_001" })
+    );
+    const idleAsset = freeAssets.find((asset) => asset.state === "idle") ?? null;
+
+    expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "play")?.state).toBe("happy");
+    expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "treat_reaction")?.state).toBe("happy");
+    expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "chat_portrait")?.state).toBe("happy");
+    expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "walk_return")?.state).toBe("happy");
+    expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "hungry")?.state).toBe("idle");
+    expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "sad")?.state).toBe("sleep");
   });
 
   it("consumes owned treat items when a treat care action uses an inventory item", () => {
@@ -676,27 +692,26 @@ describe("acceptPrototypeGeneratedPet preserveAssets option", () => {
 });
 
 describe("normalizeRestoredGeneration", () => {
-  it("downgrades an in-flight status (e.g. generating) to a failed job with a warm interrupted-retry message", () => {
+  it("keeps an in-flight job and its durable id pollable after an app restart", () => {
     let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
     state = updatePrototypeDraft(state, { name: "Miso" });
     state = startPrototypeGeneration(state, "2026-06-24T09:01:00.000Z");
     state = advancePrototypeGeneration(state, "2026-06-24T09:01:01.000Z");
 
     expect(state.generation.status).toBe("safety_checking");
+    expect(active(state).petProfile?.activeGenerationJobId).toBe("gen_local_001");
 
     const normalized = normalizeRestoredGeneration(state, "2026-06-24T10:00:00.000Z");
 
-    expect(normalized.generation.status).toBe("failed");
-    expect(normalized.generation.failureCode).toBe("generation_interrupted");
-    expect(normalized.generation.failureMessageSafe).toBe(
-      "We lost track while your friend was moving in. Let's try once more."
-    );
-    expect(normalized.generation.nextPollAfter).toBeUndefined();
+    expect(normalized.generation.status).toBe("safety_checking");
+    expect(active(normalized).petProfile?.activeGenerationJobId).toBe("gen_local_001");
+    expect(normalized.generation.nextPollAfter).toBeDefined();
   });
 
-  it("downgrades a completed status with no accepted assets (stranded before poll response landed)", () => {
+  it("returns a completed job without assets to a pollable upload state", () => {
     let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
     state = updatePrototypeDraft(state, { name: "Miso" });
+    state = startPrototypeGeneration(state, "2026-06-24T09:01:00.000Z");
     state = withActivePetBundle(
       {
         ...state,
@@ -711,8 +726,8 @@ describe("normalizeRestoredGeneration", () => {
 
     const normalized = normalizeRestoredGeneration(state, "2026-06-24T10:00:00.000Z");
 
-    expect(normalized.generation.status).toBe("failed");
-    expect(normalized.generation.failureCode).toBe("generation_interrupted");
+    expect(normalized.generation.status).toBe("uploading_assets");
+    expect(normalized.generation.nextPollAfter).toBeDefined();
   });
 
   it("leaves a completed status with accepted assets untouched", () => {
@@ -751,6 +766,53 @@ describe("normalizeRestoredGeneration", () => {
     const normalized = normalizeRestoredGeneration(state, "2026-06-24T10:00:00.000Z");
 
     expect(normalized).toBe(state);
+  });
+});
+
+describe("initial dog onboarding generation", () => {
+  it("keeps a persisted legacy Cat draft parseable", () => {
+    expect(
+      normalizeRestoredPetSetupDraft({
+        name: "Nabi",
+        species: "cat",
+        personalityTags: ["curious", "invalid"],
+        talkingStyle: "cute",
+        favoriteThing: "windowsills"
+      })
+    ).toEqual({
+      name: "Nabi",
+      species: "cat",
+      personalityTags: ["curious"],
+      talkingStyle: "cute",
+      favoriteThing: "windowsills"
+    });
+  });
+
+  it("defaults new onboarding to Dog and persists one durable initial job only after setup is ready", () => {
+    let state = createInitialPrototypeSession("2026-07-10T09:00:00.000Z");
+    expect(state.draft.species).toBe("dog");
+    expect(canCreatePet(state)).toBe(false);
+
+    state = updatePrototypeDraft(state, {
+      name: "Nabi",
+      talkingStyle: "cute",
+      personalityTags: ["curious"]
+    });
+    state = setPrototypeMockPhotoSelected(state, true);
+    state = setPrototypeConsentAccepted(state, true);
+
+    expect(canContinuePetSetup(state)).toBe(true);
+    expect(canCreatePet(state)).toBe(true);
+
+    const started = startPrototypeGeneration(state, "2026-07-10T09:01:00.000Z");
+    const startedAgain = startPrototypeGeneration(started, "2026-07-10T09:01:01.000Z");
+
+    expect(active(started).petProfile).toMatchObject({
+      species: "dog",
+      lifecycleStatus: "generating",
+      activeGenerationJobId: "gen_local_001"
+    });
+    expect(active(startedAgain).petProfile?.activeGenerationJobId).toBe("gen_local_001");
   });
 });
 

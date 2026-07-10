@@ -18,7 +18,7 @@ export interface PersistedSessionEnvelope {
  * migration step to keep existing local saves loadable. Register the
  * matching vN -> vN+1 function in `sessionMigrations` below.
  */
-export const CURRENT_SESSION_SCHEMA_VERSION = 7;
+export const CURRENT_SESSION_SCHEMA_VERSION = 8;
 
 /** The first (and, until W3, only) pet's id -- see prototypeSession.ts's FIRST_PET_ID (kept as a separate literal here so this migration module has no import-time dependency on prototypeSession.ts's internals). */
 const FIRST_PET_ID = "pet_local_001";
@@ -382,6 +382,24 @@ export const sessionMigrations: Record<number, (state: unknown) => unknown> = {
       ...rest,
       pets: { [petIdFromProfile]: bundle },
       activePetId: petIdFromProfile
+    };
+  },
+  7: (state: unknown) => {
+    if (!isRecord(state)) {
+      return state;
+    }
+
+    const inventory = isRecord(state.inventory) ? state.inventory : {};
+    const pendingExpressionPackJobs = Array.isArray(inventory.pendingExpressionPackJobs)
+      ? inventory.pendingExpressionPackJobs
+      : [];
+
+    return {
+      ...state,
+      inventory: {
+        ...inventory,
+        pendingExpressionPackJobs
+      }
     };
   }
 };

@@ -128,6 +128,7 @@
             "npm:expo-iap@^4.3.3",
             "npm:expo-image-manipulator@~56.0.20",
             "npm:expo-image-picker@~56.0.18",
+            "npm:expo-linking@~56.0.14",
             "npm:expo-location@~56.0.18",
             "npm:expo-notifications@~56.0.19",
             "npm:expo-router@~56.2.11",
@@ -154,7 +155,8 @@
             "npm:@types/pg@^8.20.0",
             "npm:pg@^8.22.0",
             "npm:tsx@^4.22.4",
-            "npm:typescript@6.0.3"
+            "npm:typescript@6.0.3",
+            "npm:zod@^3.25.76"
           ]
         }
       },

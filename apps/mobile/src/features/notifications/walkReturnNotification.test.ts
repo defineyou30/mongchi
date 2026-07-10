@@ -52,7 +52,7 @@ describe("scheduleWalkReturnNotification", () => {
 
     const result = await scheduleWalkReturnNotification({ petName: "Mong", returnInSeconds: 180 });
 
-    expect(result).toEqual({ notificationId: null });
+    expect(result).toEqual({ notificationId: null, skippedReason: "permission_not_granted" });
     expect(scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
@@ -63,7 +63,16 @@ describe("scheduleWalkReturnNotification", () => {
 
     expect(scheduleNotificationAsync).toHaveBeenCalledTimes(1);
     expect(scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: { title: "Mong is back from the walk!", body: "Come see what Mong found out there." },
+      content: {
+        title: "Mong is back from the walk!",
+        body: "Come see what Mong found out there.",
+        data: {
+          mongchiNotificationVersion: 1,
+          mongchiNotificationOwner: "walk",
+          mongchiNotificationKey: "walk_return",
+          mongchiNotificationAction: "walk"
+        }
+      },
       trigger: { type: "timeInterval", seconds: 180, repeats: false }
     });
     expect(result).toEqual({ notificationId: "walk-notification-id" });
@@ -77,6 +86,18 @@ describe("scheduleWalkReturnNotification", () => {
     const trigger = scheduleNotificationAsync.mock.calls[0]![0].trigger as { seconds: number };
 
     expect(trigger.seconds).toBe(1);
+  });
+
+  it("does not query permission or schedule when walk reminders are disabled", async () => {
+    const result = await scheduleWalkReturnNotification({
+      petName: "Mong",
+      returnInSeconds: 180,
+      preferences: { walkReturns: false }
+    });
+
+    expect(result).toEqual({ notificationId: null, skippedReason: "disabled" });
+    expect(getPermissionsAsync).not.toHaveBeenCalled();
+    expect(scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 });
 

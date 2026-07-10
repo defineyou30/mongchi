@@ -12,7 +12,9 @@ import {
   canContinuePhotoStep,
   canCreatePet,
   applyPrototypeTheme,
+  clearPendingExpressionPackJob,
   confirmPrototypeExpressionPackPurchase,
+  recordExpressionPackJobStart,
   recordExpressionPackUnlock,
   createPersistedSessionEnvelope,
   isValidPrototypeSessionShape,
@@ -38,6 +40,7 @@ import {
   makeMockGeneratedAsset,
   mergePrototypeGeneratedAssets,
   normalizeRestoredGeneration,
+  normalizeRestoredPetSetupDraft,
   parseSessionBackup,
   pollPrototypeGenerationJob,
   performPrototypeCareAction,
@@ -513,6 +516,7 @@ const mergeRestoredSession = (value: Record<string, unknown>): PrototypeSessionS
   const merged: PrototypeSessionState = {
     ...fallback,
     ...restored,
+    draft: normalizeRestoredPetSetupDraft(restored.draft),
     pets,
     activePetId,
     inventory: restoredInventory,
@@ -578,11 +582,6 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const [careCooldownUntilByAction, setCareCooldownUntilByAction] = useState<Partial<Record<CareActionType, number>>>({});
   // Expression pack purchases: keyed by packId so the friend page's pose
   // gallery can show per-pack progress/failure independent of any other UI.
-  // Deliberately session-only (not persisted in PrototypeSessionState) --
-  // the source of truth for *ownership* is inventory.ownedExpressionPackIds
-  // (persisted), this only tracks the transient job-start/poll journey. A
-  // pending entry surviving an app restart mid-job is safe: the next
-  // purchase attempt for that pack id simply starts a fresh job.
   const [expressionPackPurchaseStatusById, setExpressionPackPurchaseStatusById] = useState<
     Partial<Record<string, ExpressionPackPurchaseState>>
   >({});
@@ -591,6 +590,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   // effect lives in the provider, not in any one screen).
   const [expressionPackJobIdByPackId, setExpressionPackJobIdByPackId] = useState<Partial<Record<string, string>>>({});
   const expressionPackPollGuard = useRef(createAsyncActionGuard());
+  const expressionPackInFlightPackIdsRef = useRef<Set<string>>(new Set());
   // In-flight guards for the generation start/poll/retry flows. These calls
   // are triggered both from explicit user taps and from effects (see
   // GenerationScreen's poll interval and mount-triggered start), so a guard
@@ -1026,16 +1026,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const startMockGeneration = useCallback(() => {
-    // Idempotency guard: never start a new generation job while the pet
-    // already has a live (or completed-pending-accept) one. This is the
-    // authoritative check -- callers (e.g. GenerationScreen's mount effect)
-    // additionally guard themselves, but this is what actually prevents a
-    // duplicate upload+invoke if a caller's own guard has a gap. A live job
-    // means only polling should drive progress from here; a terminally
-    // failed/cancelled/expired job's id must NOT block this path, since
-    // PhotoUploadScreen's Continue calls startMockGeneration directly (not
-    // retryMockGeneration) to kick off a fresh attempt after a new photo is
-    // picked -- see hasActiveGenerationJob for why status matters here.
+    if (!canCreatePet(state)) {
+      return;
+    }
+
     if (hasActiveGenerationJob(activeBundle.petProfile?.activeGenerationJobId, state.generation.status)) {
       return;
     }
@@ -1088,6 +1082,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
   const pollMockGeneration = useCallback(
     (options?: { force?: boolean }) => {
+      if (!activeBundle.petProfile?.activeGenerationJobId) {
+        return;
+      }
+
       const polledAt = nowIso();
       const nextPollAt = state.generation.nextPollAfter ? new Date(state.generation.nextPollAfter).getTime() : 0;
       const supabaseClient = getSupabaseClient();
@@ -1405,6 +1403,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   );
 
   const setExpressionPackPending = useCallback((packId: string) => {
+    expressionPackInFlightPackIdsRef.current.add(packId);
     setExpressionPackPurchaseStatusById((current) => ({ ...current, [packId]: { status: "pending" } }));
   }, []);
 
@@ -1418,6 +1417,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       const { [packId]: _removed, ...rest } = current;
       return rest;
     });
+    expressionPackInFlightPackIdsRef.current.delete(packId);
   }, []);
 
   const clearExpressionPackStatus = useCallback((packId: string) => {
@@ -1429,33 +1429,47 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       const { [packId]: _removed, ...rest } = current;
       return rest;
     });
+    expressionPackInFlightPackIdsRef.current.delete(packId);
   }, []);
 
-  /**
-   * Purchases an expression pack: the credit charge is confirmed only after
-   * the server-side generation job has actually started (see
-   * confirmPrototypeExpressionPackPurchase's doc comment), so a network
-   * failure before that point leaves the wallet completely untouched -- the
-   * same "transactional across an async boundary" shape as the walk
-   * early-return credit spend, just gated on a job-start network call
-   * instead of a synchronous check.
-   *
-   * State machine:
-   *  1. validatePrototypeExpressionPackPurchase (no mutation) -- fails fast
-   *     for already-owned / insufficient-credit / unknown pack ids.
-   *  2. Mark the pack "pending" for the gallery's progress UI.
-   *  3. Supabase configured: start the server job seeded from the idle
-   *     sprite. On success, confirm the domain purchase (credits spend now)
-   *     and start polling; on failure, revert to "failed" with a warm
-   *     message and no charge.
-   *     No Supabase (local/dev): confirm the purchase immediately and merge
-   *     in mock assets for the pack's states, so the dev-wallet-unlocked
-   *     path can be exercised end-to-end without a live backend.
-   *  4. The polling effect below merges the finished assets into
-   *     acceptedAssets once the job completes, and clears the pending status.
-   */
+  useEffect(() => {
+    const pendingJobs = state.inventory.pendingExpressionPackJobs ?? [];
+
+    if (pendingJobs.length === 0) {
+      return;
+    }
+
+    setExpressionPackPurchaseStatusById((current) => {
+      const next = { ...current };
+
+      for (const job of pendingJobs) {
+        next[job.packId] = { status: "pending" };
+        expressionPackInFlightPackIdsRef.current.add(job.packId);
+      }
+
+      return next;
+    });
+
+    setExpressionPackJobIdByPackId((current) => {
+      const next = { ...current };
+
+      for (const job of pendingJobs) {
+        next[job.packId] = job.jobId;
+      }
+
+      return next;
+    });
+  }, [state.inventory.pendingExpressionPackJobs]);
+
   const purchaseExpressionPack = useCallback(
     async (packId: string): Promise<PurchaseExpressionPackResult> => {
+      const alreadyPending = (state.inventory.pendingExpressionPackJobs ?? []).some((job) => job.packId === packId);
+      const existingStatus = expressionPackPurchaseStatusById[packId]?.status;
+
+      if (expressionPackInFlightPackIdsRef.current.has(packId) || existingStatus === "pending" || alreadyPending) {
+        return { ok: true, messageSafe: "New moments are already on their way..." };
+      }
+
       const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
       const purchasedAt = nowIso();
       const validationState = devStoreUnlocked
@@ -1467,6 +1481,8 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         const messageSafe =
           validation.reason === "already_owned"
             ? "You already have these expressions!"
+            : validation.reason === "already_pending"
+              ? "New moments are already on their way..."
             : validation.reason === "insufficient_credits"
               ? "Not enough credits for this pack yet."
               : "This pack is not available.";
@@ -1518,7 +1534,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       // consume_credits call keys its ledger row on, so a dropped response
       // followed by this same call retrying never double-charges.
       const requestId = Crypto.randomUUID();
-      const started = await startSupabaseExpressionPackFlow(supabaseClient, legacyFlatState, pack.states, requestId);
+      const started = await startSupabaseExpressionPackFlow(supabaseClient, legacyFlatState, pack.id, pack.states, requestId);
 
       if (!started.ok) {
         // insufficient_credits (402, server-authoritative -- the local
@@ -1534,20 +1550,20 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         return { ok: false, messageSafe: started.error.messageSafe };
       }
 
-      // Job actually started server-side -- credits were already debited by
-      // consume_credits before the job row was created, so this only
-      // records ownership + a memory, never spends the local wallet (that
-      // would double-charge). The local wallet.credits cache is refreshed
-      // separately via hydrateCreditBalance (called right after this
-      // resolves, see the caller in FriendProfileScreen / shop entry
-      // points) rather than threading the new balance through this
-      // response, since the Edge Function's 202 body only carries jobId.
-      const recorded = recordExpressionPackUnlock(state, pack.id, purchasedAt);
+      const pet = getActivePrototypePet(state, purchasedAt);
+      const recorded = recordExpressionPackJobStart(
+        state,
+        {
+          packId: pack.id,
+          jobId: started.data.jobId,
+          requestId,
+          petId: pet.id,
+          startedAt: purchasedAt
+        },
+        purchasedAt
+      );
 
       if (!recorded.ok) {
-        // Extremely unlikely (validated moments ago), but never strand a
-        // started, already-paid-for job without at least surfacing
-        // something to the player.
         setExpressionPackFailed(pack.id, "Something went sideways starting these new expressions. Try again soon.");
         return { ok: false, messageSafe: "Something went sideways starting these new expressions. Try again soon." };
       }
@@ -1573,7 +1589,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
       return { ok: true, messageSafe: "New moments are on their way..." };
     },
-    [clearExpressionPackStatus, legacyFlatState, setExpressionPackFailed, setExpressionPackPending, state]
+    [
+      clearExpressionPackStatus,
+      expressionPackPurchaseStatusById,
+      legacyFlatState,
+      setExpressionPackFailed,
+      setExpressionPackPending,
+      state
+    ]
   );
 
   // Keeps polling every pending expression-pack job even if the friend page
@@ -1584,6 +1607,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   // Only runs while at least one pack purchase is pending, so it never adds
   // background work to the common case of no active purchase.
   useEffect(() => {
+    const pendingJobsByPackId = new Map((state.inventory.pendingExpressionPackJobs ?? []).map((job) => [job.packId, job]));
     const pendingEntries = Object.entries(expressionPackJobIdByPackId).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string"
     );
@@ -1603,8 +1627,8 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         const polledAt = nowIso();
 
         for (const [packId, jobId] of pendingEntries) {
-          const pet = getActivePrototypePet(state, polledAt);
-          const result = await pollSupabaseExpressionPackFlow(supabaseClient, jobId, pet.id, polledAt);
+          const petId = pendingJobsByPackId.get(packId)?.petId ?? getActivePrototypePet(state, polledAt).id;
+          const result = await pollSupabaseExpressionPackFlow(supabaseClient, jobId, petId, polledAt);
 
           if (!result.ok) {
             // Transient poll failure -- leave the job pending, try again next tick.
@@ -1612,6 +1636,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           }
 
           if (result.data.status === "failed") {
+            setState((current) => clearPendingExpressionPackJob(current, packId, polledAt));
             setExpressionPackFailed(
               packId,
               result.data.failureMessageSafe ?? "The tiny door got stuck. Let's try adding these expressions again."
@@ -1620,7 +1645,11 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           }
 
           if (result.data.status === "completed") {
-            setState((current) => mergePrototypeGeneratedAssets(current, result.data.assets));
+            setState((current) => {
+              const withAssets = mergePrototypeGeneratedAssets(current, result.data.assets);
+              const unlocked = recordExpressionPackUnlock(withAssets, packId, polledAt);
+              return clearPendingExpressionPackJob(unlocked.ok ? unlocked.state : withAssets, packId, polledAt);
+            });
             clearExpressionPackStatus(packId);
           }
         }

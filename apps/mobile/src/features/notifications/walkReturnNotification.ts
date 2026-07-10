@@ -1,4 +1,9 @@
 import * as Notifications from "expo-notifications";
+import {
+  createNotificationPayload,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences
+} from "./notificationContracts";
 
 /**
  * A single, one-off local "welcome home" notification for a walk in
@@ -33,33 +38,53 @@ export interface ScheduleWalkReturnNotificationInput {
   petName: string;
   /** Seconds from now until the walk is due to return. */
   returnInSeconds: number;
+  preferences?: Pick<NotificationPreferences, "walkReturns">;
 }
 
 export interface ScheduleWalkReturnNotificationResult {
   /** The scheduled notification's id, or null when scheduling was skipped (no permission). */
   notificationId: string | null;
+  skippedReason?: "permission_not_granted" | "disabled" | "notification_api_failed";
 }
 
 export const scheduleWalkReturnNotification = async ({
   petName,
-  returnInSeconds
+  returnInSeconds,
+  preferences = DEFAULT_NOTIFICATION_PREFERENCES
 }: ScheduleWalkReturnNotificationInput): Promise<ScheduleWalkReturnNotificationResult> => {
-  const permissions = await Notifications.getPermissionsAsync();
-
-  if (permissions.status !== "granted") {
-    return { notificationId: null };
+  if (!preferences.walkReturns) {
+    return { notificationId: null, skippedReason: "disabled" };
   }
 
-  const notificationId = await Notifications.scheduleNotificationAsync({
-    content: getWalkReturnNotificationContent(petName),
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: Math.max(1, Math.round(returnInSeconds)),
-      repeats: false
-    }
-  });
+  let permissions: Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>;
 
-  return { notificationId };
+  try {
+    permissions = await Notifications.getPermissionsAsync();
+  } catch {
+    return { notificationId: null, skippedReason: "notification_api_failed" };
+  }
+
+  if (permissions.status !== "granted") {
+    return { notificationId: null, skippedReason: "permission_not_granted" };
+  }
+
+  try {
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        ...getWalkReturnNotificationContent(petName),
+        data: createNotificationPayload({ owner: "walk", key: "walk_return", action: "walk" })
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: Math.max(1, Math.round(returnInSeconds)),
+        repeats: false
+      }
+    });
+
+    return { notificationId };
+  } catch {
+    return { notificationId: null, skippedReason: "notification_api_failed" };
+  }
 };
 
 /**

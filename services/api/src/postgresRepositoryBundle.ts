@@ -1,4 +1,5 @@
 import type { ApiDatabaseMigrationClient } from "./dbMigrations";
+import type { PostgresTransactionalDatabaseClient } from "./postgresClient";
 import { createPostgresChatRepository } from "./postgresChatRepository";
 import { createPostgresCommerceRepository } from "./postgresCommerceRepository";
 import { createPostgresDailyLoopRepository } from "./postgresDailyLoopRepository";
@@ -26,3 +27,11 @@ export const createPostgresRepositoryBundle = (client: ApiDatabaseMigrationClien
   privacy: createPostgresPrivacyRepository(client),
   outbox: createPostgresOutboxRepository(client)
 });
+
+export const withPostgresRepositoryTransaction = <Result>(
+  client: Pick<PostgresTransactionalDatabaseClient, "withTransaction">,
+  operation: (repositories: ApiPostgresRepositoryBundle) => Promise<Result>
+): Promise<Result> =>
+  client.withTransaction((transactionClient) =>
+    operation(createPostgresRepositoryBundle(transactionClient))
+  );

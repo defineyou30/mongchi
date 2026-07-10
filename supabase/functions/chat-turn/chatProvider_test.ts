@@ -195,7 +195,14 @@ Deno.test("createOpenAiPremiumChatProvider: sends the model/instructions/schema 
   assertEquals(requestBody.store, false);
   assertEquals(requestBody.text.format.type, "json_schema");
   assertEquals(requestBody.text.format.strict, true);
-  assert((requestBody.input[0].content[0].text as string).includes("Hi Mochi!"));
+  const instructions: unknown = requestBody.instructions;
+  assert(typeof instructions === "string");
+  assert(instructions.includes("inside the phone"));
+  assert(!instructions.includes("terrarium"));
+  assert(!instructions.includes("tiny garden"));
+  const inputText: unknown = requestBody.input?.[0]?.content?.[0]?.text;
+  assert(typeof inputText === "string");
+  assert(inputText.includes("Hi Mochi!"));
 });
 
 Deno.test("createOpenAiPremiumChatProvider: a refusal maps to the locale refusal text and a provider_refusal flag", async () => {

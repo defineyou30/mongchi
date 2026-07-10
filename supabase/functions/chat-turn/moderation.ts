@@ -81,7 +81,7 @@ const CRISIS_RESOURCE_TEXT_EN = [
   "danger right now, please reach a real person who can help:",
   "• US: call or text 988 (Suicide & Crisis Lifeline), or call 911 for an emergency.",
   "• Anywhere: find a local helpline at findahelpline.com.",
-  "I'll still be right here in our little garden when you're ready."
+  "I'll still be right here beside you when you're ready."
 ].join("\n");
 
 const CRISIS_RESOURCE_TEXT_KO = [
@@ -89,7 +89,7 @@ const CRISIS_RESOURCE_TEXT_KO = [
   "서비스도 아니야. 지금 위험할 수 있다면 도와줄 수 있는 사람에게 꼭 연락해줘:",
   "• 한국: 자살예방상담전화, 정신건강 위기상담 등 (번호는 전문가 검수로 확정 — 예: 109 / 1393, 검증 필요)",
   "• 어디서든: findahelpline.com 에서 가까운 상담처를 찾을 수 있어.",
-  "준비되면 우리 작은 정원에서 언제든 다시 이야기하자."
+  "준비되면 네 곁에서 언제든 다시 이야기하자."
 ].join("\n");
 
 /** DRAFT copy -- see module-level EXPERT REVIEW REQUIRED banner. */

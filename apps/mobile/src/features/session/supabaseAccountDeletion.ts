@@ -1,61 +1,105 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+const RETRYABLE_DELETE_CODES = [
+  "storage_delete_failed",
+  "auth_delete_failed",
+  "network_or_server_error",
+  "unexpected_response"
+] as const;
+
+type RetryableDeleteCode = (typeof RETRYABLE_DELETE_CODES)[number];
 
 export type DeleteSupabaseAccountResult =
-  | { ok: true }
-  | { ok: false; reason: "unauthorized" | "network_or_server_error" };
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason: "unauthorized";
+      readonly retryable: false;
+      readonly code: "unauthorized";
+      readonly status: 401;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "network_or_server_error";
+      readonly retryable: true;
+      readonly code: RetryableDeleteCode;
+      readonly status: number;
+    };
 
-/**
- * Calls the `delete-account` Edge Function (supabase/functions/delete-account)
- * to erase every server-side trace of the caller's anonymous account: the
- * pet-media storage folders (original-photos/{userId}/, avatars/{userId}/),
- * every generation_jobs/generated_assets/generation_quota/
- * generation_rate_limits/credit_wallets/credit_ledger/pet_slots row scoped
- * to this user (all FK `ON DELETE CASCADE` off auth.users -- see
- * supabase/migrations/0001_init.sql, 0002_rate_limit.sql,
- * 0004_credit_ledger.sql, 0005_pet_namespace.sql), and finally the
- * anonymous auth user itself. See docs/readiness-diagnosis.md's "서버 측
- * 데이터 삭제 경로" gap for why this exists.
- *
- * Caller contract: only invoke this when a Supabase session already exists
- * (see TerrariumSessionProvider.tsx's resetSession, the only caller today)
- * -- this function never signs the caller in.
- *
- * Result reasons, and how callers are expected to react (see resetSession's
- * doc comment for the actual branching):
- *   - "unauthorized" (HTTP 401): the caller's JWT no longer identifies a
- *     live account -- either it was already deleted by a prior attempt
- *     whose response never made it back to this device, or the session is
- *     otherwise stale. There is nothing left to retry; safe to drop the
- *     local session too.
- *   - "network_or_server_error": offline, a 5xx, an unexpected thrown
- *     error, or a 200 response whose body reports a partial server-side
- *     failure (see delete-account/index.ts's `{ ok, summary }` contract).
- *     A genuine "try again later" case -- the local Supabase session should
- *     be kept so a later retry can still reach the same account.
- */
-export const deleteSupabaseAccountData = async (client: SupabaseClient): Promise<DeleteSupabaseAccountResult> => {
+type FunctionInvocation = {
+  readonly data: unknown;
+  readonly error: unknown;
+  readonly response?: Response;
+};
+
+type DeleteAccountFunctionClient = {
+  readonly functions: {
+    readonly invoke: (
+      name: string,
+      init: { readonly body: Readonly<Record<string, never>> }
+    ) => Promise<FunctionInvocation>;
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isRetryableDeleteCode = (value: unknown): value is RetryableDeleteCode =>
+  typeof value === "string" && RETRYABLE_DELETE_CODES.some((code) => code === value);
+
+const retryableFailure = (code: RetryableDeleteCode, status: number): DeleteSupabaseAccountResult => ({
+  ok: false,
+  reason: "network_or_server_error",
+  retryable: true,
+  code,
+  status
+});
+
+const parseRetryableCode = (body: unknown): RetryableDeleteCode => {
+  if (!isRecord(body) || body.ok !== false || !isRecord(body.error)) {
+    return "unexpected_response";
+  }
+
+  if (body.error.retryable !== true || !isRetryableDeleteCode(body.error.code)) {
+    return "unexpected_response";
+  }
+
+  return body.error.code;
+};
+
+const parseErrorResponse = async (response: Response): Promise<RetryableDeleteCode> => {
+  try {
+    const body: unknown = await response.json();
+    return parseRetryableCode(body);
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof TypeError) return "unexpected_response";
+    throw error;
+  }
+};
+
+export const deleteSupabaseAccountData = async (
+  client: DeleteAccountFunctionClient
+): Promise<DeleteSupabaseAccountResult> => {
   try {
     const invoked = await client.functions.invoke("delete-account", { body: {} });
 
     if (invoked.error) {
-      const context = (invoked.error as { context?: { status?: number } }).context;
-      const status = context?.status ?? 0;
+      const status = invoked.response?.status ?? 0;
 
       if (status === 401) {
-        return { ok: false, reason: "unauthorized" };
+        await invoked.response?.body?.cancel();
+        return { ok: false, reason: "unauthorized", retryable: false, code: "unauthorized", status: 401 };
       }
 
-      return { ok: false, reason: "network_or_server_error" };
+      const code = invoked.response ? await parseErrorResponse(invoked.response) : "network_or_server_error";
+      return retryableFailure(code, status);
     }
 
-    const body = invoked.data as { ok?: boolean } | null;
-
-    if (body?.ok !== true) {
-      return { ok: false, reason: "network_or_server_error" };
+    if (isRecord(invoked.data) && invoked.data.ok === true) {
+      return { ok: true };
     }
 
-    return { ok: true };
-  } catch {
-    return { ok: false, reason: "network_or_server_error" };
+    return retryableFailure(parseRetryableCode(invoked.data), invoked.response?.status ?? 200);
+  } catch (error) {
+    if (error instanceof Error) return retryableFailure("network_or_server_error", 0);
+    throw error;
   }
 };

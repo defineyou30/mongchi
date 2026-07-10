@@ -432,6 +432,7 @@ export const mockInventory: Inventory = {
   ],
   ownedThemeIds: [DEFAULT_THEME_ID],
   ownedExpressionPackIds: [],
+  pendingExpressionPackJobs: [],
   updatedAt: now
 };
 

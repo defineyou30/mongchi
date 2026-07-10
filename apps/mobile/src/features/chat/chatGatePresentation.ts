@@ -59,6 +59,43 @@ export interface ChatTicketPipsPresentation {
   overflow: number;
 }
 
+export interface ChatAllowanceChipPresentationInput {
+  readonly hasPremiumChatEntitlement: boolean;
+  readonly freeChatTickets: number;
+  readonly creditBalance: number;
+}
+
+export interface ChatAllowanceChipPresentation {
+  readonly label: string;
+  readonly accessibilityLabel: string;
+}
+
+export const getChatAllowanceChipPresentation = ({
+  hasPremiumChatEntitlement,
+  freeChatTickets,
+  creditBalance
+}: ChatAllowanceChipPresentationInput): ChatAllowanceChipPresentation => {
+  if (hasPremiumChatEntitlement) {
+    return { label: "Plus · Included", accessibilityLabel: "Plus chat is included" };
+  }
+
+  const chats = Math.max(0, Math.round(freeChatTickets));
+
+  if (chats > 0) {
+    return {
+      label: `${chats} chat${chats === 1 ? "" : "s"} left`,
+      accessibilityLabel: `${chats} free chat${chats === 1 ? "" : "s"} remaining`
+    };
+  }
+
+  const credits = Math.max(0, Math.round(creditBalance));
+
+  return {
+    label: `${credits} credit${credits === 1 ? "" : "s"}`,
+    accessibilityLabel: `${credits} chat credit${credits === 1 ? "" : "s"} available`
+  };
+};
+
 const chatPipDisplayCap = 5;
 
 /**

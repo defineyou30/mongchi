@@ -377,27 +377,28 @@ export function createApiNodeServer(options: ApiNodeServerOptions = {}): ApiNode
   const serviceName = options.serviceName ?? defaultServiceName;
 
   const server = createServer((request, response) => {
-    void (async () => {
-      const startedAt = Date.now();
-      const requestId = createRequestId(request);
-      const logPath = getSafePathForLog(request.url);
-      const logResponse = (apiResponse: ApiHttpResponse, rateLimited = false): void => {
-        const errorCode = getErrorCode(apiResponse);
+    const startedAt = Date.now();
+    const requestId = createRequestId(request);
+    const logPath = getSafePathForLog(request.url);
+    const logResponse = (apiResponse: ApiHttpResponse, rateLimited = false): void => {
+      const errorCode = getErrorCode(apiResponse);
 
-        try {
-          options.requestLogger?.({
-            requestId,
-            method: request.method ?? "UNKNOWN",
-            path: logPath,
-            status: apiResponse.status,
-            durationMs: Math.max(0, Date.now() - startedAt),
-            rateLimited,
-            ...(errorCode ? { errorCode } : {})
-          });
-        } catch {
-          // Logging must never break API responses.
-        }
-      };
+      try {
+        options.requestLogger?.({
+          requestId,
+          method: request.method ?? "UNKNOWN",
+          path: logPath,
+          status: apiResponse.status,
+          durationMs: Math.max(0, Date.now() - startedAt),
+          rateLimited,
+          ...(errorCode ? { errorCode } : {})
+        });
+      } catch {
+        // Logging must never break API responses.
+      }
+    };
+
+    void (async () => {
       const corsHeaders = resolveCorsHeaders(request, options.allowedOrigins);
       const requestIdHeaders = {
         "X-Request-Id": requestId
@@ -511,7 +512,23 @@ export function createApiNodeServer(options: ApiNodeServerOptions = {}): ApiNode
         ...(rateLimit?.headers ?? {})
       });
       logResponse(apiResponse);
-    })();
+    })().catch(() => {
+      if (response.writableEnded) {
+        return;
+      }
+
+      if (response.headersSent) {
+        response.destroy();
+        return;
+      }
+
+      const responsePayload = jsonError(500, "internal_server_error", "The server could not complete the request.");
+
+      sendJson(response, responsePayload, {
+        "X-Request-Id": requestId
+      });
+      logResponse(responsePayload);
+    });
   });
 
   return { server, router };

@@ -22,7 +22,8 @@
     "@mongchi/ai-worker": "0.1.0",
     "@mongchi/shared": "0.1.0",
     "pg": "^8.22.0",
-    "tsx": "^4.22.4"
+    "tsx": "^4.22.4",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",

@@ -4,9 +4,10 @@ vi.mock("expo-crypto", () => ({
   randomUUID: vi.fn(() => "11111111-1111-4111-8111-111111111111")
 }));
 
-const { ensureSupabaseSessionMock, invokeSupabaseChatTurnMock } = vi.hoisted(() => ({
+const { ensureSupabaseSessionMock, invokeSupabaseChatTurnMock, loadSupabasePremiumChatThreadMock } = vi.hoisted(() => ({
   ensureSupabaseSessionMock: vi.fn(),
-  invokeSupabaseChatTurnMock: vi.fn()
+  invokeSupabaseChatTurnMock: vi.fn(),
+  loadSupabasePremiumChatThreadMock: vi.fn()
 }));
 
 vi.mock("./supabaseGenerationSession", () => ({
@@ -14,7 +15,8 @@ vi.mock("./supabaseGenerationSession", () => ({
 }));
 
 vi.mock("./supabasePremiumChatSession", () => ({
-  invokeSupabaseChatTurn: invokeSupabaseChatTurnMock
+  invokeSupabaseChatTurn: invokeSupabaseChatTurnMock,
+  loadSupabasePremiumChatThread: loadSupabasePremiumChatThreadMock
 }));
 
 import type { ChatTurnRequest, ChatTurnResponse, CreditWallet, PetProfile } from "@mongchi/shared";
@@ -95,6 +97,8 @@ beforeEach(() => {
   ensureSupabaseSessionMock.mockClear();
   ensureSupabaseSessionMock.mockResolvedValue({ ok: true, userId: "user_anon_001" });
   invokeSupabaseChatTurnMock.mockReset();
+  loadSupabasePremiumChatThreadMock.mockReset();
+  loadSupabasePremiumChatThreadMock.mockResolvedValue({ ok: true, thread: emptyThread });
 });
 
 describe("normalizePremiumChatDraft", () => {
@@ -104,11 +108,15 @@ describe("normalizePremiumChatDraft", () => {
 });
 
 describe("startApiPremiumChatThread", () => {
-  it("ensures a Supabase session and returns an empty local thread without any network call", async () => {
-    const result = await startApiPremiumChatThread(fakeClient);
+  it("ensures a Supabase session and restores the pet's available conversation history", async () => {
+    const restoredThread: PremiumChatThreadState = { conversationId: conversation.id, messages: [userMessage, petMessage] };
+    loadSupabasePremiumChatThreadMock.mockResolvedValueOnce({ ok: true, thread: restoredThread });
 
-    expect(result).toEqual({ ok: true, thread: { conversationId: null, messages: [] } });
+    const result = await startApiPremiumChatThread(fakeClient, "pet_mobile_001");
+
+    expect(result).toEqual({ ok: true, thread: restoredThread });
     expect(ensureSupabaseSessionMock).toHaveBeenCalledTimes(1);
+    expect(loadSupabasePremiumChatThreadMock).toHaveBeenCalledWith(fakeClient, "pet_mobile_001");
     expect(invokeSupabaseChatTurnMock).not.toHaveBeenCalled();
   });
 
@@ -121,9 +129,24 @@ describe("startApiPremiumChatThread", () => {
     };
     ensureSupabaseSessionMock.mockResolvedValueOnce({ ok: false, error: sessionError });
 
-    const result = await startApiPremiumChatThread(fakeClient);
+    const result = await startApiPremiumChatThread(fakeClient, "pet_mobile_001");
 
     expect(result).toEqual({ ok: false, error: sessionError });
+    expect(loadSupabasePremiumChatThreadMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a history-load error instead of silently hiding earlier messages", async () => {
+    const historyError: MobileApiError = {
+      status: 0,
+      code: "chat_history_unavailable",
+      messageSafe: "Could not load this chat yet. Try again.",
+      retryable: true
+    };
+    loadSupabasePremiumChatThreadMock.mockResolvedValueOnce({ ok: false, error: historyError });
+
+    const result = await startApiPremiumChatThread(fakeClient, "pet_mobile_001");
+
+    expect(result).toEqual({ ok: false, error: historyError });
   });
 });
 
@@ -131,7 +154,7 @@ describe("sendApiPremiumChatTurn", () => {
   it("blocks an empty draft locally without invoking chat-turn", async () => {
     const context = baseContext({ userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 3, updatedAt: "2026-07-08T00:00:00.000Z" });
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "    ");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "    " });
 
     expect(result).toEqual({
       ok: false,
@@ -143,7 +166,7 @@ describe("sendApiPremiumChatTurn", () => {
   it("blocks locally when the wallet has no ticket, credit, or Plus pass", async () => {
     const context = baseContext({ userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" });
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "hello");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
     expect(result).toEqual({
       ok: false,
@@ -157,7 +180,7 @@ describe("sendApiPremiumChatTurn", () => {
     const wallet: CreditWallet = { userId: "u1", credits: 2, bonusCredits: 0, freeChatTickets: 3, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet);
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "  Hello   tiny friend  ");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "  Hello   tiny friend  " });
 
     expect(invokeSupabaseChatTurnMock).toHaveBeenCalledTimes(1);
     const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
@@ -185,10 +208,25 @@ describe("sendApiPremiumChatTurn", () => {
     const context = baseContext(wallet);
     const openThread: PremiumChatThreadState = { conversationId: conversation.id, messages: [petMessage] };
 
-    await sendApiPremiumChatTurn(fakeClient, context, openThread, "second turn");
+    await sendApiPremiumChatTurn(fakeClient, { context, currentThread: openThread, text: "second turn" });
 
     const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
     expect(sentBody.conversationId).toBe(conversation.id);
+  });
+
+  it("reuses a caller-provided request id for an idempotent retry", async () => {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome());
+    const wallet: CreditWallet = { userId: "u1", credits: 4, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    await sendApiPremiumChatTurn(fakeClient, {
+      context: baseContext(wallet),
+      currentThread: emptyThread,
+      text: "retry me",
+      requestId: "stable-request-id"
+    });
+
+    const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
+    expect(sentBody.requestId).toBe("stable-request-id");
   });
 
   it("sends charge:free and never mutates the wallet for a Plus-pass turn", async () => {
@@ -196,7 +234,7 @@ describe("sendApiPremiumChatTurn", () => {
     const wallet: CreditWallet = { userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet, true);
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "hello");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
     const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
     expect(sentBody.charge).toBe("free");
@@ -213,7 +251,7 @@ describe("sendApiPremiumChatTurn", () => {
     const wallet: CreditWallet = { userId: "u1", credits: 7, bonusCredits: 4, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet);
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "hello");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
     const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
     expect(sentBody.charge).toBe("credit");
@@ -236,7 +274,7 @@ describe("sendApiPremiumChatTurn", () => {
     const wallet: CreditWallet = { userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 3, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet);
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "I want to end my life");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "I want to end my life" });
 
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -259,7 +297,7 @@ describe("sendApiPremiumChatTurn", () => {
     const wallet: CreditWallet = { userId: "u1", credits: 3, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet);
 
-    const result = await sendApiPremiumChatTurn(fakeClient, context, emptyThread, "hello");
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
     expect(result).toEqual({ ok: false, error });
   });

@@ -8,15 +8,17 @@ interface GenerationMotionPolicyInput {
 }
 
 export interface GenerationMotionPolicy {
-  shouldScheduleAutomaticPoll: boolean;
-  shouldShowManualContinue: boolean;
+  readonly shouldAnimateHatching: boolean;
+  readonly shouldScheduleAutomaticPoll: boolean;
+  readonly shouldShowManualContinue: boolean;
 }
 
 export const getGenerationMotionPolicy = ({ reduceMotionEnabled, status }: GenerationMotionPolicyInput): GenerationMotionPolicy => {
   const terminal = terminalGenerationStatuses.has(status);
 
   return {
-    shouldScheduleAutomaticPoll: !reduceMotionEnabled && !terminal,
-    shouldShowManualContinue: reduceMotionEnabled && !terminal
+    shouldAnimateHatching: !reduceMotionEnabled && !terminal,
+    shouldScheduleAutomaticPoll: !terminal,
+    shouldShowManualContinue: false
   };
 };

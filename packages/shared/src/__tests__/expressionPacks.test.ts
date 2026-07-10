@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptPrototypeGeneratedPet,
+  clearPendingExpressionPackJob,
   confirmPrototypeExpressionPackPurchase,
   createInitialPrototypeSession,
+  EXPRESSION_PACK_SIZE,
   expressionPacks,
   getActivePetBundle,
   getExpressionPackById,
   getSpendableCreditBalance,
   isExpressionPackUnlocked,
   mergePrototypeGeneratedAssets,
+  recordExpressionPackJobStart,
   recordExpressionPackUnlock,
   validatePrototypeExpressionPackPurchase
 } from "../index";
@@ -34,7 +37,14 @@ describe("expressionPacks catalog", () => {
 
   it("exposes packs as an array so future packs can be appended", () => {
     expect(Array.isArray(expressionPacks)).toBe(true);
-    expect(expressionPacks.length).toBeGreaterThan(0);
+    expect(expressionPacks.length).toBe(3);
+  });
+
+  it("keeps every expression pack to the 3-state product unit", () => {
+    for (const pack of expressionPacks) {
+      expect(pack.states).toHaveLength(EXPRESSION_PACK_SIZE);
+      expect(pack.creditCost).toBe(12);
+    }
   });
 
   it("never overlaps the free idle/happy/sleep trio in any pack", () => {
@@ -43,6 +53,17 @@ describe("expressionPacks catalog", () => {
     for (const pack of expressionPacks) {
       for (const state of pack.states) {
         expect(freeStates.has(state)).toBe(false);
+      }
+    }
+  });
+
+  it("never reuses the same paid state across two different packs", () => {
+    const seen = new Set<string>();
+
+    for (const pack of expressionPacks) {
+      for (const state of pack.states) {
+        expect(seen.has(state)).toBe(false);
+        seen.add(state);
       }
     }
   });
@@ -91,6 +112,30 @@ describe("validatePrototypeExpressionPackPurchase", () => {
     expect(validatePrototypeExpressionPackPurchase(state, "pack-everyday-moments")).toEqual({
       ok: false,
       reason: "already_owned"
+    });
+  });
+
+  it("rejects a pack whose server job is already pending", () => {
+    const baseState = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    const state = {
+      ...baseState,
+      inventory: {
+        ...baseState.inventory,
+        pendingExpressionPackJobs: [
+          {
+            packId: "pack-everyday-moments",
+            jobId: "job_expression_pack_001",
+            requestId: "request_expression_pack_001",
+            petId: "pet_local_001",
+            startedAt: now
+          }
+        ]
+      }
+    };
+
+    expect(validatePrototypeExpressionPackPurchase(state, "pack-everyday-moments")).toEqual({
+      ok: false,
+      reason: "already_pending"
     });
   });
 
@@ -257,6 +302,64 @@ describe("recordExpressionPackUnlock (server-authoritative purchase, credit Phas
     expect(result.state.wallet.credits).toBe(0);
     expect(result.state.wallet.bonusCredits).toBe(0);
     expect(result.state.inventory.ownedExpressionPackIds).toContain(pack.id);
+  });
+});
+
+describe("recordExpressionPackJobStart", () => {
+  it("persists a pending server job without recording ownership", () => {
+    const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+
+    const result = recordExpressionPackJobStart(
+      state,
+      {
+        packId: "pack-everyday-moments",
+        jobId: "job_expression_pack_001",
+        requestId: "request_expression_pack_001",
+        petId: "pet_local_001",
+        startedAt: now
+      },
+      now
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.state.inventory.ownedExpressionPackIds).toEqual([]);
+    expect(result.state.inventory.pendingExpressionPackJobs).toEqual([
+      {
+        packId: "pack-everyday-moments",
+        jobId: "job_expression_pack_001",
+        requestId: "request_expression_pack_001",
+        petId: "pet_local_001",
+        startedAt: now
+      }
+    ]);
+  });
+
+  it("clears a pending server job after completion or failure", () => {
+    const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    const result = recordExpressionPackJobStart(
+      state,
+      {
+        packId: "pack-everyday-moments",
+        jobId: "job_expression_pack_001",
+        requestId: "request_expression_pack_001",
+        petId: "pet_local_001",
+        startedAt: now
+      },
+      now
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const cleared = clearPendingExpressionPackJob(result.state, "pack-everyday-moments", now);
+
+    expect(cleared.inventory.pendingExpressionPackJobs).toEqual([]);
   });
 });
 

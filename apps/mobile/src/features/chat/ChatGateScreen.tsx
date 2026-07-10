@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import { router } from "expo-router";
 import { Lock, MessageCircle, Mic, Send } from "lucide-react-native";
 import { memo, useMemo, useState } from "react";
@@ -16,19 +17,29 @@ import {
   selectGeneratedAssetForReaction
 } from "@mongchi/shared";
 import type { ConversationMessage } from "@mongchi/shared";
-
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { playSfx } from "../../shared/audio";
 import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
 import { getWeatherBackgroundSource } from "../../shared/assets/weatherSceneAssets";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
+import { reporter } from "../../shared/errors/reporter";
 import { BackButton } from "../../shared/ui/BackButton";
 import { useTypewriter } from "../../shared/ui/useTypewriter";
 import { WeatherSceneLayer } from "../../shared/ui/WeatherSceneLayer";
 import { sendApiPremiumChatTurn, startApiPremiumChatThread } from "../session/apiPremiumChatSession";
 import { getSupabaseClient } from "../session/supabaseClient";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+import { ChatConversationHistory } from "./ChatConversationHistory";
+import { buildChatLatencySample, shouldReportChatLatency } from "./chatLatencyDiagnostics";
 import {
+  beginOptimisticChatTurn,
+  createChatSendGate,
+  failOptimisticChatTurn,
+  retryOptimisticChatTurn
+} from "./chatOptimisticTurn";
+import type { OptimisticChatTurn } from "./chatOptimisticTurn";
+import {
+  getChatAllowanceChipPresentation,
   getChatConversationStarters,
   getPremiumChatAccessPresentation,
   getShortChatReplyText
@@ -36,9 +47,7 @@ import {
 
 type ChatStatus = "idle" | "starting" | "ready" | "sending";
 
-const chatPipSegments = [0, 1, 2, 3, 4] as const;
 const speechBubbleAsset: ImageSourcePropType = require("../../../assets/generated/ui/speech-bubble-v1.png");
-/** Chat typing speed, within the 30-50ms warm typing feel used across the app. */
 const chatTypewriterMsPerChar = 38;
 
 interface PetThoughtBubbleProps {
@@ -49,13 +58,6 @@ interface PetThoughtBubbleProps {
   bubbleFontFamily: string;
 }
 
-/**
- * Owns the typewriter hook in its own memoized component so the once-per-char
- * setState it drives only re-renders this small bubble subtree, not the whole
- * chat screen (input bar, message stack, payment strip, etc). Before this
- * split, every keystroke of the typewriter re-ran ChatGateScreen's full body
- * and re-rendered its entire tree, which read as animation jank on device.
- */
 const PetThoughtBubble = memo(function PetThoughtBubble({ petName, text, msPerChar, enabled, bubbleFontFamily }: PetThoughtBubbleProps) {
   const petThought = useTypewriter({ text, msPerChar, enabled });
 
@@ -110,13 +112,9 @@ export function ChatGateScreen() {
   const fontFamilies = useFontFamilies();
   const [supabaseClient] = useState(() => getSupabaseClient());
   const [conversationId, setConversationId] = useState<string | null>(null);
-  // True once handleStartPremiumChat has locally opened the chat surface --
-  // separate from conversationId, which stays null until chat-turn's
-  // find-or-create actually returns a server conversation on the first send
-  // (docs/chat-live-design.md §1.2/§6.1: starting a thread is now a local-only
-  // transition, no network round trip).
   const [chatStarted, setChatStarted] = useState(false);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [optimisticTurn, setOptimisticTurn] = useState<OptimisticChatTurn | null>(null);
   const [draft, setDraft] = useState("");
   const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
   const [chatError, setChatError] = useState<string | null>(null);
@@ -126,6 +124,7 @@ export function ChatGateScreen() {
   // avoids re-deriving the whole chat presentation (and re-rendering the
   // typewriter's parent tree) on every unrelated state change.
   const [replyNow] = useState(() => new Date().toISOString());
+  const [sendGate] = useState(createChatSendGate);
 
   const chatPayment = getPremiumChatPaymentPreview(wallet, hasPremiumChatEntitlement);
   const premiumChatAccess = getPremiumChatAccessPresentation({
@@ -137,6 +136,11 @@ export function ChatGateScreen() {
     creditBalance
   });
   const premiumChatReady = premiumChatAccess.ready;
+  const allowanceChip = getChatAllowanceChipPresentation({
+    hasPremiumChatEntitlement,
+    freeChatTickets: wallet.freeChatTickets,
+    creditBalance
+  });
   const trimmedDraft = draft.trim();
   const chatPetAsset = selectGeneratedAssetForReaction(acceptedAssets, acceptedAsset, "chat_portrait");
   const petAssetId = chatPetAsset?.id ?? activePet.activeAssetId ?? null;
@@ -185,7 +189,7 @@ export function ChatGateScreen() {
       }),
     [activePet.name, careState, activeWeather, replyNow, careDaysAway]
   );
-  const showConversationStarters = premiumChatReady && chatStarted && !trimmedDraft && chatStatus !== "sending";
+  const showConversationStarters = premiumChatReady && chatStarted && optimisticTurn === null && !trimmedDraft && chatStatus !== "sending";
 
   const handleStartPremiumChat = async () => {
     if (!premiumChatReady || !supabaseClient) {
@@ -195,7 +199,7 @@ export function ChatGateScreen() {
     setChatStatus("starting");
     setChatError(null);
 
-    const started = await startApiPremiumChatThread(supabaseClient);
+    const started = await startApiPremiumChatThread(supabaseClient, activePet.id);
 
     if (!started.ok) {
       setChatError(started.error.messageSafe);
@@ -209,56 +213,70 @@ export function ChatGateScreen() {
     setChatStatus("ready");
   };
 
-  const handleSendPremiumMessage = async () => {
-    if (!premiumChatReady || !supabaseClient || !chatStarted || !trimmedDraft) {
+  const sendPremiumMessage = async (retryTurn?: OptimisticChatTurn) => {
+    const text = retryTurn?.text ?? trimmedDraft;
+
+    if (!premiumChatReady || !supabaseClient || !chatStarted || !text || !sendGate.tryAcquire()) {
       return;
     }
+
+    const pressedAtMs = Date.now();
+    const nextTurn = retryTurn
+      ? retryOptimisticChatTurn(retryTurn)
+      : beginOptimisticChatTurn({ requestId: Crypto.randomUUID(), draft: text, now: new Date().toISOString() });
 
     playSfx("sfx_tap");
+    setDraft("");
+    setOptimisticTurn(nextTurn);
     setChatStatus("sending");
     setChatError(null);
+    const optimisticAtMs = Date.now();
 
-    const sent = await sendApiPremiumChatTurn(
-      supabaseClient,
-      {
-        petId: activePet.id,
-        petProfile: activePet,
-        wallet,
-        hasPremiumChatEntitlement,
-        memoryContext: buildChatMemoryContext({ memories, careStats }),
-        careContext: buildChatCareContext(careState, careDaysAway)
-      },
-      { conversationId, messages },
-      draft
-    );
+    try {
+      const sent = await sendApiPremiumChatTurn(
+        supabaseClient,
+        {
+          context: {
+            petId: activePet.id,
+            petProfile: activePet,
+            wallet,
+            hasPremiumChatEntitlement,
+            memoryContext: buildChatMemoryContext({ memories, careStats }),
+            careContext: buildChatCareContext(careState, careDaysAway)
+          },
+          currentThread: { conversationId, messages },
+          text: nextTurn.text,
+          requestId: nextTurn.requestId
+        }
+      );
+      const latency = buildChatLatencySample({ pressedAtMs, optimisticAtMs, completedAtMs: Date.now() });
 
-    if (!sent.ok) {
-      setChatError(sent.error.messageSafe);
+      if (!sent.ok) {
+        reporter.captureMessage("chat: turn timing", { ...latency, outcome: "failed" });
+        setOptimisticTurn(failOptimisticChatTurn(nextTurn));
+        setChatError(sent.error.messageSafe);
+        setChatStatus("ready");
+        return;
+      }
+
+      if (shouldReportChatLatency(latency)) {
+        reporter.captureMessage("chat: slow turn timing", { ...latency, outcome: "success" });
+      }
+      syncWallet(sent.wallet);
+      setConversationId(sent.thread.conversationId);
+      setMessages(sent.thread.messages);
+      setOptimisticTurn(null);
       setChatStatus("ready");
-      return;
+    } catch (cause) {
+      const error = cause instanceof Error ? cause : new Error("Unexpected chat send failure");
+      const latency = buildChatLatencySample({ pressedAtMs, optimisticAtMs, completedAtMs: Date.now() });
+      reporter.captureError(error, { surface: "chat_send", ...latency });
+      setOptimisticTurn(failOptimisticChatTurn(nextTurn));
+      setChatError("Could not reach chat right now. Try again.");
+      setChatStatus("ready");
+    } finally {
+      sendGate.release();
     }
-
-    syncWallet(sent.wallet);
-    setConversationId(sent.thread.conversationId);
-    setMessages(sent.thread.messages);
-    setDraft("");
-    setChatStatus("ready");
-  };
-
-  const renderMessage = (message: ConversationMessage) => {
-    const isUser = message.sender === "user";
-    const isPet = message.sender === "pet_ai";
-
-    return (
-      <View key={message.id} style={[styles.chatBubble, isUser ? styles.userBubble : styles.petBubble, !isUser && !isPet ? styles.systemBubble : null]}>
-        <Text style={[styles.messageLabel, { fontFamily: fontFamilies.label }, isUser ? styles.userMessageLabel : null]}>
-          {isUser ? "You" : isPet ? activePet.name : "Notice"}
-        </Text>
-        <Text numberOfLines={3} style={[styles.messageText, { fontFamily: fontFamilies.body }, isUser ? styles.userMessageText : null]}>
-          {message.text}
-        </Text>
-      </View>
-    );
   };
 
   return (
@@ -268,20 +286,25 @@ export function ChatGateScreen() {
         <WeatherSceneLayer overlayKey={weatherScene.overlayKey} />
       </ImageBackground>
 
-      <SafeAreaView accessibilityLabel={`${activePet.name}'s garden chat. ${weatherScene.accessibilityLabel}`} edges={["top", "left", "right"]} style={styles.chatSafe}>
+      <SafeAreaView accessibilityLabel={`${activePet.name}'s chat. ${weatherScene.accessibilityLabel}`} edges={["top", "left", "right"]} style={styles.chatSafe}>
         <Text accessibilityRole="header" style={[styles.screenReaderTitle, { fontFamily: fontFamilies.title }]}>
-          {activePet.name}'s garden chat
+          {activePet.name}'s chat
         </Text>
         <ScrollView bounces={false} contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
           <View style={styles.sceneTopBar}>
             <BackButton accessibilityLabel="Back home" style={styles.backButton} onPress={() => router.replace("/terrarium")} />
+            <View accessible accessibilityLabel={allowanceChip.accessibilityLabel} style={styles.allowanceChip}>
+              <Text numberOfLines={1} style={[styles.allowanceChipText, { fontFamily: fontFamilies.label }]}>
+                {allowanceChip.label}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.chatStage}>
             <View pointerEvents="none" style={styles.petStage}>
               <View style={styles.petGroundShadow} />
               <GeneratedPetAssetImage
-                accessibilityLabel="Pet in chat garden"
+                accessibilityLabel="Pet in chat"
                 assetId={petAssetId ?? null}
                 decorative
                 remoteUri={petAssetUri ?? null}
@@ -298,12 +321,13 @@ export function ChatGateScreen() {
             />
 
             <View style={styles.chatTray}>
-              {chatStarted && messages.length > 0 ? (
-              <View style={styles.messageStack}>
-                {chatStarted && messages.length > 0 ? (
-                  messages.slice(-3).map(renderMessage)
-                ) : null}
-              </View>
+              {chatStarted ? (
+                <ChatConversationHistory
+                  messages={messages}
+                  optimisticTurn={optimisticTurn}
+                  petName={activePet.name}
+                  onRetry={(turn) => void sendPremiumMessage(turn)}
+                />
               ) : (
                 <Pressable
                   accessibilityRole="button"
@@ -334,31 +358,6 @@ export function ChatGateScreen() {
                   <Text style={[styles.errorText, { fontFamily: fontFamilies.body }]}>{chatError}</Text>
                 </View>
               ) : null}
-
-              <View
-                accessibilityLabel={`${premiumChatAccess.chatPips.label}: ${premiumChatAccess.balanceLabel}. ${premiumChatAccess.detail}`}
-                style={styles.chatPaymentStrip}
-              >
-                <View style={styles.chatPipPill}>
-                  <Text numberOfLines={1} style={[styles.chatPipLabel, { fontFamily: fontFamilies.label }]}>
-                    {premiumChatAccess.chatPips.label}
-                  </Text>
-                  <View style={styles.chatPipTrack}>
-                    {chatPipSegments.map((segment) => (
-                      <View
-                        key={segment}
-                        style={[styles.chatPipDot, segment < premiumChatAccess.chatPips.filled ? styles.chatPipDotFilled : null]}
-                      />
-                    ))}
-                    {premiumChatAccess.chatPips.overflow > 0 ? (
-                      <Text style={[styles.chatPipOverflow, { fontFamily: fontFamilies.label }]}>+{premiumChatAccess.chatPips.overflow}</Text>
-                    ) : null}
-                  </View>
-                </View>
-                <Text numberOfLines={1} style={[styles.chatPaymentText, { fontFamily: fontFamilies.body }]}>
-                  {chatStarted ? chatPayment.detail : premiumChatAccess.detail}
-                </Text>
-              </View>
 
               {showConversationStarters ? (
                 <View accessibilityLabel="Conversation starters" style={styles.starterRow}>
@@ -395,14 +394,14 @@ export function ChatGateScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={chatStarted ? "Send premium chat message" : premiumChatAccess.ctaLabel}
-                  accessibilityState={{ disabled: chatStarted ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting" }}
-                  disabled={chatStarted ? chatStatus === "sending" || !trimmedDraft : chatStatus === "starting"}
+                  accessibilityState={{ disabled: chatStarted ? chatStatus === "sending" || optimisticTurn !== null || !trimmedDraft : chatStatus === "starting" }}
+                  disabled={chatStarted ? chatStatus === "sending" || optimisticTurn !== null || !trimmedDraft : chatStatus === "starting"}
                   style={({ pressed }) => [
                     styles.sendButton,
                     pressed ? styles.sendButtonPressed : null,
-                    chatStarted ? (trimmedDraft ? null : styles.sendButtonDisabled) : null
+                    chatStarted ? (trimmedDraft && optimisticTurn === null ? null : styles.sendButtonDisabled) : null
                   ]}
-                  onPress={chatStarted ? () => void handleSendPremiumMessage() : premiumChatReady ? () => void handleStartPremiumChat() : () => router.push("/shop")}
+                  onPress={chatStarted ? () => void sendPremiumMessage() : premiumChatReady ? () => void handleStartPremiumChat() : () => router.push("/shop")}
                 >
                   <Send color={colors.white} size={22} strokeWidth={3} />
                 </Pressable>
@@ -481,7 +480,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md
   },
   chatStage: {
-    minHeight: 628,
+    minHeight: 676,
     position: "relative",
     justifyContent: "flex-end",
     overflow: "visible"
@@ -505,26 +504,26 @@ const styles = StyleSheet.create({
   },
   petStage: {
     position: "absolute",
-    top: 130,
+    top: 98,
     alignSelf: "center",
     zIndex: 8,
-    width: 190,
-    height: 192,
+    width: 176,
+    height: 180,
     alignItems: "center",
     justifyContent: "flex-end"
   },
   petGroundShadow: {
     position: "absolute",
-    bottom: 14,
-    width: 116,
-    height: 24,
+    bottom: 12,
+    width: 104,
+    height: 22,
     borderRadius: 999,
     backgroundColor: "rgba(58,70,43,0.2)",
     transform: [{ scaleX: 1.25 }]
   },
   petSprite: {
-    width: 176,
-    height: 176
+    width: 164,
+    height: 164
   },
   sceneTopBar: {
     flexDirection: "row",
@@ -536,6 +535,23 @@ const styles = StyleSheet.create({
   },
   backButton: {
     zIndex: 10
+  },
+  allowanceChip: {
+    minHeight: 36,
+    maxWidth: 168,
+    borderRadius: radii.pill,
+    borderWidth: 2,
+    borderColor: colors.cream,
+    backgroundColor: "rgba(255,232,199,0.94)",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    ...shadows.tile
+  },
+  allowanceChipText: {
+    color: colors.woodDark,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "900"
   },
   petThoughtPressable: {
     position: "absolute",
@@ -605,78 +621,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  messageStack: {
-    gap: spacing.sm
-  },
-  chatBubble: {
-    minHeight: 54,
-    borderRadius: 18,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.86)",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    ...shadows.tile
-  },
-  petBubble: {
-    alignSelf: "stretch",
-    backgroundColor: "rgba(218,240,255,0.92)"
-  },
-  userBubble: {
-    alignSelf: "flex-end",
-    maxWidth: "88%",
-    backgroundColor: "rgba(255,232,199,0.94)"
-  },
-  systemBubble: {
-    alignSelf: "center",
-    backgroundColor: "rgba(255,245,222,0.88)"
-  },
-  lockedBubble: {
-    alignSelf: "stretch",
-    backgroundColor: "rgba(207,180,245,0.88)"
-  },
   disabledBubble: {
     opacity: 0.68
-  },
-  avatarDot: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.cream,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.88)",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  avatarText: {
-    color: colors.woodDark,
-    fontSize: 17,
-    fontWeight: "900"
   },
   bubbleCopy: {
     flex: 1,
     minWidth: 0
-  },
-  messageLabel: {
-    color: colors.skyDeep,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  },
-  userMessageLabel: {
-    color: colors.woodDark
-  },
-  messageText: {
-    color: colors.ink,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "800"
-  },
-  userMessageText: {
-    color: colors.ink
   },
   lockedTitle: {
     color: colors.ink,
@@ -701,66 +651,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "800"
-  },
-  chatPaymentStrip: {
-    minHeight: 44,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,245,222,0.76)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.78)",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    ...shadows.tile
-  },
-  chatPipPill: {
-    maxWidth: 168,
-    minHeight: 34,
-    borderRadius: 12,
-    backgroundColor: colors.cream,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.82)",
-    justifyContent: "center",
-    gap: 3,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3
-  },
-  chatPipLabel: {
-    color: colors.woodDark,
-    fontSize: 9,
-    lineHeight: 11,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  },
-  chatPipTrack: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3
-  },
-  chatPipDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "rgba(128,81,46,0.18)"
-  },
-  chatPipDotFilled: {
-    backgroundColor: colors.honey
-  },
-  chatPipOverflow: {
-    marginLeft: 2,
-    color: colors.woodDark,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: "900"
-  },
-  chatPaymentText: {
-    flex: 1,
-    color: colors.mutedInk,
-    fontSize: 12,
-    lineHeight: 16,
     fontWeight: "800"
   },
   inputBar: {

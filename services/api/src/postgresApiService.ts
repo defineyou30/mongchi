@@ -177,7 +177,7 @@ type AuthenticatedContext = {
   authSubject: string;
 };
 
-const DEFAULT_NOW = "2026-06-24T09:00:00.000Z";
+const systemNow = (): ISODateTime => new Date().toISOString();
 const UPLOAD_URL_TTL_MS = 15 * 60 * 1000;
 const ASSET_READ_URL_TTL_MS = 10 * 60 * 1000;
 const MOCK_WALK_DURATION_MS = 15 * 1000;
@@ -754,7 +754,7 @@ const requireAuthContext = (context: ApiAuthContext): ApiResult<AuthenticatedCon
 
 export const createPostgresApiService = ({
   repositories,
-  now = () => DEFAULT_NOW,
+  now = systemNow,
   allowMockPurchaseVerification = false,
   allowMockStorageSigning = false,
   allowMockGenerationPolling = true,

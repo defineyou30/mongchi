@@ -4,11 +4,35 @@ import { createInitialCareStats } from "@mongchi/shared";
 import type { CareStats, MemoryEntry } from "@mongchi/shared";
 
 import {
+  getChatAllowanceChipPresentation,
   getChatTicketPipsPresentation,
   getPremiumChatAccessPresentation,
   getShortChatActionLabel,
   getShortChatReplyText
 } from "./chatGatePresentation";
+
+describe("chat allowance chip", () => {
+  it("shows included chat without inventing a numeric limit for Plus", () => {
+    expect(getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: true, freeChatTickets: 0, creditBalance: 0 })).toEqual({
+      label: "Plus · Included",
+      accessibilityLabel: "Plus chat is included"
+    });
+  });
+
+  it("shows the exact authoritative free-ticket count before credits", () => {
+    expect(getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: false, freeChatTickets: 3, creditBalance: 8 })).toEqual({
+      label: "3 chats left",
+      accessibilityLabel: "3 free chats remaining"
+    });
+  });
+
+  it("falls back to exact credits when no free ticket remains", () => {
+    expect(getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: false, freeChatTickets: 0, creditBalance: 2 })).toEqual({
+      label: "2 credits",
+      accessibilityLabel: "2 chat credits available"
+    });
+  });
+});
 
 describe("chat gate presentation", () => {
   it("uses the default short reply before a free talk action starts", () => {

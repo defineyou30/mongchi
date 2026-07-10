@@ -6,7 +6,7 @@ import type { ChatCareContext, ChatMemoryContext, ConversationMessage, CreditWal
 
 import type { MobileApiError } from "../../shared/api";
 import { ensureSupabaseSession } from "./supabaseGenerationSession";
-import { invokeSupabaseChatTurn } from "./supabasePremiumChatSession";
+import { invokeSupabaseChatTurn, loadSupabasePremiumChatThread } from "./supabasePremiumChatSession";
 
 // ---------------------------------------------------------------------------
 // Chat Live wave C2 (docs/chat-live-design.md §6.1): thin start/send adapter
@@ -32,6 +32,13 @@ export interface PremiumChatSessionContext {
   hasPremiumChatEntitlement: boolean;
   memoryContext?: ChatMemoryContext;
   careContext?: ChatCareContext;
+}
+
+export interface PremiumChatSendInput {
+  context: PremiumChatSessionContext;
+  currentThread: PremiumChatThreadState;
+  text: string;
+  requestId?: string;
 }
 
 export type StartPremiumChatThreadResult =
@@ -66,32 +73,14 @@ const localPremiumChatError = (code: string, messageSafe: string): MobileApiErro
 
 export const normalizePremiumChatDraft = (text: string): string => text.trim().replace(/\s+/g, " ");
 
-/**
- * "Starting" a live premium chat thread is now a purely local transition:
- * chat-turn finds-or-creates the server conversation lazily on the first
- * real sendApiPremiumChatTurn call (docs/chat-live-design.md §1.2 -- "첫
- * 턴에 find-or-create(빈 INSERT, OpenAI 미호출)"), so there is nothing
- * useful to fetch before the player has typed anything, and the free
- * "remembers me" greeting (chatGreeting.ts) never touches the server at all.
- * This still ensures the device's Supabase session exists (mirrors
- * startSupabaseGenerationFlow's session-first shape) so an anonymous-sign-in
- * failure surfaces during the "Opening a cozy thread..." spinner rather than
- * silently on the first send.
- */
-export const startApiPremiumChatThread = async (client: SupabaseClient): Promise<StartPremiumChatThreadResult> => {
+export const startApiPremiumChatThread = async (client: SupabaseClient, petId: PetId): Promise<StartPremiumChatThreadResult> => {
   const session = await ensureSupabaseSession(client);
 
   if (!session.ok) {
     return { ok: false, error: session.error };
   }
 
-  return {
-    ok: true,
-    thread: {
-      conversationId: null,
-      messages: []
-    }
-  };
+  return loadSupabasePremiumChatThread(client, petId);
 };
 
 /**
@@ -105,9 +94,7 @@ export const startApiPremiumChatThread = async (client: SupabaseClient): Promise
  */
 export const sendApiPremiumChatTurn = async (
   client: SupabaseClient,
-  context: PremiumChatSessionContext,
-  currentThread: PremiumChatThreadState,
-  text: string
+  { context, currentThread, text, requestId = Crypto.randomUUID() }: PremiumChatSendInput
 ): Promise<SendPremiumChatTurnResult> => {
   const normalizedText = normalizePremiumChatDraft(text);
 
@@ -134,7 +121,7 @@ export const sendApiPremiumChatTurn = async (
     ...(currentThread.conversationId ? { conversationId: currentThread.conversationId } : {}),
     text: normalizedText,
     disclosureAccepted: true,
-    requestId: Crypto.randomUUID(),
+    requestId,
     charge,
     locale: "en-US",
     petProfile: buildChatTurnPetProfile(context.petProfile),

@@ -1,18 +1,27 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import type { PetPushNotificationInput, PetPushNotificationKey } from "@mongchi/shared";
 
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
-import { syncScheduledPetNotifications } from "./notificationScheduler";
+import { parseNotificationPayload } from "./notificationContracts";
+import {
+  syncScheduledPetNotifications,
+  type SyncScheduledPetNotificationsResult
+} from "./notificationScheduler";
+import {
+  createLatestNotificationSyncCoordinator,
+  type LatestNotificationSyncCoordinator
+} from "./notificationSyncCoordinator";
 
 /** Scoped to this feature only - deliberately separate from the session's own storage key. */
-const LAST_SENT_STORAGE_KEY = "mongchi/notification-last-sent-v1";
+const LAST_DELIVERED_STORAGE_KEY = "mongchi/notification-last-delivered-v2";
 
-type LastSentAtByKey = Partial<Record<PetPushNotificationKey, string>>;
+type LastDeliveredAtByKey = Partial<Record<PetPushNotificationKey, string>>;
 
-const readLastSentAtByKey = async (): Promise<LastSentAtByKey> => {
+const readLastDeliveredAtByKey = async (): Promise<LastDeliveredAtByKey> => {
   try {
-    const raw = await AsyncStorage.getItem(LAST_SENT_STORAGE_KEY);
+    const raw = await AsyncStorage.getItem(LAST_DELIVERED_STORAGE_KEY);
 
     if (!raw) {
       return {};
@@ -20,14 +29,14 @@ const readLastSentAtByKey = async (): Promise<LastSentAtByKey> => {
 
     const parsed = JSON.parse(raw);
 
-    return typeof parsed === "object" && parsed !== null ? (parsed as LastSentAtByKey) : {};
+    return typeof parsed === "object" && parsed !== null ? (parsed as LastDeliveredAtByKey) : {};
   } catch {
     return {};
   }
 };
 
-const writeLastSentAtByKey = async (value: LastSentAtByKey): Promise<void> => {
-  await AsyncStorage.setItem(LAST_SENT_STORAGE_KEY, JSON.stringify(value));
+const writeLastDeliveredAtByKey = async (value: LastDeliveredAtByKey): Promise<void> => {
+  await AsyncStorage.setItem(LAST_DELIVERED_STORAGE_KEY, JSON.stringify(value));
 };
 
 /**
@@ -39,28 +48,58 @@ const writeLastSentAtByKey = async (value: LastSentAtByKey): Promise<void> => {
  */
 export const useNotificationSync = (): void => {
   const { isHydrated, petProfile, careState, careStreak, satisfactionSummary, weatherState } = useTerrariumSession();
-  const lastSentAtByKeyRef = useRef<LastSentAtByKey>({});
-  const hasLoadedLastSentRef = useRef(false);
-  const syncInFlightRef = useRef(false);
+  const lastDeliveredAtByKeyRef = useRef<LastDeliveredAtByKey>({});
+  const loadHistoryPromiseRef = useRef<Promise<void> | null>(null);
+  const deliveryWriteChainRef = useRef(Promise.resolve());
+  const coordinatorRef = useRef<LatestNotificationSyncCoordinator<PetPushNotificationInput, SyncScheduledPetNotificationsResult> | null>(null);
+
+  if (!coordinatorRef.current) {
+    coordinatorRef.current = createLatestNotificationSyncCoordinator(syncScheduledPetNotifications);
+  }
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      const payload = parseNotificationPayload(notification.request.content.data);
+
+      if (!payload || payload.key === "walk_return") {
+        return;
+      }
+
+      const deliveredAt = Number.isFinite(notification.date)
+        ? new Date(notification.date).toISOString()
+        : new Date().toISOString();
+      const next = {
+        ...lastDeliveredAtByKeyRef.current,
+        [payload.key]: deliveredAt
+      };
+      lastDeliveredAtByKeyRef.current = next;
+      deliveryWriteChainRef.current = deliveryWriteChainRef.current
+        .then(() => writeLastDeliveredAtByKey(next))
+        .catch((error: unknown) => {
+          console.warn("Failed to persist notification delivery history.", error);
+        });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isHydrated || !petProfile) {
       return;
     }
 
-    if (syncInFlightRef.current) {
-      return;
-    }
-
     let cancelled = false;
 
     const sync = async () => {
-      syncInFlightRef.current = true;
-
-      if (!hasLoadedLastSentRef.current) {
-        lastSentAtByKeyRef.current = await readLastSentAtByKey();
-        hasLoadedLastSentRef.current = true;
+      if (!loadHistoryPromiseRef.current) {
+        loadHistoryPromiseRef.current = readLastDeliveredAtByKey().then((value) => {
+          lastDeliveredAtByKeyRef.current = { ...value, ...lastDeliveredAtByKeyRef.current };
+        });
       }
+
+      await loadHistoryPromiseRef.current;
 
       if (cancelled) {
         return;
@@ -87,29 +126,15 @@ export const useNotificationSync = (): void => {
             }
           : null,
         weather: weatherState.context,
-        lastSentAtByKey: lastSentAtByKeyRef.current,
+        lastSentAtByKey: lastDeliveredAtByKeyRef.current,
         careStreakCurrent: careStreak.current
       };
 
-      const result = await syncScheduledPetNotifications(input);
-
-      if (cancelled || result.scheduledKeys.length === 0) {
-        return;
-      }
-
-      const sentAt = new Date().toISOString();
-      const next = { ...lastSentAtByKeyRef.current };
-
-      for (const key of result.scheduledKeys) {
-        next[key] = sentAt;
-      }
-
-      lastSentAtByKeyRef.current = next;
-      await writeLastSentAtByKey(next);
+      await coordinatorRef.current?.request(input);
     };
 
-    void sync().finally(() => {
-      syncInFlightRef.current = false;
+    void sync().catch((error: unknown) => {
+      console.warn("Failed to synchronize scheduled notifications.", error);
     });
 
     return () => {

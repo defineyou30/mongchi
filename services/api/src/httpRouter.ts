@@ -20,6 +20,7 @@ import type {
   UpdatePetRequest,
   WeatherLookupRequest
 } from "./contracts";
+import { parseApiMutationBody } from "./apiMutationBodyParser";
 import { normalizeCommerceStoreWebhookNotification } from "./commerceStoreWebhook";
 import type { CommerceStoreWebhookDecision, CommerceStoreWebhookOptions } from "./commerceStoreWebhook";
 import type { ApiAuthContext, ApiResult, ApiService, MaybePromise } from "./service";
@@ -128,11 +129,15 @@ const resultToHttpResponse = <T>(result: MaybePromise<ApiResult<T>>): ApiHttpRes
 const resultToHttpResponseAsync = async <T>(result: MaybePromise<ApiResult<T>>): Promise<ApiHttpResponse> =>
   resultToHttpResponse(await result);
 
-const parsePath = (path: string): string[] => {
+const parsePath = (path: string): string[] | null => {
   const pathOnly = path.split("?")[0] ?? path;
   const trimmed = pathOnly.replace(/\/+$/, "");
 
-  return trimmed.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
+  try {
+    return trimmed.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment));
+  } catch {
+    return null;
+  }
 };
 
 const notFound = (): ApiHttpResponse => ({
@@ -156,6 +161,82 @@ const pathBodyMismatch = (): ApiHttpResponse => ({
     }
   }
 });
+
+const invalidRequestPath = (): ApiHttpResponse => ({
+  status: 400,
+  body: {
+    error: {
+      status: 400,
+      code: "invalid_request_path",
+      messageSafe: "Request path is invalid."
+    }
+  }
+});
+
+const invalidRequestBody = (): ApiHttpResponse => ({
+  status: 422,
+  body: {
+    error: {
+      status: 422,
+      code: "invalid_request_body",
+      messageSafe: "Request body does not match the API contract."
+    }
+  }
+});
+
+const internalServerError = (): ApiHttpResponse => ({
+  status: 500,
+  body: {
+    error: {
+      status: 500,
+      code: "internal_server_error",
+      messageSafe: "The server could not complete the request."
+    }
+  }
+});
+
+type PreparedApiRequest =
+  | {
+      readonly ok: true;
+      readonly request: ApiHttpRequest;
+      readonly segments: readonly string[];
+    }
+  | {
+      readonly ok: false;
+      readonly response: ApiHttpResponse;
+    };
+
+const prepareApiRequest = (request: ApiHttpRequest): PreparedApiRequest => {
+  const segments = parsePath(request.path);
+
+  if (!segments) {
+    return {
+      ok: false,
+      response: invalidRequestPath()
+    };
+  }
+
+  const parsedBody = parseApiMutationBody(request.method, segments, request.body);
+
+  if (parsedBody.kind === "invalid") {
+    return {
+      ok: false,
+      response: invalidRequestBody()
+    };
+  }
+
+  return {
+    ok: true,
+    request:
+      parsedBody.kind === "valid"
+        ? {
+            ...request,
+            body: parsedBody.body
+          }
+        : request,
+    segments
+  };
+};
 
 const authVerifierErrorResponse = (error: { status: 401 | 403 | 503; code: string; messageSafe: string }): ApiHttpResponse => ({
   status: error.status,
@@ -366,12 +447,19 @@ export function createApiHttpRouter(options: ApiHttpRouterOptions = {}) {
   };
 
   const routeWithAuthContext = <Response>(
-    request: ApiHttpRequest,
+    originalRequest: ApiHttpRequest,
     authContext: ApiAuthContext,
     respond: <T>(result: MaybePromise<ApiResult<T>>) => Response,
     staticResponse: (response: ApiHttpResponse) => Response
   ): Response => {
-      const [version, resource, id, action, nestedAction] = parsePath(request.path);
+      const prepared = prepareApiRequest(originalRequest);
+
+      if (!prepared.ok) {
+        return staticResponse(prepared.response);
+      }
+
+      const request = prepared.request;
+      const [version, resource, id, action, nestedAction] = prepared.segments;
 
       if (version !== "v1") {
         return staticResponse(notFound());
@@ -571,7 +659,13 @@ export function createApiHttpRouter(options: ApiHttpRouterOptions = {}) {
   const handleWithAuthContextAsync = (request: ApiHttpRequest, authContext: ApiAuthContext): Promise<ApiHttpResponse> =>
     routeWithAuthContext(request, authContext, resultToHttpResponseAsync, async (response) => response);
 
-  const handle = (request: ApiHttpRequest): ApiHttpResponse => handleWithAuthContext(request, resolveAuthContext(request));
+  const handle = (request: ApiHttpRequest): ApiHttpResponse => {
+    try {
+      return handleWithAuthContext(request, resolveAuthContext(request));
+    } catch {
+      return internalServerError();
+    }
+  };
 
   const resolveAsyncAuthContext = async (request: ApiHttpRequest): Promise<ApiAuthContext | ApiHttpResponse> => {
     if (!options.sessionVerifier) {
@@ -608,18 +702,26 @@ export function createApiHttpRouter(options: ApiHttpRouterOptions = {}) {
     };
   };
 
-  const handleAsync = async (request: ApiHttpRequest): Promise<ApiHttpResponse> => {
-    const authContext = await resolveAsyncAuthContext(request);
+  const handleAsync = async (originalRequest: ApiHttpRequest): Promise<ApiHttpResponse> => {
+    try {
+      const authContext = await resolveAsyncAuthContext(originalRequest);
 
-    if (isHttpResponse(authContext)) {
-      return authContext;
-    }
+      if (isHttpResponse(authContext)) {
+        return authContext;
+      }
 
-    const [version, resource, id, action, nestedAction] = parsePath(request.path);
+      const prepared = prepareApiRequest(originalRequest);
 
-    if (version !== "v1") {
-      return notFound();
-    }
+      if (!prepared.ok) {
+        return prepared.response;
+      }
+
+      const request = prepared.request;
+      const [version, resource, id, action, nestedAction] = prepared.segments;
+
+      if (version !== "v1") {
+        return notFound();
+      }
 
     if (request.method === "POST" && resource === "photos" && id === "upload-url" && !action) {
       return resultToHttpResponseAsync(service.issuePhotoUploadUrlWithStorageSigner(authContext, request.body as PhotoUploadUrlRequest));
@@ -651,7 +753,10 @@ export function createApiHttpRouter(options: ApiHttpRouterOptions = {}) {
       return resultToHttpResponseAsync(service.revokePurchase(request.body as PurchaseRevocationRequest));
     }
 
-    return handleWithAuthContextAsync(request, authContext);
+      return handleWithAuthContextAsync(request, authContext);
+    } catch {
+      return internalServerError();
+    }
   };
 
   return {

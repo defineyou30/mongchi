@@ -39,11 +39,6 @@ describe("hasActiveGenerationJob", () => {
   });
 
   it("is false once the job has terminally failed, even though the id is still set", () => {
-    // Regression: a failed job's id lingers on petProfile.activeGenerationJobId
-    // until retry/accept runs. Treating that lingering id as "still active"
-    // permanently blocked starting over from a freshly picked photo --
-    // PhotoUploadScreen's Continue (which calls startMockGeneration, not
-    // retryMockGeneration) silently no-op'd forever after a single failure.
     expect(hasActiveGenerationJob("gen_job_001", "failed")).toBe(false);
   });
 

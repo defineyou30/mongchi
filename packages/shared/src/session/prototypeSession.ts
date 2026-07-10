@@ -16,6 +16,7 @@ import type {
   InventorySource,
   ItemId,
   MemoryEntry,
+  PendingExpressionPackJob,
   PersonalityTag,
   PetId,
   PetProfile,
@@ -548,8 +549,18 @@ const resolveReactionAssetState = (preference?: ReactionAssetPreference): Genera
 // Newer expression states may not exist yet for older generations; fall back to the
 // closest existing expression before giving up.
 const assetStateFallbackChain: Partial<Record<GeneratedAsset["state"], GeneratedAsset["state"][]>> = {
-  sad: ["hungry", "sleep"],
-  sick: ["sad", "sleep", "hungry"],
+  base: ["idle"],
+  play: ["happy", "idle"],
+  hungry: ["idle"],
+  walk_return: ["happy", "idle"],
+  treat_reaction: ["happy", "idle"],
+  chat_portrait: ["curious", "happy", "idle"],
+  curious: ["happy", "idle"],
+  celebrate: ["happy", "idle"],
+  garden_help: ["curious", "happy", "idle"],
+  seasonal: ["happy", "idle"],
+  sad: ["sleep", "idle"],
+  sick: ["sad", "sleep", "idle"],
   messy: ["walk_return", "idle"]
 };
 
@@ -587,8 +598,8 @@ export const buildPrototypePetProfile = (
     personalityTags: draft.personalityTags.length > 0 ? draft.personalityTags : ["affectionate"],
     talkingStyle: draft.talkingStyle,
     lifecycleStatus: existing?.lifecycleStatus ?? "active",
-    activeGenerationJobId: "gen_local_001",
-    activeAssetId: `asset_${assetKey}_idle_001`,
+    activeGenerationJobId: existing?.activeGenerationJobId ?? "gen_local_001",
+    activeAssetId: existing?.activeAssetId ?? `asset_${assetKey}_idle_001`,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now
   };
@@ -606,7 +617,9 @@ export const getActivePrototypePet = (state: PrototypeSessionState, now: string 
   getActivePetBundle(state).petProfile ?? buildPrototypePetProfile(state.draft, now);
 
 export const canContinuePetSetup = (state: PrototypeSessionState): boolean =>
-  state.draft.name.trim().length >= 2 && state.draft.personalityTags.length > 0 && state.draft.talkingStyle.length > 0;
+  state.draft.name.trim().length >= 2 &&
+  state.draft.personalityTags.length > 0 &&
+  state.draft.talkingStyle.length > 0;
 
 export const canContinuePhotoStep = (state: PrototypeSessionState): boolean =>
   (state.photo.selectedMockPhoto || !!state.photo.selectedPhotoUri) && state.photo.consentAccepted;
@@ -690,15 +703,6 @@ export const getPrototypeGenerationPollSnapshot = (state: PrototypeSessionState)
   failureMessageSafe: state.generation.failureMessageSafe ?? null
 });
 
-// Statuses that mean "a pipeline attempt is actively mid-flight, waiting on
-// polling to move it forward" -- everything between the initial "created"
-// placeholder and a terminal outcome. Restoring a session frozen in one of
-// these statuses (e.g. the app was killed mid-generation) leaves it stuck
-// forever: nothing will ever poll it again (the poller only runs while
-// GenerationScreen is mounted and the in-memory retry timers are gone), yet
-// shouldAutoStartGeneration/hasActiveGenerationJob both treat a non-terminal
-// status as "already has an active job" and refuse to start a fresh one. See
-// normalizeRestoredGeneration below, which breaks that deadlock on restore.
 const inFlightGenerationStatuses = new Set<GenerationJobStatus>([
   "queued",
   "claimed",
@@ -711,39 +715,50 @@ const inFlightGenerationStatuses = new Set<GenerationJobStatus>([
   "uploading_assets"
 ]);
 
-/**
- * Restore-time normalization for a persisted session's generation state
- * (invariant I6 in the generation-flow design audit). Two cases repair a
- * session that was frozen mid-flight when the app was last closed:
- *
- *  1. status is one of inFlightGenerationStatuses -- there is no live poller
- *     to ever move this forward again, so it is downgraded to a failed job
- *     with a dedicated "generation_interrupted" failure code and a warm,
- *     specific retry prompt. This also un-sticks
- *     shouldAutoStartGeneration/hasActiveGenerationJob, which otherwise treat
- *     any non-terminal status as still active and refuse to ever start a new
- *     attempt.
- *  2. status is "completed" but acceptedAssets came back empty (e.g. the
- *     session was persisted between the server flipping the job to
- *     "completed" and the client's poll response populating
- *     acceptedAsset/acceptedAssets) -- there is nothing to reveal/accept, so
- *     this is also downgraded to the same interrupted-failure shape rather
- *     than leaving PetRevealScreen stranded with no asset to show.
- *
- * Both branches are no-ops for a session in any other state (created,
- * already-failed, already-cancelled/expired, or genuinely completed with
- * assets in hand), so this is safe to run unconditionally on every restore.
- */
 export const normalizeRestoredGeneration = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW
 ): PrototypeSessionState => {
   const { status } = state.generation;
+  const bundle = getActivePetBundle(state);
+  const activeGenerationJobId = bundle.petProfile?.activeGenerationJobId;
   const isStrandedInFlight = inFlightGenerationStatuses.has(status);
-  const isStrandedCompletion = status === "completed" && getActivePetBundle(state).acceptedAssets.length === 0;
+  const hasAcceptedAsset = bundle.acceptedAsset !== null || bundle.acceptedAssets.length > 0;
+  const isStrandedCompletion = status === "completed" && !hasAcceptedAsset;
 
   if (!isStrandedInFlight && !isStrandedCompletion) {
     return state;
+  }
+
+  if (activeGenerationJobId) {
+    if (isStrandedInFlight) {
+      return {
+        ...state,
+        generation: {
+          ...state.generation,
+          nextPollAfter: state.generation.nextPollAfter ?? now
+        }
+      };
+    }
+
+    const {
+      completedAt: _completedAt,
+      failedAt: _failedAt,
+      failureCode: _failureCode,
+      failureMessageSafe: _failureMessageSafe,
+      ...generation
+    } = state.generation;
+
+    return {
+      ...state,
+      generation: {
+        ...generation,
+        status: "uploading_assets",
+        currentStepIndex: generationSteps.length - 1,
+        lastPolledAt: now,
+        nextPollAfter: now
+      }
+    };
   }
 
   return {
@@ -754,9 +769,38 @@ export const normalizeRestoredGeneration = (
       failedAt: now,
       lastPolledAt: now,
       nextPollAfter: undefined,
-      failureCode: "generation_interrupted",
-      failureMessageSafe: "We lost track while your friend was moving in. Let's try once more."
+      failureCode: "generation_job_missing",
+      failureMessageSafe: "We could not find the moving-in job. Please choose the photo again."
     }
+  };
+};
+
+const isPersonalityTag = (value: unknown): value is PersonalityTag =>
+  value === "playful" || value === "calm" || value === "shy" || value === "curious" || value === "sleepy" || value === "affectionate";
+
+const isTalkingStyle = (value: unknown): value is TalkingStyle =>
+  value === "cute" || value === "gentle" || value === "cheerful" || value === "comforting";
+
+const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object";
+
+export const normalizeRestoredPetSetupDraft = (value: unknown): PetSetupDraft => {
+  if (!isRecord(value)) {
+    return initialDraft;
+  }
+
+  const species = value.species === "cat" || value.species === "dog" ? value.species : initialDraft.species;
+  const personalityTags = Array.isArray(value.personalityTags)
+    ? value.personalityTags.filter(isPersonalityTag)
+    : initialDraft.personalityTags;
+  const firstMemory = typeof value.firstMemory === "string" ? value.firstMemory : undefined;
+
+  return {
+    name: typeof value.name === "string" ? value.name : initialDraft.name,
+    species,
+    personalityTags,
+    talkingStyle: isTalkingStyle(value.talkingStyle) ? value.talkingStyle : initialDraft.talkingStyle,
+    favoriteThing: typeof value.favoriteThing === "string" ? value.favoriteThing : initialDraft.favoriteThing,
+    ...(firstMemory ? { firstMemory } : {})
   };
 };
 
@@ -831,18 +875,30 @@ export const setPrototypeConsentAccepted = (
 export const startPrototypeGeneration = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW
-): PrototypeSessionState => ({
-  ...state,
-  generation: {
-    retryCount: state.generation.retryCount,
-    pollAttemptCount: 0,
-    status: "preprocessing",
-    currentStepIndex: 0,
-    startedAt: now,
-    lastPolledAt: now,
-    nextPollAfter: addMs(now, DEFAULT_GENERATION_POLL_INTERVAL_MS)
-  }
-});
+): PrototypeSessionState => {
+  const bundle = getActivePetBundle(state);
+  const petProfile = {
+    ...buildPrototypePetProfile(state.draft, now, bundle.petProfile),
+    lifecycleStatus: "generating" as const,
+    updatedAt: now
+  };
+
+  return withActivePetBundle(
+    {
+      ...state,
+      generation: {
+        retryCount: state.generation.retryCount,
+        pollAttemptCount: 0,
+        status: "preprocessing",
+        currentStepIndex: 0,
+        startedAt: now,
+        lastPolledAt: now,
+        nextPollAfter: addMs(now, DEFAULT_GENERATION_POLL_INTERVAL_MS)
+      }
+    },
+    () => ({ petProfile })
+  );
+};
 
 export const advancePrototypeGeneration = (
   state: PrototypeSessionState,
@@ -992,21 +1048,21 @@ export const acceptPrototypeGeneratedPet = (
   options: AcceptPrototypeGeneratedPetOptions = {}
 ): PrototypeSessionState => {
   const bundle = getActivePetBundle(state);
-  const pet = buildPrototypePetProfile(state.draft, now, bundle.petProfile);
+  const draftPet = buildPrototypePetProfile(state.draft, now, bundle.petProfile);
   const careState: CareState = {
     ...bundle.careState,
-    petId: pet.id,
+    petId: draftPet.id,
     updatedAt: now
   };
   const relationshipState: RelationshipState = {
     ...bundle.relationshipState,
-    petId: pet.id,
+    petId: draftPet.id,
     updatedAt: now
   };
   const selectedReaction = selectLocalReaction(starterReactionRules, {
     locale: DEFAULT_PROTOTYPE_LOCALE,
     now,
-    pet,
+    pet: draftPet,
     careState,
     weather: state.weatherState.context,
     eventContext: "generation_reveal",
@@ -1015,11 +1071,14 @@ export const acceptPrototypeGeneratedPet = (
   const acceptedAssets = options.preserveAssets
     ? bundle.acceptedAssets
     : makeMockGeneratedAssetsForPet({
-        petId: pet.id,
-        generationJobId: pet.activeGenerationJobId ?? "gen_local_001",
-        species: pet.species
+        petId: draftPet.id,
+        generationJobId: draftPet.activeGenerationJobId ?? "gen_local_001",
+        species: draftPet.species
       });
   const acceptedAsset = options.preserveAssets ? bundle.acceptedAsset : (acceptedAssets[0] ?? null);
+  const pet = acceptedAsset
+    ? { ...draftPet, lifecycleStatus: "active" as const, activeAssetId: acceptedAsset.id }
+    : { ...draftPet, lifecycleStatus: "active" as const };
   const firstMemoryNote = pet.memoryNote?.trim();
   const memories = recordPetMemory(bundle.memories, {
     id: "mem_moved_in",
@@ -1696,7 +1755,7 @@ export const applyPrototypeTheme = (
 
 export type ValidatePrototypeExpressionPackPurchaseResult =
   | { ok: true; pack: ExpressionPack }
-  | { ok: false; reason: "pack_not_found" | "already_owned" | "insufficient_credits" };
+  | { ok: false; reason: "pack_not_found" | "already_owned" | "already_pending" | "insufficient_credits" };
 
 /**
  * Pre-flight check only -- never mutates the wallet. Expression pack
@@ -1721,6 +1780,10 @@ export const validatePrototypeExpressionPackPurchase = (
     return { ok: false, reason: "already_owned" };
   }
 
+  if ((state.inventory.pendingExpressionPackJobs ?? []).some((job) => job.packId === pack.id)) {
+    return { ok: false, reason: "already_pending" };
+  }
+
   if (!canSpendCredits(state.wallet, pack.creditCost)) {
     return { ok: false, reason: "insufficient_credits" };
   }
@@ -1730,7 +1793,7 @@ export const validatePrototypeExpressionPackPurchase = (
 
 export type ConfirmPrototypeExpressionPackPurchaseResult =
   | { ok: true; state: PrototypeSessionState }
-  | { ok: false; reason: "pack_not_found" | "already_owned" | "insufficient_credits" };
+  | { ok: false; reason: "pack_not_found" | "already_owned" | "already_pending" | "insufficient_credits" };
 
 /**
  * Dev-only local purchase confirm: spends credits from the *local* wallet,
@@ -1848,6 +1911,60 @@ export const recordExpressionPackUnlock = (
       },
       () => ({ memories })
     )
+  };
+};
+
+export type RecordExpressionPackJobStartResult =
+  | { ok: true; state: PrototypeSessionState }
+  | { ok: false; reason: "pack_not_found" | "already_owned" };
+
+export const recordExpressionPackJobStart = (
+  state: PrototypeSessionState,
+  pendingJob: PendingExpressionPackJob,
+  now: string = FALLBACK_NOW
+): RecordExpressionPackJobStartResult => {
+  const pack = getExpressionPackById(pendingJob.packId);
+
+  if (!pack) {
+    return { ok: false, reason: "pack_not_found" };
+  }
+
+  if ((state.inventory.ownedExpressionPackIds ?? []).includes(pack.id)) {
+    return { ok: false, reason: "already_owned" };
+  }
+
+  const pendingExpressionPackJobs = [
+    ...(state.inventory.pendingExpressionPackJobs ?? []).filter((job) => job.packId !== pack.id),
+    pendingJob
+  ];
+
+  return {
+    ok: true,
+    state: {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        pendingExpressionPackJobs,
+        updatedAt: now
+      }
+    }
+  };
+};
+
+export const clearPendingExpressionPackJob = (
+  state: PrototypeSessionState,
+  packId: string,
+  now: string = FALLBACK_NOW
+): PrototypeSessionState => {
+  const pendingExpressionPackJobs = (state.inventory.pendingExpressionPackJobs ?? []).filter((job) => job.packId !== packId);
+
+  return {
+    ...state,
+    inventory: {
+      ...state.inventory,
+      pendingExpressionPackJobs,
+      updatedAt: now
+    }
   };
 };
 

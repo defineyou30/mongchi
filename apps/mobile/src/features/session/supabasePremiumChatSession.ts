@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { ChatTurnRequest, ChatTurnResponse } from "@mongchi/shared";
+import type { ChatTurnRequest, ChatTurnResponse, ConversationMessage, PetId } from "@mongchi/shared";
 
 import type { MobileApiError } from "../../shared/api";
 import { ensureSupabaseSession, readInvokeErrorBody, toMobileError } from "./supabaseGenerationSession";
@@ -28,7 +28,107 @@ export type SupabaseChatTurnOutcome =
       error: MobileApiError;
     };
 
+export type SupabasePremiumChatThreadOutcome =
+  | {
+      ok: true;
+      thread: {
+        conversationId: string | null;
+        messages: ConversationMessage[];
+      };
+    }
+  | {
+      ok: false;
+      error: MobileApiError;
+    };
+
 const genericRetryMessage = "Could not reach chat right now. Try again.";
+const historyRetryMessage = "Could not load this chat yet. Try again.";
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const parseConversationMessage = (value: unknown): ConversationMessage | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const { id, conversation_id: conversationId, sender, text, safety_flags: safetyFlags, created_at: createdAt } = value;
+
+  if (
+    typeof id !== "string" ||
+    typeof conversationId !== "string" ||
+    (sender !== "user" && sender !== "pet_ai" && sender !== "system") ||
+    typeof text !== "string" ||
+    !Array.isArray(safetyFlags) ||
+    !safetyFlags.every((flag) => typeof flag === "string") ||
+    typeof createdAt !== "string"
+  ) {
+    return null;
+  }
+
+  return { id, conversationId, sender, text, safetyFlags, createdAt };
+};
+
+export const loadSupabasePremiumChatThread = async (
+  client: SupabaseClient,
+  petId: PetId
+): Promise<SupabasePremiumChatThreadOutcome> => {
+  const conversationQuery = await client
+    .from("conversations")
+    .select("id")
+    .eq("pet_id", petId)
+    .eq("type", "premium_ai_chat")
+    .eq("status", "open")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (conversationQuery.error) {
+    return { ok: false, error: toMobileError(0, "chat_history_unavailable", historyRetryMessage, true) };
+  }
+
+  const conversationData: unknown = conversationQuery.data;
+
+  if (conversationData === null) {
+    return { ok: true, thread: { conversationId: null, messages: [] } };
+  }
+
+  if (!isRecord(conversationData) || typeof conversationData.id !== "string") {
+    return { ok: false, error: toMobileError(0, "chat_history_response_invalid", historyRetryMessage, true) };
+  }
+
+  const conversationId = conversationData.id;
+  const messagesQuery = await client
+    .from("conversation_messages")
+    .select("id, conversation_id, sender, text, safety_flags, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(100);
+
+  if (messagesQuery.error) {
+    return { ok: false, error: toMobileError(0, "chat_history_unavailable", historyRetryMessage, true) };
+  }
+
+  const rawMessages: unknown = messagesQuery.data;
+
+  if (!Array.isArray(rawMessages)) {
+    return { ok: false, error: toMobileError(0, "chat_history_response_invalid", historyRetryMessage, true) };
+  }
+
+  const messages = rawMessages.slice(0, 100).map(parseConversationMessage);
+
+  if (messages.some((message) => message === null)) {
+    return { ok: false, error: toMobileError(0, "chat_history_response_invalid", historyRetryMessage, true) };
+  }
+
+  return {
+    ok: true,
+    thread: {
+      conversationId,
+      messages: messages.filter((message): message is ConversationMessage => message !== null).reverse()
+    }
+  };
+};
 
 /**
  * Maps a chat-turn HTTP failure to mobile copy. Every status chat-turn/

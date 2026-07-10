@@ -261,12 +261,24 @@ describe("supabase generation session start flow", () => {
     expect(client.auth.signInAnonymously).not.toHaveBeenCalled();
   });
 
-  it("starts generation right after photo confirmation, before the setup draft has a name, omitting petName from the request", async () => {
-    // Mirrors PhotoUploadScreen's Continue handler: startMockGeneration now
-    // fires as soon as the photo is confirmed, before the pet-setup screen
-    // has collected a name into the draft (personalityTags/talkingStyle
-    // already carry sensible defaults from initialDraft, so only petName is
-    // blank at this point).
+  it("sends Dog for a completed new-onboarding setup", async () => {
+    uploadAsyncMock.mockClear();
+    uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
+
+    const { client, invokeCalls } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+    const result = await startSupabaseGenerationFlow(client as never, createReadyState(), "2026-07-03T09:01:00.000Z");
+
+    expect(result.ok).toBe(true);
+    expect(invokeCalls[0]?.body).toMatchObject({
+      inputSnapshot: {
+        species: "dog"
+      }
+    });
+  });
+
+  it("sends the completed setup name with the default Dog request", async () => {
     uploadAsyncMock.mockClear();
     uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
 
@@ -274,14 +286,7 @@ describe("supabase generation session start flow", () => {
       session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
     });
 
-    let state = createInitialPrototypeSession("2026-07-03T09:00:00.000Z");
-    state = setPrototypeSelectedPhotoUri(state, "file://device/pet-photo.jpg", "library", {
-      byteSize: 4096,
-      mimeType: "image/jpeg"
-    });
-    state = setPrototypeConsentAccepted(state, true);
-
-    const result = await startSupabaseGenerationFlow(client as never, toLegacyFlatState(state), "2026-07-03T09:01:00.000Z");
+    const result = await startSupabaseGenerationFlow(client as never, createReadyState(), "2026-07-03T09:01:00.000Z");
 
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -292,11 +297,27 @@ describe("supabase generation session start flow", () => {
     expect(invokeCalls[0]!.body).toEqual({
       inputSnapshot: {
         species: "dog",
+        petName: "Miso",
         personalityTags: ["affectionate"],
         talkingStyle: "gentle"
       },
       originalPhotoPath: "original-photos/user_existing_001/11111111-1111-4111-8111-111111111111.jpg"
     });
+  });
+
+  it("does not create a session, upload, or invoke generation before pet setup is complete", async () => {
+    uploadAsyncMock.mockClear();
+    const { client, invokeCalls } = createFakeSupabaseClient();
+    let state = createInitialPrototypeSession("2026-07-03T09:00:00.000Z");
+    state = setPrototypeMockPhotoSelected(state, true);
+    state = setPrototypeConsentAccepted(state, true);
+
+    const result = await startSupabaseGenerationFlow(client as never, toLegacyFlatState(state), "2026-07-03T09:01:00.000Z");
+
+    expect(result).toMatchObject({ ok: false, error: { code: "pet_setup_required" } });
+    expect(client.auth.signInAnonymously).not.toHaveBeenCalled();
+    expect(uploadAsyncMock).not.toHaveBeenCalled();
+    expect(invokeCalls).toHaveLength(0);
   });
 
   it("requires a source photo before starting generation", async () => {
@@ -915,6 +936,7 @@ describe("supabase expression pack start flow", () => {
     const result = await startSupabaseExpressionPackFlow(
       client as never,
       stateWithIdleAsset(),
+      "pack-everyday-moments",
       ["curious", "play", "hungry"],
       "22222222-2222-4222-8222-222222222222"
     );
@@ -934,6 +956,7 @@ describe("supabase expression pack start flow", () => {
         talkingStyle: "gentle"
       },
       source_asset_path: "avatars/user_existing_001/job_supabase_001/idle.png",
+      expression_pack_id: "pack-everyday-moments",
       requested_states: ["curious", "play", "hungry"],
       request_id: "22222222-2222-4222-8222-222222222222"
     });
@@ -947,6 +970,7 @@ describe("supabase expression pack start flow", () => {
     const result = await startSupabaseExpressionPackFlow(
       client as never,
       createReadyState(),
+      "pack-everyday-moments",
       ["curious"],
       "22222222-2222-4222-8222-222222222222"
     );
@@ -969,6 +993,7 @@ describe("supabase expression pack start flow", () => {
     const result = await startSupabaseExpressionPackFlow(
       client as never,
       stateWithIdleAsset(),
+      "pack-everyday-moments",
       ["curious"],
       "22222222-2222-4222-8222-222222222222"
     );
@@ -992,6 +1017,7 @@ describe("supabase expression pack start flow", () => {
     const result = await startSupabaseExpressionPackFlow(
       client as never,
       stateWithIdleAsset(),
+      "pack-everyday-moments",
       ["curious"],
       "22222222-2222-4222-8222-222222222222"
     );
@@ -1023,6 +1049,7 @@ describe("supabase expression pack start flow", () => {
     const result = await startSupabaseExpressionPackFlow(
       client as never,
       stateWithIdleAsset(),
+      "pack-everyday-moments",
       ["curious"],
       "22222222-2222-4222-8222-222222222222"
     );
@@ -1048,6 +1075,7 @@ describe("supabase expression pack start flow", () => {
     const result = await startSupabaseExpressionPackFlow(
       client as never,
       stateWithIdleAsset(),
+      "pack-everyday-moments",
       ["curious"],
       "22222222-2222-4222-8222-222222222222"
     );
@@ -1081,10 +1109,22 @@ describe("supabase expression pack start flow", () => {
     }) as never;
 
     const sameRequestId = "22222222-2222-4222-8222-222222222222";
-    const failed = await startSupabaseExpressionPackFlow(client as never, stateWithIdleAsset(), ["curious"], sameRequestId);
+    const failed = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      "pack-everyday-moments",
+      ["curious"],
+      sameRequestId
+    );
     expect(failed.ok).toBe(false);
 
-    const retried = await startSupabaseExpressionPackFlow(client as never, stateWithIdleAsset(), ["curious"], sameRequestId);
+    const retried = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      "pack-everyday-moments",
+      ["curious"],
+      sameRequestId
+    );
 
     expect(retried.ok).toBe(true);
     if (!retried.ok) {

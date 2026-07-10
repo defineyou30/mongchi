@@ -118,7 +118,7 @@ const defaultAppleSandboxBaseUrl = "https://api.storekit-sandbox.itunes.apple.co
 const defaultGooglePlayBaseUrl = "https://androidpublisher.googleapis.com";
 const defaultGoogleTokenUrl = "https://oauth2.googleapis.com/token";
 const androidPublisherScope = "https://www.googleapis.com/auth/androidpublisher";
-const DEFAULT_NOW = "2026-06-24T09:00:00.000Z";
+const systemNow = (): ISODateTime => new Date().toISOString();
 
 const unavailable = (code = "store_verifier_unavailable"): StorePurchaseVerificationResult => ({
   ok: false,
@@ -282,7 +282,7 @@ export const createAppleAppStoreServerApiJwt = ({
   keyId,
   bundleId,
   privateKey,
-  now = () => DEFAULT_NOW
+  now = systemNow
 }: AppleAppStoreJwtOptions): string => {
   const issuedAtSeconds = Math.floor(new Date(now()).getTime() / 1000);
   const header = {
@@ -526,7 +526,7 @@ export const createGoogleServiceAccountAccessTokenProvider = ({
   privateKey,
   tokenUrl = defaultGoogleTokenUrl,
   fetch,
-  now = () => DEFAULT_NOW
+  now = systemNow
 }: GoogleServiceAccountAccessTokenProviderOptions): StoreAccessTokenProvider => {
   const resolvedFetch = fetch ?? getGlobalFetch();
   let cachedToken: { token: string; expiresAtMs: number } | null = null;

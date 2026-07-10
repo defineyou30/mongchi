@@ -628,6 +628,44 @@ const storePurchaseVerifier: StorePurchaseVerifier = {
 };
 
 describe("Postgres API service", () => {
+  it("uses the current system time when no clock is injected", async () => {
+    const client = new QueueDatabaseClient([
+      [apiUserRow],
+      [
+        {
+          live_pet_count: "0",
+          active_pet_count: "0",
+          active_generation_count: "0"
+        }
+      ],
+      [],
+      (_sql, params) => [creditWalletRowFromParams(params)]
+    ]);
+    const service = createPostgresApiService({
+      repositories: createPostgresRepositoryBundle(client)
+    });
+    const beforeMs = Date.now();
+
+    await service.getCurrentUser({
+      userId: "user_provider_001",
+      locale: "en-US",
+      timezone: "America/New_York",
+      authProvider: "test-provider",
+      authSubject: "provider-subject-001"
+    });
+    const afterMs = Date.now();
+    const timestamp = client.queries[0]?.params?.[5];
+
+    expect(timestamp).toEqual(expect.any(String));
+
+    if (typeof timestamp !== "string") {
+      throw new Error("Expected the persisted timestamp to be a string.");
+    }
+
+    expect(new Date(timestamp).getTime()).toBeGreaterThanOrEqual(beforeMs);
+    expect(new Date(timestamp).getTime()).toBeLessThanOrEqual(afterMs);
+  });
+
   it("serves current-user state through the async router with persisted provider identity", async () => {
     const client = new QueueDatabaseClient([
       [apiUserRow],
@@ -642,7 +680,8 @@ describe("Postgres API service", () => {
       (_sql, params) => [creditWalletRowFromParams(params)]
     ]);
     const service = createPostgresApiService({
-      repositories: createPostgresRepositoryBundle(client)
+      repositories: createPostgresRepositoryBundle(client),
+      now: () => "2026-06-24T09:00:00.000Z"
     });
     const router = createApiHttpRouter({
       allowMockAuth: false,
@@ -696,7 +735,8 @@ describe("Postgres API service", () => {
   it("lists live pets from the Postgres repository bundle", async () => {
     const client = new QueueDatabaseClient([[apiUserRow], [petRow]]);
     const service = createPostgresApiService({
-      repositories: createPostgresRepositoryBundle(client)
+      repositories: createPostgresRepositoryBundle(client),
+      now: () => "2026-06-24T09:00:00.000Z"
     });
     const router = createApiHttpRouter({
       allowMockAuth: false,
@@ -1010,6 +1050,7 @@ describe("Postgres API service", () => {
       allowMockAuth: false,
       service: createPostgresApiService({
         repositories: createPostgresRepositoryBundle(client),
+        now: () => "2026-06-24T09:00:00.000Z",
         allowMockGenerationPolling: false
       }),
       sessionVerifier
@@ -1475,7 +1516,8 @@ describe("Postgres API service", () => {
     const catalogRouter = createApiHttpRouter({
       allowMockAuth: false,
       service: createPostgresApiService({
-        repositories: createPostgresRepositoryBundle(catalogClient)
+        repositories: createPostgresRepositoryBundle(catalogClient),
+        now: () => "2026-06-24T09:00:00.000Z"
       }),
       sessionVerifier
     });
@@ -1519,7 +1561,8 @@ describe("Postgres API service", () => {
     const careRouter = createApiHttpRouter({
       allowMockAuth: false,
       service: createPostgresApiService({
-        repositories: createPostgresRepositoryBundle(careClient)
+        repositories: createPostgresRepositoryBundle(careClient),
+        now: () => "2026-06-24T09:00:00.000Z"
       }),
       sessionVerifier
     });
@@ -1784,7 +1827,8 @@ describe("Postgres API service", () => {
     const router = createApiHttpRouter({
       allowMockAuth: false,
       service: createPostgresApiService({
-        repositories: createPostgresRepositoryBundle(client)
+        repositories: createPostgresRepositoryBundle(client),
+        now: () => "2026-06-24T09:00:00.000Z"
       }),
       sessionVerifier
     });

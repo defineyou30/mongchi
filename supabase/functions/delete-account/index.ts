@@ -14,17 +14,17 @@
 // `authClient`, then a separate service_role `admin` client does the actual
 // privileged work.
 //
-// Deletion plan (see deletionPlan.ts for the storage half's pure logic):
+// Security-critical deletion order (see accountDeletionWorkflow.ts):
 //
 //   1. Snapshot per-table row counts for the caller, purely for the summary
 //      returned to the client -- best-effort, never blocks the rest of the
 //      flow.
 //   2. Recursively delete `original-photos/{user_id}/` and
-//      `avatars/{user_id}/` from the private `pet-media` bucket. Best-effort:
-//      a failure here is recorded in the response but never aborts the
-//      remaining steps (a user's photo/avatar data being stuck is not a
-//      reason to also leave their auth account and table rows behind).
-//   3. Delete the auth user via admin.auth.admin.deleteUser. This is the
+//      `avatars/{user_id}/` from the private `pet-media` bucket. Both must
+//      succeed before the workflow can continue, otherwise the live auth
+//      session is preserved so a later request can retry safely.
+//   3. Delete the auth user via admin.auth.admin.deleteUser only after both
+//      storage prefixes succeed. This is the
 //      step that actually removes every row in CASCADED_TABLES below --
 //      every one of those tables' `user_id` column is declared
 //      `REFERENCES auth.users(id) ON DELETE CASCADE` (verified by reading
@@ -34,20 +34,18 @@
 //      automatically. No separate per-table DELETE statement is needed (or
 //      issued) for correctness; step 1's counts are read-only.
 //
-// The whole flow is idempotent and tolerant of partial failure: re-invoking
-// after a failed step 2 or 3 simply re-attempts whatever didn't finish (an
+// The whole flow is idempotent and retryable: re-invoking after a failed
+// step 2 or 3 simply re-attempts whatever didn't finish (an
 // already-empty storage prefix lists zero entries and is a no-op; an
 // already-deleted auth user makes THIS function's own auth check at the top
 // fail with 401, which the client is expected to treat as "already gone,
 // nothing left to retry" -- see apps/mobile's supabaseAccountDeletion.ts).
 //
-// Response contract: once the caller is authenticated, this always answers
-// 200 with `{ ok, summary }` -- `ok` is true only when every step fully
-// succeeded; a partial failure is reported in `summary` rather than as an
-// HTTP error status, so the client can always read what happened instead of
-// just "the request failed". See docs/legal/privacy-policy.md §8.
+// Response contract: success is HTTP 200; retryable storage/auth failures
+// are HTTP 503 with a stable non-sensitive error code.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { runAccountDeletionWorkflow } from "./accountDeletionWorkflow.ts";
 import { avatarsPrefixFor, deleteStoragePrefixRecursive, originalPhotosPrefixFor } from "./deletionPlan.ts";
 import type { RecursiveDeleteOutcome } from "./deletionPlan.ts";
 
@@ -73,25 +71,45 @@ const CASCADED_TABLES = [
 
 type CascadedTable = (typeof CASCADED_TABLES)[number];
 
-interface DeleteAccountSummary {
-  userId: string;
-  storage: {
-    originalPhotos: RecursiveDeleteOutcome;
-    avatars: RecursiveDeleteOutcome;
+type DeleteAccountSummary = {
+  readonly userId: string;
+  readonly storage: {
+    readonly originalPhotos: RecursiveDeleteOutcome;
+    readonly avatars: RecursiveDeleteOutcome;
   };
   // Pre-deletion row counts, read for diagnostics only -- see CASCADED_TABLES
   // doc comment. `null` for a table means the count query itself failed
   // (logged server-side); it does not mean the table was skipped.
-  tableCounts: Record<CascadedTable, number | null>;
-  authUserDeleted: boolean;
-  authDeleteError: string | null;
-}
+  readonly tableCounts: Readonly<Record<CascadedTable, number | null>>;
+  readonly authUserDeleted: boolean;
+  readonly authDeleteError: string | null;
+};
 
 const jsonResponse = (body: unknown, status: number): Response =>
   new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" }
   });
+
+const urlForFetchInput = (input: Parameters<typeof fetch>[0]): string => {
+  if (input instanceof Request) return input.url;
+  if (input instanceof URL) return input.href;
+  return input;
+};
+
+const createAdminDeleteResponseDrainingFetch = (adminDeleteUrl: string): typeof fetch =>
+  async (input, init) => {
+    const response = await fetch(input, init);
+
+    if (urlForFetchInput(input) === adminDeleteUrl && response.status >= 500 && response.status <= 599) {
+      // auth-js takes its retryable 5xx path without reading the body. Drain a
+      // clone so the original response remains readable to the SDK while Deno
+      // can release the underlying fetch resource before the typed error returns.
+      await response.clone().arrayBuffer();
+    }
+
+    return response;
+  };
 
 const countRowsForUser = async (admin: SupabaseClient, table: CascadedTable, userId: string): Promise<number | null> => {
   const { count, error } = await admin.from(table).select("*", { count: "exact", head: true }).eq("user_id", userId);
@@ -120,7 +138,7 @@ Deno.serve(async (req: Request) => {
   // Mirrors generate-avatar/index.ts's HTTP handler exactly.
   const authClient = createClient(supabaseUrl, serviceRoleKey, {
     global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
-    auth: { persistSession: false }
+    auth: { persistSession: false, autoRefreshToken: false }
   });
 
   const { data: userData, error: userError } = await authClient.auth.getUser();
@@ -131,8 +149,10 @@ Deno.serve(async (req: Request) => {
 
   const userId = userData.user.id;
 
+  const adminDeleteUrl = new URL(`/auth/v1/admin/users/${userId}`, supabaseUrl).toString();
   const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false }
+    global: { fetch: createAdminDeleteResponseDrainingFetch(adminDeleteUrl) },
+    auth: { persistSession: false, autoRefreshToken: false }
   });
 
   // 2. Pre-deletion table row counts, for the response summary only -- see
@@ -143,38 +163,30 @@ Deno.serve(async (req: Request) => {
   );
   const tableCounts = Object.fromEntries(tableCountEntries) as Record<CascadedTable, number | null>;
 
-  // 3. Storage: recursively delete both prefixes. Best-effort -- a failure
-  // here is recorded but never blocks step 4 below (see module doc comment).
   const storageBucket = admin.storage.from(BUCKET);
-  const originalPhotosOutcome = await deleteStoragePrefixRecursive(storageBucket, originalPhotosPrefixFor(userId));
-  const avatarsOutcome = await deleteStoragePrefixRecursive(storageBucket, avatarsPrefixFor(userId));
+  const deletion = await runAccountDeletionWorkflow({
+    deleteOriginalPhotos: () => deleteStoragePrefixRecursive(storageBucket, originalPhotosPrefixFor(userId)),
+    deleteAvatars: () => deleteStoragePrefixRecursive(storageBucket, avatarsPrefixFor(userId)),
+    deleteAuthUser: async () => {
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      return error ? { ok: false } : { ok: true };
+    }
+  });
 
-  // 4. Delete the auth user. Cascades every CASCADED_TABLES row via FK
-  // ON DELETE CASCADE (see module doc comment) -- this is the step that
-  // actually removes them, not step 2 above.
-  const { error: deleteUserError } = await admin.auth.admin.deleteUser(userId);
-  const authUserDeleted = !deleteUserError;
-
-  if (deleteUserError) {
-    console.error("[delete-account] admin.auth.admin.deleteUser failed:", deleteUserError.message);
+  if (!deletion.ok) {
+    return jsonResponse({ ok: false, error: { code: deletion.code, retryable: deletion.retryable } }, 503);
   }
-
-  const storageErrors = [...originalPhotosOutcome.errors, ...avatarsOutcome.errors];
-  const ok = authUserDeleted && storageErrors.length === 0;
 
   const summary: DeleteAccountSummary = {
     userId,
     storage: {
-      originalPhotos: originalPhotosOutcome,
-      avatars: avatarsOutcome
+      originalPhotos: deletion.storage.originalPhotos,
+      avatars: deletion.storage.avatars
     },
     tableCounts,
-    authUserDeleted,
-    authDeleteError: deleteUserError?.message ?? null
+    authUserDeleted: true,
+    authDeleteError: null
   };
 
-  // Always 200 past this point -- see module doc comment's "Response
-  // contract" section. The client reads `ok`/`summary` to decide how to
-  // react, rather than branching on HTTP status.
-  return jsonResponse({ ok, summary }, 200);
+  return jsonResponse({ ok: true, summary }, 200);
 });

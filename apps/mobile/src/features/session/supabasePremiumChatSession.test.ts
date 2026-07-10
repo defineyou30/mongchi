@@ -27,7 +27,7 @@ vi.mock("./supabaseClient", () => ({
 
 import type { ChatTurnRequest, ChatTurnResponse } from "@mongchi/shared";
 
-import { invokeSupabaseChatTurn } from "./supabasePremiumChatSession";
+import { invokeSupabaseChatTurn, loadSupabasePremiumChatThread } from "./supabasePremiumChatSession";
 
 const conversation: ChatTurnResponse["conversation"] = {
   id: "conv_live_001",
@@ -270,5 +270,100 @@ describe("invokeSupabaseChatTurn", () => {
         retryable: true
       }
     });
+  });
+});
+
+describe("loadSupabasePremiumChatThread", () => {
+  const createHistoryClient = (conversationData: unknown, messageData: unknown) => {
+    const conversationBuilder = {
+      eq: vi.fn(() => conversationBuilder),
+      order: vi.fn(() => conversationBuilder),
+      limit: vi.fn(() => conversationBuilder),
+      maybeSingle: vi.fn(async () => ({ data: conversationData, error: null }))
+    };
+    const messageBuilder = {
+      eq: vi.fn(() => messageBuilder),
+      order: vi.fn(() => messageBuilder),
+      limit: vi.fn(async () => ({ data: messageData, error: null }))
+    };
+    const client = {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => (table === "conversations" ? conversationBuilder : messageBuilder))
+      }))
+    };
+
+    return { client, conversationBuilder, messageBuilder };
+  };
+
+  it("restores every available raw message in chronological order", async () => {
+    const rows = [
+      {
+        id: petMessage.id,
+        conversation_id: conversation.id,
+        sender: petMessage.sender,
+        text: petMessage.text,
+        safety_flags: petMessage.safetyFlags,
+        created_at: petMessage.createdAt
+      },
+      {
+        id: userMessage.id,
+        conversation_id: conversation.id,
+        sender: userMessage.sender,
+        text: userMessage.text,
+        safety_flags: userMessage.safetyFlags,
+        created_at: userMessage.createdAt
+      }
+    ];
+    const { client, messageBuilder } = createHistoryClient({ id: conversation.id }, rows);
+
+    const result = await loadSupabasePremiumChatThread(client as never, "pet_mobile_001");
+
+    expect(result).toEqual({ ok: true, thread: { conversationId: conversation.id, messages: [userMessage, petMessage] } });
+    expect(messageBuilder.order).toHaveBeenNthCalledWith(1, "created_at", { ascending: false });
+    expect(messageBuilder.order).toHaveBeenNthCalledWith(2, "id", { ascending: false });
+    expect(messageBuilder.limit).toHaveBeenCalledWith(100);
+  });
+
+  it("keeps the latest 100 messages and returns them in ascending UI order", async () => {
+    const newestFirst = Array.from({ length: 105 }, (_, offset) => {
+      const sequence = 104 - offset;
+
+      return {
+        id: `message-${sequence.toString().padStart(3, "0")}`,
+        conversation_id: conversation.id,
+        sender: sequence % 2 === 0 ? "user" : "pet_ai",
+        text: `Message ${sequence}`,
+        safety_flags: [],
+        created_at: new Date(Date.UTC(2026, 6, 10, 10, sequence)).toISOString()
+      };
+    });
+    const { client } = createHistoryClient({ id: conversation.id }, newestFirst);
+
+    const result = await loadSupabasePremiumChatThread(client as never, "pet_mobile_001");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.thread.messages).toHaveLength(100);
+    expect(result.thread.messages[0]?.id).toBe("message-005");
+    expect(result.thread.messages.at(-1)?.id).toBe("message-104");
+  });
+
+  it("returns an empty thread when the pet has no open conversation", async () => {
+    const { client } = createHistoryClient(null, []);
+
+    await expect(loadSupabasePremiumChatThread(client as never, "pet_mobile_001")).resolves.toEqual({
+      ok: true,
+      thread: { conversationId: null, messages: [] }
+    });
+  });
+
+  it("rejects malformed history instead of displaying unparsed server data", async () => {
+    const { client } = createHistoryClient({ id: conversation.id }, [{ ...userMessage, sender: "unknown" }]);
+
+    const result = await loadSupabasePremiumChatThread(client as never, "pet_mobile_001");
+
+    expect(result).toMatchObject({ ok: false, error: { code: "chat_history_response_invalid", retryable: true } });
   });
 });

@@ -20,35 +20,31 @@ const inProgressStatuses: GenerationJobStatus[] = [
 const terminalStatuses: GenerationJobStatus[] = ["completed", "failed", "cancelled", "expired"];
 
 describe("getGenerationMotionPolicy", () => {
-  it("schedules automatic hatching polls only while motion is allowed and generation is active", () => {
+  it("keeps polling decisions identical when Reduce Motion changes", () => {
     for (const status of inProgressStatuses) {
-      expect(getGenerationMotionPolicy({ reduceMotionEnabled: false, status })).toEqual({
-        shouldScheduleAutomaticPoll: true,
-        shouldShowManualContinue: false
-      });
+      const motionAllowed = getGenerationMotionPolicy({ reduceMotionEnabled: false, status });
+      const motionReduced = getGenerationMotionPolicy({ reduceMotionEnabled: true, status });
+
+      expect(motionAllowed.shouldScheduleAutomaticPoll).toBe(true);
+      expect(motionReduced.shouldScheduleAutomaticPoll).toBe(true);
+      expect(motionReduced.shouldScheduleAutomaticPoll).toBe(motionAllowed.shouldScheduleAutomaticPoll);
+      expect(motionAllowed.shouldShowManualContinue).toBe(false);
+      expect(motionReduced.shouldShowManualContinue).toBe(false);
+      expect(motionAllowed.shouldAnimateHatching).toBe(true);
+      expect(motionReduced.shouldAnimateHatching).toBe(false);
     }
 
     for (const status of terminalStatuses) {
-      expect(getGenerationMotionPolicy({ reduceMotionEnabled: false, status })).toEqual({
-        shouldScheduleAutomaticPoll: false,
-        shouldShowManualContinue: false
-      });
-    }
-  });
+      const motionAllowed = getGenerationMotionPolicy({ reduceMotionEnabled: false, status });
+      const motionReduced = getGenerationMotionPolicy({ reduceMotionEnabled: true, status });
 
-  it("switches active hatching to manual continue when reduce motion is enabled", () => {
-    for (const status of inProgressStatuses) {
-      expect(getGenerationMotionPolicy({ reduceMotionEnabled: true, status })).toEqual({
-        shouldScheduleAutomaticPoll: false,
-        shouldShowManualContinue: true
-      });
-    }
-
-    for (const status of terminalStatuses) {
-      expect(getGenerationMotionPolicy({ reduceMotionEnabled: true, status })).toEqual({
-        shouldScheduleAutomaticPoll: false,
-        shouldShowManualContinue: false
-      });
+      expect(motionAllowed.shouldScheduleAutomaticPoll).toBe(false);
+      expect(motionReduced.shouldScheduleAutomaticPoll).toBe(false);
+      expect(motionReduced.shouldScheduleAutomaticPoll).toBe(motionAllowed.shouldScheduleAutomaticPoll);
+      expect(motionAllowed.shouldShowManualContinue).toBe(false);
+      expect(motionReduced.shouldShowManualContinue).toBe(false);
+      expect(motionAllowed.shouldAnimateHatching).toBe(false);
+      expect(motionReduced.shouldAnimateHatching).toBe(false);
     }
   });
 });

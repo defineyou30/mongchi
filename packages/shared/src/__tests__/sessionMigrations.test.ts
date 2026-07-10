@@ -708,7 +708,7 @@ describe("session schema migrations", () => {
 
       expect(result.ok).toBe(true);
       expect(result.fromVersion).toBe(6);
-      expect(result.toVersion).toBe(7);
+      expect(result.toVersion).toBe(CURRENT_SESSION_SCHEMA_VERSION);
       const migrated = result.state as ReturnType<typeof createInitialPrototypeSession>;
 
       expect(migrated.pets["pet_local_001"]?.petProfile?.id).toBe("pet_local_001");
@@ -767,19 +767,54 @@ describe("session schema migrations", () => {
       expect(migrated.pets["pet_local_001"]?.acceptedAssets).toEqual([]);
     });
 
-    it("is idempotent: a payload that already has pets/activePetId passes through unchanged", () => {
+    it("adds pendingExpressionPackJobs when migrating an already-bundled v7 payload", () => {
       const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
-      const alreadyBundled = { schemaVersion: 7, state };
+      const { pendingExpressionPackJobs: _pendingExpressionPackJobs, ...inventoryWithoutPendingJobs } = state.inventory;
+      const alreadyBundled = {
+        schemaVersion: 7,
+        state: {
+          ...state,
+          inventory: inventoryWithoutPendingJobs
+        }
+      };
 
       const result = runSessionMigrations(alreadyBundled);
 
       expect(result.ok).toBe(true);
       expect(result.fromVersion).toBe(7);
-      expect(result.toVersion).toBe(7);
-      expect(result.state).toEqual(state);
+      expect(result.toVersion).toBe(CURRENT_SESSION_SCHEMA_VERSION);
+      expect((result.state as typeof state).inventory.pendingExpressionPackJobs).toEqual([]);
     });
 
-    it("chains a legacy v0 payload with an existing pet all the way through v0 -> v7", () => {
+    it("preserves pendingExpressionPackJobs when a v7 payload already has one", () => {
+      const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+      const pendingExpressionPackJobs = [
+        {
+          packId: "pack-everyday-moments",
+          jobId: "job_expression_pack_001",
+          requestId: "request_expression_pack_001",
+          petId: "pet_local_001",
+          startedAt: "2026-06-24T09:05:00.000Z"
+        }
+      ];
+      const envelope = {
+        schemaVersion: 7,
+        state: {
+          ...state,
+          inventory: {
+            ...state.inventory,
+            pendingExpressionPackJobs
+          }
+        }
+      };
+
+      const result = runSessionMigrations(envelope);
+
+      expect(result.ok).toBe(true);
+      expect((result.state as typeof state).inventory.pendingExpressionPackJobs).toEqual(pendingExpressionPackJobs);
+    });
+
+    it("chains a legacy v0 payload with an existing pet all the way through v0 -> v8", () => {
       const baseState = flattenToLegacyShape(createInitialPrototypeSession("2026-06-01T09:00:00.000Z"));
       const petProfile = {
         id: "pet_local_001",

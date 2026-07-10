@@ -34,22 +34,22 @@
  * exactly this field the same way deleteStoragePrefixRecursive below does).
  */
 export interface StorageEntry {
-  name: string;
-  id: string | null;
+  readonly name: string;
+  readonly id: string | null;
 }
 
 export interface StorageListResult {
-  data: StorageEntry[] | null;
-  error: { message: string } | null;
+  readonly data: unknown;
+  readonly error: unknown;
 }
 
 export interface StorageRemoveResult {
-  data: unknown;
-  error: { message: string } | null;
+  readonly data: unknown;
+  readonly error: { readonly message: string } | null;
 }
 
 export interface StorageBucketLike {
-  list(path: string, options?: { limit?: number; offset?: number }): Promise<StorageListResult>;
+  list(path: string, options?: { readonly limit?: number; readonly offset?: number }): Promise<StorageListResult>;
   remove(paths: string[]): Promise<StorageRemoveResult>;
 }
 
@@ -76,6 +76,40 @@ const chunk = <T>(items: readonly T[], size: number): T[][] => {
   return chunks;
 };
 
+type ParsedStorageListResult =
+  | { readonly ok: true; readonly entries: readonly StorageEntry[] }
+  | { readonly ok: false; readonly error: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isStorageEntry = (value: unknown): value is StorageEntry => {
+  if (!isRecord(value) || typeof value.name !== "string" || value.name.length === 0) {
+    return false;
+  }
+
+  return value.id === null || typeof value.id === "string";
+};
+
+const parseStorageListResult = (value: unknown): ParsedStorageListResult => {
+  if (!isRecord(value)) {
+    return { ok: false, error: "malformed storage list response" };
+  }
+
+  if (value.error !== null) {
+    const message = isRecord(value.error) && typeof value.error.message === "string"
+      ? value.error.message
+      : "malformed storage list error";
+    return { ok: false, error: message };
+  }
+
+  if (!Array.isArray(value.data) || !value.data.every(isStorageEntry)) {
+    return { ok: false, error: "malformed storage list response" };
+  }
+
+  return { ok: true, entries: value.data };
+};
+
 const listAllEntries = async (
   storage: StorageBucketLike,
   prefix: string
@@ -87,19 +121,19 @@ const listAllEntries = async (
   // "that was the last page" signal), rather than relying on a total count
   // up front -- list() doesn't report one.
   for (;;) {
-    const { data, error } = await storage.list(prefix, { limit: LIST_PAGE_SIZE, offset });
+    const result = parseStorageListResult(await storage.list(prefix, { limit: LIST_PAGE_SIZE, offset }));
 
-    if (error) {
-      return { entries, error: error.message };
+    if (!result.ok) {
+      return { entries, error: result.error };
     }
 
-    if (!data || data.length === 0) {
+    if (result.entries.length === 0) {
       break;
     }
 
-    entries.push(...data);
+    entries.push(...result.entries);
 
-    if (data.length < LIST_PAGE_SIZE) {
+    if (result.entries.length < LIST_PAGE_SIZE) {
       break;
     }
 

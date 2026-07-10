@@ -6,6 +6,8 @@ const {
   getPermissionsAsync,
   requestPermissionsAsync,
   cancelAllScheduledNotificationsAsync,
+  cancelScheduledNotificationAsync,
+  getAllScheduledNotificationsAsync,
   scheduleNotificationAsync,
   setNotificationChannelAsync,
   setNotificationHandler,
@@ -14,6 +16,8 @@ const {
   getPermissionsAsync: vi.fn(),
   requestPermissionsAsync: vi.fn(),
   cancelAllScheduledNotificationsAsync: vi.fn(),
+  cancelScheduledNotificationAsync: vi.fn(),
+  getAllScheduledNotificationsAsync: vi.fn(),
   scheduleNotificationAsync: vi.fn(),
   setNotificationChannelAsync: vi.fn(),
   setNotificationHandler: vi.fn(),
@@ -24,6 +28,8 @@ vi.mock("expo-notifications", () => ({
   getPermissionsAsync: (...args: unknown[]) => getPermissionsAsync(...args),
   requestPermissionsAsync: (...args: unknown[]) => requestPermissionsAsync(...args),
   cancelAllScheduledNotificationsAsync: (...args: unknown[]) => cancelAllScheduledNotificationsAsync(...args),
+  cancelScheduledNotificationAsync: (...args: unknown[]) => cancelScheduledNotificationAsync(...args),
+  getAllScheduledNotificationsAsync: (...args: unknown[]) => getAllScheduledNotificationsAsync(...args),
   scheduleNotificationAsync: (...args: unknown[]) => scheduleNotificationAsync(...args),
   setNotificationChannelAsync: (...args: unknown[]) => setNotificationChannelAsync(...args),
   setNotificationHandler: (...args: unknown[]) => setNotificationHandler(...args),
@@ -77,10 +83,27 @@ const baseInput: PetPushNotificationInput = {
   }
 };
 
+const buildScheduledInventory = (identifiers?: string[]) =>
+  scheduleNotificationAsync.mock.calls.map((call, index) => {
+    const request = call[0] as { content: { data?: Record<string, unknown> }; trigger: unknown };
+
+    return {
+      identifier: identifiers?.[index] ?? `notification-id-${index + 1}`,
+      content: request.content,
+      trigger: request.trigger
+    };
+  });
+
 beforeEach(() => {
   vi.clearAllMocks();
-  scheduleNotificationAsync.mockResolvedValue("notification-id");
+  let scheduledId = 0;
+  scheduleNotificationAsync.mockImplementation(async () => {
+    scheduledId += 1;
+    return `notification-id-${scheduledId}`;
+  });
   cancelAllScheduledNotificationsAsync.mockResolvedValue(undefined);
+  cancelScheduledNotificationAsync.mockResolvedValue(undefined);
+  getAllScheduledNotificationsAsync.mockImplementation(async () => buildScheduledInventory());
 });
 
 describe("buildNotificationPlansFromCandidates", () => {
@@ -92,14 +115,25 @@ describe("buildNotificationPlansFromCandidates", () => {
     expect(plans).toEqual([
       {
         key: "meal_due",
-        content: { title: "Bowl thoughts", body: "A small meal would be nice." },
+        owner: "garden",
+        action: "feed",
+        content: {
+          title: "Bowl thoughts",
+          body: "A small meal would be nice.",
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "garden",
+            mongchiNotificationKey: "meal_due",
+            mongchiNotificationAction: "feed"
+          }
+        },
         trigger: { type: "timeInterval", seconds: 5 * 60, repeats: false }
       }
     ]);
   });
 
   it("caps the plan at MAX_DAILY_NOTIFICATIONS even when more candidates are available", () => {
-    expect(MAX_DAILY_NOTIFICATIONS).toBe(2);
+    expect(MAX_DAILY_NOTIFICATIONS).toBe(1);
 
     const candidates = [
       makeCandidate({ key: "meal_urgent", priority: 5 }),
@@ -110,8 +144,8 @@ describe("buildNotificationPlansFromCandidates", () => {
 
     const plans = buildNotificationPlansFromCandidates(candidates);
 
-    expect(plans).toHaveLength(2);
-    expect(plans.map((plan) => plan.key)).toEqual(["meal_urgent", "thirst_due"]);
+    expect(plans).toHaveLength(1);
+    expect(plans.map((plan) => plan.key)).toEqual(["meal_urgent"]);
   });
 
   it("returns an empty plan for an empty candidate list", () => {
@@ -129,12 +163,34 @@ describe("buildReturnReminderPlansFromCandidates", () => {
     expect(plans).toEqual([
       {
         key: "return_after_1_day",
-        content: { title: "Mong found a sunny spot to nap in", body: "Come see." },
+        owner: "return",
+        action: "open_app",
+        content: {
+          title: "Mong found a sunny spot to nap in",
+          body: "Come see.",
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "return",
+            mongchiNotificationKey: "return_after_1_day",
+            mongchiNotificationAction: "open_app"
+          }
+        },
         trigger: { type: "timeInterval", seconds: 1 * 24 * 60 * 60, repeats: false }
       },
       {
         key: "return_after_3_days",
-        content: { title: "The garden saved a spot for you", body: "No rush." },
+        owner: "return",
+        action: "open_app",
+        content: {
+          title: "The garden saved a spot for you",
+          body: "No rush.",
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "return",
+            mongchiNotificationKey: "return_after_3_days",
+            mongchiNotificationAction: "open_app"
+          }
+        },
         trigger: { type: "timeInterval", seconds: 3 * 24 * 60 * 60, repeats: false }
       }
     ]);
@@ -142,29 +198,117 @@ describe("buildReturnReminderPlansFromCandidates", () => {
 });
 
 describe("syncScheduledPetNotifications", () => {
+  it("characterizes the baseline: a sync with no care candidate still schedules the return ladder", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+
+    await syncScheduledPetNotifications(baseInput);
+
+    expect(scheduleNotificationAsync).toHaveBeenCalledTimes(2);
+  });
+
   it("skips scheduling and does not request permission when permission is not granted", async () => {
     getPermissionsAsync.mockResolvedValue({ status: "undetermined", granted: false, canAskAgain: true });
 
     const result = await syncScheduledPetNotifications(baseInput);
 
-    expect(result).toEqual({ scheduledCount: 0, scheduledKeys: [], skippedReason: "permission_not_granted" });
+    expect(result).toEqual({
+      scheduledCount: 0,
+      scheduledKeys: [],
+      scheduled: [],
+      failedKeys: [],
+      cancelledIds: [],
+      failedCancellationIds: [],
+      skippedReason: "permission_not_granted"
+    });
     expect(requestPermissionsAsync).not.toHaveBeenCalled();
     expect(cancelAllScheduledNotificationsAsync).not.toHaveBeenCalled();
     expect(scheduleNotificationAsync).not.toHaveBeenCalled();
     expect(selectPetPushNotificationCandidates).not.toHaveBeenCalled();
   });
 
-  it("cancels existing scheduled notifications before scheduling new ones", async () => {
+  it("preserves a walk-owned id and cancels only garden and return ids", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+    const existingInventory = [
+      {
+        identifier: "walk-id",
+        content: {
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "walk",
+            mongchiNotificationKey: "walk_return",
+            mongchiNotificationAction: "walk"
+          }
+        },
+        trigger: null
+      },
+      {
+        identifier: "garden-id",
+        content: {
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "garden",
+            mongchiNotificationKey: "meal_due",
+            mongchiNotificationAction: "feed"
+          }
+        },
+        trigger: null
+      },
+      {
+        identifier: "return-id",
+        content: {
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "return",
+            mongchiNotificationKey: "return_after_1_day",
+            mongchiNotificationAction: "open_app"
+          }
+        },
+        trigger: null
+      },
+      { identifier: "foreign-id", content: { data: { source: "other-feature" } }, trigger: null }
+    ];
+    getAllScheduledNotificationsAsync.mockImplementation(async () =>
+      scheduleNotificationAsync.mock.calls.length === 0 ? existingInventory : buildScheduledInventory()
+    );
+
+    await syncScheduledPetNotifications(baseInput);
+
+    expect(cancelAllScheduledNotificationsAsync).not.toHaveBeenCalled();
+    expect(cancelScheduledNotificationAsync.mock.calls.map(([id]) => id)).toEqual(["garden-id", "return-id"]);
+  });
+
+  it("cancels owned scheduled notifications before scheduling new ones", async () => {
     getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
     selectPetPushNotificationCandidates.mockReturnValue([makeCandidate({ key: "meal_due" })]);
+    const existingInventory = [
+      {
+        identifier: "garden-id",
+        content: {
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "garden",
+            mongchiNotificationKey: "meal_due",
+            mongchiNotificationAction: "feed"
+          }
+        },
+        trigger: null
+      }
+    ];
+    getAllScheduledNotificationsAsync.mockImplementation(async () =>
+      scheduleNotificationAsync.mock.calls.length === 0 ? existingInventory : buildScheduledInventory()
+    );
 
     const callOrder: string[] = [];
-    cancelAllScheduledNotificationsAsync.mockImplementation(async () => {
+    cancelScheduledNotificationAsync.mockImplementation(async () => {
       callOrder.push("cancel");
     });
+    let callCount = 0;
     scheduleNotificationAsync.mockImplementation(async () => {
       callOrder.push("schedule");
-      return "notification-id";
+      callCount += 1;
+      return `notification-id-${callCount}`;
     });
 
     const result = await syncScheduledPetNotifications(baseInput);
@@ -186,10 +330,9 @@ describe("syncScheduledPetNotifications", () => {
 
     const result = await syncScheduledPetNotifications(baseInput);
 
-    // 2 "due now" reminders (capped) + the always-on +1d/+3d win-back ladder.
-    expect(scheduleNotificationAsync).toHaveBeenCalledTimes(4);
-    expect(result.scheduledCount).toBe(4);
-    expect(result.scheduledKeys).toEqual(["meal_urgent", "thirst_due", "return_after_1_day", "return_after_3_days"]);
+    expect(scheduleNotificationAsync).toHaveBeenCalledTimes(3);
+    expect(result.scheduledCount).toBe(3);
+    expect(result.scheduledKeys).toEqual(["meal_urgent", "return_after_1_day", "return_after_3_days"]);
   });
 
   it("still schedules the +1 day / +3 day win-back ladder when the engine returns no 'due now' candidates", async () => {
@@ -198,12 +341,160 @@ describe("syncScheduledPetNotifications", () => {
 
     const result = await syncScheduledPetNotifications(baseInput);
 
-    expect(cancelAllScheduledNotificationsAsync).toHaveBeenCalledTimes(1);
+    expect(getAllScheduledNotificationsAsync).toHaveBeenCalledTimes(2);
+    expect(cancelAllScheduledNotificationsAsync).not.toHaveBeenCalled();
     expect(scheduleNotificationAsync).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       scheduledCount: 2,
-      scheduledKeys: ["return_after_1_day", "return_after_3_days"]
+      scheduledKeys: ["return_after_1_day", "return_after_3_days"],
+      failedKeys: []
     });
+  });
+
+  it("reports partial schedule failures using actual successful ids", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([makeCandidate({ key: "meal_due" })]);
+    scheduleNotificationAsync
+      .mockResolvedValueOnce("garden-id")
+      .mockRejectedValueOnce(new Error("native schedule failed"))
+      .mockResolvedValueOnce("return-3-id");
+    getAllScheduledNotificationsAsync
+      .mockResolvedValueOnce([])
+      .mockImplementation(async () => {
+        const inventory = buildScheduledInventory(["garden-id", "unused-failed-id", "return-3-id"]);
+
+        return inventory.filter(({ identifier }) => identifier !== "unused-failed-id");
+      });
+
+    const result = await syncScheduledPetNotifications(baseInput);
+
+    expect(result).toMatchObject({
+      scheduledCount: 2,
+      scheduledKeys: ["meal_due", "return_after_3_days"],
+      failedKeys: ["return_after_1_day"]
+    });
+  });
+
+  it("does not count a duplicate native id as a second successful schedule", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+    scheduleNotificationAsync.mockResolvedValue("duplicate-id");
+    getAllScheduledNotificationsAsync
+      .mockResolvedValueOnce([])
+      .mockImplementation(async () => [buildScheduledInventory(["duplicate-id"])[0]]);
+
+    const result = await syncScheduledPetNotifications(baseInput);
+
+    expect(result).toMatchObject({
+      scheduledCount: 1,
+      scheduledKeys: ["return_after_1_day"],
+      failedKeys: ["return_after_3_days"]
+    });
+  });
+
+  it("does not claim scheduled success when returned native ids are absent from the post-schedule inventory", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+    getAllScheduledNotificationsAsync.mockResolvedValue([]);
+    scheduleNotificationAsync
+      .mockResolvedValueOnce("return-one")
+      .mockResolvedValueOnce("return-three");
+
+    const result = await syncScheduledPetNotifications(baseInput);
+
+    expect(getAllScheduledNotificationsAsync).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      scheduledCount: 0,
+      scheduledKeys: [],
+      failedKeys: ["return_after_1_day", "return_after_3_days"],
+      verificationFailure: "missing_native_inventory"
+    });
+  });
+
+  it("retries one transient post-schedule inventory query failure and confirms the second read", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+    getAllScheduledNotificationsAsync
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("transient inventory failure"))
+      .mockImplementation(async () => buildScheduledInventory());
+
+    const result = await syncScheduledPetNotifications(baseInput);
+
+    expect(getAllScheduledNotificationsAsync).toHaveBeenCalledTimes(3);
+    expect(result).toMatchObject({
+      scheduledCount: 2,
+      scheduledKeys: ["return_after_1_day", "return_after_3_days"],
+      failedKeys: []
+    });
+    expect(result).not.toHaveProperty("verificationFailure");
+  });
+
+  it("reports typed non-success when both post-schedule inventory attempts fail", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+    getAllScheduledNotificationsAsync
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("first inventory failure"))
+      .mockRejectedValueOnce(new Error("second inventory failure"));
+
+    const result = await syncScheduledPetNotifications(baseInput);
+
+    expect(getAllScheduledNotificationsAsync).toHaveBeenCalledTimes(3);
+    expect(result).toMatchObject({
+      scheduledCount: 0,
+      scheduledKeys: [],
+      failedKeys: ["return_after_1_day", "return_after_3_days"],
+      verificationFailure: "inventory_query_failed"
+    });
+  });
+
+  it("fails closed when an owned id cannot be cancelled and succeeds on the next retry", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    selectPetPushNotificationCandidates.mockReturnValue([]);
+    const existingInventory = [
+      {
+        identifier: "stale-return-id",
+        content: {
+          data: {
+            mongchiNotificationVersion: 1,
+            mongchiNotificationOwner: "return",
+            mongchiNotificationKey: "return_after_1_day",
+            mongchiNotificationAction: "open_app"
+          }
+        },
+        trigger: null
+      }
+    ];
+    getAllScheduledNotificationsAsync.mockImplementation(async () =>
+      scheduleNotificationAsync.mock.calls.length === 0 ? existingInventory : buildScheduledInventory()
+    );
+    cancelScheduledNotificationAsync.mockRejectedValueOnce(new Error("cancel failed"));
+
+    const failed = await syncScheduledPetNotifications(baseInput);
+    const retried = await syncScheduledPetNotifications(baseInput);
+
+    expect(failed).toMatchObject({
+      scheduledCount: 0,
+      skippedReason: "owned_cancellation_failed",
+      failedCancellationIds: ["stale-return-id"]
+    });
+    expect(retried).toMatchObject({ scheduledCount: 2, failedCancellationIds: [] });
+  });
+
+  it("clears prior owned ids but schedules nothing when both garden and return preferences are disabled", async () => {
+    getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
+    getAllScheduledNotificationsAsync.mockResolvedValue([]);
+
+    const result = await syncScheduledPetNotifications(baseInput, {
+      gardenCare: false,
+      returnReminders: false,
+      walkReturns: true
+    });
+
+    expect(selectPetPushNotificationCandidates).not.toHaveBeenCalled();
+    expect(scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ scheduledCount: 0, scheduledKeys: [], failedKeys: [] });
   });
 
   it("schedules the win-back ladder with day-scale (not 5-minute) triggers", async () => {

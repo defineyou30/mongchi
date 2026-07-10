@@ -146,11 +146,13 @@ describe("premium chat providers", () => {
       model?: unknown;
       store?: unknown;
       max_output_tokens?: unknown;
+      instructions?: unknown;
       input?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
       text?: { verbosity?: unknown; format?: Record<string, unknown> };
       metadata?: Record<string, unknown>;
     };
     const inputText = body.input?.[0]?.content?.find((part) => part.type === "input_text")?.text ?? "";
+    const instructions = typeof body.instructions === "string" ? body.instructions : "";
 
     expect(body.model).toBe("gpt-5.5");
     expect(body.store).toBe(false);
@@ -168,6 +170,9 @@ describe("premium chat providers", () => {
       conversation_id: "conv_chat_001",
       pet_id: "pet_chat_001"
     });
+    expect(instructions).toContain("inside the phone");
+    expect(instructions).not.toContain("terrarium");
+    expect(instructions).not.toContain("tiny garden");
     expect(inputText).toContain("Hello tiny friend");
     expect(inputText).toContain("Nori");
     expect(inputText).toContain("I saved a warm spot by the moss.");
@@ -189,7 +194,7 @@ describe("premium chat providers", () => {
         }
       })
     ).resolves.toEqual({
-      text: "지금 그 이야기는 안전하게 답하기 어려워요. 우리 작은 정원에서 편안한 이야기로 천천히 이어가요.",
+      text: "지금 그 이야기는 안전하게 답하기 어려워요. 네 곁에서 편안한 이야기로 천천히 이어가요.",
       safetyFlags: ["provider_refusal"]
     });
   });

@@ -296,7 +296,8 @@ describe("Postgres Node server factory", () => {
     ]);
     const { router } = createPostgresApiNodeServer({
       databaseClient: client,
-      allowMockAuth: true
+      allowMockAuth: true,
+      now: () => "2026-06-24T09:00:00.000Z"
     });
 
     const syncResponse = router.handle({

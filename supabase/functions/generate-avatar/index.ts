@@ -46,6 +46,11 @@ type PetSpecies = "dog" | "cat";
 type TalkingStyle = "cute" | "gentle" | "cheerful" | "comforting";
 
 type GeneratedAssetState = string;
+type EdgeRuntimeGlobal = typeof globalThis & {
+  EdgeRuntime?: {
+    waitUntil?: (promise: Promise<void>) => void;
+  };
+};
 
 // Mirrors packages/shared/src/domain/assets.ts's generatedAssetStates. Kept
 // as a local literal (rather than an import) because this Edge Function is
@@ -98,6 +103,7 @@ interface GenerateAvatarRequestBody {
   // the isExpressionPackRequest branch in the HTTP handler below.
   originalPhotoPath?: string;
   source_asset_path?: string;
+  expression_pack_id?: string;
   requested_states?: string[];
   // Idempotency key for any credit-funded request (currently: expression
   // packs). Client-supplied (a UUID generated once per logical purchase
@@ -138,8 +144,6 @@ const DEFAULT_IMAGE_MODEL = "gpt-image-1.5";
 const SAFETY_MODEL = "gpt-5.5";
 const BUCKET = "pet-media";
 
-// Default generation quality: "low" ($0.011/image) matches the free-tier
-// generation budget. Only override via env for paid/premium tiers.
 const DEFAULT_IMAGE_QUALITY = Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "low";
 
 // Short-window burst guard, separate from generation_quota's longer-lived
@@ -164,7 +168,18 @@ const EXPRESSION_PACK_CREDIT_COST = 12;
 // generation fans out per requested state. Deduplication happens before this
 // cap is enforced (see the isExpressionPackRequest validation below), so the
 // cap always bounds distinct, billable states -- not raw array length.
-const MAX_EXPRESSION_PACK_STATES = 6;
+const MAX_EXPRESSION_PACK_STATES = 3;
+
+const EXPRESSION_PACKS = [
+  { id: "pack-everyday-moments", states: ["curious", "play", "hungry"] },
+  { id: "pack-care-reactions", states: ["treat_reaction", "walk_return", "chat_portrait"] },
+  { id: "pack-special-days", states: ["celebrate", "garden_help", "seasonal"] }
+] as const;
+
+const getServerExpressionPack = (packId: string) => EXPRESSION_PACKS.find((pack) => pack.id === packId) ?? null;
+
+const sameStringArray = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
 
 // Charset for an incoming pet_id (see the GenerateAvatarRequestBody.pet_id
 // doc comment above). This is used verbatim as a storage path segment
@@ -737,13 +752,14 @@ const buildExpressionPackPrompt = (input: {
   talkingStyle?: TalkingStyle;
 }): string =>
   [
-    "Use the provided pixel-art sprite of a Mongchi companion avatar as the identity and style reference for a new pose.",
-    `Same exact ${input.species} character, same palette and outline style as the input sprite, only the pose/expression changes.`,
+    "Use the provided pixel-art sprite of a Mongchi companion avatar as the canonical identity and style reference for one additional expression-pack pose.",
+    `Same exact ${input.species} character, same palette, outline thickness, pixel density, scale, body proportions, markings, and bottom paw/contact anchor as the input sprite; only the pose/expression changes.`,
     `Pet species: ${input.species}.`,
     ...(input.petName ? [`Pet name for personality only, do not render text: ${input.petName}.`] : []),
     `Requested state: ${input.state}. ${statePosePrompts[input.state] ?? statePosePrompts.idle}`,
     `Personality tags: ${(input.personalityTags ?? []).join(", ") || "gentle"}.`,
     `Talking style: ${input.talkingStyle ?? "gentle"}.`,
+    "Expression-pack contract: this output will sit beside two sibling states in a 3-pose product pack, so preserve identity harder than novelty; make the requested state readable through posture, face, or a tiny attached cue, not through a new costume, prop set, or background.",
     ...contractPromptLines,
     "App integration contract: one complete pet only, centered, full body unless the requested state is chat_portrait, generous padding, no text, no UI, no watermark, no frame, no scenery, no full floor, no detached props except a tiny attached state cue when explicitly allowed.",
     ...stylePromptLines
@@ -1477,6 +1493,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "invalid_request" }, 400);
   }
 
+  if (!isExpressionPackRequest && typeof body.originalPhotoPath === "string" && !body.originalPhotoPath.startsWith(`original-photos/${userId}/`)) {
+    return jsonResponse({ error: "invalid_request" }, 400);
+  }
+
   // service_role client for privileged writes (quota, job rows, storage) --
   // created here (rather than further down) because the expression pack
   // pet-ownership check right below needs it.
@@ -1485,13 +1505,25 @@ Deno.serve(async (req: Request) => {
   });
 
   let requestedStates: string[] = [];
+  let expressionPackRequestId: string | null = null;
+  let expressionPackSourceAssetPath: string | null = null;
 
   if (isExpressionPackRequest) {
     if (
       !Array.isArray(body.requested_states) ||
       body.requested_states.length === 0 ||
-      !body.requested_states.every((state) => typeof state === "string" && KNOWN_ASSET_STATES.includes(state))
+      !body.requested_states.every((state) => typeof state === "string" && KNOWN_ASSET_STATES.includes(state)) ||
+      typeof body.expression_pack_id !== "string" ||
+      body.expression_pack_id.trim().length === 0
     ) {
+      return jsonResponse({ error: "invalid_request" }, 400);
+    }
+
+    const sourceAssetPath = body.source_asset_path ?? "";
+    expressionPackSourceAssetPath = sourceAssetPath;
+    const expressionPack = getServerExpressionPack(body.expression_pack_id.trim());
+
+    if (!expressionPack) {
       return jsonResponse({ error: "invalid_request" }, 400);
     }
 
@@ -1500,11 +1532,17 @@ Deno.serve(async (req: Request) => {
     // through the length check below -- see MAX_EXPRESSION_PACK_STATES.
     const dedupedStates = Array.from(new Set(body.requested_states));
 
-    if (dedupedStates.length === 0 || dedupedStates.length > MAX_EXPRESSION_PACK_STATES) {
+    if (
+      dedupedStates.length === 0 ||
+      dedupedStates.length > MAX_EXPRESSION_PACK_STATES ||
+      !sameStringArray(dedupedStates, expressionPack.states)
+    ) {
       return jsonResponse({ error: "invalid_request" }, 400);
     }
 
-    requestedStates = dedupedStates;
+    requestedStates = [...expressionPack.states];
+    expressionPackRequestId =
+      typeof body.request_id === "string" && body.request_id.trim().length > 0 ? body.request_id.trim() : crypto.randomUUID();
 
     // Ownership check: the Edge Function runs with the service_role key
     // (bypasses RLS) and downloads whatever path it's given, so an
@@ -1513,7 +1551,7 @@ Deno.serve(async (req: Request) => {
     // avatars/{user_id}/{job_id}/{state}.png (or, pet-namespaced,
     // avatars/{user_id}/{pet_id}/{job_id}/{state}.png) layout this same
     // function writes to on upload (see the "f. Upload assets" step below).
-    if (!body.source_asset_path!.startsWith(`avatars/${userId}/`)) {
+    if (!sourceAssetPath.startsWith(`avatars/${userId}/`)) {
       return jsonResponse({ error: "invalid_request" }, 400);
     }
 
@@ -1528,7 +1566,7 @@ Deno.serve(async (req: Request) => {
       .from("generated_assets")
       .select("id")
       .eq("user_id", userId)
-      .eq("storage_path", body.source_asset_path!);
+      .eq("storage_path", sourceAssetPath);
     seedOwnershipQuery =
       requestedPetId === null ? seedOwnershipQuery.is("pet_id", null) : seedOwnershipQuery.eq("pet_id", requestedPetId);
 
@@ -1540,6 +1578,36 @@ Deno.serve(async (req: Request) => {
 
     if (!seedAssetRow) {
       return jsonResponse({ error: "invalid_request" }, 400);
+    }
+
+    if (expressionPackRequestId) {
+      const { data: existingJob, error: existingJobError } = await admin
+        .from("generation_jobs")
+        .select("id, source_asset_path, required_states, pet_id")
+        .eq("user_id", userId)
+        .eq("credit_ref", expressionPackRequestId)
+        .maybeSingle();
+
+      if (existingJobError) {
+        return jsonResponse({ error: "job_idempotency_check_failed" }, 500);
+      }
+
+      if (existingJob) {
+        const existing = existingJob as {
+          id: string;
+          source_asset_path: string | null;
+          required_states: string[] | null;
+          pet_id: string | null;
+        };
+        const samePet = requestedPetId === null ? existing.pet_id === null : existing.pet_id === requestedPetId;
+        const sameStates = Array.isArray(existing.required_states) && sameStringArray(existing.required_states, requestedStates);
+
+        if (existing.source_asset_path === sourceAssetPath && samePet && sameStates) {
+          return jsonResponse({ jobId: existing.id }, 202);
+        }
+
+        return jsonResponse({ error: "idempotency_conflict" }, 409);
+      }
     }
   }
 
@@ -1605,8 +1673,7 @@ Deno.serve(async (req: Request) => {
   let usedPetSlotBundle = false;
 
   if (isExpressionPackRequest) {
-    const requestId =
-      typeof body.request_id === "string" && body.request_id.trim().length > 0 ? body.request_id.trim() : crypto.randomUUID();
+    const requestId = expressionPackRequestId ?? crypto.randomUUID();
 
     const { data: newBalance, error: consumeError } = await admin.rpc("consume_credits", {
       p_user: userId,
@@ -1678,13 +1745,39 @@ Deno.serve(async (req: Request) => {
       original_photo_path: isExpressionPackRequest ? null : body.originalPhotoPath,
       credit_ref: creditRef,
       pet_id: requestedPetId,
-      ...(isExpressionPackRequest ? { source_asset_path: body.source_asset_path, required_states: requestedStates } : {}),
+      ...(isExpressionPackRequest ? { source_asset_path: expressionPackSourceAssetPath, required_states: requestedStates } : {}),
       ...(!isExpressionPackRequest && TEST_STATES_OVERRIDE ? { required_states: TEST_STATES_OVERRIDE } : {})
     })
     .select("id, user_id, status, input_snapshot, required_states, original_photo_path, source_asset_path, credit_ref, pet_id")
     .single();
 
   if (insertError || !insertedJob) {
+    if (isExpressionPackRequest && creditRef) {
+      const { data: existingJob, error: existingJobError } = await admin
+        .from("generation_jobs")
+        .select("id, source_asset_path, required_states, pet_id")
+        .eq("user_id", userId)
+        .eq("credit_ref", creditRef)
+        .maybeSingle();
+
+      if (!existingJobError && existingJob) {
+        const existing = existingJob as {
+          id: string;
+          source_asset_path: string | null;
+          required_states: string[] | null;
+          pet_id: string | null;
+        };
+        const samePet = requestedPetId === null ? existing.pet_id === null : existing.pet_id === requestedPetId;
+        const sameStates = Array.isArray(existing.required_states) && sameStringArray(existing.required_states, requestedStates);
+
+        if (existing.source_asset_path === expressionPackSourceAssetPath && samePet && sameStates) {
+          return jsonResponse({ jobId: existing.id }, 202);
+        }
+
+        return jsonResponse({ error: "idempotency_conflict" }, 409);
+      }
+    }
+
     if (creditRef) {
       await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
     } else if (usedPetSlotBundle) {
@@ -1697,8 +1790,7 @@ Deno.serve(async (req: Request) => {
 
   const job = insertedJob as GenerationJobRow;
 
-  // deno-lint-ignore no-explicit-any
-  const runtime = (globalThis as any).EdgeRuntime;
+  const runtime = (globalThis as EdgeRuntimeGlobal).EdgeRuntime;
 
   // openAiApiKey is only genuinely absent when DRY_RUN is active (the
   // server_misconfigured check above already guarantees that combination is

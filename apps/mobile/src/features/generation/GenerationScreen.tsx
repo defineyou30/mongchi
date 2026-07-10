@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Gift, Heart, RotateCcw, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,8 +13,8 @@ import { BackButton } from "../../shared/ui/BackButton";
 import { TerrariumArt } from "../../shared/ui/GameIllustrations";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
-import { shouldAutoStartGeneration } from "./generationAutoStartPolicy";
 import { getGenerationMotionPolicy } from "./generationMotionPolicy";
+import { getGenerationPresentation, playGenerationStartCueOnce } from "./generationPresentation";
 
 // Rotating personalized narration keeps the wait feeling like the pet is being
 // hand-crafted rather than a spinner running.
@@ -77,11 +77,14 @@ export function GenerationScreen() {
     generationPollSnapshot,
     generationProgress,
     pollMockGeneration,
-    retryMockGeneration,
-    startMockGeneration
+    retryMockGeneration
   } = useTerrariumSession();
+  const generationPresentation = getGenerationPresentation({
+    activeGenerationJobId: petProfile?.activeGenerationJobId,
+    status: generation.status
+  });
   const completed = generation.status === "completed";
-  const failed = generation.status === "failed";
+  const failed = generationPresentation.showsPausedFailure;
   const isQuotaFailure = failed && generation.failureCode === "generation_quota_exceeded";
   const [observationIndex, setObservationIndex] = useState(0);
   const [warmTapCount, setWarmTapCount] = useState(0);
@@ -106,33 +109,11 @@ export function GenerationScreen() {
     status: generation.status
   });
 
-  // Auto-start guard: fires startMockGeneration at most once per screen
-  // mount (see generationAutoStartPolicy.ts for why generation.status alone
-  // is not a safe trigger -- the server's "created" job status can recur via
-  // polling and looks identical to the pre-start value).
-  const autoStartAttemptedRef = useRef(false);
-
   useEffect(() => {
-    if (
-      !shouldAutoStartGeneration({
-        // The single source of truth here is state.petProfile's own job id,
-        // never activePet's -- activePet falls back to a synthesized
-        // placeholder profile (buildPrototypePetProfile, activeGenerationJobId
-        // "gen_local_001") whenever state.petProfile is still null, and that
-        // synthetic id must never be mistaken for a real in-flight job. See
-        // generationAutoStartPolicy.ts / generationJobGuards.ts for why the
-        // guard and the auto-start decision must never drift on this.
-        activeGenerationJobId: petProfile?.activeGenerationJobId,
-        status: generation.status,
-        alreadyAttempted: autoStartAttemptedRef.current
-      })
-    ) {
-      return;
+    if (generationPresentation.guidance) {
+      playGenerationStartCueOnce(petProfile?.activeGenerationJobId);
     }
-
-    autoStartAttemptedRef.current = true;
-    startMockGeneration();
-  }, [petProfile?.activeGenerationJobId, generation.status, startMockGeneration]);
+  }, [generationPresentation.guidance, petProfile?.activeGenerationJobId]);
 
   useEffect(() => {
     // Re-enables "Try again" whenever a fresh failure lands, not just when
@@ -226,7 +207,7 @@ export function GenerationScreen() {
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${generationProgress}%` }]} />
         </View>
-        {!failed ? <Text style={styles.pollText}>{hatchingStatusCopy[generationPollSnapshot.status]}</Text> : null}
+        {!failed ? <Text style={styles.pollText}>{generationPresentation.statusCopy ?? hatchingStatusCopy[generationPollSnapshot.status]}</Text> : null}
         {!completed && !failed ? <Text style={styles.observationText}>{observationLine}</Text> : null}
       </View>
 
@@ -234,6 +215,7 @@ export function GenerationScreen() {
         <View style={styles.recapCard}>
           <Text style={styles.recapTitle}>Who's on the way</Text>
           <Text style={styles.recapLine}>{whosOnTheWayTeaser}</Text>
+          {generationPresentation.guidance ? <Text style={styles.resumeGuidance}>{generationPresentation.guidance}</Text> : null}
         </View>
       ) : null}
 
@@ -431,6 +413,12 @@ const styles = StyleSheet.create({
     color: colors.mutedInk,
     fontSize: 12,
     lineHeight: 18,
+    fontWeight: "700"
+  },
+  resumeGuidance: {
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: "700"
   },
   track: {

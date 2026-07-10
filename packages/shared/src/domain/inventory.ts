@@ -56,6 +56,14 @@ export interface InventoryEntry {
   source: InventorySource;
 }
 
+export interface PendingExpressionPackJob {
+  packId: string;
+  jobId: string;
+  requestId: string;
+  petId: string;
+  startedAt: ISODateTime;
+}
+
 /**
  * Dormant on the mobile app: no live code path places or removes items
  * anymore (see sessionMigrations v2 -> v3, which strips this from every
@@ -95,6 +103,7 @@ export interface Inventory {
    * purchasePrototypeExpressionPack and the friend page's pose gallery).
    */
   ownedExpressionPackIds?: string[];
+  pendingExpressionPackJobs?: PendingExpressionPackJob[];
   placedItems: PlacedItem[];
   plantGrowth?: PlantGrowthEntry[];
   updatedAt: ISODateTime;
