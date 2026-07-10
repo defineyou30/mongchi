@@ -5,10 +5,6 @@ import { bgmAssetSources, bgmTrackForTimeOfDay } from "./bgmAssets";
 import type { BgmTrackId } from "./bgmAssets";
 import { getActiveAudioSettings } from "./useAudioSettings";
 
-// BGM sits well under SFX/jingles since it loops continuously underneath
-// every interaction -- see synth_bgm.py's -14/-16dBFS RMS target for the
-// placeholder tracks themselves. This is the steady-state ceiling; ducking
-// (see duckBgm below) temporarily multiplies it down further.
 const BGM_VOLUME = 0.55;
 
 // How long a crossfade between two BGM tracks (day<->night swap) takes.
@@ -33,6 +29,9 @@ let players: Partial<Record<BgmTrackId, AudioPlayer>> | null = null;
 // without needing the screen that originally called playBgm to remount.
 let desiredTrackId: BgmTrackId | null = null;
 let duckDepth = 0; // number of overlapping duckBgm() calls currently active
+let scheduledStopTimers: Partial<Record<BgmTrackId, ReturnType<typeof setTimeout>>> = {};
+let trackLifecycleTokens: Partial<Record<BgmTrackId, number>> = {};
+let nextTrackLifecycleToken = 1;
 
 const getOrCreatePlayers = (): Partial<Record<BgmTrackId, AudioPlayer>> => {
   if (!players) {
@@ -117,7 +116,40 @@ const rampVolume = (player: AudioPlayer, target: number, durationMs: number): vo
   setTimeout(tick, VOLUME_STEP_MS);
 };
 
-const playTrackSilently = (player: AudioPlayer): void => {
+const clearScheduledStop = (trackId: BgmTrackId): void => {
+  const timer = scheduledStopTimers[trackId];
+
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    delete scheduledStopTimers[trackId];
+  }
+};
+
+const markTrackReactivated = (trackId: BgmTrackId): void => {
+  clearScheduledStop(trackId);
+  trackLifecycleTokens[trackId] = nextTrackLifecycleToken;
+  nextTrackLifecycleToken += 1;
+};
+
+const scheduleTrackStop = (trackId: BgmTrackId, player: AudioPlayer): void => {
+  clearScheduledStop(trackId);
+  const lifecycleToken = nextTrackLifecycleToken;
+  nextTrackLifecycleToken += 1;
+  trackLifecycleTokens[trackId] = lifecycleToken;
+
+  scheduledStopTimers[trackId] = setTimeout(() => {
+    if (trackLifecycleTokens[trackId] !== lifecycleToken) {
+      return;
+    }
+
+    delete scheduledStopTimers[trackId];
+    stopTrack(player);
+  }, CROSSFADE_MS + VOLUME_STEP_MS);
+};
+
+const playTrackSilently = (trackId: BgmTrackId, player: AudioPlayer): void => {
+  markTrackReactivated(trackId);
+
   try {
     if (!player.playing) {
       player.play();
@@ -164,14 +196,14 @@ export const playBgm = (trackId: BgmTrackId): void => {
     return;
   }
 
-  playTrackSilently(nextPlayer);
+  playTrackSilently(trackId, nextPlayer);
   rampVolume(nextPlayer, targetVolumeForTrack(trackId), CROSSFADE_MS);
 
   if (previousTrackId && previousTrackId !== trackId) {
     const previousPlayer = allPlayers[previousTrackId];
     if (previousPlayer) {
       rampVolume(previousPlayer, 0, CROSSFADE_MS);
-      setTimeout(() => stopTrack(previousPlayer), CROSSFADE_MS + VOLUME_STEP_MS);
+      scheduleTrackStop(previousTrackId, previousPlayer);
     }
   }
 };
@@ -187,13 +219,14 @@ export const stopBgm = (): void => {
     return;
   }
 
+  const trackId = desiredTrackId;
   const allPlayers = getOrCreatePlayers();
-  const player = allPlayers[desiredTrackId];
+  const player = allPlayers[trackId];
   desiredTrackId = null;
 
   if (player) {
     rampVolume(player, 0, CROSSFADE_MS);
-    setTimeout(() => stopTrack(player), CROSSFADE_MS + VOLUME_STEP_MS);
+    scheduleTrackStop(trackId, player);
   }
 };
 
@@ -216,11 +249,11 @@ export const syncBgmWithSettings = (): void => {
   }
 
   if (getActiveAudioSettings().musicEnabled) {
-    playTrackSilently(player);
+    playTrackSilently(desiredTrackId, player);
     rampVolume(player, targetVolumeForTrack(desiredTrackId), CROSSFADE_MS);
   } else {
     rampVolume(player, 0, CROSSFADE_MS);
-    setTimeout(() => stopTrack(player), CROSSFADE_MS + VOLUME_STEP_MS);
+    scheduleTrackStop(desiredTrackId, player);
   }
 };
 
@@ -269,22 +302,23 @@ const applyDuckToActiveTrack = (): void => {
   rampVolume(player, targetVolumeForTrack(desiredTrackId), DUCK_RAMP_MS);
 };
 
+const pauseExistingBgmPlayers = (): void => {
+  Object.values(players ?? {}).forEach((player) => {
+    if (!player?.playing) {
+      return;
+    }
+
+    try {
+      player.pause();
+    } catch {
+      // Silent: see stopTrack doc comment above.
+    }
+  });
+};
+
 /** Pauses BGM without resetting position or the crossfade/duck state -- for AppState backgrounding. */
 export const pauseBgmForBackground = (): void => {
-  if (!desiredTrackId) {
-    return;
-  }
-
-  const player = getOrCreatePlayers()[desiredTrackId];
-  if (!player) {
-    return;
-  }
-
-  try {
-    player.pause();
-  } catch {
-    // Silent: see stopTrack doc comment above.
-  }
+  pauseExistingBgmPlayers();
 };
 
 /** Resumes BGM after returning to foreground, if a track was desired and Music is still enabled. */
@@ -298,14 +332,23 @@ export const resumeBgmForForeground = (): void => {
     return;
   }
 
-  playTrackSilently(player);
+  playTrackSilently(desiredTrackId, player);
 };
 
 /** Test-only: lets each test start from a clean player cache and playback state. */
 export const resetBgmPlayerForTests = (): void => {
+  Object.values(scheduledStopTimers).forEach((timer) => {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  });
+
   players = null;
   desiredTrackId = null;
   duckDepth = 0;
+  scheduledStopTimers = {};
+  trackLifecycleTokens = {};
+  nextTrackLifecycleToken = 1;
 };
 
 /** Test-only: current desired/active track id, for assertions. */

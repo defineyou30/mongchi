@@ -59,13 +59,13 @@ describe("ambiencePlayer", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetAmbiencePlayerForTests();
-    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
     createAudioPlayer.mockReset();
     createAudioPlayer.mockImplementation(() => makeFakePlayer());
   });
 
   afterEach(() => {
-    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
     vi.useRealTimers();
   });
 
@@ -120,6 +120,20 @@ describe("ambiencePlayer", () => {
       expect(birdsPlayer.pause).toHaveBeenCalled();
     });
 
+    it("does not let a stale crossfade stop timer pause a track that has been reactivated", async () => {
+      playAmbienceTrack("amb_birds");
+      const birdsPlayer = createAudioPlayer.mock.results[0]!.value as FakePlayer;
+      await flushRamp();
+
+      playAmbienceTrack("amb_rain");
+      await vi.advanceTimersByTimeAsync(1000);
+
+      playAmbienceTrack("amb_birds");
+      await flushRamp();
+
+      expect(birdsPlayer.playing).toBe(true);
+    });
+
     it("does not restart when the mapped track is unchanged (e.g. clear -> partly_cloudy)", () => {
       playAmbienceForWeather("clear");
       const callsAfterFirst = createAudioPlayer.mock.calls.length;
@@ -130,7 +144,7 @@ describe("ambiencePlayer", () => {
     });
 
     it("does not play when the Music setting is off", async () => {
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
 
       playAmbienceForWeather("clear");
       preloadAmbience();
@@ -179,11 +193,11 @@ describe("ambiencePlayer", () => {
       preloadAmbience();
       const player = createAudioPlayer.mock.results[1]!.value as FakePlayer;
 
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
       playAmbienceTrack("amb_rain");
       expect(player.play).not.toHaveBeenCalled();
 
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
       syncAmbienceWithSettings();
       await flushRamp();
 
@@ -196,7 +210,7 @@ describe("ambiencePlayer", () => {
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
       await flushRamp();
 
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
       syncAmbienceWithSettings();
       await flushRamp();
 
@@ -206,6 +220,28 @@ describe("ambiencePlayer", () => {
   });
 
   describe("pauseAmbienceForBackground / resumeAmbienceForForeground", () => {
+    it("pauses both tracks while a crossfade is in progress", async () => {
+      playAmbienceTrack("amb_birds");
+      const birdsPlayer = createAudioPlayer.mock.results[0]!.value as FakePlayer;
+      await flushRamp();
+
+      playAmbienceTrack("amb_rain");
+      const rainPlayer = createAudioPlayer.mock.results[1]!.value as FakePlayer;
+      pauseAmbienceForBackground();
+
+      expect(birdsPlayer.pause).toHaveBeenCalled();
+      expect(rainPlayer.pause).toHaveBeenCalled();
+      expect(birdsPlayer.playing).toBe(false);
+      expect(rainPlayer.playing).toBe(false);
+
+      birdsPlayer.play.mockClear();
+      rainPlayer.play.mockClear();
+      resumeAmbienceForForeground();
+
+      expect(birdsPlayer.play).not.toHaveBeenCalled();
+      expect(rainPlayer.play).toHaveBeenCalled();
+    });
+
     it("pauses without resetting position, and resumes on foreground", () => {
       playAmbienceTrack("amb_birds");
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
@@ -224,7 +260,7 @@ describe("ambiencePlayer", () => {
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
       pauseAmbienceForBackground();
       player.play.mockClear();
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
 
       resumeAmbienceForForeground();
 

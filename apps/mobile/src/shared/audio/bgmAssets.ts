@@ -1,18 +1,3 @@
-/**
- * BGM track id -> bundled asset manifest (Phase 2, see
- * docs/gamefeel-sound-plan.md §2). Kept separate from audioAssets.ts (the
- * SFX manifest) since music loops have very different loading/looping needs
- * than one-shot SFX -- see the note at the top of audioAssets.ts.
- *
- * PLACEHOLDER: apps/mobile/assets/audio/bgm_garden_day.m4a and
- * bgm_garden_night.m4a are synthesized lo-fi music-box/kalimba placeholder
- * loops (see /private/tmp .../scratchpad/synth_bgm.py used to generate
- * them), not curated assets. They exist so the crossfade/day-night wiring
- * can be built and tested end-to-end before sourcing real BGM (itch.io
- * royalty-free pack per the plan doc's sourcing section). Swap the
- * `require(...)` targets below in place when curated assets land -- no
- * other code should need to change.
- */
 export type BgmTrackId = "bgm_garden_day" | "bgm_garden_night";
 
 export const bgmAssetSources: Record<BgmTrackId, number> = {

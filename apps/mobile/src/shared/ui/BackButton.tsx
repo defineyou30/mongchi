@@ -1,8 +1,8 @@
-import { ArrowLeft } from "lucide-react-native";
 import { Pressable, StyleSheet } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 
-import { colors, shadows } from "../design/tokens";
+import { shadows } from "../design/tokens";
+import { MongchiIcon } from "./MongchiIcon";
 
 interface BackButtonProps {
   accessibilityLabel?: string;
@@ -11,7 +11,7 @@ interface BackButtonProps {
 }
 
 /**
- * Shared circular back button — same cream tile + ArrowLeft glyph used by
+ * Shared circular back button — same cream tile + Mongchi back artwork used by
  * GardenSceneFrame's built-in back button, extracted so screens that need
  * custom placement (spacing, in-flow layout) can render it themselves
  * instead of relying on GardenSceneFrame's absolute-positioned slot.
@@ -25,7 +25,7 @@ export function BackButton({ accessibilityLabel = "Back", onPress, style }: Back
       style={({ pressed }) => [styles.backButton, pressed ? styles.backButtonPressed : null, style]}
       onPress={onPress}
     >
-      <ArrowLeft color={colors.woodDark} size={22} strokeWidth={3.2} />
+      <MongchiIcon id="back" size={26} />
     </Pressable>
   );
 }

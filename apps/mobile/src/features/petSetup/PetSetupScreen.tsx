@@ -31,7 +31,7 @@ const talkingStyleOptions: Array<{ value: TalkingStyle; label: string }> = [
 ];
 
 export function PetSetupScreen() {
-  const { draft, canContinuePetSetup, updateDraft, togglePersonalityTag } = useTerrariumSession();
+  const { draft, canContinuePetSetup, updateDraft, togglePersonalityTag, startMockGeneration } = useTerrariumSession();
   const setupSummary = getPetSetupSummaryPresentation(draft);
   const fontFamilies = useFontFamilies();
 
@@ -143,7 +143,10 @@ export function PetSetupScreen() {
         label="Continue"
         Icon={ArrowRight}
         disabled={!canContinuePetSetup}
-        onPress={() => router.push("/generation")}
+        onPress={() => {
+          startMockGeneration();
+          router.push("/generation");
+        }}
       />
       {!canContinuePetSetup ? (
         <Text style={[styles.continueHint, { fontFamily: fontFamilies.body }]}>Pick a name, a mood, and a voice to continue.</Text>

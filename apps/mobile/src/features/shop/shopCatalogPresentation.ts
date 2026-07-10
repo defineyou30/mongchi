@@ -1,5 +1,5 @@
 import { DEFAULT_THEME_ID, getCreditItemPrice, isTreatInventoryItem } from "@mongchi/shared";
-import type { CommerceProduct, Entitlement, Inventory, Item, ItemId } from "@mongchi/shared";
+import type { CommerceProduct, Entitlement, ExpressionPack, GeneratedAssetState, Inventory, Item, ItemId } from "@mongchi/shared";
 
 // Starter kit items granted for free at signup (see mockInventory) — they
 // have no purchase path and no in-game use beyond the fixed care-action
@@ -35,6 +35,23 @@ export interface ShopSummaryPresentation {
   ownedQuantity: number;
   plusLabel: string;
   visibleCount: number;
+}
+
+export type ExpressionPackShopStatus = "owned" | "generating" | "purchasing" | "failed" | "available" | "locked";
+
+export interface ExpressionPackShopPresentation {
+  status: ExpressionPackShopStatus;
+  ownedStateCount: number;
+  totalStateCount: number;
+  canAct: boolean;
+  priceLabel: string;
+  statusLabel: string;
+  actionLabel: string;
+}
+
+interface ExpressionPackPurchaseStatusLike {
+  readonly status: "pending" | "failed";
+  readonly failureMessageSafe?: string;
 }
 
 export const premiumPassFallbackProduct: CommerceProduct = {
@@ -139,6 +156,81 @@ export const getLocalShopSummaryPresentation = (
     ownedQuantity: inventory.items.reduce((total, item) => total + item.quantity, 0),
     plusLabel: premiumPass.active ? "Active" : "Plus locked",
     visibleCount: items.length
+  };
+};
+
+export const getExpressionPackShopPresentation = (
+  pack: ExpressionPack,
+  acceptedAssetStates: readonly GeneratedAssetState[],
+  inventory: Inventory,
+  purchaseStatus: ExpressionPackPurchaseStatusLike | undefined,
+  devStoreUnlocked: boolean,
+  creditBalance: number
+): ExpressionPackShopPresentation => {
+  const acceptedStateSet = new Set(acceptedAssetStates);
+  const ownedStateCount = pack.states.filter((state) => acceptedStateSet.has(state)).length;
+  const totalStateCount = pack.states.length;
+  const fullyUnlocked = ownedStateCount === totalStateCount;
+  const recordedOwned = (inventory.ownedExpressionPackIds ?? []).includes(pack.id);
+
+  if (fullyUnlocked) {
+    return {
+      status: "owned",
+      ownedStateCount,
+      totalStateCount,
+      canAct: false,
+      priceLabel: "Owned",
+      statusLabel: `${ownedStateCount}/${totalStateCount} kept`,
+      actionLabel: "Owned"
+    };
+  }
+
+  if (purchaseStatus?.status === "pending") {
+    return {
+      status: "purchasing",
+      ownedStateCount,
+      totalStateCount,
+      canAct: false,
+      priceLabel: "Making",
+      statusLabel: "Generating",
+      actionLabel: "Making..."
+    };
+  }
+
+  const affordable = devStoreUnlocked || creditBalance >= pack.creditCost;
+
+  if (purchaseStatus?.status === "failed") {
+    return {
+      status: "failed",
+      ownedStateCount,
+      totalStateCount,
+      canAct: affordable,
+      priceLabel: `${pack.creditCost} cr`,
+      statusLabel: "Retry",
+      actionLabel: affordable ? "Retry pack" : "Need credits"
+    };
+  }
+
+  if (recordedOwned) {
+    return {
+      status: "generating",
+      ownedStateCount,
+      totalStateCount,
+      canAct: false,
+      priceLabel: "Saving",
+      statusLabel: `${ownedStateCount}/${totalStateCount} ready`,
+      actionLabel: "Saving..."
+    };
+  }
+
+  return {
+    status: affordable ? "available" : "locked",
+    ownedStateCount,
+    totalStateCount,
+    canAct: affordable,
+    priceLabel: `${pack.creditCost} cr`,
+    statusLabel: affordable ? "Available" : "Locked",
+    actionLabel: affordable ? "Unlock pack" : "Need credits"
   };
 };
 

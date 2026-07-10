@@ -9,6 +9,11 @@ import { getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPet
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { TerrariumArt } from "../../shared/ui/GameIllustrations";
+import {
+  BRANDED_SHARE_CARD_SIZE,
+  BrandedPetShareCard
+} from "../../shared/share/MongchiShareCard";
+import type { BrandedPetShareCardHandle } from "../../shared/share/MongchiShareCard";
 import { buildPetRevealShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
@@ -20,6 +25,7 @@ export function PetRevealScreen() {
   const petAssetId = acceptedAsset?.id ?? getFallbackGeneratedPetAssetId(activePet.species, "happy");
   const petAssetUri = generatedAssetUriById[petAssetId] ?? null;
   const [isSharing, setIsSharing] = useState(false);
+  const shareCardRef = useRef<BrandedPetShareCardHandle>(null);
 
   // A completed generation's signed asset URLs are time-limited and may have
   // been signed a while ago (e.g. the user backgrounded the app between
@@ -63,9 +69,11 @@ export function PetRevealScreen() {
 
     setIsSharing(true);
     try {
+      const brandedCardUri = (await shareCardRef.current?.capture()) ?? null;
+
       await sharePetCard({
         petName: activePet.name,
-        assetUri: petAssetUri,
+        brandedCardUri,
         message: buildPetRevealShareMessage(activePet.name)
       });
     } finally {
@@ -75,6 +83,15 @@ export function PetRevealScreen() {
 
   return (
     <GardenSceneFrame accessibilityLabel={`${activePet.name}'s reveal`}>
+      <View style={styles.shareCaptureHost}>
+        <BrandedPetShareCard
+          ref={shareCardRef}
+          assetId={petAssetId}
+          petAssetUri={petAssetUri}
+          petName={activePet.name}
+        />
+      </View>
+
       <BackButton accessibilityLabel="Back to moving-in" onPress={() => router.replace("/generation")} />
 
       <TerrariumArt
@@ -130,6 +147,13 @@ export function PetRevealScreen() {
 }
 
 const styles = StyleSheet.create({
+  shareCaptureHost: {
+    position: "absolute",
+    left: -BRANDED_SHARE_CARD_SIZE.width - spacing.xl,
+    top: 0,
+    width: BRANDED_SHARE_CARD_SIZE.width,
+    height: BRANDED_SHARE_CARD_SIZE.height
+  },
   revealScene: {
     minHeight: 398
   },

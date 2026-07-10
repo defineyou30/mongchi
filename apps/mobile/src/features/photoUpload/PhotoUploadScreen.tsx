@@ -18,8 +18,7 @@ import { photoUploadScreenStyles as styles } from "./photoUploadScreen.styles";
 export function PhotoUploadScreen() {
   const { showDialog } = useAppDialog();
   const fontFamilies = useFontFamilies();
-  const { activePet, photo, canContinuePhotoStep, setConsentAccepted, setMockPhotoSelected, setSelectedPhotoUri, startMockGeneration } =
-    useTerrariumSession();
+  const { activePet, photo, canContinuePhotoStep, setConsentAccepted, setMockPhotoSelected, setSelectedPhotoUri } = useTerrariumSession();
 
   const selectedPhotoUri = photo.selectedPhotoUri?.startsWith("sample://") ? null : photo.selectedPhotoUri;
   const selected = photo.selectedMockPhoto || !!photo.selectedPhotoUri;
@@ -113,7 +112,6 @@ export function PhotoUploadScreen() {
   );
 
   const handleContinue = () => {
-    startMockGeneration();
     router.push("/pet-setup");
   };
 

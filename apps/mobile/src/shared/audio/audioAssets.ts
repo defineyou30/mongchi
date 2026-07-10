@@ -1,18 +1,3 @@
-/**
- * SFX id -> bundled asset manifest (Phase 1: SFX only, see
- * docs/gamefeel-sound-plan.md §2). BGM/ambience players are Phase 2 and will
- * get their own manifest file (bgmAssets.ts / ambienceAssets.ts) rather than
- * growing this one, since music loops have very different loading/looping
- * needs than one-shot SFX.
- *
- * PLACEHOLDER: every file under apps/mobile/assets/audio/ right now is a
- * synthesized sine/triangle-wave placeholder (see
- * /private/tmp .../scratchpad/synth_sfx.py used to generate them), not a
- * curated asset. They exist so the wiring and mix behavior can be built and
- * tested end-to-end before sourcing real SFX (Kenney/freesound/BeepBox per
- * the plan doc's sourcing section). Swap the `require(...)` targets below in
- * place when curated assets land -- no other code should need to change.
- */
 export type SfxId =
   | "sfx_tap"
   | "sfx_feed"
@@ -25,7 +10,10 @@ export type SfxId =
   | "jingle_levelup"
   | "jingle_discovery"
   | "jingle_letter"
-  | "sfx_reveal";
+  | "sfx_reveal"
+  | "sfx_clean"
+  | "sfx_walk_return"
+  | "sfx_purchase";
 
 export const sfxAssetSources: Record<SfxId, number> = {
   sfx_tap: require("../../../assets/audio/sfx_tap.m4a"),
@@ -39,10 +27,12 @@ export const sfxAssetSources: Record<SfxId, number> = {
   jingle_levelup: require("../../../assets/audio/jingle_levelup.m4a"),
   jingle_discovery: require("../../../assets/audio/jingle_discovery.m4a"),
   jingle_letter: require("../../../assets/audio/jingle_letter.m4a"),
-  sfx_reveal: require("../../../assets/audio/sfx_reveal.m4a")
+  sfx_reveal: require("../../../assets/audio/sfx_reveal.m4a"),
+  sfx_clean: require("../../../assets/audio/sfx_clean.m4a"),
+  sfx_walk_return: require("../../../assets/audio/sfx_walk_return.m4a"),
+  sfx_purchase: require("../../../assets/audio/sfx_purchase.m4a")
 };
 
-/** Care-action id -> its success SFX, for the handleCareAction wiring point. */
 export const careActionSfxById: Partial<Record<string, SfxId>> = {
   feed: "sfx_feed",
   water_garden: "sfx_water",
@@ -50,8 +40,7 @@ export const careActionSfxById: Partial<Record<string, SfxId>> = {
   affection: "sfx_affection",
   rest: "sfx_rest",
   treat: "sfx_treat",
-  // Bath reuses the water pour — swap for a dedicated splash when SFX get curated.
-  clean: "sfx_water"
+  clean: "sfx_clean"
 };
 
 export const sfxIds: SfxId[] = Object.keys(sfxAssetSources) as SfxId[];

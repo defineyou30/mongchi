@@ -3,8 +3,10 @@ import type { StyleProp, ViewStyle } from "react-native";
 import { Pressable, StyleSheet, Text } from "react-native";
 
 import { colors, radii, shadows, spacing, useFontFamilies } from "../design/tokens";
+import { MongchiIcon } from "./MongchiIcon";
+import type { MongchiIconId } from "./mongchiIconAssets";
 
-interface ActionButtonProps {
+interface ActionButtonBaseProps {
   label: string;
   onPress: () => void;
   accessibilityLabel?: string;
@@ -12,8 +14,14 @@ interface ActionButtonProps {
   size?: "regular" | "compact";
   style?: StyleProp<ViewStyle>;
   variant?: "primary" | "secondary" | "danger";
-  Icon?: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
 }
+
+type ActionButtonIconProps =
+  | { Icon: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>; iconId?: never }
+  | { Icon?: never; iconId: MongchiIconId }
+  | { Icon?: never; iconId?: never };
+
+export type ActionButtonProps = ActionButtonBaseProps & ActionButtonIconProps;
 
 export function ActionButton({
   label,
@@ -23,7 +31,8 @@ export function ActionButton({
   size = "regular",
   style,
   variant = "primary",
-  Icon
+  Icon,
+  iconId
 }: ActionButtonProps) {
   const primary = variant === "primary";
   const danger = variant === "danger";
@@ -47,6 +56,7 @@ export function ActionButton({
       ]}
       onPress={onPress}
     >
+      {iconId ? <MongchiIcon id={iconId} size={compact ? 20 : 24} /> : null}
       {Icon ? <Icon color={iconColor} size={compact ? 16 : 18} strokeWidth={2.5} /> : null}
       <Text
         style={[

@@ -28,11 +28,12 @@ beforeEach(() => {
 });
 
 describe("buildPetRevealShareMessage", () => {
-  it("substitutes the pet name and mentions Mongchi", () => {
+  it("substitutes the pet name and carries the branded attribution without emoji", () => {
     const message = buildPetRevealShareMessage("Miso");
 
     expect(message).toContain("Miso");
-    expect(message).toContain("Mongchi");
+    expect(message).toContain("Made with MongChi");
+    expect(message).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
   });
 
   it("only ever returns one of the known template variants", () => {
@@ -45,7 +46,7 @@ describe("buildPetRevealShareMessage", () => {
     expect(seen.size).toBeGreaterThan(0);
     for (const variant of seen) {
       expect(variant).toContain("{name}");
-      expect(variant).toContain("Mongchi");
+      expect(variant).toContain("Made with MongChi");
     }
   });
 });
@@ -54,25 +55,25 @@ describe("buildFriendShareMessage", () => {
   it("includes the day count when daysTogether is positive", () => {
     const message = buildFriendShareMessage({ petName: "Luna", daysTogether: 12 });
 
-    expect(message).toBe("Luna has been living in my pocket garden for 12 days. 🐾 (via Mongchi)");
+    expect(message).toBe("Luna has been my tiny garden friend for 12 days. Made with MongChi.");
   });
 
   it("uses singular day wording for exactly 1 day", () => {
     const message = buildFriendShareMessage({ petName: "Luna", daysTogether: 1 });
 
-    expect(message).toBe("Luna has been living in my pocket garden for 1 day. 🐾 (via Mongchi)");
+    expect(message).toBe("Luna has been my tiny garden friend for 1 day. Made with MongChi.");
   });
 
   it("falls back to a dayless line when daysTogether is 0", () => {
     const message = buildFriendShareMessage({ petName: "Luna", daysTogether: 0 });
 
-    expect(message).toBe("Luna lives in my pocket garden. 🐾 (via Mongchi)");
+    expect(message).toBe("Meet Luna, my tiny garden friend. Made with MongChi.");
   });
 
   it("falls back to a dayless line when daysTogether is missing", () => {
     const message = buildFriendShareMessage({ petName: "Luna" });
 
-    expect(message).toBe("Luna lives in my pocket garden. 🐾 (via Mongchi)");
+    expect(message).toBe("Meet Luna, my tiny garden friend. Made with MongChi.");
   });
 });
 
@@ -126,29 +127,30 @@ describe("resolveShareableImageUri", () => {
 });
 
 describe("sharePetCard", () => {
-  it("shares with an image url when the asset uri resolves to a local file", async () => {
+  it("shares the rendered branded card instead of the raw pet asset", async () => {
     shareMock.mockResolvedValue({ action: "sharedAction" });
 
     const result = await sharePetCard({
       petName: "Miso",
-      assetUri: "file:///documents/pet.png",
+      brandedCardUri: "file:///documents/mongchi-card.png",
       message: "Meet Miso!"
     });
 
-    expect(shareMock).toHaveBeenCalledWith({ url: "file:///documents/pet.png", message: "Meet Miso!" });
+    expect(shareMock).toHaveBeenCalledWith({ url: "file:///documents/mongchi-card.png", message: "Meet Miso!" });
     expect(result).toEqual({ ok: true, sharedWithImage: true, dismissed: false });
   });
 
-  it("downloads a remote asset before sharing", async () => {
+  it("downloads a remote branded card before sharing", async () => {
     downloadAsyncMock.mockResolvedValue({ status: 200, uri: "file:///cache/pet-share-123.png", headers: {} });
     shareMock.mockResolvedValue({ action: "sharedAction" });
 
     const result = await sharePetCard({
       petName: "Miso",
-      assetUri: "https://cdn.example.com/pet.png",
+      brandedCardUri: "https://cdn.example.com/mongchi-card.png",
       message: "Meet Miso!"
     });
 
+    expect(downloadAsyncMock.mock.calls[0]![0]).toBe("https://cdn.example.com/mongchi-card.png");
     expect(shareMock).toHaveBeenCalledWith({ url: "file:///cache/pet-share-123.png", message: "Meet Miso!" });
     expect(result.sharedWithImage).toBe(true);
   });
@@ -158,7 +160,7 @@ describe("sharePetCard", () => {
 
     const result = await sharePetCard({
       petName: "Miso",
-      assetUri: null,
+      brandedCardUri: null,
       message: "Meet Miso!"
     });
 
@@ -172,7 +174,7 @@ describe("sharePetCard", () => {
 
     const result = await sharePetCard({
       petName: "Miso",
-      assetUri: "https://cdn.example.com/pet.png",
+      brandedCardUri: "https://cdn.example.com/mongchi-card.png",
       message: "Meet Miso!"
     });
 
@@ -185,7 +187,7 @@ describe("sharePetCard", () => {
 
     const result = await sharePetCard({
       petName: "Miso",
-      assetUri: null,
+      brandedCardUri: null,
       message: "Meet Miso!"
     });
 
@@ -197,7 +199,7 @@ describe("sharePetCard", () => {
 
     const result = await sharePetCard({
       petName: "Miso",
-      assetUri: null,
+      brandedCardUri: null,
       message: "Meet Miso!"
     });
 

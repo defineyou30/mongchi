@@ -1,11 +1,11 @@
 import { router } from "expo-router";
 import { CheckCircle2, Lock } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { DEFAULT_THEME_ID, themeBundles } from "@mongchi/shared";
+import { DEFAULT_THEME_ID, expressionPacks, themeBundles } from "@mongchi/shared";
 import type { CommerceProduct, EntitlementKey, Item, ItemId } from "@mongchi/shared";
 import { themeBackgroundSourceById } from "../../shared/assets/weatherSceneAssets";
 
@@ -19,6 +19,7 @@ import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import {
   getLocalShopSummaryPresentation,
   getLocalShopCatalogPresentation,
+  getExpressionPackShopPresentation,
   getPremiumPassShopPresentation,
   getServerShopSummaryPresentation,
   getThemeCardPresentation,
@@ -26,6 +27,7 @@ import {
   isNonShoppableStarterKitItem,
   isPremiumPassProduct
 } from "./shopCatalogPresentation";
+import { balanceShopItemName, resolveShopGridLayout } from "./shopGridLayout";
 
 const productCopyById: Record<string, { name: string; description: string; item: GameItemAssetKey }> = {
   premium_chat_monthly: {
@@ -99,12 +101,12 @@ const getProductCopy = (product: CommerceProduct) =>
   productCopyById[product.productId] ?? fallbackCopyByEntitlement[product.entitlementKey];
 
 /**
- * Three shop categories (see mongchi "상점 재편" wave): Treats (consumable
- * food/treat snacks), Toys & Rest (toy/bed comfort items), and Themes
- * (background-only garden makeovers). Placeable home decor no longer exists
- * as a shop concept — the garden background is a finished illustration.
+ * Shop categories (see mongchi "상점 재편" wave): care consumables,
+ * toy/rest comfort items, expression moments, and background-only garden
+ * makeovers. Placeable home decor no longer exists as a shop concept -- the
+ * garden background is a finished illustration.
  */
-type ShopCategoryId = "treats" | "toysAndRest" | "themes";
+type ShopCategoryId = "treats" | "toysAndRest" | "moments" | "themes";
 
 interface ShopEntry {
   id: string;
@@ -116,8 +118,10 @@ interface ShopEntry {
   priceLabel: string;
   ownedQuantity: number;
   canAct: boolean;
-  kind: "local_item" | "commerce_product" | "theme" | "preview";
+  kind: "local_item" | "commerce_product" | "expression_pack" | "theme" | "preview";
+  actionLabel?: string;
   itemId?: ItemId;
+  packId?: string;
   /** Set only for a theme entry that still needs purchasing (locked_for_purchase) -- see handleSelectedEntryAction. */
   themeBundleId?: string | null;
   themeStatus?: "default_free" | "locked_for_purchase" | "owned";
@@ -128,7 +132,8 @@ interface ShopEntry {
 
 const shopCategoryLabels: Record<ShopCategoryId, string> = {
   treats: "Treats",
-  toysAndRest: "Toys & Rest",
+  toysAndRest: "Toys",
+  moments: "Moments",
   themes: "Themes"
 };
 
@@ -207,8 +212,10 @@ const getProductShopCategory = (product: CommerceProduct): ShopCategoryId | null
 
 export function ShopPreviewScreen() {
   const { showDialog } = useAppDialog();
+  const { fontScale, width: viewportWidth } = useWindowDimensions();
   const {
     activeEntitlements,
+    acceptedAssets,
     applyTheme,
     catalogItems,
     commerceProducts,
@@ -216,8 +223,10 @@ export function ShopPreviewScreen() {
     devStoreUnlocked,
     hydrateCreditBalance,
     inventory,
+    expressionPackPurchaseStatusById,
     nativeCheckoutReady,
     purchaseCatalogItem,
+    purchaseExpressionPack,
     purchaseInProgressProductId,
     purchaseProduct,
     purchaseThemeBundle,
@@ -280,6 +289,13 @@ export function ShopPreviewScreen() {
         });
   const [selectedCategory, setSelectedCategory] = useState<ShopCategoryId>("treats");
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [shopShelfWidth, setShopShelfWidth] = useState(() => Math.max(0, viewportWidth - spacing.lg * 2));
+  const shopGridLayout = useMemo(
+    () => resolveShopGridLayout({ containerWidth: shopShelfWidth, fontScale }),
+    [fontScale, shopShelfWidth]
+  );
+  const shopProductCardWidthStyle = useMemo(() => ({ width: shopGridLayout.cardWidth }), [shopGridLayout.cardWidth]);
+  const acceptedAssetStates = useMemo(() => acceptedAssets.map((asset) => asset.state), [acceptedAssets]);
   const themeEntries = useMemo<ShopEntry[]>(
     () =>
       backgroundThemeEntries.map((theme) => {
@@ -383,19 +399,52 @@ export function ShopPreviewScreen() {
     [activeEntitlements, checkoutAvailable, purchaseInProgressProductId, visibleCommerceProducts]
   );
 
+  const expressionPackEntries = useMemo<ShopEntry[]>(
+    () =>
+      expressionPacks.map((pack) => {
+        const presentation = getExpressionPackShopPresentation(
+          pack,
+          acceptedAssetStates,
+          inventory,
+          expressionPackPurchaseStatusById[pack.id],
+          devStoreUnlocked,
+          creditBalance
+        );
+        const assetKey: GameItemAssetKey =
+          pack.id === "pack-care-reactions" ? "rewardPouch" : pack.id === "pack-special-days" ? "seasonalFlowers" : "giftBox";
+
+        return {
+          id: `expression-${pack.id}`,
+          category: "moments",
+          name: pack.nameEn,
+          description: pack.descriptionEn,
+          assetKey,
+          statusLabel: presentation.statusLabel,
+          priceLabel: presentation.priceLabel,
+          ownedQuantity: presentation.ownedStateCount,
+          canAct: presentation.canAct,
+          actionLabel: presentation.actionLabel,
+          kind: "expression_pack",
+          packId: pack.id
+        };
+      }),
+    [acceptedAssetStates, creditBalance, devStoreUnlocked, expressionPackPurchaseStatusById, inventory]
+  );
+
   const shopEntries = useMemo<ShopEntry[]>(
     () => {
       const purchasableEntries = useServerCatalog ? commerceShopEntries : localShopEntries;
 
-      return [...purchasableEntries, ...themeEntries];
+      return [...purchasableEntries, ...expressionPackEntries, ...themeEntries];
     },
-    [commerceShopEntries, localShopEntries, themeEntries, useServerCatalog]
+    [commerceShopEntries, expressionPackEntries, localShopEntries, themeEntries, useServerCatalog]
   );
 
   const entriesByCategory = useMemo<Record<ShopCategoryId, ShopEntry[]>>(
     () => ({
       treats: shopEntries.filter((entry) => entry.category === "treats"),
       toysAndRest: shopEntries.filter((entry) => entry.category === "toysAndRest"),
+      moments: shopEntries.filter((entry) => entry.category === "moments"),
       themes: shopEntries.filter((entry) => entry.category === "themes")
     }),
     [shopEntries]
@@ -407,7 +456,7 @@ export function ShopPreviewScreen() {
     category: selectedCategory,
     name: shopCategoryLabels[selectedCategory],
     description: "New cozy items will appear here when this shelf is stocked.",
-    assetKey: selectedCategory === "treats" ? "treatPlate" : selectedCategory === "themes" ? "seasonalFlowers" : "toyBall",
+    assetKey: selectedCategory === "treats" ? "treatPlate" : selectedCategory === "themes" ? "seasonalFlowers" : selectedCategory === "moments" ? "giftBox" : "toyBall",
     statusLabel: "Coming soon",
     priceLabel: "Soon",
     ownedQuantity: 0,
@@ -458,6 +507,25 @@ export function ShopPreviewScreen() {
 
     if (entry.kind === "commerce_product" && entry.product && entry.canAct) {
       handlePurchase(entry.product);
+      return;
+    }
+
+    if (entry.kind === "expression_pack" && entry.packId && entry.canAct) {
+      void purchaseExpressionPack(entry.packId).then((result) => {
+        if (!result.ok) {
+          showDialog({ title: "Moment pack", message: result.messageSafe });
+          return;
+        }
+
+        playSfx("sfx_toast");
+        showDialog({
+          title: "Moments unlocked",
+          message: result.messageSafe,
+          primaryLabel: "OK",
+          secondaryLabel: "See profile",
+          onSecondary: () => router.replace("/friend")
+        });
+      });
       return;
     }
 
@@ -552,6 +620,10 @@ export function ShopPreviewScreen() {
                       : selectedEntry.canAct
                         ? `Apply ${selectedEntry.name}`
                         : `${selectedEntry.name} is applied`
+                    : selectedEntry.kind === "expression_pack"
+                      ? selectedEntry.canAct
+                        ? `${selectedEntry.actionLabel ?? "Unlock pack"} ${selectedEntry.name}`
+                        : `${selectedEntry.name}. ${selectedEntry.statusLabel}`
                     : selectedEntry.canAct
                       ? `Buy ${selectedEntry.name}`
                       : selectedEntry.statusLabel
@@ -574,6 +646,8 @@ export function ShopPreviewScreen() {
                       : selectedEntry.canAct
                         ? "Apply theme"
                         : "Applied"
+                    : selectedEntry.kind === "expression_pack"
+                      ? (selectedEntry.actionLabel ?? (selectedEntry.canAct ? "Unlock pack" : "Locked"))
                     : selectedEntry.canAct
                       ? "Get item"
                       : "Locked"}
@@ -609,7 +683,13 @@ export function ShopPreviewScreen() {
             ))}
           </View>
 
-          <View style={styles.shopShelf}>
+          <View
+            style={styles.shopShelf}
+            onLayout={({ nativeEvent }) => {
+              const measuredWidth = nativeEvent.layout.width;
+              setShopShelfWidth((currentWidth) => Math.abs(currentWidth - measuredWidth) > 0.5 ? measuredWidth : currentWidth);
+            }}
+          >
             {selectedCategoryEntries.length > 0 ? selectedCategoryEntries.map((entry) => {
               const selected = selectedEntry.id === entry.id;
 
@@ -621,6 +701,7 @@ export function ShopPreviewScreen() {
                   accessibilityState={{ selected }}
                   style={({ pressed }) => [
                     styles.productCard,
+                    selectedCategory === "moments" ? null : shopProductCardWidthStyle,
                     selected ? styles.productCardSelected : null,
                     pressed ? styles.productCardPressed : null
                   ]}
@@ -642,7 +723,14 @@ export function ShopPreviewScreen() {
                   ) : (
                     <GameItemImage accessibilityLabel={`${entry.name} icon`} item={entry.assetKey} style={styles.productIcon} variant="ui" />
                   )}
-                  <Text numberOfLines={2} style={[styles.productName, typography.label]}>{entry.name}</Text>
+                  <Text
+                    adjustsFontSizeToFit={selectedCategory !== "moments" && shopGridLayout.columnCount > 2}
+                    minimumFontScale={0.82}
+                    numberOfLines={2}
+                    style={[styles.productName, typography.label]}
+                  >
+                    {selectedCategory === "moments" ? entry.name : balanceShopItemName(entry.name)}
+                  </Text>
                   <View style={[styles.productPrice, entry.ownedQuantity > 0 ? styles.productOwnedPrice : null]}>
                     {entry.ownedQuantity > 0 ? <CheckCircle2 color={colors.leaf} size={15} strokeWidth={2.8} /> : <GameItemImage accessibilityLabel="Gem price" decorative item="gem" style={styles.productPriceIcon} variant="hud" />}
                     <Text style={[styles.productPriceText, typography.label]}>{entry.priceLabel}</Text>

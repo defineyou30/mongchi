@@ -64,8 +64,8 @@ describe("soundManager", () => {
       expect(SOUND_MANAGER_AUDIO_MODE.interruptionMode).toBe("mixWithOthers");
     });
 
-    it("plays in silent mode (this app's own 'Sounds' toggle is the mute control, not the ring switch)", () => {
-      expect(SOUND_MANAGER_AUDIO_MODE.playsInSilentMode).toBe(true);
+    it("respects the iOS silent switch, matching the app's ambient game-audio policy", () => {
+      expect(SOUND_MANAGER_AUDIO_MODE.playsInSilentMode).toBe(false);
     });
 
     it("does not request background playback or recording", () => {

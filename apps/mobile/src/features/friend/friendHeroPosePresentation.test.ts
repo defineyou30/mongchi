@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makeMockGeneratedAsset } from "@mongchi/shared";
+import { expressionPacks, makeMockGeneratedAsset } from "@mongchi/shared";
 import type { GeneratedAsset } from "@mongchi/shared";
 
 import { buildHeroPoseSlides, getRemainingPoseCountByPackId, getUnlockOverlayHeadline, orderHeroPoseCells } from "./friendHeroPosePresentation";
@@ -8,6 +8,9 @@ import { getFriendPoseGalleryPresentation } from "./friendProfilePresentation";
 
 const freeTrioAssets: GeneratedAsset[] = (["idle", "happy", "sleep"] as const).map((state) =>
   makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_local_001" })
+);
+const paidPackAssets: GeneratedAsset[] = expressionPacks.flatMap((pack) =>
+  pack.states.map((state) => makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: `gen_${pack.id}` }))
 );
 
 describe("orderHeroPoseCells", () => {
@@ -49,10 +52,9 @@ describe("buildHeroPoseSlides", () => {
     const slides = buildHeroPoseSlides(cells, cards);
     const lockedSlides = slides.filter((slide) => slide.cell.status === "locked");
 
-    expect(lockedSlides.length).toBeGreaterThan(0);
-    for (const slide of lockedSlides) {
-      expect(slide.lockedCard?.packId).toBe("pack-everyday-moments");
-    }
+    expect(lockedSlides.map((slide) => slide.lockedCard?.packId)).toEqual(
+      expect.arrayContaining(expressionPacks.map((pack) => pack.id))
+    );
   });
 
   it("never attaches a locked card to an owned slide", () => {
@@ -73,8 +75,10 @@ describe("buildHeroPoseSlides", () => {
     const slides = buildHeroPoseSlides(cells, cards);
     const lockedSlides = slides.filter((slide) => slide.cell.status === "locked");
 
-    expect(lockedSlides.length).toBeGreaterThan(0);
-    for (const slide of lockedSlides) {
+    const everydaySlides = lockedSlides.filter((slide) => slide.lockedCard?.packId === "pack-everyday-moments");
+
+    expect(everydaySlides.length).toBeGreaterThan(0);
+    for (const slide of everydaySlides) {
       expect(slide.lockedCard?.status).toBe("failed");
       expect(slide.lockedCard?.failureLine).toBe("That didn't quite work. Let's try again.");
     }
@@ -89,12 +93,7 @@ describe("buildHeroPoseSlides", () => {
   });
 
   it("has no locked slides once every pack is fully owned", () => {
-    const allAssets: GeneratedAsset[] = [
-      ...freeTrioAssets,
-      ...(["curious", "play", "hungry"] as const).map((state) =>
-        makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_pack_001" })
-      )
-    ];
+    const allAssets: GeneratedAsset[] = [...freeTrioAssets, ...paidPackAssets];
     const { cells, cards } = getFriendPoseGalleryPresentation(allAssets, "Momo");
 
     const slides = buildHeroPoseSlides(cells, cards);
@@ -115,12 +114,7 @@ describe("getRemainingPoseCountByPackId", () => {
   });
 
   it("returns an empty map once every pack is fully owned (no locked slides left)", () => {
-    const allAssets: GeneratedAsset[] = [
-      ...freeTrioAssets,
-      ...(["curious", "play", "hungry"] as const).map((state) =>
-        makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_pack_001" })
-      )
-    ];
+    const allAssets: GeneratedAsset[] = [...freeTrioAssets, ...paidPackAssets];
     const { cells, cards } = getFriendPoseGalleryPresentation(allAssets, "Momo");
     const slides = buildHeroPoseSlides(cells, cards);
 

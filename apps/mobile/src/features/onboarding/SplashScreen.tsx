@@ -8,14 +8,15 @@ import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { getConfiguredQaScreenPresetRoute } from "../session/qaScreenSession";
 import { getConfiguredStoreScreenshotPresetRoute } from "../session/storeScreenshotSession";
+import { getInitialPetLaunchRoute } from "./initialPetLaunchRoute";
 import { hasSeenWelcomeOnboarding } from "./welcomeOnboardingStorage";
 
-const appLogo = require("../../../assets/generated/brand/app-logo-v1.png");
-const loadingBackground = require("../../../assets/generated/brand/loading-screen-v2.png");
+const appLogo = require("../../../assets/icon.png");
+const loadingBackground = require("../../../assets/splash.png");
 const loadingAnimation = require("../../../assets/lottie/loading.json");
 
 export function SplashScreen() {
-  const { acceptedAsset, isHydrated, petProfile } = useTerrariumSession();
+  const { acceptedAsset, acceptedAssets, generation, isHydrated, petProfile, photo } = useTerrariumSession();
   const fontFamilies = useFontFamilies();
   const storeScreenshotPresetRoute = getConfiguredStoreScreenshotPresetRoute();
   const qaScreenPresetRoute = getConfiguredQaScreenPresetRoute();
@@ -34,7 +35,16 @@ export function SplashScreen() {
         }
 
         router.replace(
-          storeScreenshotPresetRoute ?? qaScreenPresetRoute ?? (petProfile && acceptedAsset ? "/terrarium" : seenWelcome ? "/onboarding" : "/welcome")
+          storeScreenshotPresetRoute ??
+            qaScreenPresetRoute ??
+            getInitialPetLaunchRoute({
+              hasSeenWelcome: seenWelcome,
+              photo,
+              generation,
+              petProfile,
+              acceptedAsset,
+              acceptedAssets
+            })
         );
       });
     }, 850);
@@ -43,7 +53,7 @@ export function SplashScreen() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [acceptedAsset, isHydrated, petProfile, qaScreenPresetRoute, storeScreenshotPresetRoute]);
+  }, [acceptedAsset, acceptedAssets, generation, isHydrated, petProfile, photo, qaScreenPresetRoute, storeScreenshotPresetRoute]);
 
   return (
     <View style={styles.root}>
@@ -89,9 +99,9 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-end",
     paddingHorizontal: spacing.xl,
-    paddingBottom: 34
+    paddingBottom: 26
   },
   copy: {
     alignItems: "center",
@@ -108,7 +118,8 @@ const styles = StyleSheet.create({
   appLogo: {
     width: 82,
     height: 82,
-    marginBottom: 2
+    marginBottom: 2,
+    borderRadius: 18
   },
   title: {
     color: colors.ink,

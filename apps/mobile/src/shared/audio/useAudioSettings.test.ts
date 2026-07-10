@@ -36,31 +36,37 @@ describe("useAudioSettings", () => {
     it("defaults music & ambience to on, independent of sounds", () => {
       expect(defaultAudioSettings.musicEnabled).toBe(true);
     });
+
+    it("defaults haptics to on, independent of sounds", () => {
+      expect(defaultAudioSettings.hapticsEnabled).toBe(true);
+    });
   });
 
   describe("readStoredAudioSettings / writeStoredAudioSettings", () => {
     it("round-trips stored settings", async () => {
       const storage = createMemoryStorage();
 
-      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: false }, storage);
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false }, storage);
 
       expect(storage.values.get(AUDIO_SETTINGS_STORAGE_KEY)).toBe(
-        JSON.stringify({ soundsEnabled: false, musicEnabled: false })
+        JSON.stringify({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false })
       );
       await expect(readStoredAudioSettings(storage)).resolves.toEqual({
         soundsEnabled: false,
-        musicEnabled: false
+        musicEnabled: false,
+        hapticsEnabled: false
       });
     });
 
     it("round-trips soundsEnabled and musicEnabled independently", async () => {
       const storage = createMemoryStorage();
 
-      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: true }, storage);
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: true, hapticsEnabled: true }, storage);
 
       await expect(readStoredAudioSettings(storage)).resolves.toEqual({
         soundsEnabled: false,
-        musicEnabled: true
+        musicEnabled: true,
+        hapticsEnabled: true
       });
     });
 
@@ -102,7 +108,19 @@ describe("useAudioSettings", () => {
 
       await expect(readStoredAudioSettings(storage)).resolves.toEqual({
         soundsEnabled: false,
-        musicEnabled: true
+        musicEnabled: true,
+        hapticsEnabled: true
+      });
+    });
+
+    it("defaults hapticsEnabled to on when reading settings persisted before the haptics split", async () => {
+      const storage = createMemoryStorage();
+      await storage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify({ soundsEnabled: false, musicEnabled: false }));
+
+      await expect(readStoredAudioSettings(storage)).resolves.toEqual({
+        soundsEnabled: false,
+        musicEnabled: false,
+        hapticsEnabled: true
       });
     });
   });
@@ -113,22 +131,22 @@ describe("useAudioSettings", () => {
     });
 
     it("updates the active settings", () => {
-      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
 
-      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false });
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
     });
 
     it("updates musicEnabled independently of soundsEnabled", () => {
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
 
-      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: true, musicEnabled: false });
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
     });
 
     it("is idempotent when set to the same settings already active", () => {
-      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false });
-      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
 
-      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false });
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
     });
   });
 });

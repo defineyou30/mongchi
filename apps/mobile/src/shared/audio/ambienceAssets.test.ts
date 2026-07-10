@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-// See bgmAssets.test.ts's doc comment: ambienceAssets.ts's require(...)
-// calls resolve real .m4a binaries at module scope, which Vite can't parse
-// when the module is imported directly. weatherToAmbienceTrack is pure and
-// doesn't depend on the asset requires at all, so it's duplicated here as a
-// plain function (kept in lockstep with ambienceAssets.ts's implementation)
-// -- see ambiencePlayer.test.ts for require(...)-safe coverage of the
-// manifest itself (via a full module mock).
 type WeatherCondition =
   | "clear"
   | "partly_cloudy"

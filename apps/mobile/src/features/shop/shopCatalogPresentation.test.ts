@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_THEME_ID, mockInventory, mockItems } from "@mongchi/shared";
+import { DEFAULT_THEME_ID, getExpressionPackById, mockInventory, mockItems } from "@mongchi/shared";
 
 import {
   getLocalShopCatalogPresentation,
+  getExpressionPackShopPresentation,
   getLocalShopSummaryPresentation,
   getPremiumPassShopPresentation,
   getServerShopSummaryPresentation,
@@ -160,6 +161,142 @@ describe("shop catalog presentation", () => {
       ownedQuantity: 1,
       plusLabel: "Plus locked",
       visibleCount: 1
+    });
+  });
+});
+
+describe("expression pack shop presentation", () => {
+  it("presents an affordable locked pack as an unlockable 3-state product", () => {
+    const pack = getExpressionPackById("pack-everyday-moments");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(getExpressionPackShopPresentation(pack, ["idle", "happy", "sleep"], mockInventory, undefined, false, 12)).toMatchObject({
+      status: "available",
+      ownedStateCount: 0,
+      totalStateCount: 3,
+      canAct: true,
+      priceLabel: "12 cr",
+      actionLabel: "Unlock pack"
+    });
+  });
+
+  it("keeps a server-recorded pack in saving state until all generated assets are stored", () => {
+    const pack = getExpressionPackById("pack-care-reactions");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(
+      getExpressionPackShopPresentation(
+        pack,
+        ["idle", "happy", "sleep", "walk_return"],
+        { ...mockInventory, ownedExpressionPackIds: ["pack-care-reactions"] },
+        undefined,
+        false,
+        0
+      )
+    ).toMatchObject({
+      status: "generating",
+      ownedStateCount: 1,
+      totalStateCount: 3,
+      canAct: false,
+      statusLabel: "1/3 ready"
+    });
+  });
+
+  it("presents a fully stored pack as owned and non-actionable", () => {
+    const pack = getExpressionPackById("pack-special-days");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(
+      getExpressionPackShopPresentation(
+        pack,
+        ["idle", "happy", "sleep", "celebrate", "garden_help", "seasonal"],
+        { ...mockInventory, ownedExpressionPackIds: ["pack-special-days"] },
+        undefined,
+        false,
+        0
+      )
+    ).toMatchObject({
+      status: "owned",
+      ownedStateCount: 3,
+      totalStateCount: 3,
+      canAct: false,
+      priceLabel: "Owned",
+      actionLabel: "Owned"
+    });
+  });
+
+  it("allows retrying a failed pack purchase only when the wallet can afford it", () => {
+    const pack = getExpressionPackById("pack-everyday-moments");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(
+      getExpressionPackShopPresentation(
+        pack,
+        ["idle", "happy", "sleep"],
+        mockInventory,
+        { status: "failed", failureMessageSafe: "Try again." },
+        false,
+        12
+      )
+    ).toMatchObject({
+      status: "failed",
+      canAct: true,
+      actionLabel: "Retry pack"
+    });
+
+    expect(
+      getExpressionPackShopPresentation(
+        pack,
+        ["idle", "happy", "sleep"],
+        mockInventory,
+        { status: "failed", failureMessageSafe: "Try again." },
+        false,
+        0
+      )
+    ).toMatchObject({
+      status: "failed",
+      canAct: false,
+      actionLabel: "Need credits"
+    });
+  });
+
+  it("surfaces retry before saving when a failed job has no completed assets yet", () => {
+    const pack = getExpressionPackById("pack-care-reactions");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(
+      getExpressionPackShopPresentation(
+        pack,
+        ["idle", "happy", "sleep"],
+        { ...mockInventory, ownedExpressionPackIds: ["pack-care-reactions"] },
+        { status: "failed", failureMessageSafe: "Try again." },
+        false,
+        12
+      )
+    ).toMatchObject({
+      status: "failed",
+      canAct: true,
+      actionLabel: "Retry pack"
     });
   });
 });

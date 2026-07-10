@@ -189,6 +189,8 @@ const WALK_PAWS_RAIL_CLEARANCE_PX_FROM_TOP = 258;
 const WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM = 200;
 /** Minimum breathing room kept clear of both clearance lines above, on top of the lines themselves. */
 const WALK_PAWS_SAFETY_MARGIN_PX = 16;
+const WALK_PAWS_VISIBLE_STAGE_TOP_PX = 82;
+const WALK_PAWS_VISIBLE_STAGE_BOTTOM_PX = 104;
 
 /**
  * The paw layer's square size for a given window height: as close to 2x the
@@ -205,11 +207,11 @@ export function getWalkPawsLayerSizePx(windowHeight: number): number {
 
 /**
  * Bottom offset (px, from screen bottom) that centers a `sizePx`-tall paw
- * layer within the same safe vertical band `getWalkPawsLayerSizePx` sized
- * against, so the two always agree on where the layer sits.
+ * layer in TerrariumHomeScreen's visible stage between its HUD and dock.
  */
 export function getWalkPawsLayerBottomPx(windowHeight: number, sizePx: number): number {
-  const availableBandPx = windowHeight - WALK_PAWS_RAIL_CLEARANCE_PX_FROM_TOP - WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM;
+  const visibleStageHeightPx = windowHeight - WALK_PAWS_VISIBLE_STAGE_TOP_PX - WALK_PAWS_VISIBLE_STAGE_BOTTOM_PX;
+  const visibleStageCenterPx = WALK_PAWS_VISIBLE_STAGE_TOP_PX + visibleStageHeightPx / 2;
 
-  return WALK_PAWS_PANEL_CLEARANCE_PX_FROM_BOTTOM + Math.max(0, (availableBandPx - sizePx) / 2);
+  return windowHeight - visibleStageCenterPx - sizePx / 2;
 }

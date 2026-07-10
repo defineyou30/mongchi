@@ -1,26 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Phase 1 shipped a single "Sounds" toggle covering SFX + haptics together
-// (see docs/gamefeel-sound-plan.md §2 -- "3단 분리는 과함"). Phase 2 adds
-// "Music & ambience" as its own field (musicEnabled) in the same stored
-// object rather than a separate storage key/document, since both toggles
-// live together in one AsyncStorage read/write and one settings screen
-// section -- but it stays a distinct field (not folded into soundsEnabled)
-// so a user's existing SFX preference is never silently reinterpreted as a
-// music preference, and vice versa.
 export const AUDIO_SETTINGS_STORAGE_KEY = "mongchi.audioSettings";
 
 export interface AudioSettings {
-  /** SFX + haptics master toggle. Defaults to on for every player. */
   soundsEnabled: boolean;
   /** BGM + ambience master toggle. Defaults to on, independent of soundsEnabled. */
   musicEnabled: boolean;
+  hapticsEnabled: boolean;
 }
 
 export const defaultAudioSettings: AudioSettings = {
   soundsEnabled: true,
-  musicEnabled: true
+  musicEnabled: true,
+  hapticsEnabled: true
 };
 
 export interface AudioSettingsStorage {
@@ -30,18 +23,20 @@ export interface AudioSettingsStorage {
 
 export const defaultAudioSettingsStorage: AudioSettingsStorage = AsyncStorage;
 
-const isAudioSettings = (value: unknown): value is Pick<AudioSettings, "soundsEnabled"> =>
-  typeof value === "object" && value !== null && typeof (value as AudioSettings).soundsEnabled === "boolean";
+type StoredAudioSettings = Pick<AudioSettings, "soundsEnabled"> & Partial<AudioSettings>;
+
+const isAudioSettings = (value: unknown): value is StoredAudioSettings =>
+  typeof value === "object" && value !== null && typeof Reflect.get(value, "soundsEnabled") === "boolean";
 
 /**
- * Fills in `musicEnabled` for settings persisted by a pre-Phase-2 app
- * version (stored object only has `soundsEnabled`) so existing users get
- * the same "on by default" behavior as a fresh install, rather than having
- * their old stored object read back with `musicEnabled: undefined`.
+ * Fills in the independently introduced music and haptic fields for older
+ * installs. Migration is intentionally opt-out: existing users retain their
+ * SFX preference while receiving the same enabled defaults as a fresh install.
  */
-const withMusicDefault = (value: Pick<AudioSettings, "soundsEnabled"> & Partial<AudioSettings>): AudioSettings => ({
+const withAudioDefaults = (value: StoredAudioSettings): AudioSettings => ({
   soundsEnabled: value.soundsEnabled,
-  musicEnabled: typeof value.musicEnabled === "boolean" ? value.musicEnabled : defaultAudioSettings.musicEnabled
+  musicEnabled: typeof value.musicEnabled === "boolean" ? value.musicEnabled : defaultAudioSettings.musicEnabled,
+  hapticsEnabled: typeof value.hapticsEnabled === "boolean" ? value.hapticsEnabled : defaultAudioSettings.hapticsEnabled
 });
 
 export const readStoredAudioSettings = async (
@@ -55,7 +50,7 @@ export const readStoredAudioSettings = async (
     }
 
     const parsed = JSON.parse(stored);
-    return isAudioSettings(parsed) ? withMusicDefault(parsed) : defaultAudioSettings;
+    return isAudioSettings(parsed) ? withAudioDefaults(parsed) : defaultAudioSettings;
   } catch {
     return defaultAudioSettings;
   }
@@ -80,7 +75,8 @@ export const getActiveAudioSettings = (): AudioSettings => activeAudioSettings;
 export const setActiveAudioSettings = (settings: AudioSettings): void => {
   if (
     activeAudioSettings.soundsEnabled === settings.soundsEnabled &&
-    activeAudioSettings.musicEnabled === settings.musicEnabled
+    activeAudioSettings.musicEnabled === settings.musicEnabled &&
+    activeAudioSettings.hapticsEnabled === settings.hapticsEnabled
   ) {
     return;
   }

@@ -21,11 +21,11 @@ describe("haptics", () => {
     notificationAsync.mockReset();
     impactAsync.mockResolvedValue(undefined);
     notificationAsync.mockResolvedValue(undefined);
-    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
   });
 
   afterEach(() => {
-    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
   });
 
   describe("playLightImpactHaptic", () => {
@@ -35,8 +35,16 @@ describe("haptics", () => {
       expect(impactAsync).toHaveBeenCalledWith("light");
     });
 
-    it("does not trigger when Sounds is off", () => {
-      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true });
+    it("still triggers when Sounds is off but Haptics remains on", () => {
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true, hapticsEnabled: true });
+
+      playLightImpactHaptic();
+
+      expect(impactAsync).toHaveBeenCalledWith("light");
+    });
+
+    it("does not trigger when Haptics is off", () => {
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: false });
 
       playLightImpactHaptic();
 
@@ -58,8 +66,16 @@ describe("haptics", () => {
       expect(notificationAsync).toHaveBeenCalledWith("success");
     });
 
-    it("does not trigger when Sounds is off", () => {
-      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true });
+    it("still triggers when Sounds is off but Haptics remains on", () => {
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true, hapticsEnabled: true });
+
+      playSuccessHaptic();
+
+      expect(notificationAsync).toHaveBeenCalledWith("success");
+    });
+
+    it("does not trigger when Haptics is off", () => {
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: false });
 
       playSuccessHaptic();
 

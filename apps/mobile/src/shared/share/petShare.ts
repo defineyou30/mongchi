@@ -29,8 +29,8 @@ export interface PetShareResult {
 }
 
 const REVEAL_MESSAGE_TEMPLATES: Array<(petName: string) => string> = [
-  (petName) => `Meet ${petName} — my dog just moved into a tiny pixel garden. 🐾 (via Mongchi)`,
-  (petName) => `Say hi to ${petName}! Just settled into their pixel garden home. 🌿 (via Mongchi)`
+  (petName) => `Meet ${petName}, my new tiny garden friend. Made with MongChi.`,
+  (petName) => `${petName} just moved into a tiny pixel garden. Made with MongChi.`
 ];
 
 /**
@@ -49,10 +49,10 @@ export const buildPetRevealShareMessage = (petName: string): string => {
  */
 export const buildFriendShareMessage = ({ petName, daysTogether }: PetShareMessageInput): string => {
   if (typeof daysTogether === "number" && daysTogether > 0) {
-    return `${petName} has been living in my pocket garden for ${daysTogether} day${daysTogether === 1 ? "" : "s"}. 🐾 (via Mongchi)`;
+    return `${petName} has been my tiny garden friend for ${daysTogether} day${daysTogether === 1 ? "" : "s"}. Made with MongChi.`;
   }
 
-  return `${petName} lives in my pocket garden. 🐾 (via Mongchi)`;
+  return `Meet ${petName}, my tiny garden friend. Made with MongChi.`;
 };
 
 const isRemoteUri = (uri: string): boolean => /^https?:\/\//i.test(uri);
@@ -113,7 +113,7 @@ export const resolveShareableImageUri = async (assetUri?: string | null): Promis
 
 export interface SharePetCardParams {
   petName: string;
-  assetUri?: string | null;
+  brandedCardUri?: string | null;
   message: string;
 }
 
@@ -122,8 +122,8 @@ export interface SharePetCardParams {
  * a text-only share when no local image can be resolved. Cancels/dismissals
  * are treated as a normal (non-error) outcome.
  */
-export const sharePetCard = async ({ assetUri, message }: SharePetCardParams): Promise<PetShareResult> => {
-  const shareableImageUri = await resolveShareableImageUri(assetUri);
+export const sharePetCard = async ({ brandedCardUri, message }: SharePetCardParams): Promise<PetShareResult> => {
+  const shareableImageUri = await resolveShareableImageUri(brandedCardUri);
 
   try {
     const action = await Share.share(

@@ -6,9 +6,6 @@ import { ambienceAssetSources, weatherToAmbienceTrack } from "./ambienceAssets";
 import type { AmbienceTrackId } from "./ambienceAssets";
 import { getActiveAudioSettings } from "./useAudioSettings";
 
-// Ambience sits quieter than BGM -- it's a texture bed, not a melody -- see
-// synth_bgm.py's -24/-26dBFS RMS target for the placeholder tracks
-// themselves. This is an additional ceiling on top of that.
 const AMBIENCE_VOLUME = 0.5;
 
 const CROSSFADE_MS = 2000;
@@ -21,6 +18,9 @@ let players: Partial<Record<AmbienceTrackId, AudioPlayer>> | null = null;
 // desiredTrackId, see that file's doc comment for why this survives the
 // setting being off (so syncAmbienceWithSettings can resume immediately).
 let desiredTrackId: AmbienceTrackId | null = null;
+let scheduledStopTimers: Partial<Record<AmbienceTrackId, ReturnType<typeof setTimeout>>> = {};
+let trackLifecycleTokens: Partial<Record<AmbienceTrackId, number>> = {};
+let nextTrackLifecycleToken = 1;
 
 // Phase 3 note (see docs/gamefeel-sound-plan.md §2 Phase 3): wind/night
 // layers will be additional *simultaneous* players mixed under the weather
@@ -100,7 +100,40 @@ const rampVolume = (player: AudioPlayer, target: number, durationMs: number): vo
   setTimeout(tick, VOLUME_STEP_MS);
 };
 
-const playTrackSilently = (player: AudioPlayer): void => {
+const clearScheduledStop = (trackId: AmbienceTrackId): void => {
+  const timer = scheduledStopTimers[trackId];
+
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    delete scheduledStopTimers[trackId];
+  }
+};
+
+const markTrackReactivated = (trackId: AmbienceTrackId): void => {
+  clearScheduledStop(trackId);
+  trackLifecycleTokens[trackId] = nextTrackLifecycleToken;
+  nextTrackLifecycleToken += 1;
+};
+
+const scheduleTrackStop = (trackId: AmbienceTrackId, player: AudioPlayer): void => {
+  clearScheduledStop(trackId);
+  const lifecycleToken = nextTrackLifecycleToken;
+  nextTrackLifecycleToken += 1;
+  trackLifecycleTokens[trackId] = lifecycleToken;
+
+  scheduledStopTimers[trackId] = setTimeout(() => {
+    if (trackLifecycleTokens[trackId] !== lifecycleToken) {
+      return;
+    }
+
+    delete scheduledStopTimers[trackId];
+    stopTrack(player);
+  }, CROSSFADE_MS + VOLUME_STEP_MS);
+};
+
+const playTrackSilently = (trackId: AmbienceTrackId, player: AudioPlayer): void => {
+  markTrackReactivated(trackId);
+
   try {
     if (!player.playing) {
       player.play();
@@ -146,14 +179,14 @@ export const playAmbienceTrack = (trackId: AmbienceTrackId): void => {
     return;
   }
 
-  playTrackSilently(nextPlayer);
+  playTrackSilently(trackId, nextPlayer);
   rampVolume(nextPlayer, targetVolumeForTrack(trackId), CROSSFADE_MS);
 
   if (previousTrackId && previousTrackId !== trackId) {
     const previousPlayer = allPlayers[previousTrackId];
     if (previousPlayer) {
       rampVolume(previousPlayer, 0, CROSSFADE_MS);
-      setTimeout(() => stopTrack(previousPlayer), CROSSFADE_MS + VOLUME_STEP_MS);
+      scheduleTrackStop(previousTrackId, previousPlayer);
     }
   }
 };
@@ -174,13 +207,14 @@ export const stopAmbience = (): void => {
     return;
   }
 
+  const trackId = desiredTrackId;
   const allPlayers = getOrCreatePlayers();
-  const player = allPlayers[desiredTrackId];
+  const player = allPlayers[trackId];
   desiredTrackId = null;
 
   if (player) {
     rampVolume(player, 0, CROSSFADE_MS);
-    setTimeout(() => stopTrack(player), CROSSFADE_MS + VOLUME_STEP_MS);
+    scheduleTrackStop(trackId, player);
   }
 };
 
@@ -201,30 +235,31 @@ export const syncAmbienceWithSettings = (): void => {
   }
 
   if (getActiveAudioSettings().musicEnabled) {
-    playTrackSilently(player);
+    playTrackSilently(desiredTrackId, player);
     rampVolume(player, targetVolumeForTrack(desiredTrackId), CROSSFADE_MS);
   } else {
     rampVolume(player, 0, CROSSFADE_MS);
-    setTimeout(() => stopTrack(player), CROSSFADE_MS + VOLUME_STEP_MS);
+    scheduleTrackStop(desiredTrackId, player);
   }
+};
+
+const pauseExistingAmbiencePlayers = (): void => {
+  Object.values(players ?? {}).forEach((player) => {
+    if (!player?.playing) {
+      return;
+    }
+
+    try {
+      player.pause();
+    } catch {
+      // Silent: see stopTrack doc comment above.
+    }
+  });
 };
 
 /** Pauses ambience without resetting position -- for AppState backgrounding. */
 export const pauseAmbienceForBackground = (): void => {
-  if (!desiredTrackId) {
-    return;
-  }
-
-  const player = getOrCreatePlayers()[desiredTrackId];
-  if (!player) {
-    return;
-  }
-
-  try {
-    player.pause();
-  } catch {
-    // Silent: see stopTrack doc comment above.
-  }
+  pauseExistingAmbiencePlayers();
 };
 
 /** Resumes ambience after returning to foreground, if a track was desired and Music is still enabled. */
@@ -238,13 +273,22 @@ export const resumeAmbienceForForeground = (): void => {
     return;
   }
 
-  playTrackSilently(player);
+  playTrackSilently(desiredTrackId, player);
 };
 
 /** Test-only: lets each test start from a clean player cache and playback state. */
 export const resetAmbiencePlayerForTests = (): void => {
+  Object.values(scheduledStopTimers).forEach((timer) => {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  });
+
   players = null;
   desiredTrackId = null;
+  scheduledStopTimers = {};
+  trackLifecycleTokens = {};
+  nextTrackLifecycleToken = 1;
 };
 
 /** Test-only: current desired/active track id, for assertions. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createInitialCareStats, makeMockGeneratedAsset, mockItems, mockRelationshipState } from "@mongchi/shared";
+import { createInitialCareStats, expressionPacks, makeMockGeneratedAsset, mockItems, mockRelationshipState } from "@mongchi/shared";
 import type { CareStats, CompanionHabitHint, GeneratedAsset, MemoryEntry, WalkCollectionState } from "@mongchi/shared";
 
 import {
@@ -198,7 +198,11 @@ describe("friend memory album presentation", () => {
     const presentation = getFriendMemoryAlbumPresentation(memories, now);
 
     expect(presentation.rows.map((row) => row.id)).toEqual(["m3", "m2", "m1"]);
-    expect(presentation.rows[0]).toMatchObject({ line: "Reached a new bond level.", glyph: getMemoryGlyph("bond_level") });
+    expect(presentation.rows[0]).toMatchObject({
+      line: "Reached a new bond level.",
+      type: "bond_level",
+      glyph: getMemoryGlyph("bond_level")
+    });
   });
 
   it("caps the timeline at MEMORY_TIMELINE_DISPLAY_LIMIT and flags hasMore", () => {
@@ -376,16 +380,19 @@ describe("friend pose gallery presentation", () => {
   const freeTrioAssets: GeneratedAsset[] = (["idle", "happy", "sleep"] as const).map((state) =>
     makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_local_001" })
   );
+  const paidPackAssets: GeneratedAsset[] = expressionPacks.flatMap((pack) =>
+    pack.states.map((state) => makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: `gen_${pack.id}` }))
+  );
 
-  it("shows only owned-state cells and a single unlock card when no pack is owned yet", () => {
+  it("shows owned-state cells and one unlock card per locked expression pack", () => {
     const presentation = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
 
     const ownedStates = presentation.cells.filter((cell) => cell.status === "owned").map((cell) => cell.state);
     const lockedStates = presentation.cells.filter((cell) => cell.status === "locked").map((cell) => cell.state);
 
     expect(ownedStates).toEqual(expect.arrayContaining(["idle", "happy", "sleep"]));
-    expect(lockedStates).toEqual(expect.arrayContaining(["curious", "play", "hungry"]));
-    expect(presentation.cards).toHaveLength(1);
+    expect(lockedStates).toEqual(expect.arrayContaining(expressionPacks.flatMap((pack) => pack.states)));
+    expect(presentation.cards).toHaveLength(expressionPacks.length);
     expect(presentation.cards[0]).toMatchObject({
       packId: "pack-everyday-moments",
       status: "available",
@@ -394,12 +401,7 @@ describe("friend pose gallery presentation", () => {
   });
 
   it("removes a pack's card entirely once every one of its states is owned", () => {
-    const allAssets: GeneratedAsset[] = [
-      ...freeTrioAssets,
-      ...(["curious", "play", "hungry"] as const).map((state) =>
-        makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_pack_001" })
-      )
-    ];
+    const allAssets: GeneratedAsset[] = [...freeTrioAssets, ...paidPackAssets];
 
     const presentation = getFriendPoseGalleryPresentation(allAssets, "Momo");
 
@@ -411,24 +413,26 @@ describe("friend pose gallery presentation", () => {
     const presentation = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo", {
       "pack-everyday-moments": { status: "pending" }
     });
+    const card = presentation.cards.find((candidate) => candidate.packId === "pack-everyday-moments");
 
-    expect(presentation.cards[0]).toMatchObject({
+    expect(card).toMatchObject({
       status: "purchasing",
       progressLine: "New moments are on their way..."
     });
-    expect(presentation.cards[0]?.failureLine).toBeNull();
+    expect(card?.failureLine).toBeNull();
   });
 
   it("surfaces a warm failure line and lets the card return to available for retry", () => {
     const presentation = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo", {
       "pack-everyday-moments": { status: "failed", failureMessageSafe: "That didn't quite work. Let's try again." }
     });
+    const card = presentation.cards.find((candidate) => candidate.packId === "pack-everyday-moments");
 
-    expect(presentation.cards[0]).toMatchObject({
+    expect(card).toMatchObject({
       status: "failed",
       failureLine: "That didn't quite work. Let's try again."
     });
-    expect(presentation.cards[0]?.progressLine).toBeNull();
+    expect(card?.progressLine).toBeNull();
   });
 
   it("gives each owned asset exactly one cell (no duplicates for the same state)", () => {

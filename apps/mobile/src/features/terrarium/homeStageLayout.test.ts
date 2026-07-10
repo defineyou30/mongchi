@@ -15,8 +15,8 @@ import {
 } from "./homeStageLayout";
 
 const HUD_BOTTOM_PX_FROM_TOP = 100;
-/** Side-rail icon stack's bottom edge, re-derived independently from TerrariumHomeScreen's sceneSideRailLeft/Right + sceneRailButton styles (top 126 + 2 * 58 + gap 16). */
-const RAIL_BOTTOM_PX_FROM_TOP = 126 + 58 * 2 + 16;
+const VISIBLE_STAGE_TOP_PX = 82;
+const VISIBLE_STAGE_BOTTOM_PX = 104;
 /** Walk panel's rough top edge, re-derived independently from TerrariumHomeScreen's walkPanel style (bottom 118 + content). */
 const WALK_PANEL_TOP_PX_FROM_BOTTOM = 196;
 
@@ -122,34 +122,26 @@ describe("getWalkPawsLayerSizePx", () => {
 });
 
 describe("getWalkPawsLayerBottomPx", () => {
-  it("never overlaps the side-rail icon stack or the walk panel, on the smallest supported screen", () => {
-    const windowHeight = HOME_STAGE_SMALLEST_SUPPORTED_SCREEN_HEIGHT_PX;
+  it.each([667, 844, 926])(
+    "centers the walk animation within 8pt of the visible stage center at %ipt",
+    (windowHeight) => {
+      const sizePx = getWalkPawsLayerSizePx(windowHeight);
+      const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
+      const animationCenterPx = windowHeight - bottomPx - sizePx / 2;
+      const visibleStageCenterPx = VISIBLE_STAGE_TOP_PX + (windowHeight - VISIBLE_STAGE_TOP_PX - VISIBLE_STAGE_BOTTOM_PX) / 2;
+
+      expect(Math.abs(animationCenterPx - visibleStageCenterPx)).toBeLessThanOrEqual(8);
+    }
+  );
+
+  it.each([667, 844, 926])("keeps the centered walk animation clear of the HUD, walk panel, and dock at %ipt", (windowHeight) => {
     const sizePx = getWalkPawsLayerSizePx(windowHeight);
     const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
-    const topPxFromTop = windowHeight - (bottomPx + sizePx);
+    const topPxFromTop = windowHeight - bottomPx - sizePx;
 
+    expect(topPxFromTop).toBeGreaterThanOrEqual(VISIBLE_STAGE_TOP_PX);
+    expect(bottomPx).toBeGreaterThanOrEqual(VISIBLE_STAGE_BOTTOM_PX);
     expect(bottomPx).toBeGreaterThanOrEqual(WALK_PANEL_TOP_PX_FROM_BOTTOM);
-    expect(topPxFromTop).toBeGreaterThanOrEqual(RAIL_BOTTOM_PX_FROM_TOP);
-  });
-
-  it("never overlaps the side-rail icon stack or the walk panel, on a common reference screen", () => {
-    const windowHeight = 844;
-    const sizePx = getWalkPawsLayerSizePx(windowHeight);
-    const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
-    const topPxFromTop = windowHeight - (bottomPx + sizePx);
-
-    expect(bottomPx).toBeGreaterThanOrEqual(WALK_PANEL_TOP_PX_FROM_BOTTOM);
-    expect(topPxFromTop).toBeGreaterThanOrEqual(RAIL_BOTTOM_PX_FROM_TOP);
-  });
-
-  it("never overlaps the side-rail icon stack or the walk panel, on a tall screen", () => {
-    const windowHeight = 926;
-    const sizePx = getWalkPawsLayerSizePx(windowHeight);
-    const bottomPx = getWalkPawsLayerBottomPx(windowHeight, sizePx);
-    const topPxFromTop = windowHeight - (bottomPx + sizePx);
-
-    expect(bottomPx).toBeGreaterThanOrEqual(WALK_PANEL_TOP_PX_FROM_BOTTOM);
-    expect(topPxFromTop).toBeGreaterThanOrEqual(RAIL_BOTTOM_PX_FROM_TOP);
   });
 });
 

@@ -61,13 +61,13 @@ describe("bgmPlayer", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetBgmPlayerForTests();
-    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
     createAudioPlayer.mockReset();
     createAudioPlayer.mockImplementation(() => makeFakePlayer());
   });
 
   afterEach(() => {
-    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+    setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
     vi.useRealTimers();
   });
 
@@ -99,7 +99,7 @@ describe("bgmPlayer", () => {
     });
 
     it("does not play when the Music setting is off", async () => {
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
 
       playBgm("bgm_garden_day");
       preloadBgm();
@@ -132,6 +132,20 @@ describe("bgmPlayer", () => {
       expect(nightPlayer.volume).toBeGreaterThan(0);
       expect(dayPlayer.volume).toBe(0);
       expect(dayPlayer.pause).toHaveBeenCalled();
+    });
+
+    it("does not let a stale crossfade stop timer pause a track that has been reactivated", async () => {
+      playBgm("bgm_garden_day");
+      const dayPlayer = createAudioPlayer.mock.results[0]!.value as FakePlayer;
+      await flushRamp();
+
+      playBgm("bgm_garden_night");
+      await vi.advanceTimersByTimeAsync(1000);
+
+      playBgm("bgm_garden_day");
+      await flushRamp();
+
+      expect(dayPlayer.playing).toBe(true);
     });
 
     it("tracks the active track id", () => {
@@ -183,11 +197,11 @@ describe("bgmPlayer", () => {
       preloadBgm();
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
 
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
       playBgm("bgm_garden_day"); // records desired track, but does not play (Music is off)
       expect(player.play).not.toHaveBeenCalled();
 
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
       syncBgmWithSettings();
       await flushRamp();
 
@@ -201,7 +215,7 @@ describe("bgmPlayer", () => {
       await flushRamp();
       expect(player.volume).toBeGreaterThan(0);
 
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
       syncBgmWithSettings();
       await flushRamp();
 
@@ -271,6 +285,28 @@ describe("bgmPlayer", () => {
   });
 
   describe("pauseBgmForBackground / resumeBgmForForeground", () => {
+    it("pauses both tracks while a crossfade is in progress", async () => {
+      playBgm("bgm_garden_day");
+      const dayPlayer = createAudioPlayer.mock.results[0]!.value as FakePlayer;
+      await flushRamp();
+
+      playBgm("bgm_garden_night");
+      const nightPlayer = createAudioPlayer.mock.results[1]!.value as FakePlayer;
+      pauseBgmForBackground();
+
+      expect(dayPlayer.pause).toHaveBeenCalled();
+      expect(nightPlayer.pause).toHaveBeenCalled();
+      expect(dayPlayer.playing).toBe(false);
+      expect(nightPlayer.playing).toBe(false);
+
+      dayPlayer.play.mockClear();
+      nightPlayer.play.mockClear();
+      resumeBgmForForeground();
+
+      expect(dayPlayer.play).not.toHaveBeenCalled();
+      expect(nightPlayer.play).toHaveBeenCalled();
+    });
+
     it("pauses the active track without resetting its volume/position", async () => {
       playBgm("bgm_garden_day");
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
@@ -300,7 +336,7 @@ describe("bgmPlayer", () => {
       const player = createAudioPlayer.mock.results[0]!.value as FakePlayer;
       pauseBgmForBackground();
       player.play.mockClear();
-      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false });
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true });
 
       resumeBgmForForeground();
 

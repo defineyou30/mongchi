@@ -6,4 +6,5 @@ export * from "./bgmPlayer";
 export * from "./haptics";
 export * from "./sfxPlayer";
 export * from "./soundManager";
+export * from "./sfxCueContracts";
 export * from "./useAudioSettings";

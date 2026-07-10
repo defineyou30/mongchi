@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ArrowRight, Camera } from "lucide-react-native";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
@@ -20,20 +19,20 @@ interface WelcomeOnboardingSlide {
 const welcomeSlides = [
   {
     step: "Step 1",
-    title: "Keep your beloved pet close",
-    body: "Mongchi turns care into a quiet little world you can open whenever you miss them.",
+    title: "Your dog, close every day",
+    body: "Turn one favorite dog photo into a tiny friend who waits in your garden.",
     variant: "welcome"
   },
   {
     step: "Step 2",
-    title: "Begin with one real photo",
-    body: "Choose a clear favorite photo, then shape a tiny friend with a name, mood, and voice.",
+    title: "One photo is all it takes",
+    body: "Choose a clear photo of your dog, then add their name and little personality.",
     variant: "photo"
   },
   {
     step: "Step 3",
-    title: "Let them move into your garden",
-    body: "Feed, play, rest, and return each day to grow a gentle bond in your pocket.",
+    title: "Grow your daily bond",
+    body: "Feed, play, chat, and come back to your dog's cozy garden each day.",
     variant: "profile"
   }
 ] as const satisfies readonly WelcomeOnboardingSlide[];
@@ -94,7 +93,7 @@ export function WelcomeOnboardingScreen() {
         <View style={styles.actions}>
           <ActionButton
             label={isLastSlide ? "Start with a photo" : "Next"}
-            Icon={isLastSlide ? Camera : ArrowRight}
+            iconId={isLastSlide ? "camera" : "forward"}
             onPress={handleNext}
           />
           <Pressable accessibilityLabel="Skip welcome onboarding" accessibilityRole="button" hitSlop={10} style={styles.skipLink} onPress={continueToPetSetup}>

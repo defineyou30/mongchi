@@ -1,9 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ArrowLeft, Flame, Footprints, Heart, Mail, PawPrint, Share2 } from "lucide-react-native";
+import { ArrowLeft, Mail, Share2 } from "lucide-react-native";
 import { router } from "expo-router";
-import type { ComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 
 import {
   expressionPacks,
@@ -12,6 +12,7 @@ import {
   isExpressionPackUnlocked,
   projectCareStreakForNow
 } from "@mongchi/shared";
+import type { MemoryType } from "@mongchi/shared";
 
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
@@ -20,6 +21,12 @@ import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { walkCollectibleAssets } from "../../shared/assets/walkCollectibleAssets";
+import { getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPetAssets";
+import {
+  BRANDED_SHARE_CARD_SIZE,
+  BrandedPetShareCard
+} from "../../shared/share/MongchiShareCard";
+import type { BrandedPetShareCardHandle } from "../../shared/share/MongchiShareCard";
 import { buildFriendShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
@@ -47,6 +54,28 @@ const MONTHLY_LETTER_OPENED_KEY = "mongchi.friend.monthlyLetter.openedAt.v1";
 // never shown once opened (see MonthlyLetterCardBody and the letter card's
 // locked branch below). Required at module scope so it's bundled once.
 const giftBoxAnimation = require("../../../assets/lottie/gift-box.json");
+const profileIconAssets = {
+  bond: require("../../../assets/game-buttons/feedback/heart.png"),
+  streak: require("../../../assets/game-buttons/energy.png"),
+  together: require("../../../assets/game-buttons/path.png"),
+  lately: require("../../../assets/status-icons/cozy.png"),
+  walkFinds: require("../../../assets/game-buttons/dock/path.png"),
+  letter: require("../../../assets/game-items/hud/gift-box.png")
+} satisfies Record<string, ImageSourcePropType>;
+
+const memoryIconAssets = {
+  moved_in: require("../../../assets/status-icons/glowing.png"),
+  first_walk: require("../../../assets/game-buttons/path.png"),
+  first_find: require("../../../assets/game-items/hud/gift-box.png"),
+  rare_find: require("../../../assets/status-icons/glowing.png"),
+  collection_complete: require("../../../assets/generated/items/gift-v3.png"),
+  bond_level: require("../../../assets/game-buttons/feedback/heart.png"),
+  streak_milestone: require("../../../assets/game-buttons/energy.png"),
+  days_milestone: require("../../../assets/status-icons/cozy.png"),
+  first_treat: require("../../../assets/game-items/hud/treat-plate.png"),
+  theme_applied: require("../../../assets/generated/items/flower-pot-v3.png"),
+  expression_pack: require("../../../assets/game-buttons/side-nav/friend.png")
+} satisfies Record<MemoryType, ImageSourcePropType>;
 
 /** Persists which expression packs' reveal showcase (stagger + banner line) has already played once. */
 const POSE_REVEAL_SEEN_PACK_IDS_KEY = "mongchi.friend.poseReveal.seenPackIds.v1";
@@ -204,8 +233,7 @@ const letterStyles = StyleSheet.create({
 const JINGLE_DUCK_MS = 900;
 
 interface StatTileProps {
-  Icon: ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
-  iconColor: string;
+  iconSource: ImageSourcePropType;
   value: string;
   label: string;
   accessibilityLabel: string;
@@ -221,7 +249,7 @@ interface StatTileProps {
  * reaches screen readers via accessibilityLabel, it's just not printed on
  * screen anymore.
  */
-function StatTile({ Icon, iconColor, value, label, accessibilityLabel, progressFraction }: StatTileProps) {
+function StatTile({ iconSource, value, label, accessibilityLabel, progressFraction }: StatTileProps) {
   const typography = useTypography();
   const fontFamilies = useFontFamilies();
   const hasProgress = progressFraction !== undefined;
@@ -233,7 +261,14 @@ function StatTile({ Icon, iconColor, value, label, accessibilityLabel, progressF
       accessibilityValue={hasProgress ? { min: 0, max: 100, now: Math.round((progressFraction ?? 0) * 100) } : undefined}
       style={statTileStyles.tile}
     >
-      <Icon color={iconColor} size={18} strokeWidth={2.6} />
+      <Image
+        accessibilityIgnoresInvertColors
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        resizeMode="contain"
+        source={iconSource}
+        style={statTileStyles.icon}
+      />
       <Text style={[statTileStyles.value, { fontFamily: fontFamilies.display }]}>{value}</Text>
       <Text style={[statTileStyles.label, typography.label]}>{label}</Text>
       {hasProgress ? (
@@ -258,6 +293,11 @@ const statTileStyles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     ...shadows.tile
+  },
+  icon: {
+    width: 28,
+    height: 28,
+    marginBottom: -2
   },
   value: {
     color: colors.ink,
@@ -305,6 +345,7 @@ export function FriendProfileScreen() {
   const reduceMotionEnabled = useReducedMotionPreference();
   const [now] = useState(() => new Date().toISOString());
   const [isSharing, setIsSharing] = useState(false);
+  const shareCardRef = useRef<BrandedPetShareCardHandle>(null);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
   const [monthlyLetterLoaded, setMonthlyLetterLoaded] = useState(false);
   const [purchasingPackMessage, setPurchasingPackMessage] = useState<string | null>(null);
@@ -482,8 +523,9 @@ export function FriendProfileScreen() {
     });
   };
 
-  const petAssetId = acceptedAsset?.id ?? activePet.activeAssetId ?? null;
-  const petAssetUri = petAssetId ? generatedAssetUriById[petAssetId] ?? null : null;
+  const petAssetId =
+    acceptedAsset?.id ?? activePet.activeAssetId ?? getFallbackGeneratedPetAssetId(activePet.species, "happy");
+  const petAssetUri = generatedAssetUriById[petAssetId] ?? null;
 
   const handleShare = async () => {
     if (isSharing) {
@@ -492,9 +534,11 @@ export function FriendProfileScreen() {
 
     setIsSharing(true);
     try {
+      const brandedCardUri = (await shareCardRef.current?.capture()) ?? null;
+
       await sharePetCard({
         petName: activePet.name,
-        assetUri: petAssetUri,
+        brandedCardUri,
         message: buildFriendShareMessage({ petName: activePet.name, daysTogether })
       });
     } finally {
@@ -508,6 +552,16 @@ export function FriendProfileScreen() {
       contentStyle={styles.content}
       innerStyle={styles.inner}
     >
+      <View style={styles.shareCaptureHost}>
+        <BrandedPetShareCard
+          ref={shareCardRef}
+          assetId={petAssetId}
+          daysTogether={daysTogether}
+          petAssetUri={petAssetUri}
+          petName={activePet.name}
+        />
+      </View>
+
       {/* 1. HERO STAGE -- the page's first beat: a back button overlaid on
           the garden backdrop (GardenSceneFrame's own background art already
           supplies the "garden" behind everything below), the name +
@@ -549,27 +603,32 @@ export function FriendProfileScreen() {
       <View style={styles.statRibbon}>
         <StatTile
           accessibilityLabel={`Bond progress toward level ${bond.level + 1}: ${bond.levelLabel}`}
-          Icon={Heart}
-          iconColor={colors.rose}
+          iconSource={profileIconAssets.bond}
           label="Bond"
           progressFraction={bond.progressFraction}
           value={bond.levelLabel}
         />
         <StatTile
           accessibilityLabel={`${streak.headline}. ${streak.subline}`}
-          Icon={Flame}
-          iconColor={colors.honey}
+          iconSource={profileIconAssets.streak}
           label="Streak"
           value={String(streak.current)}
         />
-        <StatTile accessibilityLabel={movedInLine} Icon={PawPrint} iconColor={colors.leaf} label="Together" value={String(daysTogether)} />
+        <StatTile accessibilityLabel={movedInLine} iconSource={profileIconAssets.together} label="Together" value={String(daysTogether)} />
       </View>
 
       {/* 3. PERSONALITY NOTE -- "Lately, {name}..." reads like a handwritten
           note tucked into the page, not another data card. */}
       <View style={styles.noteCard}>
         <View style={styles.noteGlyphBadge}>
-          <PawPrint color={colors.gold} size={14} strokeWidth={2.6} />
+          <Image
+            accessibilityIgnoresInvertColors
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            resizeMode="contain"
+            source={profileIconAssets.lately}
+            style={styles.noteGlyphIcon}
+          />
         </View>
         <Text style={[styles.noteTitle, typography.title]}>Lately, {activePet.name}...</Text>
         {habitSummary.habitLines.map((line, index) => (
@@ -591,7 +650,14 @@ export function FriendProfileScreen() {
       <View style={styles.collectionsPanel}>
         <View style={styles.cardHeaderRow}>
           <View style={styles.collectionsSectionHeading}>
-            <Footprints color={colors.moss} size={16} strokeWidth={2.6} />
+            <Image
+              accessibilityIgnoresInvertColors
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              resizeMode="contain"
+              source={profileIconAssets.walkFinds}
+              style={styles.collectionsHeadingIcon}
+            />
             <Text style={[styles.collectionsTitle, typography.title]}>Walk finds</Text>
           </View>
           <View style={styles.progressChip}>
@@ -630,7 +696,14 @@ export function FriendProfileScreen() {
           {memoryAlbum.rows.map((row) => (
             <View key={row.id} style={styles.memoryRow}>
               <View style={styles.memoryGlyphBadge}>
-                <Text style={styles.memoryGlyphText}>{row.glyph}</Text>
+                <Image
+                  accessibilityIgnoresInvertColors
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  resizeMode="contain"
+                  source={memoryIconAssets[row.type]}
+                  style={styles.memoryGlyphIcon}
+                />
               </View>
               <View style={styles.memoryRowText}>
                 <Text style={[styles.memoryLine, typography.body]}>{row.line}</Text>
@@ -649,7 +722,14 @@ export function FriendProfileScreen() {
       <View style={styles.letterCard}>
         <View style={styles.letterSealWrap}>
           <View style={styles.letterSealBadge}>
-            <Mail color={colors.cream} size={18} strokeWidth={2.6} />
+            <Image
+              accessibilityIgnoresInvertColors
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              resizeMode="contain"
+              source={profileIconAssets.letter}
+              style={styles.letterSealIcon}
+            />
           </View>
         </View>
         <Text style={[styles.cardTitle, typography.title]}>{activePet.name}'s letter</Text>
@@ -662,7 +742,7 @@ export function FriendProfileScreen() {
                 previewLine copy still reaches screen readers via this
                 wrapper's accessibilityLabel. */}
             <View accessibilityLabel={monthlyLetter.previewLine} style={styles.letterGiftBoxLockedWrap}>
-              <LottieAnimation loop source={giftBoxAnimation} style={styles.letterGiftBoxLocked} />
+              <LottieAnimation decorative loop source={giftBoxAnimation} style={styles.letterGiftBoxLocked} />
             </View>
             <Text style={[styles.cardCaption, typography.label]}>{monthlyLetter.progressLabel}</Text>
           </>
@@ -721,6 +801,13 @@ export function FriendProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  shareCaptureHost: {
+    position: "absolute",
+    left: -BRANDED_SHARE_CARD_SIZE.width - spacing.xl,
+    top: 0,
+    width: BRANDED_SHARE_CARD_SIZE.width,
+    height: BRANDED_SHARE_CARD_SIZE.height
+  },
   content: {
     // paddingTop is the single top-of-content gap below the safe area for
     // this screen (~8-12pt target, matching the rest of the app's screens
@@ -797,15 +884,19 @@ const styles = StyleSheet.create({
     ...shadows.soft
   },
   noteGlyphBadge: {
-    width: 26,
-    height: 26,
+    width: 32,
+    height: 32,
     borderRadius: radii.pill,
-    backgroundColor: "rgba(217,149,56,0.22)",
+    backgroundColor: profileSurfaces.letterGlow,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: profileSurfaces.lightRim,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2
+  },
+  noteGlyphIcon: {
+    width: 24,
+    height: 24
   },
   noteTitle: {
     color: colors.ink
@@ -836,6 +927,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs
+  },
+  collectionsHeadingIcon: {
+    width: 28,
+    height: 28
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -941,19 +1036,18 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   memoryGlyphBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.pill,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: profileSurfaces.letterGlow,
     borderWidth: 2,
     borderColor: profileSurfaces.softRim,
     alignItems: "center",
     justifyContent: "center"
   },
-  memoryGlyphText: {
-    color: colors.gold,
-    fontSize: 14,
-    fontWeight: "900"
+  memoryGlyphIcon: {
+    width: 24,
+    height: 24
   },
   memoryRowText: {
     flex: 1,
@@ -995,6 +1089,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...shadows.tile
+  },
+  letterSealIcon: {
+    width: 28,
+    height: 28
   },
   // Locked state's quiet "waiting to be opened" loop -- smaller and calmer
   // than the arrived state's gift box (see letterStyles.arrivedGiftBox)

@@ -48,11 +48,17 @@ export function AppDialogProvider({ children }: PropsWithChildren) {
       {children}
       <Modal transparent animationType="fade" statusBarTranslucent visible={dialog !== null} onRequestClose={dismissDialog}>
         <View style={styles.overlay}>
-          <View accessibilityRole="alert" style={styles.dialog}>
+          <View
+            accessibilityRole="alert"
+            accessibilityLabel={dialog ? `${dialog.title}. ${dialog.message}` : undefined}
+            accessibilityViewIsModal
+            style={styles.dialog}
+          >
             {dialog?.animationSource ? (
               <LottieAnimation
-                accessibilityLabel={`${dialog.title} animation`}
+                decorative
                 loop
+                posterProgress={0.5}
                 source={dialog.animationSource}
                 style={styles.animation}
               />
@@ -63,11 +69,21 @@ export function AppDialogProvider({ children }: PropsWithChildren) {
             <Text style={styles.message}>{dialog?.message}</Text>
             <View style={styles.actions}>
               {dialog?.secondaryLabel ? (
-                <Pressable accessibilityRole="button" style={[styles.button, styles.secondaryButton]} onPress={handleSecondary}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={dialog.secondaryLabel}
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={handleSecondary}
+                >
                   <Text style={[styles.buttonText, styles.secondaryButtonText]}>{dialog.secondaryLabel}</Text>
                 </Pressable>
               ) : null}
-              <Pressable accessibilityRole="button" style={[styles.button, styles.primaryButton]} onPress={handlePrimary}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={dialog?.primaryLabel ?? "OK"}
+                style={[styles.button, styles.primaryButton]}
+                onPress={handlePrimary}
+              >
                 <Text style={[styles.buttonText, styles.primaryButtonText]}>{dialog?.primaryLabel ?? "OK"}</Text>
               </Pressable>
             </View>
@@ -156,7 +172,7 @@ const styles = StyleSheet.create({
     fontWeight: "900"
   },
   primaryButtonText: {
-    color: colors.white
+    color: colors.ink
   },
   secondaryButtonText: {
     color: colors.woodDark

@@ -38,27 +38,12 @@ const backgroundSources = {
   hatchReveal: require("../../../assets/generated/backgrounds/candidates/hatch-reveal-garden-premium-v1-portrait.png"),
   legacyPixelGarden: require("../../../assets/generated/backgrounds/pixel-garden-premium-v1.png"),
   loadingWorld: require("../../../assets/generated/brand/loading-screen-v1.png"),
-  shopGarden: require("../../../assets/generated/backgrounds/candidates/shop-market-premium-v1-portrait.png"),
-  shopShelf: require("../../../assets/generated/backgrounds/shop-room-square-premium-v1.png"),
-  terrariumDome: require("../../../assets/generated/backgrounds/terrarium-dome-v4.png"),
-  terrariumSky: require("../../../assets/generated/backgrounds/terrarium-sky-v2.png"),
   themeAutumnWoods: require("../../../assets/generated/backgrounds/themes/theme-autumn-woods-v1-portrait.png"),
   themeFairyGarden: require("../../../assets/generated/backgrounds/themes/theme-fairy-garden-v1-portrait.png"),
   themeSeasideCove: require("../../../assets/generated/backgrounds/themes/theme-seaside-cove-v1-portrait.png"),
   themeWinterLights: require("../../../assets/generated/backgrounds/themes/theme-winter-lights-v1-portrait.png"),
   welcomeWorld: require("../../../assets/generated/brand/welcome-screen-v1.png")
 };
-
-const shelfSlotPositions = [
-  { left: "13%", top: "20%" },
-  { left: "43%", top: "31%" },
-  { right: "13%", top: "20%" },
-  { left: "13%", top: "45%" },
-  { right: "13%", top: "45%" },
-  { left: "13%", top: "68%" },
-  { left: "43%", top: "57%" },
-  { right: "13%", top: "68%" }
-] as const;
 
 interface GameItemImageProps {
   item: GameItemAssetKey;
@@ -133,7 +118,7 @@ interface TerrariumArtProps {
   petAssetId?: GeneratedAssetId | null;
   petAssetUri?: string | null;
   placedItems?: TerrariumPlacedItem[];
-  scene?: "garden" | "hatching" | "reveal" | "dome" | "welcome" | "loading" | "chat";
+  scene?: "garden" | "hatching" | "reveal" | "welcome" | "loading" | "chat";
   showAmbientItems?: boolean;
   variant?: "empty" | "hatching" | "pet";
   style?: StyleProp<ViewStyle>;
@@ -165,10 +150,8 @@ export function TerrariumArt({
   const usePlacedInventory = placedItems !== undefined;
   const sceneMode = scene ?? (hatching ? "hatching" : "garden");
   const backgroundSource =
-    sceneMode === "dome"
-      ? backgroundSources.terrariumDome
-      : sceneMode === "hatching"
-        ? backgroundSources.hatchReveal
+    sceneMode === "hatching"
+      ? backgroundSources.hatchReveal
         : sceneMode === "reveal"
         ? backgroundSources.hatchReveal
         : sceneMode === "welcome"
@@ -178,8 +161,6 @@ export function TerrariumArt({
             : sceneMode === "chat"
               ? backgroundSources.chatGarden
               : backgroundSources.pixelGarden;
-  const usesGeneratedGardenBackdrop = sceneMode !== "dome";
-
   return (
     <ImageBackground
       accessibilityLabel={accessibilityLabel}
@@ -195,7 +176,6 @@ export function TerrariumArt({
       ]}
     >
       <View style={styles.sceneLayer}>
-        {sceneMode === "dome" ? <View style={styles.domeShine} /> : null}
         {sceneMode === "reveal" && showAmbientItems ? (
           <>
             <View style={styles.confettiOne} />
@@ -455,29 +435,6 @@ export function PremiumBondArt({
   );
 }
 
-export function ShopShelfArt() {
-  const shelfItems: GameItemAssetKey[] = ["toyBall", "treatPlate", "bone", "petBed", "flowerPot", "tinyHouse", "hangingLantern", "gem"];
-
-  return (
-    <ImageBackground
-      accessibilityLabel="Shop shelf item art"
-      imageStyle={styles.panelImage}
-      resizeMode="cover"
-      source={backgroundSources.shopShelf}
-      style={[styles.panel, styles.shopPanel]}
-    >
-      <View style={styles.shelfOverlay}>
-        {shelfItems.map((item, index) => (
-          <View key={item} style={[styles.shelfCell, shelfSlotPositions[index]]}>
-            <GameItemImage accessibilityLabel={`${item} shop icon`} decorative item={item} style={styles.shelfIcon} variant="scene" />
-            <View style={styles.shelfItemBase} />
-          </View>
-        ))}
-      </View>
-    </ImageBackground>
-  );
-}
-
 const styles = StyleSheet.create({
   panel: {
     borderRadius: 30,
@@ -674,16 +631,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     alignItems: "center",
     justifyContent: "flex-end"
-  },
-  domeShine: {
-    position: "absolute",
-    top: 78,
-    left: 84,
-    width: 54,
-    height: 172,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    transform: [{ rotate: "15deg" }]
   },
   island: {
     position: "absolute",
@@ -1426,49 +1373,6 @@ const styles = StyleSheet.create({
     width: 126,
     height: 126,
     marginBottom: 42
-  },
-  shopPanel: {
-    minHeight: 238,
-    backgroundColor: colors.parchment,
-    justifyContent: "flex-end"
-  },
-  shopGarden: {
-    position: "absolute",
-    top: 0,
-    width: "100%",
-    height: 130,
-    backgroundColor: colors.mint
-  },
-  shelfOverlay: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0
-  },
-  shelfCell: {
-    position: "absolute",
-    width: 58,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "visible"
-  },
-  shelfIcon: {
-    width: 58,
-    height: 58,
-    zIndex: 2
-  },
-  shelfItemBase: {
-    position: "absolute",
-    bottom: 4,
-    width: 54,
-    height: 9,
-    borderRadius: 999,
-    backgroundColor: "rgba(85,61,44,0.2)"
   },
   itemIcon: {
     width: 72,

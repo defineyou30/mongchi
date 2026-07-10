@@ -1,4 +1,3 @@
-import { Bug, Camera, CloudRain, Download, FileText, LifeBuoy, MapPin, MessageCircle, Music, Music2, PawPrint, RotateCcw, ShieldCheck, ShoppingBag, Sun, Trash2, Type, Upload, Volume2, VolumeX } from "lucide-react-native";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
@@ -9,6 +8,7 @@ import { fontPairLabels, useFontPair } from "../../shared/design/fontPair";
 import type { FontPairId } from "../../shared/design/fontPair";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { useAppDialog } from "../../shared/ui/AppDialog";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
@@ -257,7 +257,7 @@ export function SettingsScreen() {
 
       <View style={styles.settingsHero}>
         <View style={styles.heroIcon}>
-          <PawPrint color={colors.leaf} size={26} strokeWidth={2.6} />
+          <MongchiIcon id="paw" size={34} />
         </View>
         <View style={styles.heroCopy}>
           <Text style={[styles.heroText, { fontFamily: fontFamilies.body }]}>
@@ -275,7 +275,7 @@ export function SettingsScreen() {
       {privacyActionInProgress || privacyActionError ? (
         <View style={[styles.statusNotice, privacyActionError ? styles.statusNoticeError : null]}>
           <View style={styles.statusRibbon}>
-            <ShieldCheck color={privacyActionError ? colors.coral : colors.leaf} size={18} strokeWidth={2.7} />
+            <MongchiIcon id={privacyActionError ? "shield-alert" : "shield-check"} size={22} />
             <Text style={[styles.statusRibbonText, { fontFamily: fontFamilies.label }]}>{privacyActionError ? "Needs check" : "Syncing"}</Text>
           </View>
           <Text style={[styles.statusTitle, { fontFamily: fontFamilies.title }]}>
@@ -289,16 +289,16 @@ export function SettingsScreen() {
 
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
-          <CloudRain color={colors.skyDeep} size={18} strokeWidth={2.8} />
+          <MongchiIcon id="rain" size={22} />
           <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Little reminders</Text>
         </View>
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
             {weatherState.settings.enabled ? (
-              <CloudRain color={colors.skyDeep} size={18} strokeWidth={2.6} />
+              <MongchiIcon id="rain" size={22} />
             ) : (
-              <Sun color={colors.honey} size={18} strokeWidth={2.6} />
+              <MongchiIcon id="sun" size={22} />
             )}
           </View>
           <View style={styles.compactCopy}>
@@ -320,7 +320,7 @@ export function SettingsScreen() {
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <MapPin color={colors.leaf} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="location" size={22} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Use my location</Text>
@@ -345,7 +345,7 @@ export function SettingsScreen() {
             <View style={styles.rowDivider} />
             <View style={styles.compactRow}>
               <View style={styles.compactIconFrame}>
-                <CloudRain color={colors.skyDeep} size={18} strokeWidth={2.6} />
+                <MongchiIcon id="rain" size={22} />
               </View>
               <View style={styles.compactCopy}>
                 <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Preview weather</Text>
@@ -365,16 +365,16 @@ export function SettingsScreen() {
 
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
-          <Music color={colors.violet} size={18} strokeWidth={2.8} />
+          <MongchiIcon id="music" size={22} />
           <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Sound & feel</Text>
         </View>
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
             {audioSettings.soundsEnabled ? (
-              <Volume2 color={colors.violet} size={18} strokeWidth={2.6} />
+              <MongchiIcon id="sound-on" size={22} />
             ) : (
-              <VolumeX color={colors.mutedInk} size={18} strokeWidth={2.6} />
+              <MongchiIcon id="sound-off" size={22} />
             )}
           </View>
           <View style={styles.compactCopy}>
@@ -394,7 +394,7 @@ export function SettingsScreen() {
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <Music2 color={audioSettings.musicEnabled ? colors.violet : colors.mutedInk} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="ambience" size={22} style={!audioSettings.musicEnabled ? styles.mutedIcon : undefined} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Music & ambience</Text>
@@ -414,13 +414,13 @@ export function SettingsScreen() {
 
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
-          <ShieldCheck color={colors.leaf} size={18} strokeWidth={2.8} />
+          <MongchiIcon id="shield-check" size={22} />
           <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Privacy & care</Text>
         </View>
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <Camera color={colors.violet} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="camera" size={22} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Local photo copy</Text>
@@ -430,7 +430,7 @@ export function SettingsScreen() {
           </View>
           <ActionButton
             label={privacyActionInProgress ? "Deleting" : originalPhotoDeletedAt ? "Cleared" : "Delete"}
-            Icon={Trash2}
+            iconId="delete"
             variant="danger"
             size="compact"
             style={styles.compactAction}
@@ -449,7 +449,7 @@ export function SettingsScreen() {
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <MessageCircle color={colors.skyDeep} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="chat" size={22} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Chat history</Text>
@@ -459,7 +459,7 @@ export function SettingsScreen() {
           </View>
           <ActionButton
             label={privacyActionInProgress ? "Deleting" : chatHistoryDeletedAt ? "Cleared" : "Delete"}
-            Icon={Trash2}
+            iconId="delete"
             variant="danger"
             size="compact"
             style={styles.compactAction}
@@ -472,7 +472,7 @@ export function SettingsScreen() {
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <Download color={colors.leaf} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="download" size={22} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Back up your friend</Text>
@@ -482,7 +482,7 @@ export function SettingsScreen() {
           </View>
           <ActionButton
             label="Export"
-            Icon={Download}
+            iconId="download"
             variant="secondary"
             size="compact"
             style={styles.compactAction}
@@ -492,7 +492,7 @@ export function SettingsScreen() {
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <Upload color={colors.leaf} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="upload" size={22} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Restore from backup</Text>
@@ -502,7 +502,7 @@ export function SettingsScreen() {
           </View>
           <ActionButton
             label="Restore"
-            Icon={Upload}
+            iconId="upload"
             variant="secondary"
             size="compact"
             style={styles.compactAction}
@@ -513,7 +513,7 @@ export function SettingsScreen() {
 
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
-          <ShoppingBag color={colors.honey} size={18} strokeWidth={2.8} />
+          <MongchiIcon id="shopping-bag" size={22} />
           <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Support & legal</Text>
         </View>
 
@@ -527,7 +527,7 @@ export function SettingsScreen() {
           that flow has passed.
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
-            <RefreshCw color={colors.honey} size={18} strokeWidth={2.6} />
+            <MongchiIcon id="refresh" size={22} />
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Restore purchases</Text>
@@ -546,16 +546,16 @@ export function SettingsScreen() {
         */}
 
         <View style={styles.linkGrid}>
-          <ActionButton label="Privacy" Icon={ShieldCheck} variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/privacy")} />
-          <ActionButton label="Terms" Icon={FileText} variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/terms")} />
-          <ActionButton label="Support" Icon={LifeBuoy} variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/support")} />
+          <ActionButton label="Privacy" iconId="shield-check" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/privacy")} />
+          <ActionButton label="Terms" iconId="document" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/terms")} />
+          <ActionButton label="Support" iconId="support" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/support")} />
         </View>
       </View>
 
       {__DEV__ ? (
         <View style={styles.devSection}>
           <View style={styles.sectionHeader}>
-            <Type color={colors.violet} size={18} strokeWidth={2.8} />
+            <MongchiIcon id="typography" size={22} />
             <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Dev: font pair</Text>
           </View>
           <Text style={[styles.controlText, { fontFamily: fontFamilies.body }]}>
@@ -566,7 +566,7 @@ export function SettingsScreen() {
               <ActionButton
                 key={option.id}
                 label={fontPairLabels[option.id]}
-                Icon={Type}
+                iconId="typography"
                 variant={fontPairId === option.id ? "primary" : "secondary"}
                 size="compact"
                 style={styles.linkButton}
@@ -580,7 +580,7 @@ export function SettingsScreen() {
       {__DEV__ ? (
         <View style={styles.devSection}>
           <View style={styles.sectionHeader}>
-            <Bug color={colors.violet} size={18} strokeWidth={2.8} />
+            <MongchiIcon id="bug" size={22} />
             <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Dev: error log</Text>
           </View>
           <Text style={[styles.controlText, { fontFamily: fontFamilies.body }]}>
@@ -589,8 +589,8 @@ export function SettingsScreen() {
               : "No recent errors logged on this device."}
           </Text>
           <View style={styles.linkGrid}>
-            <ActionButton label="Share log" Icon={LifeBuoy} variant="secondary" size="compact" style={styles.linkButton} onPress={handleShareErrorLog} />
-            <ActionButton label="Clear log" Icon={Trash2} variant="secondary" size="compact" style={styles.linkButton} onPress={handleClearErrorLog} />
+            <ActionButton label="Share log" iconId="support" variant="secondary" size="compact" style={styles.linkButton} onPress={handleShareErrorLog} />
+            <ActionButton label="Clear log" iconId="delete" variant="secondary" size="compact" style={styles.linkButton} onPress={handleClearErrorLog} />
           </View>
         </View>
       ) : null}
@@ -600,7 +600,7 @@ export function SettingsScreen() {
         <Text style={[styles.dangerText, { fontFamily: fontFamilies.body }]}>Deletes this device's local pet setup and starts onboarding again.</Text>
         <ActionButton
           label={privacyActionInProgress ? "Deleting" : "Delete pet data"}
-          Icon={RotateCcw}
+          iconId="refresh"
           variant="danger"
           disabled={privacyActionInProgress}
           onPress={handleReset}
@@ -609,7 +609,12 @@ export function SettingsScreen() {
 
       <Modal transparent animationType="fade" statusBarTranslucent visible={restoreModalVisible} onRequestClose={closeRestoreModal}>
         <View style={styles.restoreOverlay}>
-          <View accessibilityRole="alert" style={styles.restoreCard}>
+          <View
+            accessibilityLabel="Restore from backup"
+            accessibilityRole="alert"
+            accessibilityViewIsModal
+            style={styles.restoreCard}
+          >
             <Text accessibilityRole="header" style={[styles.restoreTitle, { fontFamily: fontFamilies.title }]}>
               Restore from backup
             </Text>
@@ -844,6 +849,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.84)",
     alignItems: "center",
     justifyContent: "center"
+  },
+  mutedIcon: {
+    opacity: 0.48
   },
   compactCopy: {
     flex: 1,

@@ -1,21 +1,5 @@
 import type { WeatherCondition } from "@mongchi/shared";
 
-/**
- * Ambience track id -> bundled asset manifest (Phase 2, see
- * docs/gamefeel-sound-plan.md §2). Sibling to bgmAssets.ts -- same
- * reasoning for keeping it out of the SFX manifest (audioAssets.ts).
- *
- * PLACEHOLDER: apps/mobile/assets/audio/amb_birds.m4a and amb_rain.m4a are
- * synthesized placeholder loops (sparse randomized chirps / filtered noise,
- * see /private/tmp .../scratchpad/synth_bgm.py), not curated field
- * recordings. Swap the `require(...)` targets below in place when curated
- * assets land -- no other code should need to change.
- *
- * Phase 3 will add wind/night layers here (see
- * docs/gamefeel-sound-plan.md §2 Phase 3: "바람/귀뚜라미, 테마별 앰비언스
- * 1레이어") -- leaving room in AmbienceTrackId/weatherToAmbienceTrack below
- * for those rather than restructuring this file later.
- */
 export type AmbienceTrackId = "amb_birds" | "amb_rain";
 
 export const ambienceAssetSources: Record<AmbienceTrackId, number> = {

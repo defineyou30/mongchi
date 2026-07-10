@@ -1,6 +1,5 @@
-import { Flame, Gift, Heart, Mail } from "lucide-react-native";
-import type { LucideIcon } from "lucide-react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 
 import { colors, homeRetentionSurfaces, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import type { HomeRetentionPromptAction, HomeRetentionPromptPresentation, HomeRetentionPromptTone } from "./homeRetentionPresentation";
@@ -23,17 +22,43 @@ const getSurfaceColor = (tone: HomeRetentionPromptTone): string => {
   }
 };
 
-const retentionIconByTone: Record<HomeRetentionPromptTone, { readonly Icon: LucideIcon; readonly color: string }> = {
-  daily: { Icon: Flame, color: colors.honey },
-  reward: { Icon: Gift, color: colors.moss },
-  memory: { Icon: Heart, color: colors.skyDeep },
-  letter: { Icon: Mail, color: colors.woodDark }
+const retentionIconByTone = {
+  daily: require("../../../assets/game-buttons/energy.png"),
+  reward: require("../../../assets/game-items/hud/gift-box.png"),
+  memory: require("../../../assets/status-icons/cozy.png"),
+  letter: require("../../../assets/generated/items/gift-v3.png")
+} satisfies Record<HomeRetentionPromptTone, ImageSourcePropType>;
+
+const retentionIconSizeByTone = {
+  daily: 31,
+  reward: 26,
+  memory: 28,
+  letter: 30
+} satisfies Record<HomeRetentionPromptTone, number>;
+
+const getRetentionIconSize = (tone: HomeRetentionPromptTone): number => {
+  switch (tone) {
+    case "daily":
+    case "reward":
+    case "memory":
+    case "letter":
+      return retentionIconSizeByTone[tone];
+  }
 };
 
 function RetentionIcon({ tone }: { readonly tone: HomeRetentionPromptTone }) {
-  const { Icon, color } = retentionIconByTone[tone];
+  const iconSize = getRetentionIconSize(tone);
 
-  return <Icon color={color} size={15} strokeWidth={2.8} />;
+  return (
+    <Image
+      accessibilityIgnoresInvertColors
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      resizeMode="contain"
+      source={retentionIconByTone[tone]}
+      style={{ width: iconSize, height: iconSize }}
+    />
+  );
 }
 
 export function HomeRetentionPromptCard({ prompt, onPress }: HomeRetentionPromptCardProps) {

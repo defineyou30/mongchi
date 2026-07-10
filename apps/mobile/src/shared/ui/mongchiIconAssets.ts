@@ -1,0 +1,63 @@
+import type { ImageSourcePropType } from "react-native";
+
+export const MONGCHI_ICON_IDS = [
+  "back", "forward", "check", "owned", "lock", "alert", "refresh", "external-link",
+  "download", "upload", "delete", "document", "shield-check", "shield-alert", "support", "bug",
+  "location", "rain", "sun", "sound-on", "sound-off", "music", "ambience", "typography",
+  "chat", "mail", "share", "microphone", "send", "sparkles", "camera", "gallery",
+  "add-photo", "paw", "shopping-bag", "store", "food", "water", "walk", "affection",
+  "sleep", "energy", "streak", "gift", "gem", "settings", "close", "more"
+] as const;
+
+export type MongchiIconId = (typeof MONGCHI_ICON_IDS)[number];
+
+export const mongchiIconAssets = {
+  back: require("../../../assets/generated/ui/utility-icons/v1/back.png"),
+  forward: require("../../../assets/generated/ui/utility-icons/v1/forward.png"),
+  check: require("../../../assets/generated/ui/utility-icons/v1/check.png"),
+  owned: require("../../../assets/generated/ui/utility-icons/v1/owned.png"),
+  lock: require("../../../assets/generated/ui/utility-icons/v1/lock.png"),
+  alert: require("../../../assets/generated/ui/utility-icons/v1/alert.png"),
+  refresh: require("../../../assets/generated/ui/utility-icons/v1/refresh.png"),
+  "external-link": require("../../../assets/generated/ui/utility-icons/v1/external-link.png"),
+  download: require("../../../assets/generated/ui/utility-icons/v1/download.png"),
+  upload: require("../../../assets/generated/ui/utility-icons/v1/upload.png"),
+  delete: require("../../../assets/generated/ui/utility-icons/v1/delete.png"),
+  document: require("../../../assets/generated/ui/utility-icons/v1/document.png"),
+  "shield-check": require("../../../assets/generated/ui/utility-icons/v1/shield-check.png"),
+  "shield-alert": require("../../../assets/generated/ui/utility-icons/v1/shield-alert.png"),
+  support: require("../../../assets/generated/ui/utility-icons/v1/support.png"),
+  bug: require("../../../assets/generated/ui/utility-icons/v1/bug.png"),
+  location: require("../../../assets/generated/ui/utility-icons/v1/location.png"),
+  rain: require("../../../assets/generated/ui/utility-icons/v1/rain.png"),
+  sun: require("../../../assets/generated/ui/utility-icons/v1/sun.png"),
+  "sound-on": require("../../../assets/generated/ui/utility-icons/v1/sound-on.png"),
+  "sound-off": require("../../../assets/generated/ui/utility-icons/v1/sound-off.png"),
+  music: require("../../../assets/generated/ui/utility-icons/v1/music.png"),
+  ambience: require("../../../assets/generated/ui/utility-icons/v1/ambience.png"),
+  typography: require("../../../assets/generated/ui/utility-icons/v1/typography.png"),
+  chat: require("../../../assets/generated/ui/utility-icons/v1/chat.png"),
+  mail: require("../../../assets/generated/ui/utility-icons/v1/mail.png"),
+  share: require("../../../assets/generated/ui/utility-icons/v1/share.png"),
+  microphone: require("../../../assets/generated/ui/utility-icons/v1/microphone.png"),
+  send: require("../../../assets/generated/ui/utility-icons/v1/send.png"),
+  sparkles: require("../../../assets/generated/ui/utility-icons/v1/sparkles.png"),
+  camera: require("../../../assets/generated/ui/utility-icons/v1/camera.png"),
+  gallery: require("../../../assets/generated/ui/utility-icons/v1/gallery.png"),
+  "add-photo": require("../../../assets/generated/ui/utility-icons/v1/add-photo.png"),
+  paw: require("../../../assets/generated/ui/utility-icons/v1/paw.png"),
+  "shopping-bag": require("../../../assets/generated/ui/utility-icons/v1/shopping-bag.png"),
+  store: require("../../../assets/generated/ui/utility-icons/v1/store.png"),
+  food: require("../../../assets/generated/ui/utility-icons/v1/food.png"),
+  water: require("../../../assets/generated/ui/utility-icons/v1/water.png"),
+  walk: require("../../../assets/generated/ui/utility-icons/v1/walk.png"),
+  affection: require("../../../assets/generated/ui/utility-icons/v1/affection.png"),
+  sleep: require("../../../assets/generated/ui/utility-icons/v1/sleep.png"),
+  energy: require("../../../assets/generated/ui/utility-icons/v1/energy.png"),
+  streak: require("../../../assets/generated/ui/utility-icons/v1/streak.png"),
+  gift: require("../../../assets/generated/ui/utility-icons/v1/gift.png"),
+  gem: require("../../../assets/generated/ui/utility-icons/v1/gem.png"),
+  settings: require("../../../assets/generated/ui/utility-icons/v1/settings.png"),
+  close: require("../../../assets/generated/ui/utility-icons/v1/close.png"),
+  more: require("../../../assets/generated/ui/utility-icons/v1/more.png")
+} as const satisfies Record<MongchiIconId, ImageSourcePropType>;

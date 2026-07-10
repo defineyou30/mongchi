@@ -194,6 +194,7 @@ export const getRelativeDayLabel = (occurredAtIso: string, nowIso: string): stri
 
 export interface MemoryTimelineRow {
   id: string;
+  type: MemoryType;
   glyph: string;
   line: string;
   dayLabel: string;
@@ -220,6 +221,7 @@ export const getFriendMemoryAlbumPresentation = (memories: MemoryEntry[], nowIso
   const recent = getRecentPetMemories(memories, MEMORY_TIMELINE_DISPLAY_LIMIT);
   const rows = recent.map((memory) => ({
     id: memory.id,
+    type: memory.type,
     glyph: getMemoryGlyph(memory.type),
     line: memory.line,
     dayLabel: getRelativeDayLabel(memory.occurredAt, nowIso)

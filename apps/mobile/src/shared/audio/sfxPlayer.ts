@@ -5,11 +5,6 @@ import { sfxAssetSources, sfxIds } from "./audioAssets";
 import type { SfxId } from "./audioAssets";
 import { getActiveAudioSettings } from "./useAudioSettings";
 
-// SFX playback volume: kept well under full scale since the placeholder
-// assets themselves are already synthesized quiet (~-12dBFS peak, see
-// synth_sfx.py), and short blips/chimes read as "louder" than their peak
-// level suggests. Curated assets replacing the placeholders should still be
-// authored quiet -- this is a safety ceiling, not the primary level control.
 const SFX_VOLUME = 0.85;
 
 let players: Partial<Record<SfxId, AudioPlayer>> | null = null;
