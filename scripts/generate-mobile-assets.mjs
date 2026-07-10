@@ -2230,8 +2230,6 @@ if (!writePremiumPetFallbackSet("luna")) {
     writePng(`apps/mobile/assets/generated/pets/luna/${state}.png`, makeLunaCatAsset({ state }));
   }
 }
-writePng("apps/mobile/assets/generated/backgrounds/terrarium-sky-v2.png", makeTerrariumSkyBackground());
-writePng("apps/mobile/assets/generated/backgrounds/terrarium-dome-v4.png", drawTerrariumDomeSceneV4());
 writePng("apps/mobile/assets/generated/items/bone-v3.png", makeItemIcon(drawBoneIcon));
 writePng("apps/mobile/assets/generated/items/coin-v3.png", makeItemIcon(drawCoinIcon));
 writePng("apps/mobile/assets/generated/items/cushion-v3.png", makeItemIcon(drawCushionIcon));

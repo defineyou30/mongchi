@@ -7,10 +7,7 @@ const rootDir = path.resolve(new URL("..", import.meta.url).pathname);
 const failures = [];
 
 const backgroundAssets = [
-  "apps/mobile/assets/generated/backgrounds/terrarium-dome-v4.png",
-  "apps/mobile/assets/generated/backgrounds/terrarium-sky-v2.png",
-  "apps/mobile/assets/generated/backgrounds/pixel-garden-premium-v1.png",
-  "apps/mobile/assets/generated/backgrounds/shop-room-square-premium-v1.png"
+  "apps/mobile/assets/generated/backgrounds/pixel-garden-premium-v1.png"
 ];
 
 const itemAssets = [

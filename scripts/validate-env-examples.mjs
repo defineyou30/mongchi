@@ -2,7 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const ROOT = resolve(
+  process.env.TINY_PET_VALIDATOR_ROOT ?? fileURLToPath(new URL("..", import.meta.url))
+);
 const failures = [];
 
 const readEnvExample = (relativePath) => {
@@ -54,6 +56,7 @@ requireKeys(mobileEnv, "apps/mobile/.env.example", [
   "EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL",
   "EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT",
   "EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_PRESET",
+  "EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_WEATHER_CONDITION",
   "EXPO_PUBLIC_TINY_PET_QA_SCREEN_PRESET"
 ]);
 

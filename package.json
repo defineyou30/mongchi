@@ -15,6 +15,7 @@
     "generate:mobile-assets": "node scripts/generate-mobile-assets.mjs",
     "generate:mobile-asset-contact-sheet": "node scripts/generate-mobile-asset-contact-sheet.mjs",
     "validate:mobile-assets": "node scripts/validate-mobile-assets.mjs",
+    "validate:mobile-audio-assets": "node scripts/analyze-mobile-audio-assets.mjs --output /tmp/mongchi-audio-analysis.json",
     "validate:mobile-asset-contact-sheet": "node scripts/validate-mobile-asset-contact-sheet.mjs",
     "validate:mobile-visual-assets": "node scripts/validate-mobile-visual-asset-quality.mjs",
     "validate:mobile-visual-direction": "node scripts/validate-mobile-visual-direction.mjs",

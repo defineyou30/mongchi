@@ -9,3 +9,18 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Local Codex orchestration state and evidence.
+.omo/
+
+# Duplicate/reference-only document mirrors and raw design backups.
+docs/dummy/
+docs/design/source-sheets/dummy/
+
+# Raw simulator captures stay local; curated release screenshots live at the
+# root of docs/qa-screenshots and remain trackable.
+*.xcresult/
+docs/qa-screenshots/_archive/
+docs/qa-screenshots/manual-tap-qa/
+docs/qa-screenshots/current-fix/
+docs/qa-screenshots/current-audit-*/

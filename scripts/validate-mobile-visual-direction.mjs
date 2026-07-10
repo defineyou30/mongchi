@@ -76,7 +76,7 @@ requireIncludes(
 requireIncludes(
   "apps/mobile/src/shared/ui/GameIllustrations.tsx",
   [
-    'scene?: "garden" | "hatching" | "reveal" | "dome" | "welcome" | "loading" | "chat"',
+    'scene?: "garden" | "hatching" | "reveal" | "welcome" | "loading" | "chat"',
     "sceneMode === \"garden\"",
     "backgroundSources.pixelGarden",
     "welcome-screen-v1.png",
@@ -84,14 +84,10 @@ requireIncludes(
     "hatch-reveal-garden-premium-v1-portrait.png",
     "theme-fairy-garden-v1-portrait.png",
     "theme-seaside-cove-v1-portrait.png",
-    "shop-room-square-premium-v1.png",
     "depthGlow",
-    "usesGeneratedGardenBackdrop",
     "revealHalo",
     "hatchGlow",
     "PremiumBondArt",
-    "ShopShelfArt",
-    "shelfSlotPositions",
     "food-bowl-v3.png",
     "toy-ball-v3.png",
     "watering-can-v3.png"

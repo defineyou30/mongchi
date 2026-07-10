@@ -2,7 +2,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const ROOT = resolve(
+  process.env.TINY_PET_VALIDATOR_ROOT ?? fileURLToPath(new URL("..", import.meta.url))
+);
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const appShellAssets = [
@@ -45,10 +47,7 @@ const petAssets = petAssetSets.flatMap(({ key, species }) =>
 );
 
 const backgroundAssets = [
-  { label: "terrarium sky background", path: "apps/mobile/assets/generated/backgrounds/terrarium-sky-v2.png", width: 720, height: 960 },
   { label: "premium pixel garden background", path: "apps/mobile/assets/generated/backgrounds/pixel-garden-premium-v1.png", width: 720, height: 720 },
-  { label: "terrarium dome background", path: "apps/mobile/assets/generated/backgrounds/terrarium-dome-v4.png", width: 720, height: 960 },
-  { label: "premium shop room background", path: "apps/mobile/assets/generated/backgrounds/shop-room-square-premium-v1.png", width: 720, height: 720 },
   {
     label: "home garden runtime background",
     path: "apps/mobile/assets/generated/backgrounds/candidates/home-garden-premium-v2-portrait.png",
@@ -66,7 +65,8 @@ const backgroundAssets = [
     label: "shop market runtime background",
     path: "apps/mobile/assets/generated/backgrounds/candidates/shop-market-premium-v1-portrait.png",
     width: 720,
-    height: 960
+    height: 960,
+    requireInGameIllustrations: false
   },
   {
     label: "shop market square candidate",
@@ -187,6 +187,33 @@ const runtimeGeneratedUiAssets = [
   }
 ];
 
+const runtimeOnboardingAssets = [
+  {
+    label: "welcome onboarding story art",
+    path: "apps/mobile/assets/generated/onboarding/onboarding-photo-garden-v1.png",
+    width: 1122,
+    height: 1402,
+    colorType: 2,
+    requiredSources: ["apps/mobile/src/shared/ui/OnboardingStoryArt.tsx"]
+  },
+  {
+    label: "photo picker onboarding story art",
+    path: "apps/mobile/assets/generated/onboarding/onboarding-photo-picker-v1.png",
+    width: 1122,
+    height: 1402,
+    colorType: 2,
+    requiredSources: ["apps/mobile/src/shared/ui/OnboardingStoryArt.tsx"]
+  },
+  {
+    label: "pet setup onboarding story art",
+    path: "apps/mobile/assets/generated/onboarding/onboarding-pet-setup-v1.png",
+    width: 1122,
+    height: 1402,
+    colorType: 2,
+    requiredSources: ["apps/mobile/src/shared/ui/OnboardingStoryArt.tsx"]
+  }
+];
+
 const itemAssetNames = [
   "bone-v3",
   "coin-v3",
@@ -276,39 +303,6 @@ const plantStageAssets = [
   { label: "plant stage spring patch bloom", path: "apps/mobile/assets/game-items/plant-stages/scene/spring-patch-bloom.png", width: 160, height: 160 }
 ];
 
-const catalogItemAssets = [
-  { id: "item_food_bowl_basic", assetKey: "foodBowl" },
-  { id: "item_treat_plate_biscuit", assetKey: "treatPlate" },
-  { id: "item_bone_biscuit", assetKey: "bone" },
-  { id: "item_salmon_bites", assetKey: "salmonBites" },
-  { id: "item_chicken_jerky", assetKey: "chickenJerky" },
-  { id: "item_pumpkin_cookie", assetKey: "pumpkinCookie" },
-  { id: "item_berry_yogurt", assetKey: "berryYogurt" },
-  { id: "item_sweet_potato_chew", assetKey: "sweetPotatoChew" },
-  { id: "item_tuna_crunch", assetKey: "tunaCrunch" },
-  { id: "item_duck_biscuit", assetKey: "duckBiscuit" },
-  { id: "item_cheese_puff", assetKey: "cheesePuff" },
-  { id: "item_apple_biscuit", assetKey: "appleBiscuit" },
-  { id: "item_milk_pup_cup", assetKey: "milkPupCup" },
-  { id: "item_toy_ball_mint", assetKey: "toyBall" },
-  { id: "item_plush_toy_buddy", assetKey: "plushToy" },
-  { id: "item_cushion_rose", assetKey: "petBed" },
-  { id: "item_doghouse_sunny", assetKey: "tinyHouse" },
-  { id: "item_flower_pot_sunny", assetKey: "flowerPot" },
-  { id: "item_leafy_plant_clover", assetKey: "leafyPlant" },
-  { id: "item_lantern_glow", assetKey: "hangingLantern" },
-  { id: "item_small_lamp_glow", assetKey: "smallLamp" },
-  { id: "item_watering_can_mint", assetKey: "wateringCan" },
-  { id: "item_pond_tile_lily", assetKey: "pondTile" },
-  { id: "item_stepping_stone_path", assetKey: "steppingStone" },
-  { id: "item_reward_pouch_sunny", assetKey: "rewardPouch" },
-  { id: "item_gift_ribbon", assetKey: "giftBox" },
-  { id: "item_coin_sun", assetKey: "coin" },
-  { id: "item_gem_pink", assetKey: "gem" },
-  { id: "item_seasonal_flowers_spring", assetKey: "seasonalFlowers" },
-  { id: "item_crystal_charm_premium", assetKey: "gem" }
-];
-
 const homeDecorationSlotIds = [
   "petCenterSlot",
   "foodSlot",
@@ -330,11 +324,16 @@ const expectedAssets = [
   ...backgroundAssets,
   ...brandAssets,
   ...runtimeGeneratedUiAssets,
+  ...runtimeOnboardingAssets,
   ...itemAssets,
   ...gameItemAssets,
   ...plantStageAssets
 ];
-const expectedGeneratedAssetPaths = new Set([...petAssets, ...backgroundAssets, ...brandAssets, ...runtimeGeneratedUiAssets, ...itemAssets].map((asset) => asset.path));
+const expectedGeneratedAssetPaths = new Set(
+  [...petAssets, ...backgroundAssets, ...brandAssets, ...runtimeGeneratedUiAssets, ...runtimeOnboardingAssets, ...itemAssets].map(
+    (asset) => asset.path
+  )
+);
 
 const failures = [];
 
@@ -421,6 +420,7 @@ const petRegistrySource = readSource("apps/mobile/src/shared/assets/generatedPet
 const sharedMockSource = readSource("packages/shared/src/mock/mockData.ts");
 const gameIllustrationsSource = readSource("apps/mobile/src/shared/ui/GameIllustrations.tsx");
 const gameItemCatalogSource = readSource("apps/mobile/src/shared/assets/gameItemCatalog.ts");
+const gameItemCatalogMappingSource = readSource("apps/mobile/src/shared/assets/gameItemCatalogMapping.ts");
 
 for (const asset of petAssets) {
   if (!petRegistrySource.includes(asset.assetId)) {
@@ -471,19 +471,74 @@ for (const asset of runtimeGeneratedUiAssets) {
   }
 }
 
+for (const asset of runtimeOnboardingAssets) {
+  const expectedRequirePath = asset.path.replace("apps/mobile/assets/", "../../../assets/");
+
+  for (const sourcePath of asset.requiredSources) {
+    if (!readSource(sourcePath).includes(expectedRequirePath)) {
+      failures.push(`${sourcePath} does not require ${asset.path}`);
+    }
+  }
+}
+
 for (const asset of gameItemAssets) {
   if (!gameItemCatalogSource.includes(asset.path.replace("apps/mobile/assets/", "../../../assets/"))) {
     failures.push(`gameItemCatalog.ts does not require ${asset.path}`);
   }
 }
 
-for (const item of catalogItemAssets) {
-  if (!sharedMockSource.includes(`id: "${item.id}"`)) {
-    failures.push(`mockData.ts does not expose catalog item ${item.id}`);
+const catalogMappingEntries = [...gameItemCatalogMappingSource.matchAll(/^\s*(item_[a-z0-9_]+):\s*"([A-Za-z0-9]+)"\s*,?$/gm)].map(
+  ([, id, assetKey]) => ({ id, assetKey })
+);
+const catalogMappingById = new Map(catalogMappingEntries.map((entry) => [entry.id, entry.assetKey]));
+const duplicateCatalogMappingIds = catalogMappingEntries
+  .map((entry) => entry.id)
+  .filter((id, index, ids) => ids.indexOf(id) !== index);
+
+if (catalogMappingEntries.length === 0) {
+  failures.push("gameItemCatalogMapping.ts must expose at least one catalog-to-asset mapping");
+}
+
+for (const id of new Set(duplicateCatalogMappingIds)) {
+  failures.push(`gameItemCatalogMapping.ts maps catalog item ${id} more than once`);
+}
+
+const runtimeCatalogItemIds = [...sharedMockSource.matchAll(/\bid:\s*"(item_[a-z0-9_]+)"/g)].map(([, id]) => id);
+
+for (const id of new Set(runtimeCatalogItemIds)) {
+  if (!catalogMappingById.has(id)) {
+    failures.push(`gameItemCatalogMapping.ts does not map runtime catalog item ${id}`);
+  }
+}
+
+for (const { id, assetKey } of catalogMappingEntries) {
+  if (!new RegExp(`\\|\\s*"${assetKey}"`).test(gameItemCatalogMappingSource)) {
+    failures.push(`gameItemCatalogMapping.ts maps ${id} to undeclared asset key ${assetKey}`);
   }
 
-  if (!gameItemCatalogSource.includes(`${item.id}: "${item.assetKey}"`)) {
-    failures.push(`gameItemCatalog.ts does not map catalog item ${item.id} to ${item.assetKey}`);
+  if (!new RegExp(`^\\s*${assetKey}:\\s*defineItem\\(`, "m").test(gameItemCatalogSource)) {
+    failures.push(`gameItemCatalog.ts does not define mapped asset key ${assetKey} for ${id}`);
+  }
+}
+
+const runtimeGameItemRequirePaths = new Set(
+  [...gameItemCatalogSource.matchAll(/require\("(\.\.\/\.\.\/\.\.\/assets\/game-items\/[^\"]+\.png)"\)/g)].map(
+    ([, requirePath]) => requirePath.replace("../../../assets/", "apps/mobile/assets/")
+  )
+);
+
+for (const runtimePath of runtimeGameItemRequirePaths) {
+  const absolutePath = resolve(ROOT, runtimePath);
+
+  if (!existsSync(absolutePath)) {
+    failures.push(`gameItemCatalog.ts requires missing runtime asset ${runtimePath}`);
+    continue;
+  }
+
+  const bytes = readFileSync(absolutePath);
+
+  if (bytes.length < 33 || !bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+    failures.push(`gameItemCatalog.ts runtime asset ${runtimePath} is not a valid PNG file`);
   }
 }
 

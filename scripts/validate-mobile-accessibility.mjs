@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 const rootDir = path.resolve(new URL("..", import.meta.url).pathname);
 const scanDirs = [path.join(rootDir, "apps/mobile/src"), path.join(rootDir, "apps/mobile/app")];
@@ -24,18 +25,14 @@ const screenHeaderContracts = [
 ];
 
 const walk = (dir) => {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
   const files = [];
 
-  for (const entry of entries) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
       files.push(...walk(fullPath));
-      continue;
-    }
-
-    if (targetExtensions.has(path.extname(entry.name))) {
+    } else if (targetExtensions.has(path.extname(entry.name))) {
       files.push(fullPath);
     }
   }
@@ -43,143 +40,246 @@ const walk = (dir) => {
   return files;
 };
 
-const lineNumberAt = (content, index) => content.slice(0, index).split("\n").length;
+const resolveTargets = () => {
+  const requested = process.argv.slice(2);
 
-const hasProp = (tag, propName) => new RegExp(`\\b${propName}(?:\\s*=|\\s|>|$)`).test(tag);
-
-const findOpeningTags = (content, tagName) => {
-  const tags = [];
-  const tagPattern = new RegExp(`<${tagName}\\b`, "g");
-  let match;
-
-  while ((match = tagPattern.exec(content)) !== null) {
-    let index = match.index;
-    let quote = null;
-    let braceDepth = 0;
-
-    for (; index < content.length; index += 1) {
-      const char = content[index];
-      const previous = content[index - 1];
-
-      if (quote) {
-        if (char === quote && previous !== "\\") {
-          quote = null;
-        }
-
-        continue;
-      }
-
-      if (char === "\"" || char === "'") {
-        quote = char;
-        continue;
-      }
-
-      if (char === "{") {
-        braceDepth += 1;
-        continue;
-      }
-
-      if (char === "}") {
-        braceDepth = Math.max(0, braceDepth - 1);
-        continue;
-      }
-
-      if (char === ">" && braceDepth === 0) {
-        tags.push({
-          tag: content.slice(match.index, index + 1),
-          index: match.index
-        });
-        break;
-      }
-    }
+  if (requested.length === 0) {
+    return scanDirs.flatMap(walk);
   }
 
-  return tags;
+  return requested.flatMap((requestedPath) => {
+    const absolutePath = path.resolve(rootDir, requestedPath);
+    return fs.statSync(absolutePath).isDirectory() ? walk(absolutePath) : [absolutePath];
+  });
+};
+
+const tagName = (node) => node.tagName.getText();
+const attributesOf = (node) => node.attributes.properties.filter(ts.isJsxAttribute);
+const attributeNamed = (node, name) => attributesOf(node).find((attribute) => attribute.name.getText() === name);
+const hasAttribute = (node, name) => attributeNamed(node, name) !== undefined;
+const lineNumberAt = (sourceFile, node) => sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+
+const literalValue = (attribute) => {
+  if (!attribute?.initializer) {
+    return true;
+  }
+
+  if (ts.isStringLiteral(attribute.initializer)) {
+    return attribute.initializer.text;
+  }
+
+  if (!ts.isJsxExpression(attribute.initializer) || !attribute.initializer.expression) {
+    return undefined;
+  }
+
+  const expression = attribute.initializer.expression;
+
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text;
+  }
+
+  if (expression.kind === ts.SyntaxKind.TrueKeyword) {
+    return true;
+  }
+
+  if (expression.kind === ts.SyntaxKind.FalseKeyword || expression.kind === ts.SyntaxKind.NullKeyword) {
+    return false;
+  }
+
+  return undefined;
+};
+
+const hasValidLabel = (node) => {
+  const label = attributeNamed(node, "accessibilityLabel") ?? attributeNamed(node, "aria-label");
+  const value = literalValue(label);
+  return label !== undefined && !(typeof value === "string" && value.trim().length === 0) && value !== false;
+};
+
+const lottieLabelMode = (node) => {
+  const label = attributeNamed(node, "accessibilityLabel");
+
+  if (!label) {
+    return "absent";
+  }
+
+  const value = literalValue(label);
+
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? "safe" : "empty";
+  }
+
+  if (!ts.isJsxExpression(label.initializer) || !label.initializer.expression || !ts.isTemplateExpression(label.initializer.expression)) {
+    return "dynamic";
+  }
+
+  const template = label.initializer.expression;
+  const literalText = `${template.head.text}${template.templateSpans.map((span) => span.literal.text).join("")}`;
+  return literalText.trim().length > 0 ? "safe" : "dynamic";
+};
+
+const lottieDecorativeMode = (node) => {
+  const decorative = attributeNamed(node, "decorative");
+
+  if (!decorative) {
+    return "absent";
+  }
+
+  return literalValue(decorative) === true ? "true" : "unsafe";
+};
+
+const hasTextName = (node) => {
+  let found = false;
+
+  const visit = (child) => {
+    if (found) {
+      return;
+    }
+
+    if (ts.isJsxElement(child) && tagName(child.openingElement) === "Text") {
+      const content = child.children.map((textChild) => textChild.getText()).join("").replace(/[{}]/g, "").trim();
+      found = content.length > 0;
+    }
+
+    ts.forEachChild(child, visit);
+  };
+
+  ts.forEachChild(node, visit);
+  return found;
+};
+
+const hasModalSemantics = (node) => {
+  let found = false;
+
+  const visit = (child) => {
+    if (found) {
+      return;
+    }
+
+    if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+      const opening = ts.isJsxElement(child) ? child.openingElement : child;
+
+      if (hasAttribute(opening, "accessibilityViewIsModal") && hasValidLabel(opening)) {
+        found = true;
+      }
+    }
+
+    if (found) {
+      return;
+    }
+
+    ts.forEachChild(child, visit);
+  };
+
+  ts.forEachChild(node, visit);
+  return found;
 };
 
 const checkFile = (filePath) => {
   const content = fs.readFileSync(filePath, "utf8");
+  const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const relativePath = path.relative(rootDir, filePath);
 
-  for (const { tag, index } of findOpeningTags(content, "Pressable")) {
-    if (!hasProp(tag, "accessibilityRole")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} Pressable missing accessibilityRole.`);
+  const addFailure = (node, message) => failures.push(`${relativePath}:${lineNumberAt(sourceFile, node)} ${message}`);
+  const checkOpening = (node, element) => {
+    const name = tagName(node);
+
+    if (name === "Pressable") {
+      if (literalValue(attributeNamed(node, "accessible")) === false) {
+        return;
+      }
+
+      if (!hasAttribute(node, "accessibilityRole")) {
+        addFailure(node, "Pressable missing accessibilityRole.");
+      }
+
+      if (!hasValidLabel(node) && !hasTextName(element)) {
+        addFailure(node, "Pressable missing an accessibilityLabel or readable Text child.");
+      }
+
+      const role = literalValue(attributeNamed(node, "accessibilityRole"));
+      const state = attributeNamed(node, "accessibilityState")?.getText() ?? "";
+
+      if (role === "checkbox" && !state.includes("checked")) {
+        addFailure(node, "checkbox Pressable missing checked accessibilityState.");
+      }
     }
 
-    if (!hasProp(tag, "accessibilityLabel")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} Pressable missing accessibilityLabel.`);
+    if (name === "TextInput" && !hasValidLabel(node)) {
+      addFailure(node, "TextInput missing a non-empty accessibilityLabel.");
     }
 
-    if (tag.includes('accessibilityRole="checkbox"') && !tag.includes("checked")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} checkbox Pressable missing checked accessibilityState.`);
+    if (name === "Image" || name === "ImageBackground") {
+      const hidden = hasAttribute(node, "accessibilityElementsHidden");
+
+      if (!hasValidLabel(node) && !hidden) {
+        addFailure(node, `${name} missing accessibilityLabel or accessibilityElementsHidden.`);
+      }
+
+      if (name === "Image" && !hasAttribute(node, "accessibilityIgnoresInvertColors")) {
+        addFailure(node, "Image missing accessibilityIgnoresInvertColors.");
+      }
+
+      if (name === "Image" && hidden && !hasAttribute(node, "importantForAccessibility")) {
+        addFailure(node, "hidden Image missing importantForAccessibility for Android.");
+      }
     }
 
-    if (hasProp(tag, "disabled") && !hasProp(tag, "accessibilityState")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} disabled Pressable missing disabled accessibilityState.`);
-    }
-  }
+    if (name === "LottieAnimation") {
+      const labelMode = lottieLabelMode(node);
+      const decorativeMode = lottieDecorativeMode(node);
+      const isValidLottieContract =
+        (labelMode === "safe" && decorativeMode === "absent") || (labelMode === "absent" && decorativeMode === "true");
 
-  for (const { tag, index } of findOpeningTags(content, "TextInput")) {
-    if (!hasProp(tag, "accessibilityLabel")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} TextInput missing accessibilityLabel.`);
-    }
-  }
-
-  for (const { tag, index } of findOpeningTags(content, "Image")) {
-    if (!hasProp(tag, "accessibilityLabel") && !hasProp(tag, "accessibilityElementsHidden")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} Image missing accessibilityLabel or accessibilityElementsHidden.`);
-    }
-
-    if (!hasProp(tag, "accessibilityIgnoresInvertColors")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} Image missing accessibilityIgnoresInvertColors.`);
+      if (!isValidLottieContract) {
+        if (labelMode === "empty" || labelMode === "dynamic") {
+          addFailure(node, "LottieAnimation accessibilityLabel must be statically non-empty; use decorative for visual-only animation.");
+        } else {
+          addFailure(node, "LottieAnimation must choose exactly one safe semantic mode: decorative or a non-empty accessibilityLabel.");
+        }
+      }
     }
 
-    if (hasProp(tag, "accessibilityElementsHidden") && !hasProp(tag, "importantForAccessibility")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} hidden Image missing importantForAccessibility for Android.`);
+    if (name === "View" && literalValue(attributeNamed(node, "accessibilityRole")) === "progressbar" && !hasAttribute(node, "accessibilityValue")) {
+      addFailure(node, "progressbar View missing accessibilityValue.");
     }
-  }
 
-  for (const { tag, index } of findOpeningTags(content, "ImageBackground")) {
-    if (!hasProp(tag, "accessibilityLabel") && !hasProp(tag, "accessibilityElementsHidden")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} ImageBackground missing accessibilityLabel or accessibilityElementsHidden.`);
+    if (name === "Modal" && !hasModalSemantics(element)) {
+      addFailure(node, "Modal missing labeled modal accessibility semantics.");
     }
-  }
+  };
 
-  for (const { tag, index } of findOpeningTags(content, "View")) {
-    if (tag.includes('accessibilityRole="progressbar"') && !hasProp(tag, "accessibilityValue")) {
-      failures.push(`${relativePath}:${lineNumberAt(content, index)} progressbar View missing accessibilityValue.`);
+  const visit = (node) => {
+    if (ts.isJsxElement(node)) {
+      checkOpening(node.openingElement, node);
+    } else if (ts.isJsxSelfClosingElement(node)) {
+      checkOpening(node, node);
     }
-  }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
 };
 
-for (const dir of scanDirs) {
-  for (const filePath of walk(dir)) {
-    checkFile(filePath);
-  }
+const requestedPaths = process.argv.slice(2);
+
+for (const filePath of resolveTargets()) {
+  checkFile(filePath);
 }
 
-for (const relativePath of screenHeaderContracts) {
-  const filePath = path.join(rootDir, relativePath);
+if (requestedPaths.length === 0) {
+  for (const relativePath of screenHeaderContracts) {
+    const filePath = path.join(rootDir, relativePath);
 
-  if (!fs.existsSync(filePath)) {
-    failures.push(`${relativePath} is missing from the screen header accessibility contract.`);
-    continue;
-  }
-
-  const content = fs.readFileSync(filePath, "utf8");
-
-  if (!content.includes('accessibilityRole="header"')) {
-    failures.push(`${relativePath} must expose the primary screen title with accessibilityRole="header".`);
+    if (!fs.existsSync(filePath) || !fs.readFileSync(filePath, "utf8").includes('accessibilityRole="header"')) {
+      failures.push(`${relativePath} must expose a primary screen title with accessibilityRole="header".`);
+    }
   }
 }
 
 if (failures.length > 0) {
   console.error("Mobile accessibility validation failed:");
-
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
-  }
-
+  failures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
 

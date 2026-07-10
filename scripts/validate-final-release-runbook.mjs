@@ -73,6 +73,11 @@ requirePackageScript("validate:android", "npm --workspace @mongchi/mobile run va
   "validate:final-screenshot-freshness",
   "validate:android-store-contact-sheet",
   "validate:android",
+  "FINAL RELEASE SIMULATION ONLY — NOT RELEASE-READY",
+  "No child gate was executed",
+  "TINY_PET_FINAL_RELEASE_STEP_TIMEOUT_MS",
+  "clean release worktree",
+  "Final release fixture contract passed",
   "Actual final run requires TINY_PET_FINAL_RELEASE_ALLOW_ANDROID=true"
 ].forEach((text) => requireIncludes(finalGate, text, "Final release readiness script"));
 

@@ -2,13 +2,23 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const rootDir = path.resolve(new URL("..", import.meta.url).pathname);
+const validatorRootOverride = process.env.TINY_PET_VALIDATOR_ROOT;
+const rootDir = path.resolve(validatorRootOverride ?? new URL("..", import.meta.url).pathname);
+const fixtureRoot = validatorRootOverride !== undefined;
 const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
 const scripts = packageJson.scripts ?? {};
 const dryRun = process.env.TINY_PET_FINAL_RELEASE_DRY_RUN === "true";
 const allowAndroid = process.env.TINY_PET_FINAL_RELEASE_ALLOW_ANDROID === "true";
+const timeoutInput = process.env.TINY_PET_FINAL_RELEASE_STEP_TIMEOUT_MS ?? "900000";
+const stepTimeoutMs = Number(timeoutInput);
 
 const steps = [
+  {
+    label: "clean release worktree",
+    command: "git",
+    args: ["status", "--porcelain"],
+    requireEmptyStdout: true
+  },
   {
     label: "iOS intermediate preflight",
     command: "npm",
@@ -58,6 +68,10 @@ const steps = [
 
 const failures = [];
 
+if (!Number.isSafeInteger(stepTimeoutMs) || stepTimeoutMs < 100 || stepTimeoutMs > 3_600_000) {
+  failures.push("TINY_PET_FINAL_RELEASE_STEP_TIMEOUT_MS must be an integer from 100 to 3600000.");
+}
+
 for (const step of steps) {
   if (step.script && !scripts[step.script]) {
     failures.push(`Missing package script: ${step.script}`);
@@ -79,7 +93,8 @@ if (failures.length > 0) {
 }
 
 if (dryRun) {
-  console.log("Final release readiness dry run passed. Planned steps:");
+  console.log("FINAL RELEASE SIMULATION ONLY — NOT RELEASE-READY");
+  console.log("No child gate was executed. Planned actual-run steps:");
   for (const [index, step] of steps.entries()) {
     const envPrefix = step.env
       ? `${Object.entries(step.env)
@@ -91,6 +106,7 @@ if (dryRun) {
   console.log(
     "Actual final run requires TINY_PET_FINAL_RELEASE_ALLOW_ANDROID=true and real production env values."
   );
+  console.log("Release readiness simulation completed; this is not a release pass.");
   process.exit(0);
 }
 
@@ -104,13 +120,37 @@ for (const step of steps) {
     cwd: rootDir,
     env,
     shell: false,
-    stdio: "inherit"
+    stdio: step.requireEmptyStdout ? ["ignore", "pipe", "pipe"] : "inherit",
+    encoding: step.requireEmptyStdout ? "utf8" : undefined,
+    timeout: stepTimeoutMs,
+    killSignal: "SIGTERM"
   });
+
+  if (result.error) {
+    const errorCode = result.error.code ?? "UNKNOWN";
+    const reason =
+      errorCode === "ENOENT"
+        ? `required executable ${step.command} was not found`
+        : errorCode === "ETIMEDOUT"
+          ? `child gate exceeded ${stepTimeoutMs} ms`
+          : `child gate could not start (${errorCode})`;
+    console.error(`\nFinal release readiness failed at: ${step.label} — ${reason}`);
+    process.exit(1);
+  }
 
   if (result.status !== 0) {
     console.error(`\nFinal release readiness failed at: ${step.label}`);
     process.exit(result.status ?? 1);
   }
+
+  if (step.requireEmptyStdout && result.stdout.trim().length > 0) {
+    console.error(`\nFinal release readiness failed at: ${step.label} — worktree is dirty.`);
+    process.exit(1);
+  }
 }
 
-console.log("\nFinal release readiness validation passed.");
+if (fixtureRoot) {
+  console.log(`\nFinal release fixture contract passed after executing all ${steps.length} child gates — NOT RELEASE-READY.`);
+} else {
+  console.log(`\nFinal release readiness validation passed after executing all ${steps.length} child gates.`);
+}

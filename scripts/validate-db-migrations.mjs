@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const rootDir = path.resolve(new URL("..", import.meta.url).pathname);
+const rootDir = path.resolve(
+  process.env.TINY_PET_VALIDATOR_ROOT ?? new URL("..", import.meta.url).pathname
+);
 const migrationsDir = path.join(rootDir, "services/api/migrations");
+const supabaseMigrationsDir = path.join(rootDir, "supabase/migrations");
 const migrationNamePattern = /^\d{4}_[a-z0-9_]+\.sql$/;
 const requiredTables = [
   "api_users",
@@ -114,6 +117,214 @@ if (!fs.existsSync(migrationsDir)) {
 
   if (!/transaction_id\s+TEXT\s+NOT\s+NULL\s+UNIQUE/i.test(combinedSql)) {
     failures.push("purchase_ledger must enforce unique transaction_id.");
+  }
+}
+
+const serviceRoleOnlySupabaseFunctions = [
+  "consume_credits(UUID, INTEGER, TEXT, TEXT, TEXT, JSONB)",
+  "refund_credits(UUID, TEXT, TEXT)",
+  "grant_credits(UUID, INTEGER, TEXT, TEXT, TEXT, JSONB)",
+  "consume_generation_quota(UUID)",
+  "refund_generation_quota(UUID)",
+  "check_generation_rate_limit(UUID, INTEGER, INTEGER)",
+  "grant_pet_slot(UUID, TEXT)",
+  "reserve_pet_generation_slot(UUID, TEXT)",
+  "refund_pet_generation_slot(UUID)",
+  "compact_conversation(UUID, TEXT, TIMESTAMPTZ)",
+  "purge_expired_conversation_messages(INTEGER, INTEGER)"
+];
+
+const sqlSignaturePattern = (signature) =>
+  signature
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\\\(/g, "\\s*\\(\\s*")
+    .replace(/, /g, "\\s*,\\s*")
+    .replace(/\\\)/g, "\\s*\\)");
+
+const maskNonExecutableSql = (sql) => {
+  const output = [...sql];
+  let index = 0;
+  let mode = "normal";
+  let blockDepth = 0;
+  let dollarDelimiter = "";
+
+  const mask = (position) => {
+    if (output[position] !== "\n" && output[position] !== "\r") {
+      output[position] = " ";
+    }
+  };
+  const maskSpan = (length) => {
+    for (let offset = 0; offset < length; offset += 1) {
+      mask(index + offset);
+    }
+    index += length;
+  };
+
+  while (index < sql.length) {
+    if (mode === "line-comment") {
+      if (sql[index] === "\n" || sql[index] === "\r") {
+        mode = "normal";
+        index += 1;
+      } else {
+        maskSpan(1);
+      }
+      continue;
+    }
+
+    if (mode === "block-comment") {
+      if (sql.startsWith("/*", index)) {
+        blockDepth += 1;
+        maskSpan(2);
+      } else if (sql.startsWith("*/", index)) {
+        blockDepth -= 1;
+        maskSpan(2);
+        if (blockDepth === 0) {
+          mode = "normal";
+        }
+      } else {
+        maskSpan(1);
+      }
+      continue;
+    }
+
+    if (mode === "single-quote") {
+      if (sql.startsWith("''", index)) {
+        maskSpan(2);
+      } else if (sql[index] === "\\" && index + 1 < sql.length) {
+        maskSpan(2);
+      } else if (sql[index] === "'") {
+        maskSpan(1);
+        mode = "normal";
+      } else {
+        maskSpan(1);
+      }
+      continue;
+    }
+
+    if (mode === "quoted-identifier") {
+      if (sql.startsWith('""', index)) {
+        maskSpan(2);
+      } else if (sql[index] === '"') {
+        maskSpan(1);
+        mode = "normal";
+      } else {
+        maskSpan(1);
+      }
+      continue;
+    }
+
+    if (mode === "dollar-quote") {
+      if (sql.startsWith(dollarDelimiter, index)) {
+        maskSpan(dollarDelimiter.length);
+        mode = "normal";
+        dollarDelimiter = "";
+      } else {
+        maskSpan(1);
+      }
+      continue;
+    }
+
+    if (sql.startsWith("--", index)) {
+      mode = "line-comment";
+      maskSpan(2);
+    } else if (sql.startsWith("/*", index)) {
+      mode = "block-comment";
+      blockDepth = 1;
+      maskSpan(2);
+    } else if (sql[index] === "'") {
+      mode = "single-quote";
+      maskSpan(1);
+    } else if (sql[index] === '"') {
+      mode = "quoted-identifier";
+      maskSpan(1);
+    } else if (sql[index] === "$") {
+      const delimiter = sql.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0];
+      if (delimiter) {
+        mode = "dollar-quote";
+        dollarDelimiter = delimiter;
+        maskSpan(delimiter.length);
+      } else {
+        index += 1;
+      }
+    } else {
+      index += 1;
+    }
+  }
+
+  if (mode !== "normal" && mode !== "line-comment") {
+    throw new Error(`unterminated SQL ${mode.replaceAll("-", " ")}`);
+  }
+
+  return output.join("");
+};
+
+if (!fs.existsSync(supabaseMigrationsDir)) {
+  failures.push("supabase/migrations must exist.");
+} else {
+  const supabaseMigrationFiles = fs
+    .readdirSync(supabaseMigrationsDir)
+    .filter((fileName) => fileName.endsWith(".sql"))
+    .sort();
+
+  if (supabaseMigrationFiles.length === 0) {
+    failures.push("At least one Supabase SQL migration is required.");
+  }
+
+  for (const fileName of supabaseMigrationFiles) {
+    if (!migrationNamePattern.test(fileName)) {
+      failures.push(`Supabase migration ${fileName} must match ${migrationNamePattern}.`);
+    }
+  }
+
+  const duplicateSupabasePrefixes = supabaseMigrationFiles
+    .map((fileName) => fileName.slice(0, 4))
+    .filter((prefix, index, prefixes) => prefixes.indexOf(prefix) !== index);
+
+  for (const prefix of new Set(duplicateSupabasePrefixes)) {
+    failures.push(`Supabase migration prefix ${prefix} is duplicated.`);
+  }
+
+  const executableSupabaseSql = [];
+
+  for (const fileName of supabaseMigrationFiles) {
+    const sql = fs.readFileSync(path.join(supabaseMigrationsDir, fileName), "utf8");
+    try {
+      executableSupabaseSql.push(maskNonExecutableSql(sql));
+    } catch (error) {
+      failures.push(`Supabase migration ${fileName} has invalid lexical structure: ${error.message}.`);
+    }
+  }
+
+  const combinedSupabaseSql = executableSupabaseSql.join("\n\n");
+
+  for (const signature of serviceRoleOnlySupabaseFunctions) {
+    const signaturePattern = sqlSignaturePattern(signature);
+    const revokePattern = new RegExp(
+      `REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\.${signaturePattern}\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*,\\s*authenticated\\s*;`,
+      "i"
+    );
+    const grantPattern = new RegExp(
+      `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\.${signaturePattern}\\s+TO\\s+service_role\\s*;`,
+      "i"
+    );
+
+    if (!revokePattern.test(combinedSupabaseSql)) {
+      failures.push(`Supabase SECURITY DEFINER function ${signature} must revoke execute from PUBLIC, anon, authenticated.`);
+    }
+
+    if (!grantPattern.test(combinedSupabaseSql)) {
+      failures.push(`Supabase SECURITY DEFINER function ${signature} must grant execute only to service_role.`);
+    }
+  }
+
+  const creditBalanceSignaturePattern = sqlSignaturePattern("get_credit_balance(UUID)");
+  const creditBalanceRevokePattern = new RegExp(
+    `REVOKE\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\.${creditBalanceSignaturePattern}\\s+FROM\\s+PUBLIC\\s*,\\s*anon\\s*;`,
+    "i"
+  );
+
+  if (!creditBalanceRevokePattern.test(combinedSupabaseSql)) {
+    failures.push("Supabase get_credit_balance(UUID) must revoke execute from PUBLIC and anon.");
   }
 }
 
