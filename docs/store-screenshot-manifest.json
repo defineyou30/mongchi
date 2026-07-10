@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "sourceFlow": "Welcome -> Photo upload -> Pet setup -> Hatching -> Pet reveal -> Main terrarium -> AI chat / premium bond -> Shop",
+  "sourceFlow": "Welcome -> Photo upload -> Pet setup -> Hatching -> Pet reveal -> Main home -> AI chat / premium bond -> Shop",
   "outputDirectory": "docs/qa-screenshots",
   "finalCaptureRequirement": "Capture in a development-client or production build without Expo Go overlays.",
   "filenamePattern": "{platform}-{device}-store-{preset}.png",
@@ -8,7 +8,7 @@
   "screenshots": [
     {
       "preset": "welcome",
-      "route": "/onboarding",
+      "route": "/welcome",
       "caption": "Start a tiny cozy world from one pet photo.",
       "captureLabel": "store-welcome"
     },
@@ -33,13 +33,13 @@
     {
       "preset": "pet-reveal",
       "route": "/pet-reveal",
-      "caption": "Meet the generated pet before entering the garden.",
+      "caption": "Meet the generated pet before going home together.",
       "captureLabel": "store-pet-reveal"
     },
     {
       "preset": "terrarium",
       "route": "/terrarium",
-      "caption": "Care, decorate, react, and keep the garden alive.",
+      "caption": "Care, react, chat, and keep the tiny phone home alive.",
       "captureLabel": "store-terrarium"
     },
     {
@@ -51,7 +51,7 @@
     {
       "preset": "shop",
       "route": "/shop",
-      "caption": "Preview Plus pass and garden extras without mobile secrets.",
+      "caption": "Preview Plus pass and cozy home extras without mobile secrets.",
       "captureLabel": "store-shop"
     }
   ]

@@ -1,12 +1,13 @@
 # App Shell
 
-> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+> 최신 대조: 2026-07-09 (현재 `apps/mobile/app` 라우트 기준)
 
 The mobile app is scaffolded around the first-session and daily-loop screens from the guide.
 
 ## Routes
 
 ```text
+/welcome
 /onboarding
 /pet-setup
 /photo-upload
@@ -14,23 +15,32 @@ The mobile app is scaffolded around the first-session and daily-loop screens fro
 /pet-reveal
 /terrarium
 /chat
+/friend
 /inventory
 /shop
 /settings
+/privacy
+/support
+/terms
 ```
 
 ## Screen Intent
 
-- `onboarding`: welcome popup and first CTA.
+- `welcome`: first welcome carousel before photo selection.
+- `onboarding`: first-session promise, photo/name/move-in progress cues, and first CTA.
 - `pet-setup`: name, species, personality, talking style, favorite thing.
 - `photo-upload`: native photo picker, source-photo validation, sample fallback, and consent copy.
 - `generation`: hatching progress states backed by mock job status.
 - `pet-reveal`: generated pet acceptance, retry, and category-only support report entry.
 - `terrarium`: main home, care actions, local authored reactions.
 - `chat`: quick local reaction plus API-backed premium chat gate, Plus pass shop CTA, disclosure, and provider-backed conversation UI when entitlement is active.
+- `friend`: relationship profile, bond/streak/days together, habits, walk finds, scrapbook, and expression gallery.
 - `inventory`: owned items, API-backed/local place/remove controls, and decoration path.
 - `shop`: Plus pass destination, local item preview, or API-backed product catalog/entitlement state; purchases stay locked unless native checkout is configured.
 - `settings`: privacy controls, destructive-action confirmations, legal links, and API-backed restore-purchases control.
+- `privacy`: current app privacy and photo/chat safety explanation.
+- `support`: support contact, FAQ, and report controls.
+- `terms`: current fair-use and paid-value terms.
 
 ## Next Screen Work
 
