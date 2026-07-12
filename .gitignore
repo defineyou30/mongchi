@@ -24,3 +24,11 @@ docs/qa-screenshots/_archive/
 docs/qa-screenshots/manual-tap-qa/
 docs/qa-screenshots/current-fix/
 docs/qa-screenshots/current-audit-*/
+docs/qa-screenshots/current-task-*/
+
+# App Store composition sources stay local; only approved exports and references are tracked.
+docs/design/app-store/work/
+docs/design/app-store/outputs/v1/
+
+# Supabase CLI connection and runtime cache.
+supabase/.temp/

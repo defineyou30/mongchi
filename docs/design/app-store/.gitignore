@@ -1,0 +1,6 @@
+# Local generation and compositing workspace. Final exports and references are tracked.
+/work/
+/outputs/v1/
+/outputs/v2/*-thumb*.png
+/outputs/v2/contact-sheet-two.png
+/outputs/v2/gap.png
