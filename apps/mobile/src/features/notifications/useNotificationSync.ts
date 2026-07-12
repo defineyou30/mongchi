@@ -1,10 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { PetPushNotificationInput, PetPushNotificationKey } from "@mongchi/shared";
 
+import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { parseNotificationPayload } from "./notificationContracts";
+import { configureGardenNotificationChannel } from "./notificationPermission";
 import {
   syncScheduledPetNotifications,
   type SyncScheduledPetNotificationsResult
@@ -13,6 +16,10 @@ import {
   createLatestNotificationSyncCoordinator,
   type LatestNotificationSyncCoordinator
 } from "./notificationSyncCoordinator";
+import {
+  cancelPersistedWalkReturnNotification,
+  synchronizeWalkReturnNotification
+} from "./walkReturnNotification";
 
 /** Scoped to this feature only - deliberately separate from the session's own storage key. */
 const LAST_DELIVERED_STORAGE_KEY = "mongchi/notification-last-delivered-v2";
@@ -47,7 +54,9 @@ const writeLastDeliveredAtByKey = async (value: LastDeliveredAtByKey): Promise<v
  * Intended to be mounted once near the app root, inside TerrariumSessionProvider.
  */
 export const useNotificationSync = (): void => {
-  const { isHydrated, petProfile, careState, careStreak, satisfactionSummary, weatherState } = useTerrariumSession();
+  const { i18n } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
+  const { isHydrated, petProfile, careState, careStreak, satisfactionSummary, weatherState, activeWalk } = useTerrariumSession();
   const lastDeliveredAtByKeyRef = useRef<LastDeliveredAtByKey>({});
   const loadHistoryPromiseRef = useRef<Promise<void> | null>(null);
   const deliveryWriteChainRef = useRef(Promise.resolve());
@@ -84,6 +93,30 @@ export const useNotificationSync = (): void => {
       subscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isHydrated || !petProfile) {
+      return;
+    }
+
+    const synchronizeLocalizedNativeState = async (): Promise<void> => {
+      await configureGardenNotificationChannel();
+
+      if (activeWalk?.status === "walking") {
+        await synchronizeWalkReturnNotification({
+          petName: petProfile.name,
+          returnAt: activeWalk.returnAt
+        });
+        return;
+      }
+
+      await cancelPersistedWalkReturnNotification();
+    };
+
+    void synchronizeLocalizedNativeState().catch((error: unknown) => {
+      console.warn("Failed to synchronize localized notification metadata.", error);
+    });
+  }, [activeWalk?.id, activeWalk?.returnAt, activeWalk?.status, isHydrated, locale, petProfile]);
 
   useEffect(() => {
     if (!isHydrated || !petProfile) {
@@ -154,6 +187,7 @@ export const useNotificationSync = (): void => {
     careState.updatedAt,
     careStreak.current,
     satisfactionSummary,
-    weatherState.context
+    weatherState.context,
+    locale
   ]);
 };

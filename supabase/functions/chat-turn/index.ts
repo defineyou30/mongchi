@@ -93,6 +93,8 @@ import {
   createOpenAiPremiumChatProvider
 } from "./chatProvider.ts";
 import { moderatePremiumChatInput, moderatePremiumChatProviderReply } from "./moderation.ts";
+import { parseChatLocale } from "./locale.ts";
+import type { ChatLocale } from "./locale.ts";
 import {
   type ChatSummaryRecentMessage,
   createLocalChatSummaryProvider,
@@ -214,7 +216,7 @@ interface ValidatedChatTurnRequest {
   disclosureAccepted: boolean;
   requestId: string;
   charge: "free" | "credit";
-  locale: string;
+  locale: ChatLocale;
   timezone: string;
   petProfile: ValidatedPetProfile;
   memoryContext?: ChatMemoryContext;
@@ -342,8 +344,9 @@ const validateChatTurnRequestBody = (value: unknown): ValidatedChatTurnRequest |
   }
 
   const petProfile = validatePetProfile(record.petProfile);
+  const locale = parseChatLocale(record.locale);
 
-  if (!petProfile) {
+  if (!petProfile || !locale) {
     return null;
   }
 
@@ -358,7 +361,7 @@ const validateChatTurnRequestBody = (value: unknown): ValidatedChatTurnRequest |
     disclosureAccepted: record.disclosureAccepted,
     requestId: record.requestId.trim(),
     charge: record.charge,
-    locale: isNonEmptyString(record.locale) ? record.locale : "en",
+    locale,
     timezone: isNonEmptyString(record.timezone) ? record.timezone : "UTC",
     petProfile,
     ...((): { memoryContext?: ChatMemoryContext } => {

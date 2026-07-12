@@ -5,6 +5,8 @@ const optionalTextSchema = z.string().optional();
 const personalityTagSchema = z.enum(["playful", "calm", "shy", "curious", "sleepy", "affectionate"]);
 const talkingStyleSchema = z.enum(["cute", "gentle", "cheerful", "comforting"]);
 
+export const apiLocaleSchema = z.enum(["en-US", "ko-KR", "ja-JP", "zh-TW", "de-DE", "fr-FR", "pt-BR", "es-MX"]);
+
 const restorePurchaseItemSchema = z
   .object({
     productId: idSchema,
@@ -91,7 +93,7 @@ export const apiMutationBodySchemas = {
       approximateLatitude: z.number(),
       approximateLongitude: z.number(),
       requestedAt: z.string(),
-      locale: z.enum(["ko-KR", "en-US"]).optional()
+      locale: apiLocaleSchema.optional()
     })
     .strict(),
   inventoryItem: z

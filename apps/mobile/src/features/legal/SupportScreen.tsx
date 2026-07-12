@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, LifeBuoy, Mail, PawPrint, ShieldAlert } from "lucide-react-native";
 import { router } from "expo-router";
 import { Linking, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import type { GenerationIssueCategory } from "@mongchi/shared";
 import { getPublicReleaseConfig } from "../../shared/config/publicReleaseConfig";
@@ -12,90 +13,57 @@ import { BackButton } from "../../shared/ui/BackButton";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 
-const generationIssueOptions: Array<{
+const generationIssueIcons: Array<{
   category: GenerationIssueCategory;
-  label: string;
-  description: string;
   Icon: typeof AlertTriangle;
 }> = [
-  {
-    category: "wrong_pet",
-    label: "Looks wrong",
-    description: "Species, markings, or face feels off.",
-    Icon: PawPrint
-  },
-  {
-    category: "unsafe_or_scary",
-    label: "Unsafe look",
-    description: "Something feels uncomfortable or scary.",
-    Icon: ShieldAlert
-  },
-  {
-    category: "poor_quality",
-    label: "Blurry result",
-    description: "The pet is hard to recognize.",
-    Icon: AlertTriangle
-  }
-];
-
-const generationIssueLabelByCategory: Record<GenerationIssueCategory, string> = {
-  wrong_pet: "Looks wrong",
-  unsafe_or_scary: "Unsafe look",
-  poor_quality: "Blurry result"
-};
-
-// Last updated July 7, 2026 · v1.0.
-const SUPPORT_LAST_UPDATED = "Last updated July 7, 2026 · v1.0";
-
-const faqItems: Array<{ question: string; answer: string }> = [
-  {
-    question: "Is my pet's photo safe?",
-    answer:
-      "Your photo is used only to run a safety check and generate your companion's avatar. It's automatically deleted from our servers the moment generation finishes — we don't keep a copy."
-  },
-  {
-    question: "How do I delete my data?",
-    answer:
-      "You can delete your original photo separately during the photo flow. For a full deletion of your session's data — avatars, profile, server records — email support below and we'll take care of it."
-  },
-  {
-    question: "What happens to my credits if a generation fails?",
-    answer:
-      "A failure caused by a system error, safety check, or quality check on our side should not cost you a paid credit. If you believe a credit was consumed unfairly, report it below or email support."
-  }
+  { category: "wrong_pet", Icon: PawPrint },
+  { category: "unsafe_or_scary", Icon: ShieldAlert },
+  { category: "poor_quality", Icon: AlertTriangle }
 ];
 
 export function SupportScreen() {
   const releaseConfig = getPublicReleaseConfig();
   const { showDialog } = useAppDialog();
+  const { t } = useTranslation();
   const { generationIssueReport, reportGenerationIssue } = useTerrariumSession();
+  const generationIssueCopyByCategory: Record<GenerationIssueCategory, { label: string; description: string }> = {
+    wrong_pet: { label: t("legal.support.options.wrong.label"), description: t("legal.support.options.wrong.description") },
+    unsafe_or_scary: { label: t("legal.support.options.unsafe.label"), description: t("legal.support.options.unsafe.description") },
+    poor_quality: { label: t("legal.support.options.quality.label"), description: t("legal.support.options.quality.description") }
+  };
+  const faqItems = [
+    { question: t("legal.support.faq.photoQuestion"), answer: t("legal.support.faq.photoAnswer") },
+    { question: t("legal.support.faq.deleteQuestion"), answer: t("legal.support.faq.deleteAnswer") },
+    { question: t("legal.support.faq.creditQuestion"), answer: t("legal.support.faq.creditAnswer") }
+  ];
 
   const handleReport = (category: GenerationIssueCategory) => {
     reportGenerationIssue(category);
     recordMobileEvent("generation_issue_reported", { category });
-    showDialog({ title: "Report saved", message: "Only the issue category was saved. No raw photo or chat text was attached." });
+    showDialog({ title: t("legal.support.savedTitle"), message: t("legal.support.savedMessage") });
   };
 
   return (
-    <GardenSceneFrame accessibilityLabel="Support and generation reports">
-      <BackButton accessibilityLabel="Back to settings" onPress={() => router.replace("/settings")} />
+    <GardenSceneFrame accessibilityLabel={t("legal.support.accessibilityLabel")}>
+      <BackButton accessibilityLabel={t("legal.back")} onPress={() => router.replace("/settings")} />
 
       <View style={styles.copy}>
-        <Text style={styles.eyebrow}>Support</Text>
+        <Text style={styles.eyebrow}>{t("legal.support.eyebrow")}</Text>
         <Text accessibilityRole="header" style={styles.title}>
-          Help and reports
+          {t("legal.support.title")}
         </Text>
-        <Text style={styles.versionText}>{SUPPORT_LAST_UPDATED}</Text>
+        <Text style={styles.versionText}>{t("legal.support.updated")}</Text>
       </View>
 
       <View style={styles.panel}>
         <LifeBuoy color={colors.skyDeep} size={28} strokeWidth={2.5} />
-        <Text style={styles.panelTitle}>Support contact</Text>
+        <Text style={styles.panelTitle}>{t("legal.support.contact")}</Text>
         <Text style={styles.panelText}>
-          {releaseConfig.supportEmail ?? "Use the report controls below. Email support opens when an address is available."}
+          {releaseConfig.supportEmail ?? t("legal.support.contactFallback")}
         </Text>
         <ActionButton
-          label="Email support"
+          label={t("legal.support.email")}
           Icon={Mail}
           variant="secondary"
           disabled={!releaseConfig.supportEmail}
@@ -108,7 +76,7 @@ export function SupportScreen() {
       </View>
 
       <View style={styles.panel}>
-        <Text style={styles.panelTitle}>Frequently asked</Text>
+        <Text style={styles.panelTitle}>{t("legal.support.faqTitle")}</Text>
         <View style={styles.reportList}>
           {faqItems.map((item) => (
             <View key={item.question} style={styles.faqRow}>
@@ -120,24 +88,23 @@ export function SupportScreen() {
       </View>
 
       <View style={styles.panel}>
-        <Text style={styles.panelTitle}>Report generation issue</Text>
-        <Text style={styles.panelText}>
-          Issue reports use a safe category and avoid sending raw photos through analytics.
-        </Text>
+        <Text style={styles.panelTitle}>{t("legal.support.reportTitle")}</Text>
+        <Text style={styles.panelText}>{t("legal.support.reportDetail")}</Text>
         <View style={styles.reportList}>
-          {generationIssueOptions.map(({ category, label, description, Icon }) => {
+          {generationIssueIcons.map(({ category, Icon }) => {
             const selected = generationIssueReport?.category === category;
+            const copy = generationIssueCopyByCategory[category];
 
             return (
               <View key={category} style={[styles.reportOption, selected ? styles.reportOptionSelected : null]}>
                 <Icon color={selected ? colors.leaf : colors.skyDeep} size={24} strokeWidth={2.5} />
                 <View style={styles.reportCopy}>
-                  <Text style={styles.reportTitle}>{label}</Text>
-                  <Text style={styles.reportText}>{description}</Text>
+                  <Text style={styles.reportTitle}>{copy.label}</Text>
+                  <Text style={styles.reportText}>{copy.description}</Text>
                 </View>
                 <View style={styles.reportAction}>
                   <ActionButton
-                    label={selected ? "Saved" : "Report"}
+                    label={selected ? t("legal.support.saved") : t("legal.support.report")}
                     Icon={selected ? CheckCircle2 : AlertTriangle}
                     size="compact"
                     variant={selected ? "primary" : "secondary"}
@@ -150,12 +117,12 @@ export function SupportScreen() {
         </View>
         {generationIssueReport ? (
           <Text style={styles.savedReportText}>
-            Last report: {generationIssueLabelByCategory[generationIssueReport.category]}
+            {t("legal.support.lastReport", { label: generationIssueCopyByCategory[generationIssueReport.category].label })}
           </Text>
         ) : null}
       </View>
 
-      <ActionButton label="Back to settings" Icon={ArrowLeft} onPress={() => router.push("/settings")} />
+      <ActionButton label={t("legal.back")} Icon={ArrowLeft} onPress={() => router.push("/settings")} />
     </GardenSceneFrame>
   );
 }

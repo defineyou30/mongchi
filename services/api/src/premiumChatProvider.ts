@@ -258,10 +258,18 @@ const parseReplyText = (text: string): PremiumChatReplyJson => {
   }
 };
 
-const refusalTextForLocale = (locale: Locale): string =>
-  locale.startsWith("ko")
-    ? "지금 그 이야기는 안전하게 답하기 어려워요. 네 곁에서 편안한 이야기로 천천히 이어가요."
-    : "I can't answer that safely, but I can stay close by. Let's talk about something gentle.";
+const refusalTextByLocale: Record<Locale, string> = {
+  "en-US": "I can't answer that safely, but I can stay close by. Let's talk about something gentle.",
+  "ko-KR": "지금 그 이야기는 안전하게 답하기 어려워요. 네 곁에서 편안한 이야기로 천천히 이어가요.",
+  "ja-JP": "その話には今、安全に答えられないけれど、そばにいるよ。やさしい話をしよう。",
+  "zh-TW": "我現在無法安全地回答這件事，但我會陪在你身邊。我們聊些讓人安心的事吧。",
+  "de-DE": "Ich kann darauf nicht sicher antworten, aber ich bleibe bei dir. Lass uns über etwas Sanftes sprechen.",
+  "fr-FR": "Je ne peux pas répondre à cela en toute sécurité, mais je peux rester près de toi. Parlons de quelque chose de doux.",
+  "pt-BR": "Não posso responder a isso com segurança, mas posso ficar pertinho de você. Vamos conversar sobre algo tranquilo.",
+  "es-MX": "No puedo responder a eso de forma segura, pero puedo quedarme contigo. Hablemos de algo tranquilo."
+};
+
+const refusalTextForLocale = (locale: Locale): string => refusalTextByLocale[locale];
 
 const safeOptionalText = (value: string | undefined, maxLength = 240): string | undefined => {
   const trimmed = value?.trim();

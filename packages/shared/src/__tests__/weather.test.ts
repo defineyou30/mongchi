@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createApproximateLocationWeatherContext,
   createManualWeatherContext,
+  getWeatherScenePresentation,
   normalizeApproximateWeatherCoordinates
 } from "../index";
 import type { ApproximateWeatherCoordinates, WeatherCondition } from "../index";
@@ -132,5 +133,42 @@ describe("createManualWeatherContext (settings preview) is preserved", () => {
 
     expect(first.condition).toBe(second.condition);
     expect(first.condition).toBe("rain");
+  });
+});
+
+describe("weather presentation locale boundaries", () => {
+  it("Given Japanese approximate weather, when context is generated, then its direct region line stays Japanese", () => {
+    const coordinates = normalizeApproximateWeatherCoordinates(35.7, 139.7);
+
+    expect(coordinates).not.toBeNull();
+    if (!coordinates) {
+      throw new Error("Expected valid Tokyo coordinates");
+    }
+
+    const weather = createApproximateLocationWeatherContext(coordinates, "2026-07-07T09:00:00.000Z", {
+      locale: "ja-JP"
+    });
+
+    expect(weather.regionLabel).toBe("おおよその現地の天気");
+  });
+
+  it("Given Japanese rain, when presentation is generated, then the label and line stay Japanese", () => {
+    const weather = createManualWeatherContext("rain", "2026-07-07T09:00:00.000Z");
+
+    const presentation = getWeatherScenePresentation("home", weather, "ja-JP");
+
+    expect(presentation.label).toBe("雨");
+    expect(presentation.shortLine).toBe("雨の匂いがするね。ここはもっと心地よくしておくよ。");
+    expect(presentation.accessibilityLabel).toContain("雨");
+  });
+
+  it("Given Mexican Spanish snow, when presentation is generated, then no English copy leaks through", () => {
+    const weather = createManualWeatherContext("snow", "2026-07-07T09:00:00.000Z");
+
+    const presentation = getWeatherScenePresentation("walk", weather, "es-MX");
+
+    expect(presentation.label).toBe("Nieve");
+    expect(presentation.shortLine).toBe("La luz de la nieve se posó suavemente al borde del jardín.");
+    expect(presentation.accessibilityLabel).toContain("Escena del clima");
   });
 });

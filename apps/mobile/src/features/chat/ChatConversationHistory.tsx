@@ -1,10 +1,10 @@
 import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@mongchi/shared";
 
 import { colors, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import type { OptimisticChatTurn } from "./chatOptimisticTurn";
-import { getChatTypingLabel } from "./chatOptimisticTurn";
 
 interface ChatConversationHistoryProps {
   readonly messages: readonly ConversationMessage[];
@@ -20,6 +20,7 @@ export function ChatConversationHistory({
   onRetry
 }: ChatConversationHistoryProps) {
   const fontFamilies = useFontFamilies();
+  const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
 
   const renderMessage = (message: ConversationMessage) => {
@@ -32,7 +33,7 @@ export function ChatConversationHistory({
         style={[styles.chatBubble, isUser ? styles.userBubble : styles.petBubble, !isUser && !isPet ? styles.systemBubble : null]}
       >
         <Text style={[styles.messageLabel, { fontFamily: fontFamilies.label }, isUser ? styles.userMessageLabel : null]}>
-          {isUser ? "You" : isPet ? petName : "Notice"}
+          {isUser ? t("chat.history.user") : isPet ? petName : t("chat.history.notice")}
         </Text>
         <Text style={[styles.messageText, { fontFamily: fontFamilies.body }]}>{message.text}</Text>
       </View>
@@ -42,7 +43,7 @@ export function ChatConversationHistory({
   return (
     <ScrollView
       ref={scrollRef}
-      accessibilityLabel={`Conversation history with ${petName}`}
+      accessibilityLabel={t("chat.history.accessibilityLabel", { petName })}
       contentContainerStyle={styles.messageStack}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
@@ -52,25 +53,25 @@ export function ChatConversationHistory({
     >
       {messages.length === 0 && optimisticTurn === null ? (
         <View style={styles.emptyBubble}>
-          <Text style={[styles.emptyText, { fontFamily: fontFamilies.body }]}>Your cozy conversation starts here.</Text>
+          <Text style={[styles.emptyText, { fontFamily: fontFamilies.body }]}>{t("chat.history.empty")}</Text>
         </View>
       ) : null}
       {messages.map(renderMessage)}
       {optimisticTurn ? (
         <View style={[styles.chatBubble, styles.userBubble, optimisticTurn.delivery === "failed" ? styles.failedBubble : null]}>
-          <Text style={[styles.messageLabel, styles.userMessageLabel, { fontFamily: fontFamilies.label }]}>You</Text>
+          <Text style={[styles.messageLabel, styles.userMessageLabel, { fontFamily: fontFamilies.label }]}>{t("chat.history.user")}</Text>
           <View style={styles.optimisticCopy}>
             <Text style={[styles.messageText, { fontFamily: fontFamilies.body }]}>{optimisticTurn.text}</Text>
             {optimisticTurn.delivery === "failed" ? (
               <View style={styles.retryRow}>
-                <Text style={[styles.deliveryText, { fontFamily: fontFamilies.body }]}>Not sent yet.</Text>
+                <Text style={[styles.deliveryText, { fontFamily: fontFamilies.body }]}>{t("chat.history.notSent")}</Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Retry sending message"
+                  accessibilityLabel={t("chat.history.retryAccessibilityLabel")}
                   style={({ pressed }) => [styles.retryButton, pressed ? styles.retryButtonPressed : null]}
                   onPress={() => onRetry(optimisticTurn)}
                 >
-                  <Text style={[styles.retryText, { fontFamily: fontFamilies.label }]}>Retry</Text>
+                  <Text style={[styles.retryText, { fontFamily: fontFamilies.label }]}>{t("chat.history.retry")}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -79,7 +80,7 @@ export function ChatConversationHistory({
       ) : null}
       {optimisticTurn?.delivery === "sending" ? (
         <View accessibilityLiveRegion="polite" style={styles.typingBubble}>
-          <Text style={[styles.typingText, { fontFamily: fontFamilies.body }]}>{getChatTypingLabel(petName)}</Text>
+          <Text style={[styles.typingText, { fontFamily: fontFamilies.body }]}>{t("chat.history.typing", { petName })}</Text>
         </View>
       ) : null}
     </ScrollView>

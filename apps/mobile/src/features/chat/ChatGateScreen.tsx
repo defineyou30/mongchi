@@ -5,6 +5,7 @@ import { memo, useMemo, useState } from "react";
 import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import {
   buildChatCareContext,
@@ -13,10 +14,10 @@ import {
   getCareDaysAway,
   getPremiumChatPaymentPreview,
   getWeatherScenePresentation,
-  premiumChatGate,
   selectGeneratedAssetForReaction
 } from "@mongchi/shared";
 import type { ConversationMessage } from "@mongchi/shared";
+import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { playSfx } from "../../shared/audio";
 import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
@@ -56,16 +57,18 @@ interface PetThoughtBubbleProps {
   msPerChar: number;
   enabled: boolean;
   bubbleFontFamily: string;
+  accessibilityLabel: string;
+  accessibilityHint: string;
 }
 
-const PetThoughtBubble = memo(function PetThoughtBubble({ petName, text, msPerChar, enabled, bubbleFontFamily }: PetThoughtBubbleProps) {
+const PetThoughtBubble = memo(function PetThoughtBubble({ text, msPerChar, enabled, bubbleFontFamily, accessibilityLabel, accessibilityHint }: PetThoughtBubbleProps) {
   const petThought = useTypewriter({ text, msPerChar, enabled });
 
   return (
     <Pressable
       accessibilityRole="text"
-      accessibilityLabel={`${petName} says ${text}`}
-      accessibilityHint={petThought.isComplete ? undefined : "Tap to show the full message right away"}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={petThought.isComplete ? undefined : accessibilityHint}
       style={styles.petThoughtPressable}
       onPress={petThought.skip}
     >
@@ -110,6 +113,8 @@ export function ChatGateScreen() {
   // instead of a memory/care-status one while the pet is genuinely away.
   const isPetOnWalk = activeWalk?.status === "walking";
   const fontFamilies = useFontFamilies();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const [supabaseClient] = useState(() => getSupabaseClient());
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chatStarted, setChatStarted] = useState(false);
@@ -133,20 +138,22 @@ export function ChatGateScreen() {
     payment: chatPayment,
     hasPremiumChatEntitlement,
     freeChatTickets: wallet.freeChatTickets,
-    creditBalance
+    creditBalance,
+    locale
   });
   const premiumChatReady = premiumChatAccess.ready;
   const allowanceChip = getChatAllowanceChipPresentation({
     hasPremiumChatEntitlement,
     freeChatTickets: wallet.freeChatTickets,
-    creditBalance
+    creditBalance,
+    locale
   });
   const trimmedDraft = draft.trim();
   const chatPetAsset = selectGeneratedAssetForReaction(acceptedAssets, acceptedAsset, "chat_portrait");
   const petAssetId = chatPetAsset?.id ?? activePet.activeAssetId ?? null;
   const petAssetUri = petAssetId ? generatedAssetUriById[petAssetId] ?? null : null;
   const activeWeather = weatherState.settings.enabled ? weatherState.context : defaultWeatherContext;
-  const weatherScene = useMemo(() => getWeatherScenePresentation("chat", activeWeather, "en-US"), [activeWeather]);
+  const weatherScene = useMemo(() => getWeatherScenePresentation("chat", activeWeather, locale), [activeWeather, locale]);
   const careDaysAway = useMemo(() => getCareDaysAway(careState, replyNow), [careState, replyNow]);
   const shortReplyText = useMemo(
     () =>
@@ -161,7 +168,8 @@ export function ChatGateScreen() {
         daysAway: careDaysAway,
         memories,
         careStats,
-        isOnWalk: isPetOnWalk
+        isOnWalk: isPetOnWalk,
+        locale
       }),
     [
       activePet.name,
@@ -174,7 +182,8 @@ export function ChatGateScreen() {
       careDaysAway,
       memories,
       careStats,
-      isPetOnWalk
+      isPetOnWalk,
+      locale
     ]
   );
   const reduceMotionEnabled = useReducedMotionPreference();
@@ -185,9 +194,10 @@ export function ChatGateScreen() {
         careState,
         weather: activeWeather,
         now: replyNow,
-        daysAway: careDaysAway
+        daysAway: careDaysAway,
+        locale
       }),
-    [activePet.name, careState, activeWeather, replyNow, careDaysAway]
+    [activePet.name, careState, activeWeather, replyNow, careDaysAway, locale]
   );
   const showConversationStarters = premiumChatReady && chatStarted && optimisticTurn === null && !trimmedDraft && chatStatus !== "sending";
 
@@ -199,7 +209,7 @@ export function ChatGateScreen() {
     setChatStatus("starting");
     setChatError(null);
 
-    const started = await startApiPremiumChatThread(supabaseClient, activePet.id);
+    const started = await startApiPremiumChatThread(supabaseClient, activePet.id, locale);
 
     if (!started.ok) {
       setChatError(started.error.messageSafe);
@@ -241,6 +251,7 @@ export function ChatGateScreen() {
             petProfile: activePet,
             wallet,
             hasPremiumChatEntitlement,
+            locale,
             memoryContext: buildChatMemoryContext({ memories, careStats }),
             careContext: buildChatCareContext(careState, careDaysAway)
           },
@@ -272,7 +283,7 @@ export function ChatGateScreen() {
       const latency = buildChatLatencySample({ pressedAtMs, optimisticAtMs, completedAtMs: Date.now() });
       reporter.captureError(error, { surface: "chat_send", ...latency });
       setOptimisticTurn(failOptimisticChatTurn(nextTurn));
-      setChatError("Could not reach chat right now. Try again.");
+      setChatError(t("chat.networkError"));
       setChatStatus("ready");
     } finally {
       sendGate.release();
@@ -286,13 +297,13 @@ export function ChatGateScreen() {
         <WeatherSceneLayer overlayKey={weatherScene.overlayKey} />
       </ImageBackground>
 
-      <SafeAreaView accessibilityLabel={`${activePet.name}'s chat. ${weatherScene.accessibilityLabel}`} edges={["top", "left", "right"]} style={styles.chatSafe}>
+      <SafeAreaView accessibilityLabel={`${t("chat.screenAccessibilityLabel", { petName: activePet.name })}. ${weatherScene.accessibilityLabel}`} edges={["top", "left", "right"]} style={styles.chatSafe}>
         <Text accessibilityRole="header" style={[styles.screenReaderTitle, { fontFamily: fontFamilies.title }]}>
-          {activePet.name}'s chat
+          {t("chat.screenReaderTitle", { petName: activePet.name })}
         </Text>
         <ScrollView bounces={false} contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
           <View style={styles.sceneTopBar}>
-            <BackButton accessibilityLabel="Back home" style={styles.backButton} onPress={() => router.replace("/terrarium")} />
+            <BackButton accessibilityLabel={t("chat.back")} style={styles.backButton} onPress={() => router.replace("/terrarium")} />
             <View accessible accessibilityLabel={allowanceChip.accessibilityLabel} style={styles.allowanceChip}>
               <Text numberOfLines={1} style={[styles.allowanceChipText, { fontFamily: fontFamilies.label }]}>
                 {allowanceChip.label}
@@ -304,7 +315,7 @@ export function ChatGateScreen() {
             <View pointerEvents="none" style={styles.petStage}>
               <View style={styles.petGroundShadow} />
               <GeneratedPetAssetImage
-                accessibilityLabel="Pet in chat"
+                accessibilityLabel={t("chat.petAccessibilityLabel")}
                 assetId={petAssetId ?? null}
                 decorative
                 remoteUri={petAssetUri ?? null}
@@ -318,6 +329,8 @@ export function ChatGateScreen() {
               msPerChar={chatTypewriterMsPerChar}
               enabled={!reduceMotionEnabled}
               bubbleFontFamily={fontFamilies.bubble}
+              accessibilityLabel={t("chat.petSays", { petName: activePet.name, text: shortReplyText })}
+              accessibilityHint={t("chat.finishMessageHint")}
             />
 
             <View style={styles.chatTray}>
@@ -347,7 +360,7 @@ export function ChatGateScreen() {
                   <View style={styles.bubbleCopy}>
                     <Text style={[styles.lockedTitle, { fontFamily: fontFamilies.title }]}>{premiumChatAccess.title}</Text>
                     <Text numberOfLines={2} style={[styles.lockedText, { fontFamily: fontFamilies.body }]}>
-                      {premiumChatReady && chatStatus === "starting" ? "Opening a cozy thread..." : premiumChatAccess.detail}
+                      {premiumChatReady && chatStatus === "starting" ? t("chat.opening") : premiumChatAccess.detail}
                     </Text>
                   </View>
                 </Pressable>
@@ -360,12 +373,12 @@ export function ChatGateScreen() {
               ) : null}
 
               {showConversationStarters ? (
-                <View accessibilityLabel="Conversation starters" style={styles.starterRow}>
+                <View accessibilityLabel={t("chat.startersAccessibilityLabel")} style={styles.starterRow}>
                   {conversationStarters.map((starter) => (
                     <Pressable
                       key={starter}
                       accessibilityRole="button"
-                      accessibilityLabel={`Use starter: ${starter}`}
+                      accessibilityLabel={t("chat.starterAccessibilityLabel", { starter })}
                       style={({ pressed }) => [styles.starterChip, pressed ? styles.starterChipPressed : null]}
                       onPress={() => setDraft(starter)}
                     >
@@ -382,10 +395,10 @@ export function ChatGateScreen() {
                   <Mic color={colors.white} size={22} strokeWidth={2.8} />
                 </View>
                 <TextInput
-                  accessibilityLabel="Premium chat message"
+                  accessibilityLabel={t("chat.inputAccessibilityLabel")}
                   editable={premiumChatReady && chatStarted && chatStatus !== "sending"}
                   value={draft}
-                  placeholder={premiumChatReady && chatStarted ? `Message ${activePet.name}` : premiumChatAccess.inputPlaceholder}
+                  placeholder={premiumChatReady && chatStarted ? t("chat.inputPlaceholder", { petName: activePet.name }) : premiumChatAccess.inputPlaceholder}
                   placeholderTextColor={colors.mutedInk}
                   maxLength={240}
                   style={[styles.chatInput, { fontFamily: fontFamilies.body }]}
@@ -393,7 +406,7 @@ export function ChatGateScreen() {
                 />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={chatStarted ? "Send premium chat message" : premiumChatAccess.ctaLabel}
+                  accessibilityLabel={chatStarted ? t("chat.sendAccessibilityLabel") : premiumChatAccess.ctaLabel}
                   accessibilityState={{ disabled: chatStarted ? chatStatus === "sending" || optimisticTurn !== null || !trimmedDraft : chatStatus === "starting" }}
                   disabled={chatStarted ? chatStatus === "sending" || optimisticTurn !== null || !trimmedDraft : chatStatus === "starting"}
                   style={({ pressed }) => [
@@ -411,7 +424,7 @@ export function ChatGateScreen() {
 
           <View style={styles.disclosureStrip}>
             <MessageCircle color={colors.skyDeep} size={14} strokeWidth={2.5} />
-            <Text style={[styles.disclosureText, { fontFamily: fontFamilies.body }]}>{premiumChatGate.disclosureText}</Text>
+            <Text style={[styles.disclosureText, { fontFamily: fontFamilies.body }]}>{t("chat.disclosure")}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>

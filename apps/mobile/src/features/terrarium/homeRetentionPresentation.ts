@@ -1,3 +1,7 @@
+import type { AppLocale } from "../../localization/localeNormalization";
+import { getLocalizedText } from "../../localization/localizedText";
+import type { LocalizedText } from "../../localization/localizedText";
+
 export type HomeRetentionMilestoneId = "day1" | "day3" | "day7" | "day14" | "day30";
 export type HomeRetentionPromptTone = "daily" | "reward" | "memory" | "letter";
 export type HomeRetentionPromptAction = "care" | "friend";
@@ -22,12 +26,28 @@ const retentionTargetDays: Record<HomeRetentionMilestoneId, number> = {
   day30: 30
 };
 
-const retentionTitleByMilestone: Record<HomeRetentionMilestoneId, string> = {
-  day1: "First daily hello",
-  day3: "Snack rhythm",
-  day7: "One-week memory",
-  day14: "Two-week rhythm",
-  day30: "One-month letter"
+const retentionTitleByMilestone: Record<HomeRetentionMilestoneId, LocalizedText> = {
+  day1: { "en-US": "First daily hello", "ko-KR": "첫 번째 인사", "ja-JP": "最初の毎日のあいさつ", "zh-TW": "第一次每日問候", "de-DE": "Erster Tagesgruß", "fr-FR": "Premier bonjour quotidien", "pt-BR": "Primeiro olá do dia", "es-MX": "Primer saludo diario" },
+  day3: { "en-US": "Snack rhythm", "ko-KR": "간식 리듬", "ja-JP": "おやつのリズム", "zh-TW": "點心節奏", "de-DE": "Leckerli-Rhythmus", "fr-FR": "Rythme des friandises", "pt-BR": "Ritmo dos petiscos", "es-MX": "Ritmo de premios" },
+  day7: { "en-US": "One-week memory", "ko-KR": "일주일의 추억", "ja-JP": "1週間の思い出", "zh-TW": "一週回憶", "de-DE": "Eine Woche Erinnerungen", "fr-FR": "Souvenir d’une semaine", "pt-BR": "Memória de uma semana", "es-MX": "Recuerdo de una semana" },
+  day14: { "en-US": "Two-week rhythm", "ko-KR": "두 주의 리듬", "ja-JP": "2週間のリズム", "zh-TW": "兩週節奏", "de-DE": "Zwei-Wochen-Rhythmus", "fr-FR": "Rythme de deux semaines", "pt-BR": "Ritmo de duas semanas", "es-MX": "Ritmo de dos semanas" },
+  day30: { "en-US": "One-month letter", "ko-KR": "한 달의 편지", "ja-JP": "1か月の手紙", "zh-TW": "滿月信", "de-DE": "Ein-Monats-Brief", "fr-FR": "Lettre du premier mois", "pt-BR": "Carta do primeiro mês", "es-MX": "Carta del primer mes" }
+};
+
+const careLineByMilestone: Record<HomeRetentionMilestoneId, LocalizedText> = {
+  day1: { "en-US": "Give {petName} one tiny care action to start today's bond.", "ko-KR": "{petName}를 한 번 돌보며 오늘의 유대감을 시작해 보세요.", "ja-JP": "{petName}をひとつお世話して、今日の絆を始めましょう。", "zh-TW": "給 {petName} 一次小小照顧，開啟今天的感情時光。", "de-DE": "Schenke {petName} einen kleinen Pflegemoment und beginnt eure heutige Verbundenheit.", "fr-FR": "Offrez un petit soin à {petName} pour commencer votre complicité du jour.", "pt-BR": "Dê um pequeno cuidado a {petName} para começar o vínculo de hoje.", "es-MX": "Dale un pequeño cuidado a {petName} para comenzar el vínculo de hoy." },
+  day3: { "en-US": "Day 3 starts the snack rhythm. A little care can bring treats home.", "ko-KR": "3일째에는 간식 리듬이 시작돼요. 작은 돌봄이 간식을 데려올 수 있어요.", "ja-JP": "3日目からおやつのリズムが始まります。小さなお世話がおやつにつながります。", "zh-TW": "第 3 天開啟點心節奏。小小照顧可能會帶點心回家。", "de-DE": "An Tag 3 beginnt der Leckerli-Rhythmus. Ein kleiner Pflegemoment kann Leckerlis nach Hause bringen.", "fr-FR": "Le 3e jour lance le rythme des friandises. Un petit soin peut en faire arriver à la maison.", "pt-BR": "O dia 3 começa o ritmo dos petiscos. Um pequeno cuidado pode trazer petiscos para casa.", "es-MX": "El día 3 inicia el ritmo de premios. Un pequeño cuidado puede traer premios a casa." },
+  day7: { "en-US": "Keep today cozy so the one-week memory has something to hold.", "ko-KR": "오늘도 포근하게 돌보면 일주일의 추억이 더 선명해져요.", "ja-JP": "今日もやさしくお世話して、1週間の思い出をあたためましょう。", "zh-TW": "今天也溫柔照顧，讓一週回憶有更多暖暖的片段。", "de-DE": "Macht es euch heute gemütlich, damit die Wochenerinnerung etwas Schönes bewahrt.", "fr-FR": "Gardez cette journée douillette pour nourrir le souvenir de votre première semaine.", "pt-BR": "Deixe o dia aconchegante para guardar algo bonito na memória da primeira semana.", "es-MX": "Mantén el día acogedor para llenar de cariño el recuerdo de la primera semana." },
+  day14: { "en-US": "{petName} is learning your rhythm. One care moment keeps it warm.", "ko-KR": "{petName}가 당신의 리듬을 배우고 있어요. 작은 돌봄 한 번으로 이어가 주세요.", "ja-JP": "{petName}はあなたのリズムを覚えています。ひとつのお世話で、ぬくもりを続けましょう。", "zh-TW": "{petName} 正在熟悉你的節奏。一次小照顧就能讓這份溫暖延續。", "de-DE": "{petName} lernt deinen Rhythmus kennen. Ein Pflegemoment hält ihn warm.", "fr-FR": "{petName} apprend votre rythme. Un petit soin suffit à le garder chaleureux.", "pt-BR": "{petName} está aprendendo seu ritmo. Um momento de cuidado mantém tudo quentinho.", "es-MX": "{petName} está aprendiendo tu ritmo. Un momento de cuidado lo mantiene cálido." },
+  day30: { "en-US": "The one-month letter is ahead. Today can become part of it.", "ko-KR": "한 달의 편지가 다가오고 있어요. 오늘도 편지 속 이야기가 될 수 있어요.", "ja-JP": "1か月の手紙までもう少し。今日もその物語の一部になります。", "zh-TW": "滿月信就快到了。今天也會成為信裡的一段故事。", "de-DE": "Der Ein-Monats-Brief rückt näher. Auch heute kann ein Teil davon werden.", "fr-FR": "La lettre du premier mois approche. Cette journée peut aussi en faire partie.", "pt-BR": "A carta do primeiro mês está chegando. Hoje também pode fazer parte dela.", "es-MX": "La carta del primer mes se acerca. Hoy también puede formar parte de ella." }
+};
+
+const completedLineByMilestone: Record<HomeRetentionMilestoneId, LocalizedText> = {
+  day1: { "en-US": "{petName} felt today's first hello. Tomorrow keeps the rhythm warm.", "ko-KR": "{petName}가 오늘의 첫 인사를 느꼈어요. 내일도 이 포근한 리듬을 이어가요.", "ja-JP": "{petName}に今日の最初のあいさつが届きました。明日もこのやさしいリズムを続けましょう。", "zh-TW": "{petName} 收到今天的第一聲問候了。明天也繼續這個溫暖節奏吧。", "de-DE": "{petName} hat den ersten Gruß des Tages gespürt. Morgen bleibt der Rhythmus schön warm.", "fr-FR": "{petName} a reçu le premier bonjour du jour. Demain gardera ce doux rythme.", "pt-BR": "{petName} sentiu o primeiro olá de hoje. Amanhã mantém esse ritmo quentinho.", "es-MX": "{petName} sintió el primer saludo de hoy. Mañana mantendrá cálido este ritmo." },
+  day3: { "en-US": "The snack rhythm is waking up. Your next tiny care keeps it alive.", "ko-KR": "간식 리듬이 깨어나고 있어요. 다음 작은 돌봄으로 이어가 주세요.", "ja-JP": "おやつのリズムが目を覚ましています。次の小さなお世話で続いていきます。", "zh-TW": "點心節奏正在甦醒。下一次小照顧會讓它繼續下去。", "de-DE": "Der Leckerli-Rhythmus erwacht. Dein nächster kleiner Pflegemoment hält ihn lebendig.", "fr-FR": "Le rythme des friandises s’éveille. Votre prochain petit soin le fera vivre.", "pt-BR": "O ritmo dos petiscos está despertando. Seu próximo pequeno cuidado o mantém vivo.", "es-MX": "El ritmo de premios está despertando. Tu próximo pequeño cuidado lo mantendrá vivo." },
+  day7: { "en-US": "Your one-week memory is close. The scrapbook is starting to feel yours.", "ko-KR": "일주일의 추억이 가까워졌어요. 추억책이 조금씩 우리 이야기로 채워지고 있어요.", "ja-JP": "1週間の思い出までもう少し。スクラップブックが少しずつふたりらしくなっています。", "zh-TW": "一週回憶就快完成了。剪貼簿正一點點裝滿你們的故事。", "de-DE": "Eure Wochenerinnerung ist nah. Das Sammelbuch fühlt sich langsam ganz nach euch an.", "fr-FR": "Le souvenir d’une semaine approche. L’album commence à raconter votre histoire.", "pt-BR": "A memória de uma semana está perto. O álbum já começa a ter a cara de vocês.", "es-MX": "El recuerdo de una semana está cerca. El álbum empieza a sentirse muy suyo." },
+  day14: { "en-US": "Two weeks turns care into a habit your pet can recognize.", "ko-KR": "두 주의 돌봄이 우리 친구가 알아보는 습관이 되고 있어요.", "ja-JP": "2週間のお世話が、ペットにもわかるやさしい習慣になっています。", "zh-TW": "兩週的照顧，正變成毛孩熟悉的溫柔習慣。", "de-DE": "Zwei Wochen machen Pflege zu einer Gewohnheit, die dein Tier wiedererkennt.", "fr-FR": "Deux semaines transforment les soins en une habitude que votre compagnon reconnaît.", "pt-BR": "Duas semanas transformam o cuidado em um hábito que seu pet reconhece.", "es-MX": "Dos semanas convierten el cuidado en un hábito que tu mascota reconoce." },
+  day30: { "en-US": "The one-month letter is ahead. Your profile is collecting the story.", "ko-KR": "한 달의 편지가 다가오고 있어요. 프로필에 우리 이야기가 쌓이고 있어요.", "ja-JP": "1か月の手紙までもう少し。プロフィールにふたりの物語が積み重なっています。", "zh-TW": "滿月信就快到了。你們的故事正在個人檔案裡慢慢累積。", "de-DE": "Der Ein-Monats-Brief rückt näher. Euer Profil sammelt eure Geschichte.", "fr-FR": "La lettre du premier mois approche. Votre profil rassemble votre histoire.", "pt-BR": "A carta do primeiro mês está chegando. O perfil está reunindo a história de vocês.", "es-MX": "La carta del primer mes se acerca. Su perfil está reuniendo la historia." }
 };
 
 const retentionToneByMilestone: Record<HomeRetentionMilestoneId, HomeRetentionPromptTone> = {
@@ -71,6 +91,7 @@ interface HomeRetentionCopyInput {
   readonly daysTogether: number;
   readonly hasCaredToday: boolean;
   readonly hasOpenedMonthlyLetter: boolean;
+  readonly locale: AppLocale;
 }
 
 const getHomeRetentionCopy = ({
@@ -78,23 +99,19 @@ const getHomeRetentionCopy = ({
   petName,
   daysTogether,
   hasCaredToday,
-  hasOpenedMonthlyLetter
+  hasOpenedMonthlyLetter,
+  locale
 }: HomeRetentionCopyInput): Pick<HomeRetentionPromptPresentation, "title" | "line" | "ctaLabel" | "action"> => {
-  const careCta = milestoneId === "day1" ? "Care now" : "Care today";
+  const title = getLocalizedText(locale, retentionTitleByMilestone[milestoneId]);
+  const careCta = getLocalizedText(locale, milestoneId === "day1"
+    ? { "en-US": "Care now", "ko-KR": "지금 돌보기", "ja-JP": "今お世話する", "zh-TW": "現在照顧", "de-DE": "Jetzt pflegen", "fr-FR": "Prendre soin", "pt-BR": "Cuidar agora", "es-MX": "Cuidar ahora" }
+    : { "en-US": "Care today", "ko-KR": "오늘 돌보기", "ja-JP": "今日お世話する", "zh-TW": "今天照顧", "de-DE": "Heute pflegen", "fr-FR": "Prendre soin aujourd’hui", "pt-BR": "Cuidar hoje", "es-MX": "Cuidar hoy" });
   const letterIsWaiting = milestoneId === "day30" && daysTogether >= 30 && !hasOpenedMonthlyLetter;
 
   if (!hasCaredToday && !letterIsWaiting) {
-    const lineByMilestone: Record<HomeRetentionMilestoneId, string> = {
-      day1: `Give ${petName} one tiny care action to start today's bond.`,
-      day3: "Day 3 starts the snack rhythm. A little care can bring treats home.",
-      day7: "Keep today cozy so the one-week memory has something to hold.",
-      day14: `${petName} is learning your rhythm. One care moment keeps it warm.`,
-      day30: "The one-month letter is ahead. Today can become part of it."
-    };
-
     return {
-      title: retentionTitleByMilestone[milestoneId],
-      line: lineByMilestone[milestoneId],
+      title,
+      line: getLocalizedText(locale, careLineByMilestone[milestoneId]).replaceAll("{petName}", petName),
       ctaLabel: careCta,
       action: "care"
     };
@@ -102,25 +119,26 @@ const getHomeRetentionCopy = ({
 
   if (letterIsWaiting) {
     return {
-      title: "One-month letter",
-      line: `${petName} left a letter from your first month together.`,
-      ctaLabel: "Open letter",
+      title,
+      line: getLocalizedText(locale, {
+        "en-US": "{petName} left a letter from your first month together.",
+        "ko-KR": "{petName}가 함께한 첫 한 달의 편지를 남겼어요.",
+        "ja-JP": "{petName}が一緒に過ごした最初の1か月の手紙を残しました。",
+        "zh-TW": "{petName} 留下了一封關於你們第一個月的信。",
+        "de-DE": "{petName} hat einen Brief über euren ersten gemeinsamen Monat hinterlassen.",
+        "fr-FR": "{petName} a laissé une lettre sur votre premier mois ensemble.",
+        "pt-BR": "{petName} deixou uma carta sobre o primeiro mês de vocês juntos.",
+        "es-MX": "{petName} dejó una carta sobre su primer mes juntos."
+      }).replaceAll("{petName}", petName),
+      ctaLabel: getLocalizedText(locale, { "en-US": "Open letter", "ko-KR": "편지 열기", "ja-JP": "手紙を開く", "zh-TW": "打開信件", "de-DE": "Brief öffnen", "fr-FR": "Ouvrir la lettre", "pt-BR": "Abrir carta", "es-MX": "Abrir carta" }),
       action: "friend"
     };
   }
 
-  const lineByMilestone: Record<HomeRetentionMilestoneId, string> = {
-    day1: `${petName} felt today's first hello. Tomorrow keeps the rhythm warm.`,
-    day3: "The snack rhythm is waking up. Your next tiny care keeps it alive.",
-    day7: "Your one-week memory is close. The scrapbook is starting to feel yours.",
-    day14: "Two weeks turns care into a habit your pet can recognize.",
-    day30: "The one-month letter is ahead. Your profile is collecting the story."
-  };
-
   return {
-    title: retentionTitleByMilestone[milestoneId],
-    line: lineByMilestone[milestoneId],
-    ctaLabel: "See profile",
+    title,
+    line: getLocalizedText(locale, completedLineByMilestone[milestoneId]).replaceAll("{petName}", petName),
+    ctaLabel: getLocalizedText(locale, { "en-US": "See profile", "ko-KR": "프로필 보기", "ja-JP": "プロフィールを見る", "zh-TW": "查看個人檔案", "de-DE": "Profil ansehen", "fr-FR": "Voir le profil", "pt-BR": "Ver perfil", "es-MX": "Ver perfil" }),
     action: "friend"
   };
 };
@@ -130,13 +148,15 @@ export const getHomeRetentionPromptPresentation = ({
   daysTogether,
   hasCaredToday,
   hasOpenedMonthlyLetter,
-  isOnWalk
+  isOnWalk,
+  locale = "en-US"
 }: {
   readonly petName: string;
   readonly daysTogether: number;
   readonly hasCaredToday: boolean;
   readonly hasOpenedMonthlyLetter: boolean;
   readonly isOnWalk: boolean;
+  readonly locale?: AppLocale;
 }): HomeRetentionPromptPresentation | null => {
   if (isOnWalk) {
     return null;
@@ -149,7 +169,8 @@ export const getHomeRetentionPromptPresentation = ({
     petName,
     daysTogether: normalizedDaysTogether,
     hasCaredToday,
-    hasOpenedMonthlyLetter
+    hasOpenedMonthlyLetter,
+    locale
   });
   const progressLabel = getRetentionProgressLabel(milestoneId, normalizedDaysTogether);
 

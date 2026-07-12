@@ -12,6 +12,7 @@ export type GenerationJobStatus =
   | "postprocessing"
   | "quality_checking"
   | "uploading_assets"
+  | "cleanup_pending"
   | "completed"
   | "failed"
   | "cancelled"

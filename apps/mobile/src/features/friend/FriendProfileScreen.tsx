@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import {
   expressionPacks,
@@ -14,6 +15,7 @@ import {
 } from "@mongchi/shared";
 import type { MemoryType } from "@mongchi/shared";
 
+import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
 import { colors, profileSurfaces, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
@@ -40,11 +42,11 @@ import {
   getFriendPoseGalleryPresentation,
   getFriendStreakPresentation,
   getFriendWalkCollectionPresentation,
+  getMemoryAlbumFootline,
   getMovedInLine,
   getNewlyRevealedPoseStates,
   getPoseRevealBannerLine,
-  getPoseRevealPersistedKey,
-  MEMORY_ALBUM_FOOTLINE
+  getPoseRevealPersistedKey
 } from "./friendProfilePresentation";
 
 /** Persists whether the 30-day letter has been opened, so it stays readable on every future visit. */
@@ -107,6 +109,7 @@ function MonthlyLetterCardBody({
   reduceMotionEnabled,
   onOpen
 }: MonthlyLetterCardBodyProps) {
+  const { t } = useTranslation();
   const shake = useRef(new Animated.Value(0)).current;
   const envelopeOpacity = useRef(new Animated.Value(1)).current;
   const letterOpacity = useRef(new Animated.Value(0)).current;
@@ -160,21 +163,23 @@ function MonthlyLetterCardBody({
     // view during handleOpen's anticipation + unfold sequence.
     return (
       <Animated.View
+        accessible
+        accessibilityLabel={t("friend.letter.giftAccessibilityLabel", { petName })}
         style={{
           opacity: envelopeOpacity,
           transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ["-3deg", "3deg"] }) }]
         }}
       >
         <LottieAnimation
-          accessibilityLabel={`${petName}'s letter is wrapped as a gift, ready to open`}
+          decorative
           loop
           source={giftBoxAnimation}
           style={letterStyles.arrivedGiftBox}
         />
         <Text style={[letterStyles.streakHeadline, letterStyles.body]}>{previewLine}</Text>
         <ActionButton
-          accessibilityLabel={`Open ${petName}'s one-month letter`}
-          label="Open"
+          accessibilityLabel={t("friend.letter.openAccessibilityLabel", { petName })}
+          label={t("friend.letter.open")}
           Icon={Mail}
           variant="secondary"
           size="compact"
@@ -334,13 +339,13 @@ export function FriendProfileScreen() {
     catalogItems,
     expressionPackPurchaseStatusById,
     generatedAssetUriById,
-    hydrateCreditBalance,
     memories,
-    purchaseExpressionPack,
     relationshipState,
     walkCollection
   } = useTerrariumSession();
   const typography = useTypography();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const fontFamilies = useFontFamilies();
   const reduceMotionEnabled = useReducedMotionPreference();
   const [now] = useState(() => new Date().toISOString());
@@ -348,7 +353,6 @@ export function FriendProfileScreen() {
   const shareCardRef = useRef<BrandedPetShareCardHandle>(null);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
   const [monthlyLetterLoaded, setMonthlyLetterLoaded] = useState(false);
-  const [purchasingPackMessage, setPurchasingPackMessage] = useState<string | null>(null);
   // Pack ids whose reveal showcase (stagger + banner line) has already played,
   // loaded once from AsyncStorage on mount -- undefined until that load
   // resolves, so the showcase never flashes on for an instant before the
@@ -356,18 +360,18 @@ export function FriendProfileScreen() {
   const [seenPoseRevealKeys, setSeenPoseRevealKeys] = useState<string[] | null>(null);
 
   const daysTogether = useMemo(() => getDaysTogether(activePet.createdAt, now), [activePet.createdAt, now]);
-  const movedInLine = getMovedInLine(daysTogether);
+  const movedInLine = getMovedInLine(daysTogether, locale);
   const bond = useMemo(() => getFriendBondPresentation(relationshipState), [relationshipState]);
   const projectedStreak = useMemo(() => projectCareStreakForNow(careStreak, now), [careStreak, now]);
-  const streak = getFriendStreakPresentation(projectedStreak.current, projectedStreak.best);
-  const walkFinds = useMemo(() => getFriendWalkCollectionPresentation(walkCollection), [walkCollection]);
-  const memoryAlbum = useMemo(() => getFriendMemoryAlbumPresentation(memories, now), [memories, now]);
+  const streak = getFriendStreakPresentation(projectedStreak.current, projectedStreak.best, locale);
+  const walkFinds = useMemo(() => getFriendWalkCollectionPresentation(walkCollection, locale), [locale, walkCollection]);
+  const memoryAlbum = useMemo(() => getFriendMemoryAlbumPresentation(memories, now, locale), [locale, memories, now]);
   const habitSummary = useMemo(() => {
     const hints = getCompanionHabitHints(careStats, careState);
     const favoriteTreatItemId = getFavoriteTreatItemId(careStats);
 
-    return getFriendHabitSummaryPresentation(hints, activePet.favoriteThing, favoriteTreatItemId, catalogItems);
-  }, [activePet.favoriteThing, careStats, careState, catalogItems]);
+    return getFriendHabitSummaryPresentation(hints, activePet.favoriteThing, favoriteTreatItemId, catalogItems, locale);
+  }, [activePet.favoriteThing, careStats, careState, catalogItems, locale]);
   const monthlyLetter = useMemo(
     () =>
       getFriendMonthlyLetterPresentation(
@@ -380,14 +384,16 @@ export function FriendProfileScreen() {
           daysTogether,
           now
         },
-        hasOpenedMonthlyLetter
+        hasOpenedMonthlyLetter,
+        locale
       ),
-    [activePet.favoriteThing, activePet.name, careStats, catalogItems, daysTogether, hasOpenedMonthlyLetter, memories, now]
+    [activePet.favoriteThing, activePet.name, careStats, catalogItems, daysTogether, hasOpenedMonthlyLetter, locale, memories, now]
   );
   const poseGallery = useMemo(
-    () => getFriendPoseGalleryPresentation(acceptedAssets, activePet.name, expressionPackPurchaseStatusById),
-    [acceptedAssets, activePet.name, expressionPackPurchaseStatusById]
+    () => getFriendPoseGalleryPresentation(acceptedAssets, activePet.name, expressionPackPurchaseStatusById, locale),
+    [acceptedAssets, activePet.name, expressionPackPurchaseStatusById, locale]
   );
+  const firstAvailablePosePackId = poseGallery.cards[0]?.packId ?? null;
 
   const acceptedAssetStates = useMemo(() => acceptedAssets.map((asset) => asset.state), [acceptedAssets]);
 
@@ -420,16 +426,7 @@ export function FriendProfileScreen() {
   }, [pendingPoseRevealPackIds]);
 
   const poseRevealBannerLine =
-    newlyRevealedPoseStates.length > 0 ? getPoseRevealBannerLine(activePet.name, newlyRevealedPoseStates.length) : null;
-
-  const handleUnlockPosePack = async (packId: string) => {
-    setPurchasingPackMessage(null);
-    const result = await purchaseExpressionPack(packId);
-
-    if (!result.ok) {
-      setPurchasingPackMessage(result.messageSafe);
-    }
-  };
+    newlyRevealedPoseStates.length > 0 ? getPoseRevealBannerLine(activePet.name, newlyRevealedPoseStates.length, locale) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -483,15 +480,6 @@ export function FriendProfileScreen() {
     };
   }, []);
 
-  // Credit Phase 1c trigger point (b): this page hosts the expression pack
-  // gallery (the pose cards below), so entering it refreshes wallet.credits
-  // from the server before the player can see/tap a pack's price (design
-  // doc §6.2). No-op without a Supabase client or on a failed fetch --
-  // hydrateCreditBalance silently keeps the last cached balance either way.
-  useEffect(() => {
-    void hydrateCreditBalance();
-  }, [hydrateCreditBalance]);
-
   // Once a pending reveal has actually been computed (and is about to render
   // this pass), mark its pack id(s) seen right away so the showcase plays
   // exactly once even if the owner navigates away and back before the
@@ -539,7 +527,7 @@ export function FriendProfileScreen() {
       await sharePetCard({
         petName: activePet.name,
         brandedCardUri,
-        message: buildFriendShareMessage({ petName: activePet.name, daysTogether })
+        message: buildFriendShareMessage({ petName: activePet.name, daysTogether, locale })
       });
     } finally {
       setIsSharing(false);
@@ -548,7 +536,7 @@ export function FriendProfileScreen() {
 
   return (
     <GardenSceneFrame
-      accessibilityLabel={`${activePet.name}'s friend page`}
+      accessibilityLabel={t("friend.accessibilityLabel", { petName: activePet.name })}
       contentStyle={styles.content}
       innerStyle={styles.inner}
     >
@@ -559,6 +547,7 @@ export function FriendProfileScreen() {
           daysTogether={daysTogether}
           petAssetUri={petAssetUri}
           petName={activePet.name}
+          locale={locale}
         />
       </View>
 
@@ -574,7 +563,7 @@ export function FriendProfileScreen() {
           over the name. */}
       <View style={styles.heroStage}>
         <View style={styles.heroHeaderOverlay}>
-          <BackButton accessibilityLabel="Back home" onPress={() => router.push("/terrarium")} />
+          <BackButton accessibilityLabel={t("friend.back")} onPress={() => router.push("/terrarium")} />
         </View>
 
         <View style={styles.heroNamePlate}>
@@ -586,15 +575,22 @@ export function FriendProfileScreen() {
 
         <HeroPoseSlider
           bannerLine={poseRevealBannerLine}
-          cards={poseGallery.cards}
           cells={poseGallery.cells}
           generatedAssetUriById={generatedAssetUriById}
           newlyRevealedPoseStates={newlyRevealedPoseStates}
           petName={activePet.name}
           petSpecies={activePet.species}
-          purchasingPackMessage={purchasingPackMessage}
           reduceMotionEnabled={reduceMotionEnabled}
-          onUnlockPack={(packId) => void handleUnlockPosePack(packId)}
+          showPoseShopButton={firstAvailablePosePackId !== null}
+          onOpenPoseShop={() =>
+            router.push({
+              pathname: "/shop",
+              params: {
+                category: "moments",
+                ...(firstAvailablePosePackId ? { packId: firstAvailablePosePackId } : {})
+              }
+            })
+          }
         />
       </View>
 
@@ -602,19 +598,19 @@ export function FriendProfileScreen() {
           of tiles, replacing three separate full-width cards. */}
       <View style={styles.statRibbon}>
         <StatTile
-          accessibilityLabel={`Bond progress toward level ${bond.level + 1}: ${bond.levelLabel}`}
+          accessibilityLabel={t("friend.stats.bondAccessibilityLabel", { level: bond.level + 1, label: bond.levelLabel })}
           iconSource={profileIconAssets.bond}
-          label="Bond"
+          label={t("friend.stats.bond")}
           progressFraction={bond.progressFraction}
           value={bond.levelLabel}
         />
         <StatTile
           accessibilityLabel={`${streak.headline}. ${streak.subline}`}
           iconSource={profileIconAssets.streak}
-          label="Streak"
+          label={t("friend.stats.streak")}
           value={String(streak.current)}
         />
-        <StatTile accessibilityLabel={movedInLine} iconSource={profileIconAssets.together} label="Together" value={String(daysTogether)} />
+        <StatTile accessibilityLabel={movedInLine} iconSource={profileIconAssets.together} label={t("friend.stats.together")} value={String(daysTogether)} />
       </View>
 
       {/* 3. PERSONALITY NOTE -- "Lately, {name}..." reads like a handwritten
@@ -630,7 +626,7 @@ export function FriendProfileScreen() {
             style={styles.noteGlyphIcon}
           />
         </View>
-        <Text style={[styles.noteTitle, typography.title]}>Lately, {activePet.name}...</Text>
+        <Text style={[styles.noteTitle, typography.title]}>{t("friend.sections.lately", { petName: activePet.name })}</Text>
         {habitSummary.habitLines.map((line, index) => (
           <Text key={`habit-${index}`} style={[styles.noteLine, typography.body]}>
             {activePet.name} {line}
@@ -658,7 +654,7 @@ export function FriendProfileScreen() {
               source={profileIconAssets.walkFinds}
               style={styles.collectionsHeadingIcon}
             />
-            <Text style={[styles.collectionsTitle, typography.title]}>Walk finds</Text>
+            <Text style={[styles.collectionsTitle, typography.title]}>{t("friend.sections.walkFinds")}</Text>
           </View>
           <View style={styles.progressChip}>
             <Text style={[typography.label, styles.progressChipText]}>{walkFinds.progressLabel}</Text>
@@ -668,7 +664,7 @@ export function FriendProfileScreen() {
           {walkFinds.cells.map((cell) => (
             <View
               key={cell.id}
-              accessibilityLabel={cell.found ? `${cell.name}, found ${cell.count} time${cell.count === 1 ? "" : "s"}` : "Undiscovered walk find"}
+              accessibilityLabel={cell.found ? t("friend.walkFindAccessibilityLabel", { name: cell.name, count: cell.count }) : t("friend.undiscoveredWalkFind")}
               style={[styles.walkCell, cell.found ? null : styles.walkCellLocked]}
             >
               <Image
@@ -690,7 +686,7 @@ export function FriendProfileScreen() {
       {/* 5. SCRAPBOOK -- memories laid out as a connected timeline instead
           of a plain list. */}
       <View style={styles.scrapbookPanel}>
-        <Text style={[styles.cardTitle, typography.title]}>Our little moments</Text>
+        <Text style={[styles.cardTitle, typography.title]}>{t("friend.sections.moments")}</Text>
         <View style={styles.timelineWrap}>
           {memoryAlbum.rows.length > 1 ? <View style={styles.timelineLine} /> : null}
           {memoryAlbum.rows.map((row) => (
@@ -713,7 +709,7 @@ export function FriendProfileScreen() {
           ))}
         </View>
         {memoryAlbum.isSparse ? <Text style={[styles.cardCaption, typography.label]}>{memoryAlbum.sparseLine}</Text> : null}
-        {memoryAlbum.hasMore ? <Text style={[styles.cardCaption, typography.label]}>{MEMORY_ALBUM_FOOTLINE}</Text> : null}
+        {memoryAlbum.hasMore ? <Text style={[styles.cardCaption, typography.label]}>{getMemoryAlbumFootline(locale)}</Text> : null}
       </View>
 
       {/* 6. LETTER -- the 30-day letter gets envelope-special treatment (a
@@ -732,7 +728,7 @@ export function FriendProfileScreen() {
             />
           </View>
         </View>
-        <Text style={[styles.cardTitle, typography.title]}>{activePet.name}'s letter</Text>
+        <Text style={[styles.cardTitle, typography.title]}>{t("friend.sections.letter", { petName: activePet.name })}</Text>
 
         {monthlyLetter.status === "locked" ? (
           <>
@@ -749,7 +745,7 @@ export function FriendProfileScreen() {
         ) : null}
 
         {!monthlyLetterLoaded && monthlyLetter.status !== "locked" ? (
-          <Text style={[styles.letterLoadingText, typography.body]}>Checking today's letter...</Text>
+          <Text style={[styles.letterLoadingText, typography.body]}>{t("friend.letter.checking")}</Text>
         ) : null}
 
         {(monthlyLetter.status === "arrived" || monthlyLetter.status === "opened") &&
@@ -769,7 +765,7 @@ export function FriendProfileScreen() {
 
       {activePet.memoryNote?.trim() ? (
         <View style={styles.plainCard}>
-          <Text style={[styles.cardTitle, typography.title]}>Memory note</Text>
+          <Text style={[styles.cardTitle, typography.title]}>{t("friend.sections.memoryNote")}</Text>
           <Text style={[styles.memoryText, { fontFamily: fontFamilies.body }]}>{activePet.memoryNote}</Text>
         </View>
       ) : null}
@@ -777,8 +773,8 @@ export function FriendProfileScreen() {
       {/* 7. Share + Back home */}
       <View style={styles.footerActions}>
         <ActionButton
-          accessibilityLabel={`Share ${activePet.name}`}
-          label={`Share ${activePet.name}`}
+          accessibilityLabel={t("friend.share", { petName: activePet.name })}
+          label={t("friend.share", { petName: activePet.name })}
           Icon={Share2}
           variant="secondary"
           size="compact"
@@ -788,8 +784,8 @@ export function FriendProfileScreen() {
         />
 
         <ActionButton
-          accessibilityLabel="Back home"
-          label="Back home"
+          accessibilityLabel={t("friend.back")}
+          label={t("friend.back")}
           Icon={ArrowLeft}
           size="compact"
           style={styles.footerAction}

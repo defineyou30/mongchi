@@ -19,6 +19,7 @@ import {
   verifyScheduledNotificationInventory,
   type CancelOwnedNotificationsResult
 } from "./notificationOwnership";
+import { getRuntimeResources, interpolatePetName } from "../../localization/runtimeResources";
 
 export const MAX_DAILY_NOTIFICATIONS = 1;
 
@@ -28,6 +29,23 @@ export const MAX_DAILY_NOTIFICATIONS = 1;
 const NOTIFICATION_DELAY_SECONDS = 5 * 60;
 
 const SECONDS_PER_DAY = 24 * 60 * 60;
+
+const localizeNotificationCandidate = <Candidate extends PetPushNotificationCandidate | PetReturnReminderCandidate>(
+  candidate: Candidate,
+  petName: string,
+  streakProtective = false
+): Candidate => {
+  const garden = getRuntimeResources().notifications.garden;
+  const resources = candidate.key === "return_after_1_day" && streakProtective
+    ? garden.return_after_1_day_streak
+    : garden[candidate.key];
+
+  return {
+    ...candidate,
+    title: interpolatePetName(resources.title, petName),
+    body: interpolatePetName(resources.body, petName)
+  };
+};
 
 export interface ScheduledNotificationPlan {
   key: MongchiNotificationKey;
@@ -140,7 +158,9 @@ export const syncScheduledPetNotifications = async (
     return emptySyncResult("permission_not_granted");
   }
 
-  const candidates = preferences.gardenCare ? selectPetPushNotificationCandidates(input) : [];
+  const candidates = preferences.gardenCare
+    ? selectPetPushNotificationCandidates(input).map((candidate) => localizeNotificationCandidate(candidate, input.petName))
+    : [];
   const duePlans = buildNotificationPlansFromCandidates(candidates);
 
   const returnCandidates = preferences.returnReminders
@@ -150,7 +170,11 @@ export const syncScheduledPetNotifications = async (
         careStreakCurrent: input.careStreakCurrent
       })
     : [];
-  const returnPlans = buildReturnReminderPlansFromCandidates(returnCandidates);
+  const returnPlans = buildReturnReminderPlansFromCandidates(
+    returnCandidates.map((candidate) =>
+      localizeNotificationCandidate(candidate, input.petName, (input.careStreakCurrent ?? 0) >= 3)
+    )
+  );
 
   const plans = [...duePlans, ...returnPlans];
   let cancellation: CancelOwnedNotificationsResult;

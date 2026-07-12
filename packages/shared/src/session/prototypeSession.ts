@@ -15,6 +15,7 @@ import type {
   InventoryEntry,
   InventorySource,
   ItemId,
+  Locale,
   MemoryEntry,
   PendingExpressionPackJob,
   PersonalityTag,
@@ -75,8 +76,15 @@ import {
   spendCredits,
   updateCareStreakOnCare
 } from "../domain";
-import { makeMockGeneratedAssetsForPet, mockCareState, mockCreditWallet, mockInventory, mockItems, mockRelationshipState, starterReactionRules } from "../mock/mockData";
+import { makeMockGeneratedAsset, makeMockGeneratedAssetsForPet, mockCareState, mockCreditWallet, mockInventory, mockItems, mockRelationshipState, starterReactionRules } from "../mock/mockData";
+import { getStarterPoseUnlockStatesForCareAction } from "../domain/starterPoseUnlocks";
 import { selectLocalReaction } from "../reactions/localReactionEngine";
+import {
+  getBondCelebrationLine,
+  getStreakSnackLine,
+  getWalkCollectionCompleteLine,
+  getWalkDiscoveryLine
+} from "./prototypeSessionCopy";
 
 export interface PetSetupDraft {
   name: string;
@@ -266,7 +274,6 @@ export const initialGeneration: MockGenerationState = {
 };
 
 const FALLBACK_NOW = "2026-06-24T09:00:00.000Z";
-const DEFAULT_PROTOTYPE_LOCALE = "en-US";
 const DEFAULT_WALK_DURATION_MS = 15_000;
 const DEFAULT_GENERATION_POLL_INTERVAL_MS = 900;
 const WALK_REWARD_ITEM_ID: ItemId = "item_sweet_potato_chew";
@@ -1040,6 +1047,7 @@ export interface AcceptPrototypeGeneratedPetOptions {
    * this defaults to false and must be opted into by server-backed callers.
    */
   preserveAssets?: boolean;
+  locale?: Locale;
 }
 
 export const acceptPrototypeGeneratedPet = (
@@ -1060,7 +1068,7 @@ export const acceptPrototypeGeneratedPet = (
     updatedAt: now
   };
   const selectedReaction = selectLocalReaction(starterReactionRules, {
-    locale: DEFAULT_PROTOTYPE_LOCALE,
+    locale: options.locale ?? "en-US",
     now,
     pet: draftPet,
     careState,
@@ -1074,7 +1082,7 @@ export const acceptPrototypeGeneratedPet = (
         petId: draftPet.id,
         generationJobId: draftPet.activeGenerationJobId ?? "gen_local_001",
         species: draftPet.species
-      });
+      }).filter((asset) => asset.state === "idle");
   const acceptedAsset = options.preserveAssets ? bundle.acceptedAsset : (acceptedAssets[0] ?? null);
   const pet = acceptedAsset
     ? { ...draftPet, lifecycleStatus: "active" as const, activeAssetId: acceptedAsset.id }
@@ -1099,12 +1107,21 @@ export const acceptPrototypeGeneratedPet = (
   }));
 };
 
-const applyBondLevelRewards = (
-  current: { wallet: CreditWallet; inventory: Inventory; memories: MemoryEntry[] },
-  previousLevel: number,
-  nextLevel: number,
-  now: string
-): { wallet: CreditWallet; inventory: Inventory; memories: MemoryEntry[]; celebrationReaction: SelectedReaction | null } => {
+type BondLevelRewardInput = {
+  readonly current: { wallet: CreditWallet; inventory: Inventory; memories: MemoryEntry[] };
+  readonly locale: Locale;
+  readonly nextLevel: number;
+  readonly now: string;
+  readonly previousLevel: number;
+};
+
+const applyBondLevelRewards = ({
+  current,
+  locale,
+  nextLevel,
+  now,
+  previousLevel
+}: BondLevelRewardInput): { wallet: CreditWallet; inventory: Inventory; memories: MemoryEntry[]; celebrationReaction: SelectedReaction | null } => {
   if (nextLevel <= previousLevel) {
     return { ...current, celebrationReaction: null };
   }
@@ -1139,7 +1156,12 @@ const applyBondLevelRewards = (
       }
     }
 
-    celebrationLine = DEFAULT_PROTOTYPE_LOCALE.startsWith("ko") ? reward.celebrationKo : reward.celebrationEn;
+    celebrationLine = getBondCelebrationLine({
+      english: reward.celebrationEn,
+      korean: reward.celebrationKo,
+      level,
+      locale
+    });
   }
 
   return {
@@ -1151,9 +1173,12 @@ const applyBondLevelRewards = (
       category: "affection_high",
       line:
         celebrationLine ??
-        (DEFAULT_PROTOTYPE_LOCALE.startsWith("ko")
-          ? `우리 유대가 레벨 ${nextLevel}이 됐어! 고마워.`
-          : `Our bond reached level ${nextLevel}! Thank you for all the little moments.`),
+        getBondCelebrationLine({
+          english: `Our bond reached level ${nextLevel}! Thank you for all the little moments.`,
+          korean: `우리 유대가 레벨 ${nextLevel}이 됐어! 고마워.`,
+          level: nextLevel,
+          locale
+        }),
       animation: "celebrate",
       priority: 100
     }
@@ -1171,14 +1196,25 @@ const applyBondLevelRewards = (
 // from the every-3rd/7th-day snack cadence handled by getCareStreakSnackReward.
 const STREAK_MEMORY_MILESTONES = new Set([7, 14, 30]);
 
-const applyCareStreakSnackReward = (
-  inventory: Inventory,
-  memories: MemoryEntry[],
-  previousStreak: CareStreakState,
-  nextStreak: CareStreakState,
-  now: string,
-  petName: string
-): { inventory: Inventory; memories: MemoryEntry[]; celebrationReaction: SelectedReaction | null } => {
+type CareStreakSnackRewardInput = {
+  readonly inventory: Inventory;
+  readonly locale: Locale;
+  readonly memories: MemoryEntry[];
+  readonly nextStreak: CareStreakState;
+  readonly now: string;
+  readonly petName: string;
+  readonly previousStreak: CareStreakState;
+};
+
+const applyCareStreakSnackReward = ({
+  inventory,
+  locale,
+  memories,
+  nextStreak,
+  now,
+  petName,
+  previousStreak
+}: CareStreakSnackRewardInput): { inventory: Inventory; memories: MemoryEntry[]; celebrationReaction: SelectedReaction | null } => {
   if (nextStreak.current === previousStreak.current) {
     return { inventory, memories, celebrationReaction: null };
   }
@@ -1208,7 +1244,7 @@ const applyCareStreakSnackReward = (
       celebrationReaction: {
         ruleId: "care_streak_grace_return",
         category: "treat_common",
-        line: getStreakGraceReturnLine(petName),
+        line: getStreakGraceReturnLine(petName, locale),
         animation: "happy",
         priority: 95
       }
@@ -1219,13 +1255,7 @@ const applyCareStreakSnackReward = (
     return { inventory, memories: nextMemories, celebrationReaction: null };
   }
 
-  const line = reward.special
-    ? DEFAULT_PROTOTYPE_LOCALE.startsWith("ko")
-      ? `${nextStreak.current}일 연속이야! 특별한 간식을 아껴뒀어.`
-      : `${nextStreak.current} days together — Mong saved you a special snack.`
-    : DEFAULT_PROTOTYPE_LOCALE.startsWith("ko")
-      ? `${nextStreak.current}일 연속이야! 작은 간식을 챙겨왔어.`
-      : `${nextStreak.current} days together — Mong saved you a snack.`;
+  const line = getStreakSnackLine({ count: nextStreak.current, locale, special: reward.special });
 
   return {
     inventory: nextInventory,
@@ -1245,10 +1275,12 @@ export const performPrototypeCareAction = (
   action: CareActionType,
   now: string = FALLBACK_NOW,
   itemId?: ItemId,
-  options?: { walkDurationMs?: number }
+  options?: { locale?: Locale; walkDurationMs?: number }
 ): PrototypeSessionState => {
+  const locale = options?.locale ?? "en-US";
+
   if (action === "walk") {
-    return startPrototypeWalk(state, now, options?.walkDurationMs ?? DEFAULT_WALK_DURATION_MS, itemId);
+    return startPrototypeWalk(state, now, options?.walkDurationMs ?? DEFAULT_WALK_DURATION_MS, itemId, locale);
   }
 
   const consumableTreatItemId = action === "treat" ? itemId ?? getAvailableTreatItemId(state.inventory, mockItems) : undefined;
@@ -1309,7 +1341,7 @@ export const performPrototypeCareAction = (
               : undefined;
 
   const selectedReaction = selectLocalReaction(starterReactionRules, {
-    locale: DEFAULT_PROTOTYPE_LOCALE,
+    locale,
     now,
     pet,
     careState: result.nextState,
@@ -1355,14 +1387,23 @@ export const performPrototypeCareAction = (
       })
     : bundle.memories;
 
-  const bondReward = applyBondLevelRewards(
-    { wallet: state.wallet, inventory, memories: memoriesWithFirstTreat },
-    bundle.relationshipState.bondLevel,
-    relationshipState.bondLevel,
+  const bondReward = applyBondLevelRewards({
+    current: { wallet: state.wallet, inventory, memories: memoriesWithFirstTreat },
+    locale,
+    previousLevel: bundle.relationshipState.bondLevel,
+    nextLevel: relationshipState.bondLevel,
     now
-  );
+  });
   const nextCareStreak = updateCareStreakOnCare(state.careStreak, now);
-  const streakReward = applyCareStreakSnackReward(bondReward.inventory, bondReward.memories, state.careStreak, nextCareStreak, now, pet.name);
+  const streakReward = applyCareStreakSnackReward({
+    inventory: bondReward.inventory,
+    locale,
+    memories: bondReward.memories,
+    nextStreak: nextCareStreak,
+    now,
+    petName: pet.name,
+    previousStreak: state.careStreak
+  });
   // A bond level-up is the emotional peak of the loop and outranks everything
   // else; a streak snack still beats the regular action reaction.
   const finalReaction = bondReward.celebrationReaction ?? streakReward.celebrationReaction ?? selectedReaction;
@@ -1406,7 +1447,8 @@ export const startPrototypeWalk = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW,
   durationMs: number = DEFAULT_WALK_DURATION_MS,
-  itemId?: ItemId
+  itemId?: ItemId,
+  locale: Locale = "en-US"
 ): PrototypeSessionState => {
   const bundle = getActivePetBundle(state);
 
@@ -1439,7 +1481,7 @@ export const startPrototypeWalk = (
     pruneActiveCareBuffs(state.activeBuffs, now)
   );
   const selectedReaction = selectLocalReaction(starterReactionRules, {
-    locale: DEFAULT_PROTOTYPE_LOCALE,
+    locale,
     now,
     pet,
     careState: careResult.nextState,
@@ -1450,14 +1492,23 @@ export const startPrototypeWalk = (
   });
 
   const walkRelationshipState = applyRelationshipCareAction(bundle.relationshipState, "walk", now);
-  const walkBondReward = applyBondLevelRewards(
-    { wallet: state.wallet, inventory: state.inventory, memories: bundle.memories },
-    bundle.relationshipState.bondLevel,
-    walkRelationshipState.bondLevel,
+  const walkBondReward = applyBondLevelRewards({
+    current: { wallet: state.wallet, inventory: state.inventory, memories: bundle.memories },
+    locale,
+    previousLevel: bundle.relationshipState.bondLevel,
+    nextLevel: walkRelationshipState.bondLevel,
     now
-  );
+  });
   const nextCareStreak = updateCareStreakOnCare(state.careStreak, now);
-  const streakReward = applyCareStreakSnackReward(walkBondReward.inventory, walkBondReward.memories, state.careStreak, nextCareStreak, now, pet.name);
+  const streakReward = applyCareStreakSnackReward({
+    inventory: walkBondReward.inventory,
+    locale,
+    memories: walkBondReward.memories,
+    nextStreak: nextCareStreak,
+    now,
+    petName: pet.name,
+    previousStreak: state.careStreak
+  });
   const careStats = bumpCareStats(bundle.careStats, "walk");
   const memories = recordDaysTogetherMilestoneIfCrossed(streakReward.memories, pet.createdAt, now);
 
@@ -1486,7 +1537,8 @@ export const startPrototypeWalk = (
 
 export const refreshPrototypeWalk = (
   state: PrototypeSessionState,
-  now: string = FALLBACK_NOW
+  now: string = FALLBACK_NOW,
+  locale: Locale = "en-US"
 ): PrototypeSessionState => {
   const bundle = getActivePetBundle(state);
 
@@ -1505,7 +1557,7 @@ export const refreshPrototypeWalk = (
     updatedAt: now
   };
   const selectedReaction = selectLocalReaction(starterReactionRules, {
-    locale: DEFAULT_PROTOTYPE_LOCALE,
+    locale,
     now,
     pet,
     careState,
@@ -1533,7 +1585,8 @@ export const refreshPrototypeWalk = (
 /** Rewarded-ad hook: brings a walking pet home immediately. */
 export const completePrototypeWalkEarly = (
   state: PrototypeSessionState,
-  now: string = FALLBACK_NOW
+  now: string = FALLBACK_NOW,
+  locale: Locale = "en-US"
 ): PrototypeSessionState => {
   const bundle = getActivePetBundle(state);
 
@@ -1551,7 +1604,8 @@ export const completePrototypeWalkEarly = (
           }
         : currentBundle.activeWalk
     })),
-    now
+    now,
+    locale
   );
 };
 
@@ -1568,7 +1622,8 @@ export type CompleteWalkEarlyWithCreditResult =
 export const completePrototypeWalkEarlyWithCredit = (
   state: PrototypeSessionState,
   now: string = FALLBACK_NOW,
-  creditCost: number = 1
+  creditCost: number = 1,
+  locale: Locale = "en-US"
 ): CompleteWalkEarlyWithCreditResult => {
   const bundle = getActivePetBundle(state);
 
@@ -1584,7 +1639,7 @@ export const completePrototypeWalkEarlyWithCredit = (
 
   return {
     ok: true,
-    state: completePrototypeWalkEarly({ ...state, wallet: walletSpend.wallet }, now)
+    state: completePrototypeWalkEarly({ ...state, wallet: walletSpend.wallet }, now, locale)
   };
 };
 
@@ -1655,7 +1710,8 @@ export type PurchaseThemeBundleResult =
 export const purchasePrototypeThemeBundle = (
   state: PrototypeSessionState,
   bundleId: string,
-  now: string = FALLBACK_NOW
+  now: string = FALLBACK_NOW,
+  locale: Locale = "en-US"
 ): PurchaseThemeBundleResult => {
   const themeBundle = getThemeBundleById(bundleId);
 
@@ -1680,7 +1736,7 @@ export const purchasePrototypeThemeBundle = (
   const petBundle = getActivePetBundle(state);
   const pet = getActivePrototypePet(state, now);
   const selectedReaction = selectLocalReaction(starterReactionRules, {
-    locale: DEFAULT_PROTOTYPE_LOCALE,
+    locale,
     now,
     pet,
     careState: petBundle.careState,
@@ -2000,6 +2056,34 @@ export const mergePrototypeGeneratedAssets = (
   }));
 };
 
+export const unlockPrototypeStarterPosesForCareAction = (
+  state: PrototypeSessionState,
+  action: CareActionType,
+  now: string = FALLBACK_NOW
+): PrototypeSessionState => {
+  const bundle = getActivePetBundle(state);
+  const pet = getActivePrototypePet(state, now);
+  const idleAsset = bundle.acceptedAssets.find((asset) => asset.state === "idle") ?? bundle.acceptedAsset;
+
+  if (!idleAsset) {
+    return state;
+  }
+
+  const states = getStarterPoseUnlockStatesForCareAction(
+    action,
+    bundle.acceptedAssets.map((asset) => asset.state)
+  );
+  const assets = states.map((poseState) =>
+    makeMockGeneratedAsset(poseState, {
+      petId: pet.id,
+      generationJobId: idleAsset.generationJobId,
+      species: pet.species
+    })
+  );
+
+  return mergePrototypeGeneratedAssets(state, assets);
+};
+
 const clearCareWalkId = (careState: CareState, now: string): CareState => {
   const { activeWalkId: _activeWalkId, ...withoutWalk } = careState;
 
@@ -2012,7 +2096,8 @@ const clearCareWalkId = (careState: CareState, now: string): CareState => {
 
 export const claimPrototypeWalkReward = (
   state: PrototypeSessionState,
-  now: string = FALLBACK_NOW
+  now: string = FALLBACK_NOW,
+  locale: Locale = "en-US"
 ): PrototypeSessionState => {
   const bundle = getActivePetBundle(state);
 
@@ -2023,7 +2108,7 @@ export const claimPrototypeWalkReward = (
   const pet = getActivePrototypePet(state, now);
   const careState = clearCareWalkId(bundle.careState, now);
   const selectedReaction = selectLocalReaction(starterReactionRules, {
-    locale: DEFAULT_PROTOTYPE_LOCALE,
+    locale,
     now,
     pet,
     careState,
@@ -2042,14 +2127,11 @@ export const claimPrototypeWalkReward = (
   const wallet = collectionCompleted
     ? grantCreditWalletValue(state.wallet, { bonusCredits: WALK_COLLECTION_COMPLETE_CREDITS }, now)
     : state.wallet;
-  const collectibleName = DEFAULT_PROTOTYPE_LOCALE.startsWith("ko") ? collectible.nameKo : collectible.nameEn;
   const discoveryReaction: SelectedReaction | null = collectionCompleted
     ? {
         ruleId: "walk_collection_complete",
         category: "new_item",
-        line: DEFAULT_PROTOTYPE_LOCALE.startsWith("ko")
-          ? `도감 완성! 우리가 모은 작은 발견들이 전부 모였어. 정말 대단하지 않아?`
-          : `Journal complete! Every little discovery we collected is here. Aren't we amazing?`,
+        line: getWalkCollectionCompleteLine(locale),
         animation: "celebrate",
         priority: 100
       }
@@ -2057,9 +2139,12 @@ export const claimPrototypeWalkReward = (
       ? {
           ruleId: `walk_discovery_${collectible.id}`,
           category: "new_item",
-          line: DEFAULT_PROTOTYPE_LOCALE.startsWith("ko")
-            ? `새 발견이야! ${collectibleName}${collectible.rarity === "rare" ? "... 이건 정말 귀한 거야!" : "을(를) 주워왔어."}`
-            : `A new find! I brought home a ${collectibleName}${collectible.rarity === "rare" ? "... this one is really special!" : "."}`,
+          line: getWalkDiscoveryLine({
+            englishName: collectible.nameEn,
+            isRare: collectible.rarity === "rare",
+            koreanName: collectible.nameKo,
+            locale
+          }),
           animation: collectible.rarity === "rare" ? "celebrate" : "walk_return",
           priority: 100
         }

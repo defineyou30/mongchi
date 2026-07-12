@@ -9,9 +9,34 @@ import {
   selectLocalReaction,
   starterReactionRules
 } from "../index";
-import type { ReactionRule } from "../index";
+import type { Locale, ReactionRule } from "../index";
+
+const localizedFallbackCases: readonly { locale: Locale; expectedLine: string }[] = [
+  { locale: "ja-JP", expectedLine: "Misoは静かにそばにいるよ。" },
+  { locale: "pt-BR", expectedLine: "Miso está quietinho aqui com você." }
+];
 
 describe("local reaction selection", () => {
+  it.each(localizedFallbackCases)("uses a localized safe fallback for $locale when no authored locale rules exist", ({
+    locale,
+    expectedLine
+  }) => {
+    const reaction = selectLocalReaction(
+      starterReactionRules,
+      {
+        locale,
+        now: "2026-06-24T09:00:00.000Z",
+        pet: mockPetProfile,
+        careState: mockCareState,
+        recentReactions: []
+      },
+      { random: () => 0 }
+    );
+
+    expect(reaction.ruleId).toBe("fallback_local_safe");
+    expect(reaction.line).toBe(expectedLine);
+  });
+
   it("prefers urgent hungry reactions over general greetings", () => {
     const reaction = selectLocalReaction(
       starterReactionRules,

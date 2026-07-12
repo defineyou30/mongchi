@@ -4,6 +4,8 @@ import { DEFAULT_THEME_ID, getExpressionPackById, mockInventory, mockItems } fro
 
 import {
   getLocalShopCatalogPresentation,
+  getLocalizedCatalogItemCopy,
+  getLocalizedExpressionPackCopy,
   getExpressionPackShopPresentation,
   getLocalShopSummaryPresentation,
   getPremiumPassShopPresentation,
@@ -72,6 +74,40 @@ describe("shop catalog presentation", () => {
       statusKind: "available",
       statusLabel: "Available"
     });
+  });
+
+  it("localizes Korean catalog names and stable shop statuses without changing item ids", () => {
+    const plushToy = mockItems.find((item) => item.id === "item_plush_toy_buddy");
+
+    expect(plushToy).toBeDefined();
+    if (!plushToy) {
+      return;
+    }
+
+    expect(getLocalizedCatalogItemCopy(plushToy, "ko-KR")).toMatchObject({ name: "친구 봉제 인형" });
+    expect(getLocalShopCatalogPresentation(plushToy, mockInventory, "ko-KR")).toMatchObject({ statusLabel: "구매 가능" });
+    expect(plushToy.id).toBe("item_plush_toy_buddy");
+  });
+
+  it("localizes Japanese and French catalog copy and available state", () => {
+    const plushToy = mockItems.find((item) => item.id === "item_plush_toy_buddy");
+
+    expect(plushToy).toBeDefined();
+    if (!plushToy) {
+      return;
+    }
+
+    expect(getLocalizedCatalogItemCopy(plushToy, "ja-JP")).toMatchObject({ name: "おともだちぬいぐるみ" });
+    expect(getLocalShopCatalogPresentation(plushToy, mockInventory, "ja-JP")).toMatchObject({ statusLabel: "利用可能" });
+    expect(getLocalizedCatalogItemCopy(plushToy, "fr-FR")).toMatchObject({ name: "Peluche compagnon" });
+    expect(getLocalShopCatalogPresentation(plushToy, mockInventory, "fr-FR")).toMatchObject({ statusLabel: "Disponible" });
+  });
+
+  it("localizes the Spanish premium fallback and summary state", () => {
+    const premiumPass = getPremiumPassShopPresentation([], [], "es-MX");
+
+    expect(premiumPass).toMatchObject({ statusLabel: "Plus bloqueado" });
+    expect(getLocalShopSummaryPresentation(mockItems, mockInventory, premiumPass, "es-MX")).toMatchObject({ plusLabel: "Plus bloqueado" });
   });
 
   it("shows a local Plus pass fallback when no server catalog is loaded", () => {
@@ -166,6 +202,24 @@ describe("shop catalog presentation", () => {
 });
 
 describe("expression pack shop presentation", () => {
+  it("localizes Japanese and French expression shelf content and pose accessibility copy", () => {
+    const pack = getExpressionPackById("pack-everyday-moments");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(getLocalizedExpressionPackCopy(pack, "ja-JP")).toMatchObject({
+      name: "日々のひととき",
+      poseCopyByState: { curious: { name: "興味津々", usage: "何かが目に留まった時" } }
+    });
+    expect(getLocalizedExpressionPackCopy(pack, "fr-FR")).toMatchObject({
+      name: "Moments du quotidien",
+      poseCopyByState: { curious: { name: "Curieux", usage: "Quand quelque chose attire son regard" } }
+    });
+  });
+
   it("presents an affordable locked pack as an unlockable 3-state product", () => {
     const pack = getExpressionPackById("pack-everyday-moments");
 
@@ -299,6 +353,22 @@ describe("expression pack shop presentation", () => {
       actionLabel: "Retry pack"
     });
   });
+
+  it("localizes French expression pack price, locked state, and action", () => {
+    const pack = getExpressionPackById("pack-everyday-moments");
+
+    expect(pack).not.toBeNull();
+    if (!pack) {
+      return;
+    }
+
+    expect(getExpressionPackShopPresentation(pack, ["idle", "happy", "sleep"], mockInventory, undefined, false, 0, "fr-FR")).toMatchObject({
+      status: "locked",
+      priceLabel: "12 crédits",
+      statusLabel: "Verrouillé",
+      actionLabel: "Crédits requis"
+    });
+  });
 });
 
 describe("theme card presentation (3-state Themes tab)", () => {
@@ -386,6 +456,19 @@ describe("theme card presentation (3-state Themes tab)", () => {
       canAct: false,
       priceLabel: "Applied",
       actionLabel: "Applied"
+    });
+  });
+
+  it("localizes Japanese applied and Spanish locked theme states", () => {
+    expect(getThemeCardPresentation(DEFAULT_THEME_ID, 0, mockInventory, false, 0, "ja-JP")).toMatchObject({
+      priceLabel: "無料",
+      statusLabel: "適用済み",
+      actionLabel: "適用済み"
+    });
+    expect(getThemeCardPresentation("theme-fairy-garden", 18, mockInventory, false, 25, "es-MX")).toMatchObject({
+      priceLabel: "18 créditos",
+      statusLabel: "Bloqueado",
+      actionLabel: "Desbloquear"
     });
   });
 });

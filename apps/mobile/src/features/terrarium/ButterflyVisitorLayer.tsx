@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 
 const butterflyAsset = require("../../../assets/game-fx/butterfly.png");
 
@@ -23,6 +24,7 @@ interface ButterflyVisitorLayerProps {
 const FLIGHT_DURATION_MS = 9000;
 
 export function ButterflyVisitorLayer({ windowWidth, windowHeight, reduceMotionEnabled, onCaught, onFlownOff }: ButterflyVisitorLayerProps) {
+  const { t } = useTranslation();
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -74,7 +76,7 @@ export function ButterflyVisitorLayer({ windowWidth, windowHeight, reduceMotionE
     <Animated.View pointerEvents="box-none" style={[styles.flightAnchor, { opacity, transform: [{ translateX }, { translateY }] }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="A little butterfly is visiting. Tap to say hello."
+        accessibilityLabel={t("home.butterflyAccessibilityLabel")}
         hitSlop={16}
         style={styles.tapTarget}
         onPress={onCaught}

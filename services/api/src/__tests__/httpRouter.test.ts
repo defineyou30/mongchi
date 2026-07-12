@@ -52,6 +52,48 @@ const expectError = (response: ApiHttpResponse, status: number, code: string) =>
 };
 
 describe("API HTTP router", () => {
+  it.each(["en-US", "ko-KR", "ja-JP", "zh-TW", "de-DE", "fr-FR", "pt-BR", "es-MX"])(
+    "preserves the supported %s locale from the request header",
+    (locale) => {
+      const router = createApiHttpRouter();
+
+      const response = router.handle({
+        method: "GET",
+        path: "/v1/me",
+        headers: {
+          authorization: "Bearer user_demo_001",
+          "x-locale": locale
+        }
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({ locale });
+    }
+  );
+
+  it("accepts Portuguese in the weather request body locale boundary", () => {
+    const router = createApiHttpRouter();
+
+    const response = router.handle({
+      method: "POST",
+      path: "/v1/weather/current",
+      headers: userHeaders,
+      body: {
+        approximateLatitude: 37.5,
+        approximateLongitude: 127,
+        requestedAt: "2026-07-12T09:00:00.000Z",
+        locale: "pt-BR"
+      }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      weather: {
+        regionLabel: "Clima local aproximado"
+      }
+    });
+  });
+
   it("resolves default auth from headers and returns safe auth errors", () => {
     const router = createApiHttpRouter();
 

@@ -5,6 +5,8 @@ import type { CareStats, MemoryEntry } from "@mongchi/shared";
 
 import {
   getChatAllowanceChipPresentation,
+  getChatConversationStarters,
+  getChatMoodPresentation,
   getChatTicketPipsPresentation,
   getPremiumChatAccessPresentation,
   getShortChatActionLabel,
@@ -16,6 +18,20 @@ describe("chat allowance chip", () => {
     expect(getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: true, freeChatTickets: 0, creditBalance: 0 })).toEqual({
       label: "Plus · Included",
       accessibilityLabel: "Plus chat is included"
+    });
+  });
+
+  it("localizes the allowance summary for Korean", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        freeChatTickets: 2,
+        creditBalance: 8,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      label: "무료 대화 2회 남음",
+      accessibilityLabel: "오늘 무료 대화가 2회 남았어요"
     });
   });
 
@@ -44,6 +60,30 @@ describe("chat gate presentation", () => {
       })
     ).toBe("Sunlight is moving slowly across our little spot.");
     expect(getShortChatActionLabel(null)).toBe("Say hello");
+    expect(getShortChatActionLabel(null, "ko-KR")).toBe("인사하기");
+  });
+
+  it("uses a Korean listening line while a quick reply is pending", () => {
+    expect(
+      getShortChatReplyText({
+        petName: "몽치",
+        quickTalkStartedAtMs: new Date("2026-06-27T08:00:00.000Z").getTime(),
+        recentReactions: [],
+        locale: "ko-KR"
+      })
+    ).toBe("몽치가 이야기를 듣고 있어요...");
+  });
+
+  it("keeps the Korean return greeting short enough for the thought bubble", () => {
+    expect(
+      getShortChatReplyText({
+        petName: "Miso",
+        quickTalkStartedAtMs: null,
+        recentReactions: [],
+        daysAway: 2,
+        locale: "ko-KR"
+      })
+    ).toBe("Miso는 문 쪽을 바라보며 기다렸어요.");
   });
 
   it("uses the current care need before a free talk action starts", () => {
@@ -167,6 +207,7 @@ describe("chat gate presentation", () => {
       })
     ).toBe("짧게 말해도 좋고, 오래 있어도 좋아.");
     expect(getShortChatActionLabel(new Date("2026-06-27T08:00:00.000Z").getTime())).toBe("Say again");
+    expect(getShortChatActionLabel(new Date("2026-06-27T08:00:00.000Z").getTime(), "ko-KR")).toBe("다시 말하기");
   });
 
   it("uses a pending line while the API reaction has not synced yet", () => {
@@ -279,6 +320,109 @@ describe("chat gate presentation", () => {
         total: 5,
         overflow: 0
       }
+    });
+  });
+
+  it("localizes the locked premium-chat state for Korean", () => {
+    expect(
+      getPremiumChatAccessPresentation({
+        petName: "몽치",
+        apiReady: true,
+        payment: {
+          mode: "locked",
+          canStart: false,
+          label: "No chat credit",
+          detail: "Use a ticket, credit, or Plus pass.",
+          creditCost: 1
+        },
+        hasPremiumChatEntitlement: false,
+        freeChatTickets: 0,
+        creditBalance: 0,
+        locale: "ko-KR"
+      })
+    ).toMatchObject({
+      title: "몽치는 내일 더 많은 이야기를 들려줄 거예요",
+      detail: "크레딧으로 대화를 계속할 수도 있어요.",
+      balanceLabel: "무료 대화 0회 · 크레딧 0개",
+      ctaLabel: "크레딧 받기",
+      inputPlaceholder: "몽치는 내일 더 많은 이야기를 들려줄 거예요"
+    });
+  });
+
+  it("localizes conversation starters for Korean", () => {
+    expect(
+      getChatConversationStarters({
+        petName: "몽치",
+        now: "2026-06-24T14:00:00.000Z",
+        locale: "ko-KR"
+      })
+    ).toEqual(["늦었네. 같이 쉬면서 이야기할까?", "오늘 하루가 길었어. 내 얘기 들어줄래?"]);
+  });
+
+  it("localizes dynamic chat copy for Japanese without English fallbacks", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        freeChatTickets: 2,
+        creditBalance: 8,
+        locale: "ja-JP"
+      })
+    ).toEqual({
+      label: "無料チャット残り2回",
+      accessibilityLabel: "今日の無料チャットはあと2回です"
+    });
+    expect(
+      getChatMoodPresentation({
+        petName: "Momo",
+        satisfactionScore: 72,
+        satisfactionSummary: { label: "content", hint: "A little water would help." },
+        locale: "ja-JP"
+      })
+    ).toEqual({
+      value: 72,
+      label: "気分 72",
+      accessibilityLabel: "Momoの気分は100点満点中72点です。"
+    });
+    expect(
+      getShortChatReplyText({
+        petName: "Momo",
+        quickTalkStartedAtMs: null,
+        recentReactions: [],
+        satisfactionSummary: { primaryNeed: "thirst", hint: "A little water would help." },
+        locale: "ja-JP"
+      })
+    ).toBe("お水をひと口飲んだら、もっと元気になれそう。");
+    expect(getShortChatActionLabel(null, "ja-JP")).toBe("ごあいさつ");
+    expect(
+      getChatConversationStarters({
+        petName: "Momo",
+        now: "2026-06-24T14:00:00.000Z",
+        locale: "ja-JP"
+      })
+    ).toEqual(["もう遅いね。一緒にのんびりお話しする？", "今日は長い一日だったよ。お話を聞いてくれる？"]);
+    expect(
+      getPremiumChatAccessPresentation({
+        petName: "Momo",
+        apiReady: true,
+        payment: {
+          mode: "credit",
+          canStart: true,
+          label: "2 credits",
+          detail: "Next reply uses 2 credits.",
+          creditCost: 2
+        },
+        hasPremiumChatEntitlement: false,
+        freeChatTickets: 0,
+        creditBalance: 4,
+        locale: "ja-JP"
+      })
+    ).toMatchObject({
+      title: "Momoとおしゃべり",
+      detail: "次の返信で2クレジット使います。",
+      balanceLabel: "無料チャット0回 · 4クレジット",
+      ctaLabel: "おしゃべりを始める",
+      inputPlaceholder: "Momoに話しかける…",
+      accessibilityLabel: "Momoとおしゃべりする準備ができました。次の返信で2クレジット使います。 残高は無料チャット0回 · 4クレジットです。"
     });
   });
 

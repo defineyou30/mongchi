@@ -5,6 +5,7 @@ import type {
   SelectedReaction,
   TimeBucket
 } from "../domain/reactions";
+import type { Locale } from "../domain/common";
 
 export interface ReactionSelectionOptions {
   random?: () => number;
@@ -272,15 +273,37 @@ const scoreRule = (rule: ReactionRule, context: ReactionSelectionContext): numbe
   return score;
 };
 
+const favoriteThingFallbackByLocale: Record<Locale, string> = {
+  "en-US": "tiny things",
+  "ko-KR": "작은 것들",
+  "ja-JP": "小さなもの",
+  "zh-TW": "小東西",
+  "de-DE": "kleine Dinge",
+  "fr-FR": "les petites choses",
+  "pt-BR": "coisinhas",
+  "es-MX": "cositas"
+};
+
+const fallbackLineByLocale: Record<Locale, (petName: string) => string> = {
+  "en-US": (petName) => `${petName} is quietly here with you.`,
+  "ko-KR": (petName) => `${petName}이 조용히 곁에 있어.`,
+  "ja-JP": (petName) => `${petName}は静かにそばにいるよ。`,
+  "zh-TW": (petName) => `${petName}正安靜地陪在你身邊。`,
+  "de-DE": (petName) => `${petName} ist ganz still bei dir.`,
+  "fr-FR": (petName) => `${petName} reste tranquillement près de toi.`,
+  "pt-BR": (petName) => `${petName} está quietinho aqui com você.`,
+  "es-MX": (petName) => `${petName} está tranquilamente aquí contigo.`
+};
+
 const fillPlaceholders = (line: string, context: ReactionSelectionContext): string =>
   line
     .replaceAll("{petName}", context.pet.name)
-    .replaceAll("{favoriteThing}", context.pet.favoriteThing ?? "tiny things");
+    .replaceAll("{favoriteThing}", context.pet.favoriteThing ?? favoriteThingFallbackByLocale[context.locale]);
 
 const fallbackReaction = (context: ReactionSelectionContext): SelectedReaction => ({
   ruleId: "fallback_local_safe",
   category: "error_soft",
-  line: context.locale === "ko-KR" ? `${context.pet.name}이 조용히 곁에 있어.` : `${context.pet.name} is quietly here with you.`,
+  line: fallbackLineByLocale[context.locale](context.pet.name),
   animation: "idle",
   priority: 0
 });
@@ -292,10 +315,8 @@ export const selectLocalReaction = (
 ): SelectedReaction => {
   const random = options.random ?? Math.random;
   const localeRules = rules.filter((rule) => rule.locale === context.locale && rule.safetyLevel === "safe");
-  const fallbackLocaleRules = rules.filter((rule) => rule.locale === "en-US" && rule.safetyLevel === "safe");
-  const candidatePool = localeRules.length > 0 ? localeRules : fallbackLocaleRules;
 
-  const candidates = candidatePool
+  const candidates = localeRules
     .filter((rule) => rule.lines.length > 0)
     .filter((rule) => matchesConditions(rule.conditions, context))
     .filter((rule) => !isCoolingDown(rule, context))

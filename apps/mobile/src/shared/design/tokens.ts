@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import type { TextStyle } from "react-native";
+import { useTranslation } from "react-i18next";
 
+import { getLocalizedText } from "../../localization/localizedText";
+import { normalizeAppLocale } from "../../localization/localeNormalization";
+import type { AppLocale } from "../../localization/localeNormalization";
 import { fontPairFamilies, useFontPair } from "./fontPair";
 import type { FontPairId } from "./fontPair";
 
@@ -134,6 +138,18 @@ const typographyRoleFaceKind: Record<TypographyRole, keyof typeof fontPairFamili
 
 export type Typography = Record<TypographyRole, Required<TypographyRoleBase> & { fontFamily: string }>;
 
+export const getFontFamilyForLocale = (locale: AppLocale, brandedFontFamily: string): string =>
+  getLocalizedText(locale, {
+    "en-US": brandedFontFamily,
+    "ko-KR": "System",
+    "ja-JP": "System",
+    "zh-TW": "System",
+    "de-DE": brandedFontFamily,
+    "fr-FR": brandedFontFamily,
+    "pt-BR": brandedFontFamily,
+    "es-MX": brandedFontFamily
+  });
+
 export const getTypography = (pairId: FontPairId): Typography => {
   const families = fontPairFamilies[pairId];
 
@@ -151,8 +167,19 @@ export const getTypography = (pairId: FontPairId): Typography => {
 /** Live typography for the currently active font pair; re-renders on pair switch. */
 export const useTypography = (): Typography => {
   const [pairId] = useFontPair();
+  const { i18n } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
 
-  return useMemo(() => getTypography(pairId), [pairId]);
+  return useMemo(() => {
+    const typography = getTypography(pairId);
+
+    return Object.fromEntries(
+      (Object.keys(typography) as TypographyRole[]).map((role) => [
+        role,
+        { ...typography[role], fontFamily: getFontFamilyForLocale(locale, typography[role].fontFamily) }
+      ])
+    ) as Typography;
+  }, [locale, pairId]);
 };
 
 export type FontFamilies = Record<TypographyRole, string>;
@@ -174,6 +201,17 @@ export const getFontFamilies = (pairId: FontPairId): FontFamilies => {
 /** Live per-role fontFamily map for the currently active font pair. */
 export const useFontFamilies = (): FontFamilies => {
   const [pairId] = useFontPair();
+  const { i18n } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
 
-  return useMemo(() => getFontFamilies(pairId), [pairId]);
+  return useMemo(() => {
+    const fontFamilies = getFontFamilies(pairId);
+
+    return Object.fromEntries(
+      (Object.keys(fontFamilies) as TypographyRole[]).map((role) => [
+        role,
+        getFontFamilyForLocale(locale, fontFamilies[role])
+      ])
+    ) as FontFamilies;
+  }, [locale, pairId]);
 };

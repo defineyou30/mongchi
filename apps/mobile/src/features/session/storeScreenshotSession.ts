@@ -2,6 +2,8 @@ import {
   acceptPrototypeGeneratedPet,
   createInitialPrototypeSession,
   generationSteps,
+  makeMockGeneratedAssetsForPet,
+  mergePrototypeGeneratedAssets,
   setPrototypeConsentAccepted,
   setPrototypeMockPhotoSelected,
   setPrototypeWeatherCondition,
@@ -119,8 +121,23 @@ const withHatchingGeneration = (state: PrototypeSessionState, now: string): Prot
   }
 });
 
-const withAcceptedPet = (state: PrototypeSessionState, now: string): PrototypeSessionState =>
-  acceptPrototypeGeneratedPet(withCompletedGeneration(state, now), now);
+const withAcceptedPet = (state: PrototypeSessionState, now: string): PrototypeSessionState => {
+  const accepted = acceptPrototypeGeneratedPet(withCompletedGeneration(state, now), now);
+  const pet = accepted.pets[accepted.activePetId]?.petProfile;
+
+  if (!pet) {
+    return accepted;
+  }
+
+  return mergePrototypeGeneratedAssets(
+    accepted,
+    makeMockGeneratedAssetsForPet({
+      petId: pet.id,
+      generationJobId: pet.activeGenerationJobId ?? "gen_store_screenshot_001",
+      species: pet.species
+    })
+  );
+};
 
 const withOptionalWeather = (state: PrototypeSessionState, now: string): PrototypeSessionState => {
   const condition = getConfiguredStoreScreenshotWeatherCondition();

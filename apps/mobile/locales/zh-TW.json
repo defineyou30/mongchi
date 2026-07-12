@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "Mongchi",
+  "NSCameraUsageDescription": "只有在你拍攝寵物照片來建立角色時，Mongchi 才會使用相機。",
+  "NSPhotoLibraryUsageDescription": "Mongchi 會使用你選擇的寵物照片來建立迷你角色。",
+  "NSPhotoLibraryAddUsageDescription": "只有在你主動要求時，Mongchi 才會儲存寵物分享圖片。",
+  "NSLocationWhenInUseUsageDescription": "當你選擇讓寵物花園顯示當地天氣時，Mongchi 會使用大概位置。"
+}

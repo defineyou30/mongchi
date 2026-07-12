@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getPermissionsAsync = vi.fn();
 const requestPermissionsAsync = vi.fn();
 const setNotificationChannelAsync = vi.fn();
+const platform = vi.hoisted(() => ({ OS: "ios" }));
+const runtimeLocale = vi.hoisted(() => ({ current: "en-US" }));
+
+vi.mock("../../localization/runtimeResources", async () => {
+  const { getResourcesForLocale } = await import("../../localization/resourceCatalog");
+  return {
+    getRuntimeResources: () => getResourcesForLocale(runtimeLocale.current === "de-DE" ? "de-DE" : "en-US")
+  };
+});
 
 vi.mock("expo-notifications", () => ({
   getPermissionsAsync: (...args: unknown[]) => getPermissionsAsync(...args),
@@ -14,15 +23,18 @@ vi.mock("expo-notifications", () => ({
 }));
 
 vi.mock("react-native", () => ({
-  Platform: {
-    OS: "ios"
-  }
+  Platform: platform
 }));
 
-import { requestNotificationPermissionAfterFirstCareAction } from "./notificationPermission";
+import {
+  configureGardenNotificationChannel,
+  requestNotificationPermissionAfterFirstCareAction
+} from "./notificationPermission";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  platform.OS = "ios";
+  runtimeLocale.current = "en-US";
 });
 
 describe("requestNotificationPermissionAfterFirstCareAction", () => {
@@ -61,5 +73,20 @@ describe("requestNotificationPermissionAfterFirstCareAction", () => {
     const result = await requestNotificationPermissionAfterFirstCareAction();
 
     expect(result).toEqual({ status: "denied" });
+  });
+
+  it("updates the Android channel with the active German resources", async () => {
+    platform.OS = "android";
+    runtimeLocale.current = "de-DE";
+
+    await configureGardenNotificationChannel();
+
+    expect(setNotificationChannelAsync).toHaveBeenCalledWith(
+      "garden-updates",
+      expect.objectContaining({
+        name: "Gartenneuigkeiten",
+        description: "Sanfte Neuigkeiten aus deinem Garten"
+      })
+    );
   });
 });

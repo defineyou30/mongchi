@@ -134,9 +134,14 @@ Deno.test("normalizeSafetyFlags: normalizes case, dedupes, and caps at 8", () =>
 // refusalTextForLocale
 // ---------------------------------------------------------------------------
 
-Deno.test("refusalTextForLocale: branches on locale prefix", () => {
+Deno.test("refusalTextForLocale: localizes Japanese and Brazilian Portuguese without collapsing to English", () => {
   assert(refusalTextForLocale("en-US").startsWith("I can't answer"));
   assert(refusalTextForLocale("ko-KR").startsWith("지금 그 이야기는"));
+  assertEquals(refusalTextForLocale("ja-JP"), "その話には今、安全に答えられないけれど、そばにいるよ。やさしい話をしよう。");
+  assertEquals(
+    refusalTextForLocale("pt-BR"),
+    "Não posso responder a isso com segurança, mas posso ficar pertinho de você. Vamos conversar sobre algo tranquilo."
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -203,6 +208,19 @@ Deno.test("createOpenAiPremiumChatProvider: sends the model/instructions/schema 
   const inputText: unknown = requestBody.input?.[0]?.content?.[0]?.text;
   assert(typeof inputText === "string");
   assert(inputText.includes("Hi Mochi!"));
+});
+
+Deno.test("createOpenAiPremiumChatProvider: preserves the actual Japanese locale code in the prompt", async () => {
+  const captured: { url?: string; init?: RequestInit } = {};
+  const provider = createOpenAiPremiumChatProvider({
+    apiKey: "sk-test",
+    fetchImpl: fakeFetch(200, { output_text: JSON.stringify({ replyText: "そばにいるよ。", safetyFlags: [] }) }, captured)
+  });
+
+  await provider.generateReply(baseInput({ auth: { userId: "u", locale: "ja-JP", timezone: "Asia/Tokyo" } }));
+
+  const requestBody = typeof captured.init?.body === "string" ? captured.init.body : "";
+  assert(requestBody.includes('\\"locale\\":\\"ja-JP\\"'));
 });
 
 Deno.test("createOpenAiPremiumChatProvider: a refusal maps to the locale refusal text and a provider_refusal flag", async () => {

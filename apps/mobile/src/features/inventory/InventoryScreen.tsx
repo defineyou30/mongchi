@@ -3,7 +3,9 @@ import { router } from "expo-router";
 import { useMemo } from "react";
 import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
+import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { colors, radii, shadows, spacing, useTypography } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
@@ -11,6 +13,7 @@ import { GameItemImage, gameItemAssetByCatalogId } from "../../shared/ui/GameIll
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { getHomeDockActionForItem } from "../terrarium/terrariumHomeCareMenu";
 import { getInventorySummaryPresentation } from "./inventoryPresentation";
+import { getLocalizedCatalogItemCopy } from "../shop/shopCatalogPresentation";
 
 const inventoryBackground = require("../../../assets/generated/backgrounds/pixel-garden-premium-v1.png");
 
@@ -18,23 +21,26 @@ export function InventoryScreen() {
   const { catalogItems, inventory } = useTerrariumSession();
   const { ownedItems } = useMemo(() => getInventorySummaryPresentation(catalogItems, inventory), [catalogItems, inventory]);
   const typography = useTypography();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
 
   return (
     <View style={styles.sceneRoot}>
       <ImageBackground accessibilityElementsHidden resizeMode="cover" source={inventoryBackground} style={styles.sceneBackground}>
         <View style={styles.sceneWash} />
       </ImageBackground>
-      <SafeAreaView accessibilityLabel="Inventory" edges={["top", "left", "right"]} style={styles.sceneSafe}>
+      <SafeAreaView accessibilityLabel={t("inventory.accessibilityLabel")} edges={["top", "left", "right"]} style={styles.sceneSafe}>
         <ScrollView bounces={false} contentContainerStyle={styles.sceneContent} showsVerticalScrollIndicator={false}>
-          <BackButton accessibilityLabel="Back home" onPress={() => router.push("/terrarium")} />
+          <BackButton accessibilityLabel={t("inventory.back")} onPress={() => router.push("/terrarium")} />
 
           <Text accessibilityRole="header" style={[styles.title, typography.display]}>
-            Inventory
+            {t("inventory.title")}
           </Text>
 
           {ownedItems.length > 0 ? (
             <View style={styles.itemGrid}>
               {ownedItems.map(({ entry, item }) => {
+                const copy = getLocalizedCatalogItemCopy(item, locale);
                 // "Give now" (docs/gamefeel-sound-plan.md §1 Tier 4): tapping a
                 // card jumps home and auto-opens the tray this item belongs to
                 // (e.g. Buddy Plush -> the play tray) so an owner can hand it
@@ -48,22 +54,22 @@ export function InventoryScreen() {
                 return (
                   <Pressable
                     key={item.id}
-                    accessibilityHint="Goes home and opens this item's tray"
-                    accessibilityLabel={`Give ${item.name} now`}
+                    accessibilityHint={t("inventory.giveHint")}
+                    accessibilityLabel={t("inventory.giveAccessibilityLabel", { name: copy.name })}
                     accessibilityRole="button"
                     style={({ pressed }) => [styles.itemCard, pressed ? styles.itemCardPressed : null]}
                     onPress={() => router.push(dockAction ? `/terrarium?openTray=${dockAction}` : "/terrarium")}
                   >
                     <View style={styles.itemIconFrame}>
                       <GameItemImage
-                        accessibilityLabel={`${item.name} inventory icon`}
+                        accessibilityLabel={t("inventory.iconAccessibilityLabel", { name: copy.name })}
                         item={gameItemAssetByCatalogId[item.id] ?? "flowerPot"}
                         style={styles.itemIcon}
                       />
                     </View>
                     <View style={styles.itemCopy}>
-                      <Text style={[styles.itemName, typography.body]}>{item.name}</Text>
-                      <Text style={[styles.itemDescription, typography.label]}>{item.description}</Text>
+                      <Text style={[styles.itemName, typography.body]}>{copy.name}</Text>
+                      <Text style={[styles.itemDescription, typography.label]}>{copy.description}</Text>
                     </View>
                     <Text style={[styles.quantity, typography.label]}>x{entry.quantity}</Text>
                   </Pressable>
@@ -72,20 +78,20 @@ export function InventoryScreen() {
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Text style={[styles.emptyStateText, typography.body]}>Nothing here yet — treats and toys you pick up will show up in this shelf.</Text>
+              <Text style={[styles.emptyStateText, typography.body]}>{t("inventory.empty")}</Text>
             </View>
           )}
 
           <View style={styles.footerActions}>
             <ActionButton
-              label="Back home"
+              label={t("common.actions.backHome")}
               Icon={ArrowLeft}
               size="compact"
               style={styles.footerAction}
               onPress={() => router.push("/terrarium")}
             />
             <ActionButton
-              label="Shop"
+              label={t("inventory.shop")}
               Icon={Store}
               size="compact"
               style={styles.footerAction}

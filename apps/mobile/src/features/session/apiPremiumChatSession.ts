@@ -5,6 +5,9 @@ import { buildChatTurnPetProfile, getPremiumChatPaymentPreview, spendPremiumChat
 import type { ChatCareContext, ChatMemoryContext, ConversationMessage, CreditWallet, PetId, PetProfile } from "@mongchi/shared";
 
 import type { MobileApiError } from "../../shared/api";
+import { normalizeAppLocale } from "../../localization/localeNormalization";
+import type { AppLocale } from "../../localization/localeNormalization";
+import { getResourcesForLocale } from "../../localization/resourceCatalog";
 import { ensureSupabaseSession } from "./supabaseGenerationSession";
 import { invokeSupabaseChatTurn, loadSupabasePremiumChatThread } from "./supabasePremiumChatSession";
 
@@ -30,6 +33,7 @@ export interface PremiumChatSessionContext {
   petProfile: Pick<PetProfile, "name" | "species" | "personalityTags" | "talkingStyle" | "favoriteThing" | "memoryNote">;
   wallet: CreditWallet;
   hasPremiumChatEntitlement: boolean;
+  locale?: AppLocale;
   memoryContext?: ChatMemoryContext;
   careContext?: ChatCareContext;
 }
@@ -71,16 +75,36 @@ const localPremiumChatError = (code: string, messageSafe: string): MobileApiErro
   retryable: false
 });
 
+const localizePremiumChatError = (error: MobileApiError, locale: AppLocale): MobileApiError => {
+  const messages = getResourcesForLocale(normalizeAppLocale(locale)).chat.deterministicErrors;
+  const messageSafe =
+    error.code === "supabase_anonymous_sign_in_failed" ? messages.session
+    : error.code === "chat_history_unavailable" || error.code === "chat_history_response_invalid" ? messages.history
+    : error.code === "insufficient_credits" ? messages.credits
+    : error.code === "rate_limited" ? messages.rateLimited
+    : error.code === "message_rejected" ? messages.rejected
+    : messages.unavailable;
+
+  return { ...error, messageSafe };
+};
+
 export const normalizePremiumChatDraft = (text: string): string => text.trim().replace(/\s+/g, " ");
 
-export const startApiPremiumChatThread = async (client: SupabaseClient, petId: PetId): Promise<StartPremiumChatThreadResult> => {
+export const startApiPremiumChatThread = async (
+  client: SupabaseClient,
+  petId: PetId,
+  locale: AppLocale = "en-US"
+): Promise<StartPremiumChatThreadResult> => {
+  const normalizedLocale = normalizeAppLocale(locale);
   const session = await ensureSupabaseSession(client);
 
   if (!session.ok) {
-    return { ok: false, error: session.error };
+    return { ok: false, error: localizePremiumChatError(session.error, normalizedLocale) };
   }
 
-  return loadSupabasePremiumChatThread(client, petId);
+  const result = await loadSupabasePremiumChatThread(client, petId);
+
+  return result.ok ? result : { ok: false, error: localizePremiumChatError(result.error, normalizedLocale) };
 };
 
 /**
@@ -96,12 +120,13 @@ export const sendApiPremiumChatTurn = async (
   client: SupabaseClient,
   { context, currentThread, text, requestId = Crypto.randomUUID() }: PremiumChatSendInput
 ): Promise<SendPremiumChatTurnResult> => {
+  const normalizedLocale = normalizeAppLocale(context.locale);
   const normalizedText = normalizePremiumChatDraft(text);
 
   if (!normalizedText) {
     return {
       ok: false,
-      error: localPremiumChatError("empty_message", "Write a short message first.")
+      error: localPremiumChatError("empty_message", getResourcesForLocale(normalizedLocale).chat.deterministicErrors.emptyMessage)
     };
   }
 
@@ -110,7 +135,7 @@ export const sendApiPremiumChatTurn = async (
   if (!payment.canStart) {
     return {
       ok: false,
-      error: localPremiumChatError("chat_locked", "Use a ticket, credit, or Plus pass to keep chatting.")
+      error: localPremiumChatError("chat_locked", getResourcesForLocale(normalizedLocale).chat.deterministicErrors.locked)
     };
   }
 
@@ -123,14 +148,14 @@ export const sendApiPremiumChatTurn = async (
     disclosureAccepted: true,
     requestId,
     charge,
-    locale: "en-US",
+    locale: normalizedLocale,
     petProfile: buildChatTurnPetProfile(context.petProfile),
     ...(context.memoryContext ? { memoryContext: context.memoryContext } : {}),
     ...(context.careContext ? { careContext: context.careContext } : {})
   });
 
   if (!outcome.ok) {
-    return { ok: false, error: outcome.error };
+    return { ok: false, error: localizePremiumChatError(outcome.error, normalizedLocale) };
   }
 
   const { data } = outcome;

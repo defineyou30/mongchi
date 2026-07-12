@@ -12,6 +12,7 @@ import {
   failPrototypeGeneration,
   getGenerationAttemptKey,
   getMonotonicGenerationProgress,
+  mergePrototypeGeneratedAssets,
   getPrototypeGenerationPollSnapshot,
   getSpendableCreditBalance,
   normalizeRestoredPetSetupDraft,
@@ -34,10 +35,10 @@ import {
   startPrototypeGeneration,
   startPrototypeWalk,
   togglePrototypePersonalityTag,
+  unlockPrototypeStarterPosesForCareAction,
   updatePrototypeDraft,
   withActivePetBundle
 } from "../index";
-import { generatedAssetStates } from "../domain";
 import type { GeneratedAsset } from "../domain";
 import { makeMockGeneratedAsset } from "../mock/mockData";
 import type { PrototypeSessionState } from "../session/prototypeSession";
@@ -76,9 +77,19 @@ describe("prototype first-session state", () => {
     expect(active(state).petProfile?.activeAssetId).toBe("asset_luna_idle_001");
     expect(active(state).acceptedAsset?.id).toBe("asset_luna_idle_001");
     expect(active(state).acceptedAsset?.state).toBe("idle");
-    expect(active(state).acceptedAssets.map((asset) => asset.state)).toEqual([...generatedAssetStates]);
+    expect(active(state).acceptedAssets.map((asset) => asset.state)).toEqual(["idle"]);
     expect(active(state).acceptedAssets.every((asset) => asset.id.startsWith("asset_luna_"))).toBe(true);
     expect(active(state).currentReaction?.category).toBe("generation_reveal");
+  });
+
+  it("reveals retained starter poses through care rewards", () => {
+    let state = acceptPrototypeGeneratedPet(createInitialPrototypeSession("2026-06-24T09:00:00.000Z"));
+
+    state = unlockPrototypeStarterPosesForCareAction(state, "feed", "2026-06-24T09:05:00.000Z");
+    expect(active(state).acceptedAssets.map((asset) => asset.state)).toEqual(["idle", "happy"]);
+
+    state = unlockPrototypeStarterPosesForCareAction(state, "rest", "2026-06-24T09:10:00.000Z");
+    expect(active(state).acceptedAssets.map((asset) => asset.state)).toEqual(["idle", "happy", "sleep"]);
   });
 
   it("carries an optional first memory from the setup draft into the accepted pet's memoryNote", () => {
@@ -145,6 +156,11 @@ describe("prototype first-session state", () => {
         name: "Miso"
       }),
       "2026-06-24T09:01:00.000Z"
+    );
+    const reactionStates = ["happy", "sleep", "play", "hungry", "treat_reaction", "walk_return", "garden_help", "chat_portrait"] as const;
+    state = mergePrototypeGeneratedAssets(
+      state,
+      reactionStates.map((assetState) => makeMockGeneratedAsset(assetState, { petId: active(state).petProfile!.id }))
     );
 
     expect(selectGeneratedAssetForReaction(active(state).acceptedAssets, active(state).acceptedAsset, "play")?.state).toBe("play");

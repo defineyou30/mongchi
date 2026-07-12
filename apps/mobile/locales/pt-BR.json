@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "Mongchi",
+  "NSCameraUsageDescription": "O Mongchi usa a câmera apenas quando você tira uma foto do pet para criar o avatar.",
+  "NSPhotoLibraryUsageDescription": "O Mongchi usa a foto do pet que você escolher para criar seu pequeno avatar.",
+  "NSPhotoLibraryAddUsageDescription": "O Mongchi salva imagens do pet apenas quando você pedir.",
+  "NSLocationWhenInUseUsageDescription": "O Mongchi usa sua localização aproximada apenas se você escolher o clima local para o jardim."
+}

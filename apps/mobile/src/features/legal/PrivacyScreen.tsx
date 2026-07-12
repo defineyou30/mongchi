@@ -1,6 +1,7 @@
 import { ArrowLeft, ExternalLink, ShieldCheck } from "lucide-react-native";
 import { router } from "expo-router";
 import { Linking, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { getPublicReleaseConfig } from "../../shared/config/publicReleaseConfig";
 import { colors, radii, spacing } from "../../shared/design/tokens";
@@ -8,51 +9,26 @@ import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 
-// Last updated July 8, 2026 · v1.1 — keep in sync with docs/legal/privacy-policy.md.
-const PRIVACY_LAST_UPDATED = "Last updated July 8, 2026 · v1.1";
-
-const privacyItems = [
-  "No account, no email — the app opens with an anonymous session, not a signup.",
-  "Your pet's original photo is sent to OpenAI only to run a safety check and generate the avatar, then it is automatically deleted from our servers the moment generation finishes.",
-  "Unlocking more expression states later reuses your already-generated avatar art, not your original photo — it no longer exists on our servers by then.",
-  "Generated avatars live in a private storage bucket and are only ever shown through short-lived signed links, never a public URL.",
-  "Care stats, memories, and garden progress are stored locally on your device (not our servers), so uninstalling the app removes them permanently.",
-  "Approximate location, if you allow it, is used once for a weather lookup and is not stored on our servers.",
-  "Premium chat is labeled as AI-generated and moderated before messages appear.",
-  "No ad or tracking SDKs, and analytics avoid raw photos, raw chat text, and payment details."
-];
-
-const privacySections: Array<{ title: string; body: string }> = [
-  {
-    title: "Third parties we share data with",
-    body:
-      "OpenAI processes your pet's source photo (safety check + avatar generation) and, for premium chat, your pet's profile and recent conversation context. Supabase hosts our database, private storage, and anonymous auth on our behalf. Apple/Google handle in-app purchase payments directly — we only receive a receipt to grant your credit, never your card details."
-  },
-  {
-    title: "Your rights",
-    body:
-      "You can delete your original photo separately from the generated avatar during the photo flow. For full deletion, go to Settings and choose \"Delete pet data\" — this clears this device's local data and asks our servers to delete your photo, generated avatars, and every database record tied to your anonymous account, then deletes the account itself. If we can't reach our servers at that moment, your local data still clears right away and the app will ask you to retry later so the server-side part finishes. You can also reach support below if you'd rather request this by email. This covers access, correction, and deletion rights under regimes like GDPR and CCPA."
-  },
-  {
-    title: "Children",
-    body:
-      "Mongchi is not directed at children under 13. Because we don't collect names, emails, or accounts, we have no practical way to link data to a child's identity — if you believe a child provided us information through a photo or chat, contact support and we will delete it."
-  }
-];
-
 export function PrivacyScreen() {
   const releaseConfig = getPublicReleaseConfig();
+  const { t } = useTranslation();
+  const privacyItems = [t("legal.privacy.items.first"), t("legal.privacy.items.second"), t("legal.privacy.items.third"), t("legal.privacy.items.fourth"), t("legal.privacy.items.fifth"), t("legal.privacy.items.sixth"), t("legal.privacy.items.seventh"), t("legal.privacy.items.eighth")];
+  const privacySections = [
+    { title: t("legal.privacy.sections.sharingTitle"), body: t("legal.privacy.sections.sharingBody") },
+    { title: t("legal.privacy.sections.rightsTitle"), body: t("legal.privacy.sections.rightsBody") },
+    { title: t("legal.privacy.sections.childrenTitle"), body: t("legal.privacy.sections.childrenBody") }
+  ];
 
   return (
-    <GardenSceneFrame accessibilityLabel="Privacy policy and AI disclosure">
-      <BackButton accessibilityLabel="Back to settings" onPress={() => router.replace("/settings")} />
+    <GardenSceneFrame accessibilityLabel={t("legal.privacy.accessibilityLabel")}>
+      <BackButton accessibilityLabel={t("legal.back")} onPress={() => router.replace("/settings")} />
 
       <View style={styles.copy}>
-        <Text style={styles.eyebrow}>Privacy</Text>
+        <Text style={styles.eyebrow}>{t("legal.privacy.eyebrow")}</Text>
         <Text accessibilityRole="header" style={styles.title}>
-          Photo and chat safety
+          {t("legal.privacy.title")}
         </Text>
-        <Text style={styles.versionText}>{PRIVACY_LAST_UPDATED}</Text>
+        <Text style={styles.versionText}>{t("legal.privacy.updated")}</Text>
       </View>
 
       <View style={styles.list}>
@@ -72,12 +48,12 @@ export function PrivacyScreen() {
       ))}
 
       <View style={styles.notice}>
-        <Text style={styles.noticeTitle}>Policy link</Text>
+        <Text style={styles.noticeTitle}>{t("legal.privacy.policyLink")}</Text>
         <Text style={styles.noticeText}>
-          {releaseConfig.privacyPolicyUrl ?? "A secure privacy policy link will appear here when available."}
+          {releaseConfig.privacyPolicyUrl ?? t("legal.privacy.policyFallback")}
         </Text>
         <ActionButton
-          label="Open policy"
+          label={t("legal.privacy.openPolicy")}
           Icon={ExternalLink}
           variant="secondary"
           disabled={!releaseConfig.privacyPolicyUrl}
@@ -90,13 +66,11 @@ export function PrivacyScreen() {
       </View>
 
       <View style={styles.notice}>
-        <Text style={styles.noticeTitle}>AI disclosure</Text>
-        <Text style={styles.noticeText}>
-          This is an AI-generated conversation shaped by your pet's profile. It is not your real pet's consciousness.
-        </Text>
+        <Text style={styles.noticeTitle}>{t("legal.privacy.aiTitle")}</Text>
+        <Text style={styles.noticeText}>{t("legal.privacy.aiBody")}</Text>
       </View>
 
-      <ActionButton label="Back to settings" Icon={ArrowLeft} onPress={() => router.push("/settings")} />
+      <ActionButton label={t("legal.back")} Icon={ArrowLeft} onPress={() => router.push("/settings")} />
     </GardenSceneFrame>
   );
 }

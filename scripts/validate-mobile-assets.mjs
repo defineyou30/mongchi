@@ -8,9 +8,9 @@ const ROOT = resolve(
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const appShellAssets = [
-  { label: "app icon", path: "apps/mobile/assets/icon.png", width: 1024, height: 1024 },
+  { label: "app icon", path: "apps/mobile/assets/icon.png", width: 1024, height: 1024, colorType: 2 },
   { label: "adaptive icon", path: "apps/mobile/assets/adaptive-icon.png", width: 1024, height: 1024 },
-  { label: "splash", path: "apps/mobile/assets/splash.png", width: 1290, height: 2796 }
+  { label: "splash", path: "apps/mobile/assets/splash.png", width: 1290, height: 2796, colorType: 2 }
 ];
 
 const petAssetSets = [
@@ -156,9 +156,27 @@ const backgroundAssets = [
 ];
 
 const brandAssets = [
-  { label: "brand welcome screen", path: "apps/mobile/assets/generated/brand/welcome-screen-v1.png", width: 720, height: 960 },
-  { label: "brand loading screen", path: "apps/mobile/assets/generated/brand/loading-screen-v1.png", width: 720, height: 960 },
-  { label: "brand app logo", path: "apps/mobile/assets/generated/brand/app-logo-v1.png", width: 512, height: 512 }
+  {
+    label: "brand welcome screen",
+    path: "apps/mobile/assets/generated/brand/welcome-screen-v1.png",
+    width: 720,
+    height: 960,
+    requiredSources: ["apps/mobile/src/shared/ui/GameIllustrations.tsx"]
+  },
+  {
+    label: "brand loading screen",
+    path: "apps/mobile/assets/generated/brand/loading-screen-v1.png",
+    width: 720,
+    height: 960,
+    requiredSources: ["apps/mobile/src/shared/ui/GameIllustrations.tsx"]
+  },
+  {
+    label: "legacy brand app logo",
+    path: "apps/mobile/assets/generated/brand/app-logo-v1.png",
+    width: 512,
+    height: 512,
+    requiredSources: []
+  }
 ];
 
 const runtimeGeneratedUiAssets = [
@@ -168,7 +186,7 @@ const runtimeGeneratedUiAssets = [
     width: 941,
     height: 1672,
     colorType: 2,
-    requiredSources: ["apps/mobile/src/features/onboarding/SplashScreen.tsx"]
+    requiredSources: []
   },
   {
     label: "speech bubble runtime asset",
@@ -213,6 +231,16 @@ const runtimeOnboardingAssets = [
     requiredSources: ["apps/mobile/src/shared/ui/OnboardingStoryArt.tsx"]
   }
 ];
+
+const utilityIconManifest = JSON.parse(
+  readFileSync(resolve(ROOT, "apps/mobile/assets/generated/ui/utility-icons/v1/manifest.json"), "utf8")
+);
+const utilityIconAssets = utilityIconManifest.keys.map((key) => ({
+  label: `utility icon ${key}`,
+  path: `apps/mobile/assets/generated/ui/utility-icons/v1/${key}.png`,
+  width: utilityIconManifest.master.width,
+  height: utilityIconManifest.master.height
+}));
 
 const itemAssetNames = [
   "bone-v3",
@@ -325,12 +353,13 @@ const expectedAssets = [
   ...brandAssets,
   ...runtimeGeneratedUiAssets,
   ...runtimeOnboardingAssets,
+  ...utilityIconAssets,
   ...itemAssets,
   ...gameItemAssets,
   ...plantStageAssets
 ];
 const expectedGeneratedAssetPaths = new Set(
-  [...petAssets, ...backgroundAssets, ...brandAssets, ...runtimeGeneratedUiAssets, ...runtimeOnboardingAssets, ...itemAssets].map(
+  [...petAssets, ...backgroundAssets, ...brandAssets, ...runtimeGeneratedUiAssets, ...runtimeOnboardingAssets, ...utilityIconAssets, ...itemAssets].map(
     (asset) => asset.path
   )
 );
@@ -450,14 +479,13 @@ for (const asset of [...backgroundAssets.filter((asset) => asset.requireInGameIl
   }
 }
 
-const splashSource = readSource("apps/mobile/src/features/onboarding/SplashScreen.tsx");
-
 for (const asset of brandAssets) {
   const expectedRequirePath = asset.path.replace("apps/mobile/assets/", "../../../assets/");
-  const source = asset.path.includes("app-logo") ? splashSource : gameIllustrationsSource;
 
-  if (!source.includes(expectedRequirePath)) {
-    failures.push(`${asset.path.includes("app-logo") ? "SplashScreen.tsx" : "GameIllustrations.tsx"} does not require ${asset.path}`);
+  for (const sourcePath of asset.requiredSources) {
+    if (!readSource(sourcePath).includes(expectedRequirePath)) {
+      failures.push(`${sourcePath} does not require ${asset.path}`);
+    }
   }
 }
 
@@ -478,6 +506,16 @@ for (const asset of runtimeOnboardingAssets) {
     if (!readSource(sourcePath).includes(expectedRequirePath)) {
       failures.push(`${sourcePath} does not require ${asset.path}`);
     }
+  }
+}
+
+const utilityIconRegistrySource = readSource("apps/mobile/src/shared/ui/mongchiIconAssets.ts");
+
+for (const asset of utilityIconAssets) {
+  const expectedRequirePath = asset.path.replace("apps/mobile/assets/", "../../../assets/");
+
+  if (!utilityIconRegistrySource.includes(expectedRequirePath)) {
+    failures.push(`mongchiIconAssets.ts does not require ${asset.path}`);
   }
 }
 

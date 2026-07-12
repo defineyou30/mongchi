@@ -1,4 +1,4 @@
-import type { CareActionRequest } from "@mongchi/shared";
+import type { CareActionRequest, Locale } from "@mongchi/shared";
 
 import type {
   AcceptGenerationJobRequest,
@@ -23,6 +23,7 @@ import type {
 import { parseApiMutationBody } from "./apiMutationBodyParser";
 import { normalizeCommerceStoreWebhookNotification } from "./commerceStoreWebhook";
 import type { CommerceStoreWebhookDecision, CommerceStoreWebhookOptions } from "./commerceStoreWebhook";
+import { apiLocaleSchema } from "./httpRequestSchemas";
 import type { ApiAuthContext, ApiResult, ApiService, MaybePromise } from "./service";
 import { createMockApiService } from "./service";
 import type { StorePurchaseVerifier } from "./purchaseVerifier";
@@ -69,7 +70,11 @@ export interface CommerceWebhookLogger {
 const getHeader = (headers: ApiHttpRequest["headers"], key: string): string | undefined =>
   headers?.[key] ?? headers?.[key.toLowerCase()] ?? headers?.[key.toUpperCase()];
 
-const resolveLocale = (headers: ApiHttpRequest["headers"]) => (getHeader(headers, "x-locale") === "en-US" ? "en-US" : "ko-KR");
+const resolveLocale = (headers: ApiHttpRequest["headers"]): Locale => {
+  const parsed = apiLocaleSchema.safeParse(getHeader(headers, "x-locale"));
+
+  return parsed.success ? parsed.data : "en-US";
+};
 const resolveTimezone = (headers: ApiHttpRequest["headers"]) => getHeader(headers, "x-timezone") ?? "Asia/Seoul";
 const getBearerToken = (headers: ApiHttpRequest["headers"]): { authorization: string; token: string } | null => {
   const authorization = getHeader(headers, "authorization")?.trim();

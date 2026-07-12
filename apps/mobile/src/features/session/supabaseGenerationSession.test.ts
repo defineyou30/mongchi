@@ -45,6 +45,7 @@ vi.mock("./supabaseClient", () => ({
 import {
   createInitialPrototypeSession,
   getActivePetBundle,
+  makeMockGeneratedAsset,
   setPrototypeConsentAccepted,
   setPrototypeMockPhotoSelected,
   setPrototypeSelectedPhotoUri,
@@ -59,7 +60,8 @@ import {
   resolveIdleAssetStoragePath,
   retrySupabaseGenerationFlow,
   startSupabaseExpressionPackFlow,
-  startSupabaseGenerationFlow
+  startSupabaseGenerationFlow,
+  unlockSupabaseStarterPosesForCareAction
 } from "./supabaseGenerationSession";
 
 // supabaseGenerationSession.ts's flows read per-pet fields (petProfile/
@@ -115,6 +117,7 @@ interface FakeSupabaseClientOptions {
   jobError?: { message: string } | null;
   signedUrl?: string | null;
   signedUrlError?: { message: string } | null;
+  signedUrlErrorPaths?: readonly string[];
   rpcData?: unknown;
   rpcError?: { message: string } | null;
 }
@@ -148,7 +151,7 @@ const createFakeSupabaseClient = (options: FakeSupabaseClientOptions = {}) => {
         createSignedUrl: vi.fn(async (path: string, _expiresIn: number) => {
           signedUrlCalls.push(path);
 
-          if (options.signedUrlError) {
+          if (options.signedUrlError || options.signedUrlErrorPaths?.includes(path)) {
             return { data: null, error: options.signedUrlError };
           }
 
@@ -225,7 +228,7 @@ describe("supabase generation session start flow", () => {
         Authorization: "Bearer token_anon_001",
         apikey: "anon-key-001",
         "Content-Type": "image/jpeg",
-        "x-upsert": "false"
+        "x-upsert": "true"
       }
     });
 
@@ -238,7 +241,8 @@ describe("supabase generation session start flow", () => {
         personalityTags: ["affectionate"],
         talkingStyle: "gentle"
       },
-      originalPhotoPath: "original-photos/user_anon_001/11111111-1111-4111-8111-111111111111.jpg"
+      originalPhotoPath: "original-photos/user_anon_001/11111111-1111-4111-8111-111111111111.jpg",
+      request_id: "11111111-1111-4111-8111-111111111111"
     });
 
     expect(result.data.petProfile?.activeGenerationJobId).toBe("job_supabase_001");
@@ -301,7 +305,8 @@ describe("supabase generation session start flow", () => {
         personalityTags: ["affectionate"],
         talkingStyle: "gentle"
       },
-      originalPhotoPath: "original-photos/user_existing_001/11111111-1111-4111-8111-111111111111.jpg"
+      originalPhotoPath: "original-photos/user_existing_001/11111111-1111-4111-8111-111111111111.jpg",
+      request_id: "11111111-1111-4111-8111-111111111111"
     });
   });
 
@@ -587,6 +592,29 @@ describe("supabase generation session poll flow", () => {
     expect(result.data.acceptedAsset).toBeUndefined();
   });
 
+  it("asks the Edge Function to resume a nonterminal job after its lease expires", async () => {
+    const { client, invokeCalls } = createFakeSupabaseClient({
+      jobRow: {
+        id: "job_supabase_001",
+        status: "generating",
+        failure_code: null,
+        failure_message_safe: null,
+        required_states: ["idle", "happy", "sleep"],
+        created_at: "2026-07-03T09:01:00.000Z",
+        updated_at: "2026-07-03T09:01:30.000Z",
+        lease_expires_at: "2026-07-03T09:02:00.000Z",
+        generated_assets: []
+      }
+    });
+
+    const result = await pollSupabaseGenerationFlow(client as never, stateWithJob(), "2026-07-03T09:02:01.000Z");
+
+    expect(result.ok).toBe(true);
+    expect(invokeCalls).toEqual([
+      { name: "generate-avatar", body: { resume_job_id: "job_supabase_001" } }
+    ]);
+  });
+
   it("signs generated asset URLs and populates acceptedAsset/acceptedAssets when completed", async () => {
     const { client, signedUrlCalls } = createFakeSupabaseClient({
       jobRow: {
@@ -619,6 +647,34 @@ describe("supabase generation session poll flow", () => {
     expect(result.data.acceptedAssets).toHaveLength(2);
     expect(result.data.acceptedAsset?.uri).toBe("https://signed.example.com/generated/job_supabase_001/idle.png");
     expect(result.data.acceptedAssets?.[0]!.state).toBe("idle");
+  });
+
+  it("keeps a completed job nonterminal locally until every required asset URL is signed", async () => {
+    const failedPath = "generated/job_supabase_001/sleep.png";
+    const { client } = createFakeSupabaseClient({
+      signedUrlErrorPaths: [failedPath],
+      jobRow: {
+        id: "job_supabase_001",
+        status: "completed",
+        failure_code: null,
+        failure_message_safe: null,
+        required_states: ["idle", "happy", "sleep"],
+        created_at: "2026-07-03T09:01:00.000Z",
+        updated_at: "2026-07-03T09:02:00.000Z",
+        generated_assets: [
+          { job_id: "job_supabase_001", state: "idle", storage_path: "generated/job_supabase_001/idle.png", width: 512, height: 512 },
+          { job_id: "job_supabase_001", state: "happy", storage_path: "generated/job_supabase_001/happy.png", width: 512, height: 512 },
+          { job_id: "job_supabase_001", state: "sleep", storage_path: failedPath, width: 512, height: 512 }
+        ]
+      }
+    });
+
+    const result = await pollSupabaseGenerationFlow(client as never, stateWithJob(), "2026-07-03T09:02:01.000Z");
+
+    expect(result).toMatchObject({ ok: true, data: { generation: { status: "quality_checking" } } });
+    if (result.ok) {
+      expect(result.data.acceptedAssets).toBeUndefined();
+    }
   });
 
   it("maps a failed job status with the failure reason", async () => {
@@ -752,7 +808,14 @@ describe("supabase generation session retry flow", () => {
       invokeData: { jobId: "job_supabase_002" }
     });
 
-    const result = await retrySupabaseGenerationFlow(client as never, stateWithJob(), "2026-07-03T09:05:00.000Z");
+    const retryRequestId = "33333333-3333-4333-8333-333333333333";
+    const result = await retrySupabaseGenerationFlow(
+      client as never,
+      stateWithJob(),
+      "2026-07-03T09:05:00.000Z",
+      undefined,
+      retryRequestId
+    );
 
     expect(result.ok).toBe(true);
     if (!result.ok) {
@@ -760,6 +823,9 @@ describe("supabase generation session retry flow", () => {
     }
 
     expect(uploadAsyncMock).toHaveBeenCalledTimes(1);
+    expect(uploadAsyncMock.mock.calls[0]?.[0]).toBe(
+      `https://project.supabase.co/storage/v1/object/pet-media/original-photos/user_existing_001/${retryRequestId}.jpg`
+    );
     expect(invokeCalls).toHaveLength(1);
     expect(result.data.petProfile?.activeGenerationJobId).toBe("job_supabase_002");
     expect(result.data.generation?.retryCount).toBe(1);
@@ -793,17 +859,28 @@ describe("supabase generation session retry flow", () => {
     expect(invokeCalls).toHaveLength(0);
   });
 
-  it("returns a local error when there is no active generation job to retry", async () => {
-    const { client } = createFakeSupabaseClient();
+  it("replays the persisted start request when a lost response left no local job id", async () => {
+    uploadAsyncMock.mockClear();
+    uploadAsyncMock.mockResolvedValueOnce({ status: 200, headers: {}, mimeType: "image/jpeg", body: "" });
+    const { client, invokeCalls } = createFakeSupabaseClient();
+    const requestId = "44444444-4444-4444-8444-444444444444";
 
-    const result = await retrySupabaseGenerationFlow(client as never, createReadyState(), "2026-07-03T09:05:00.000Z");
+    const result = await retrySupabaseGenerationFlow(
+      client as never,
+      createReadyState(),
+      "2026-07-03T09:05:00.000Z",
+      undefined,
+      requestId
+    );
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
       return;
     }
 
-    expect(result.error.code).toBe("generation_job_missing");
+    expect(invokeCalls[0]?.body).toMatchObject({ request_id: requestId });
+    expect(result.data.petProfile?.activeGenerationJobId).toBe("job_supabase_001");
+    expect(result.data.generation?.retryCount).toBe(1);
   });
 
   it("returns a source_photo_unreadable failure patch (bumping retryCount) when preparing the photo throws on retry", async () => {
@@ -1031,6 +1108,35 @@ describe("supabase expression pack start flow", () => {
     expect(result.error.status).toBe(402);
   });
 
+  it("preserves an idempotency conflict as a definitive expression-pack failure", async () => {
+    const jsonMock = vi.fn(async () => ({
+      error: "idempotency_conflict",
+      message: "That request id belongs to a different pose pack."
+    }));
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      invokeError: { message: "conflict", context: { status: 409, json: jsonMock } as never }
+    });
+
+    const result = await startSupabaseExpressionPackFlow(
+      client as never,
+      stateWithIdleAsset(),
+      "pack-everyday-moments",
+      ["curious"],
+      "22222222-2222-4222-8222-222222222222"
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("idempotency_conflict");
+    expect(result.error.retryable).toBe(false);
+    expect(result.error.status).toBe(409);
+    expect(result.error.messageSafe).toBe("That request id belongs to a different pose pack.");
+  });
+
   it("catches an unexpected raw throw from generate-avatar invoke and returns a retryable structured failure instead of crashing", async () => {
     // Regression (P1c gap this test is written for): expression-pack
     // purchases trigger a real, server-side paid consume_credits debit. If a
@@ -1163,6 +1269,35 @@ describe("supabase expression pack poll flow", () => {
     expect(result.data.assets).toEqual([]);
   });
 
+  it("asks the Edge Function to resume an expression pack after its lease expires", async () => {
+    const { client, invokeCalls } = createFakeSupabaseClient({
+      jobRow: {
+        id: "job_expression_pack_001",
+        status: "generating",
+        lease_expires_at: "2026-07-03T09:10:30.000Z",
+        failure_code: null,
+        failure_message_safe: null,
+        required_states: ["curious", "play", "hungry"],
+        created_at: "2026-07-03T09:10:00.000Z",
+        updated_at: "2026-07-03T09:10:30.000Z",
+        generated_assets: []
+      }
+    });
+
+    const result = await pollSupabaseExpressionPackFlow(
+      client as never,
+      "job_expression_pack_001",
+      "pet_local_001",
+      "2026-07-03T09:10:31.000Z"
+    );
+
+    expect(result).toMatchObject({ ok: true, data: { status: "pending" } });
+    expect(invokeCalls).toContainEqual({
+      name: "generate-avatar",
+      body: { resume_job_id: "job_expression_pack_001" }
+    });
+  });
+
   it("signs and returns every generated asset once the job completes", async () => {
     const { client, signedUrlCalls } = createFakeSupabaseClient({
       jobRow: {
@@ -1195,6 +1330,31 @@ describe("supabase expression pack poll flow", () => {
       "avatars/user/job_expression_pack_001/play.png",
       "avatars/user/job_expression_pack_001/hungry.png"
     ]);
+  });
+
+  it("keeps a completed pack pending when even one of its three URLs cannot be signed", async () => {
+    const failedPath = "avatars/user/job_expression_pack_001/hungry.png";
+    const { client } = createFakeSupabaseClient({
+      signedUrlErrorPaths: [failedPath],
+      jobRow: {
+        id: "job_expression_pack_001",
+        status: "completed",
+        failure_code: null,
+        failure_message_safe: null,
+        required_states: ["curious", "play", "hungry"],
+        created_at: "2026-07-03T09:10:00.000Z",
+        updated_at: "2026-07-03T09:11:00.000Z",
+        generated_assets: [
+          { job_id: "job_expression_pack_001", state: "curious", storage_path: "avatars/user/job_expression_pack_001/curious.png", width: 512, height: 512 },
+          { job_id: "job_expression_pack_001", state: "play", storage_path: "avatars/user/job_expression_pack_001/play.png", width: 512, height: 512 },
+          { job_id: "job_expression_pack_001", state: "hungry", storage_path: failedPath, width: 512, height: 512 }
+        ]
+      }
+    });
+
+    const result = await pollSupabaseExpressionPackFlow(client as never, "job_expression_pack_001", "pet_local_001", "2026-07-03T09:11:01.000Z");
+
+    expect(result).toMatchObject({ ok: true, data: { status: "pending", assets: [] } });
   });
 
   it("reports failed with a warm fallback message when none is provided by the server", async () => {
@@ -1257,6 +1417,77 @@ describe("supabase expression pack poll flow", () => {
 
     expect(result.error.code).toBe("generation_job_poll_failed");
     expect(result.error.retryable).toBe(true);
+  });
+});
+
+describe("starter pose unlock flow", () => {
+  it("unlocks and signs happy after the first care action", async () => {
+    const idle = makeMockGeneratedAsset("idle", { petId: "pet_local_001", generationJobId: "job_starter_001" });
+    const state = { ...createMockPhotoState(), acceptedAsset: idle, acceptedAssets: [idle] };
+    const { client, rpcCalls } = createFakeSupabaseClient({
+      rpcData: [
+        {
+          job_id: "job_starter_001",
+          state: "happy",
+          storage_path: "avatars/user/job_starter_001/happy.png",
+          width: 512,
+          height: 512
+        }
+      ]
+    });
+
+    const result = await unlockSupabaseStarterPosesForCareAction(client as never, state, "feed", "2026-07-03T09:20:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets.map((asset) => asset.state)).toEqual(["happy"]);
+    expect(rpcCalls).toEqual([
+      {
+        fn: "unlock_starter_poses_for_care_action",
+        args: { p_action: "feed", p_job_id: "job_starter_001" }
+      }
+    ]);
+  });
+
+  it("requests happy and sleep atomically when the care action is rest", async () => {
+    const idle = makeMockGeneratedAsset("idle", { petId: "pet_local_001", generationJobId: "job_starter_001" });
+    const state = { ...createMockPhotoState(), acceptedAsset: idle, acceptedAssets: [idle] };
+    const { client, rpcCalls } = createFakeSupabaseClient({
+      rpcData: [
+        {
+          job_id: "job_starter_001",
+          state: "happy",
+          storage_path: "avatars/user/job_starter_001/happy.png",
+          width: 512,
+          height: 512
+        },
+        {
+          job_id: "job_starter_001",
+          state: "sleep",
+          storage_path: "avatars/user/job_starter_001/sleep.png",
+          width: 512,
+          height: 512
+        }
+      ]
+    });
+
+    const result = await unlockSupabaseStarterPosesForCareAction(client as never, state, "rest", "2026-07-03T09:20:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets.map((asset) => asset.state)).toEqual(["happy", "sleep"]);
+    expect(rpcCalls).toEqual([
+      {
+        fn: "unlock_starter_poses_for_care_action",
+        args: { p_action: "rest", p_job_id: "job_starter_001" }
+      }
+    ]);
   });
 });
 

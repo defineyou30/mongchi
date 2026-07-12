@@ -44,6 +44,16 @@ const baseContext = (wallet: CreditWallet, hasPremiumChatEntitlement = false): P
   hasPremiumChatEntitlement
 });
 
+const koreanContext = (wallet: CreditWallet): PremiumChatSessionContext => ({
+  ...baseContext(wallet),
+  locale: "ko-KR"
+});
+
+const brazilianPortugueseContext = (wallet: CreditWallet): PremiumChatSessionContext => ({
+  ...baseContext(wallet),
+  locale: "pt-BR"
+});
+
 const emptyThread: PremiumChatThreadState = { conversationId: null, messages: [] };
 
 const conversation: ChatTurnResponse["conversation"] = {
@@ -120,7 +130,7 @@ describe("startApiPremiumChatThread", () => {
     expect(invokeSupabaseChatTurnMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces a session error instead of a fake-ready thread", async () => {
+  it("uses deterministic localized copy for a session error instead of a fake-ready thread", async () => {
     const sessionError: MobileApiError = {
       status: 0,
       code: "supabase_anonymous_sign_in_failed",
@@ -131,7 +141,10 @@ describe("startApiPremiumChatThread", () => {
 
     const result = await startApiPremiumChatThread(fakeClient, "pet_mobile_001");
 
-    expect(result).toEqual({ ok: false, error: sessionError });
+    expect(result).toEqual({
+      ok: false,
+      error: { ...sessionError, messageSafe: "Could not start your cozy chat session. Try again." }
+    });
     expect(loadSupabasePremiumChatThreadMock).not.toHaveBeenCalled();
   });
 
@@ -173,6 +186,50 @@ describe("sendApiPremiumChatTurn", () => {
       error: { status: 0, code: "chat_locked", messageSafe: "Use a ticket, credit, or Plus pass to keep chatting.", retryable: false }
     });
     expect(invokeSupabaseChatTurnMock).not.toHaveBeenCalled();
+  });
+
+  it("returns Korean deterministic validation errors for a Korean chat", async () => {
+    const wallet: CreditWallet = { userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    const emptyResult = await sendApiPremiumChatTurn(fakeClient, {
+      context: koreanContext(wallet),
+      currentThread: emptyThread,
+      text: "  "
+    });
+    const lockedResult = await sendApiPremiumChatTurn(fakeClient, {
+      context: koreanContext(wallet),
+      currentThread: emptyThread,
+      text: "안녕"
+    });
+
+    expect(emptyResult).toMatchObject({ ok: false, error: { code: "empty_message", messageSafe: "먼저 짧은 메시지를 적어주세요." } });
+    expect(lockedResult).toMatchObject({ ok: false, error: { code: "chat_locked", messageSafe: "무료 대화, 크레딧 또는 Plus 패스로 대화를 이어갈 수 있어요." } });
+  });
+
+  it("returns Brazilian Portuguese validation copy and sends the normalized locale", async () => {
+    const lockedWallet: CreditWallet = { userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+    const availableWallet: CreditWallet = { ...lockedWallet, freeChatTickets: 1 };
+
+    const emptyResult = await sendApiPremiumChatTurn(fakeClient, {
+      context: brazilianPortugueseContext(lockedWallet),
+      currentThread: emptyThread,
+      text: "  "
+    });
+    const lockedResult = await sendApiPremiumChatTurn(fakeClient, {
+      context: brazilianPortugueseContext(lockedWallet),
+      currentThread: emptyThread,
+      text: "olá"
+    });
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome());
+    await sendApiPremiumChatTurn(fakeClient, {
+      context: brazilianPortugueseContext(availableWallet),
+      currentThread: emptyThread,
+      text: "olá"
+    });
+
+    expect(emptyResult).toMatchObject({ ok: false, error: { code: "empty_message", messageSafe: "Escreva uma mensagem curtinha primeiro." } });
+    expect(lockedResult).toMatchObject({ ok: false, error: { code: "chat_locked", messageSafe: "Use um ingresso, crédito ou passe Plus para continuar a conversa." } });
+    expect(invokeSupabaseChatTurnMock).toHaveBeenCalledWith(fakeClient, expect.objectContaining({ locale: "pt-BR" }));
   });
 
   it("sends charge:free and spends one local ticket on a successful free-ticket turn", async () => {
@@ -286,7 +343,7 @@ describe("sendApiPremiumChatTurn", () => {
     expect(result.thread.messages[1]?.sender).toBe("system");
   });
 
-  it("leaves the wallet untouched and surfaces the error when chat-turn fails", async () => {
+  it("leaves the wallet untouched and uses deterministic copy when chat-turn fails", async () => {
     const error: MobileApiError = {
       status: 402,
       code: "insufficient_credits",
@@ -299,6 +356,31 @@ describe("sendApiPremiumChatTurn", () => {
 
     const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
-    expect(result).toEqual({ ok: false, error });
+    expect(result).toEqual({
+      ok: false,
+      error: { ...error, messageSafe: "You're out of credits for this chat. More cozy talks can wait until you're ready." }
+    });
+  });
+
+  it("localizes deterministic server errors before a Korean screen renders them", async () => {
+    const error: MobileApiError = {
+      status: 429,
+      code: "rate_limited",
+      messageSafe: "Please wait before trying again.",
+      retryable: true
+    };
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(failOutcome(error));
+    const wallet: CreditWallet = { userId: "u1", credits: 1, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    const result = await sendApiPremiumChatTurn(fakeClient, {
+      context: koreanContext(wallet),
+      currentThread: emptyThread,
+      text: "안녕"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "rate_limited", messageSafe: "대화가 잠깐 쉬어갈 시간이 필요해요. 곧 다시 시도해 주세요." }
+    });
   });
 });

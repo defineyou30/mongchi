@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
@@ -11,16 +12,17 @@ export function OnboardingScreen() {
   const { height, width } = useWindowDimensions();
   const compact = height < 720 || width < 380;
   const fontFamilies = useFontFamilies();
+  const { t } = useTranslation();
 
   return (
     <GardenSceneFrame
-      accessibilityLabel="Tiny pet photo intro"
+      accessibilityLabel={t("photoIntro.accessibilityLabel")}
       contentStyle={compact ? styles.compactContent : null}
       includeBottomEdge
       innerStyle={compact ? styles.compactInner : null}
     >
       <OnboardingStoryArt
-        accessibilityLabel="One dog photo opening into a tiny garden home"
+        accessibilityLabel={t("photoIntro.artAccessibilityLabel")}
         compact={compact}
         variant="welcome"
         style={[styles.hero, compact ? styles.compactHero : null]}
@@ -33,37 +35,37 @@ export function OnboardingScreen() {
             accessibilityRole="header"
             style={[styles.title, { fontFamily: fontFamilies.display }, compact ? styles.compactTitle : null]}
           >
-            Raise your beloved dog in your hands
+            {t("photoIntro.title")}
           </Text>
           <Text style={[styles.welcomeCopy, { fontFamily: fontFamilies.body }, compact ? styles.compactWelcomeCopy : null]}>
-            Start with one clear dog photo, add their name and personality, then meet the little friend waiting in your garden.
+            {t("photoIntro.body")}
           </Text>
         </View>
 
         <View style={styles.questRow}>
           <View style={styles.questPip}>
             <MongchiIcon id="camera" size={20} />
-            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>Photo</Text>
+            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>{t("photoIntro.quest.photo")}</Text>
           </View>
           <View style={styles.questPip}>
             <MongchiIcon id="paw" size={20} />
-            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>Name</Text>
+            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>{t("photoIntro.quest.name")}</Text>
           </View>
           <View style={styles.questPip}>
             <MongchiIcon id="affection" size={20} />
-            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>Move in</Text>
+            <Text style={[styles.questText, { fontFamily: fontFamilies.label }]}>{t("photoIntro.quest.moveIn")}</Text>
           </View>
         </View>
 
         <View style={styles.photoNotice}>
           <MongchiIcon id="shield-check" size={22} />
           <Text style={[styles.noticeText, { fontFamily: fontFamilies.body }, compact ? styles.compactNoticeText : null]}>
-            Your dog's photo is only used to create your tiny friend. Delete the original anytime after they move in.
+            {t("photoIntro.privacy")}
           </Text>
         </View>
       </View>
 
-      <ActionButton label="Choose dog photo" iconId="camera" onPress={() => router.push("/photo-upload")} />
+      <ActionButton label={t("photoIntro.choosePhoto")} iconId="camera" onPress={() => router.push("/photo-upload")} />
     </GardenSceneFrame>
   );
 }

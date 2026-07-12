@@ -12,6 +12,7 @@ export * from "./conversation";
 export * from "./dayNightCycle";
 export * from "./entitlements";
 export * from "./expressionPacks";
+export * from "./starterPoseUnlocks";
 export * from "./generation";
 export * from "./inventory";
 export * from "./monthlyLetter";

@@ -199,6 +199,31 @@ describe("premium chat providers", () => {
     });
   });
 
+  it("preserves Japanese in the generated prompt and localizes a provider refusal", async () => {
+    const requests: Array<{ url: string; init: Parameters<OpenAiPremiumChatFetch>[1] }> = [];
+    const provider = createOpenAiPremiumChatProvider({
+      apiKey: "sk-premium-chat",
+      fetch: async (url, init) => {
+        requests.push({ url, init });
+        return responseWithRefusal();
+      }
+    });
+
+    const result = await provider.generateReply({
+      ...providerInput,
+      auth: {
+        ...providerInput.auth,
+        locale: "ja-JP",
+        timezone: "Asia/Tokyo"
+      }
+    });
+    expect(requests[0]?.init.body).toContain('\\"locale\\":\\"ja-JP\\"');
+    expect(result).toEqual({
+      text: "その話には今、安全に答えられないけれど、そばにいるよ。やさしい話をしよう。",
+      safetyFlags: ["provider_refusal"]
+    });
+  });
+
   it("fails closed for provider HTTP failures and missing runtime config", async () => {
     const provider = createOpenAiPremiumChatProvider({
       apiKey: "sk-premium-chat",

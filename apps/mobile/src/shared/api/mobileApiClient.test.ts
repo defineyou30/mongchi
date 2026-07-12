@@ -42,6 +42,8 @@ describe("mobile API client", () => {
     const client = createMobileApiClient({
       baseUrl: "https://api.example.com/",
       authTokenProvider: () => "session-token",
+      localeProvider: () => "ja-JP",
+      timezoneProvider: () => "Asia/Tokyo",
       fetchImpl
     });
 
@@ -52,7 +54,9 @@ describe("mobile API client", () => {
     expect(calls[0]?.url).toBe("https://api.example.com/v1/generation-jobs/gen%20id%2Fwith%20slash");
     expect(calls[0]?.init.headers).toMatchObject({
       Accept: "application/json",
-      Authorization: "Bearer session-token"
+      Authorization: "Bearer session-token",
+      "x-locale": "ja-JP",
+      "x-timezone": "Asia/Tokyo"
     });
     expect(JSON.stringify(calls[0]?.init)).not.toMatch(/openai|provider|secret|receipt/i);
   });

@@ -1,6 +1,6 @@
-import { ArrowRight, PawPrint } from "lucide-react-native";
 import { router } from "expo-router";
 import { Text, TextInput, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import type { PersonalityTag, TalkingStyle } from "@mongchi/shared";
 
@@ -8,77 +8,78 @@ import { colors, useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { Chip } from "../../shared/ui/Chip";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { OnboardingStoryArt } from "../../shared/ui/OnboardingStoryArt";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { petSetupScreenStyles as styles } from "./petSetupScreen.styles";
-import { getPetSetupSummaryPresentation } from "./petSetupPresentation";
+const personalityOptions = [
+  { value: "playful", labelKey: "petSetup.personality.playful" },
+  { value: "calm", labelKey: "petSetup.personality.calm" },
+  { value: "shy", labelKey: "petSetup.personality.shy" },
+  { value: "curious", labelKey: "petSetup.personality.curious" },
+  { value: "sleepy", labelKey: "petSetup.personality.sleepy" },
+  { value: "affectionate", labelKey: "petSetup.personality.affectionate" }
+] as const satisfies readonly { readonly value: PersonalityTag; readonly labelKey: string }[];
 
-const personalityOptions: Array<{ value: PersonalityTag; label: string }> = [
-  { value: "playful", label: "Playful" },
-  { value: "calm", label: "Calm" },
-  { value: "shy", label: "Shy" },
-  { value: "curious", label: "Curious" },
-  { value: "sleepy", label: "Sleepy" },
-  { value: "affectionate", label: "Affectionate" }
-];
-
-const talkingStyleOptions: Array<{ value: TalkingStyle; label: string }> = [
-  { value: "cute", label: "Cute" },
-  { value: "gentle", label: "Gentle" },
-  { value: "cheerful", label: "Cheerful" },
-  { value: "comforting", label: "Comforting" }
-];
+const talkingStyleOptions = [
+  { value: "cute", labelKey: "petSetup.voice.cute" },
+  { value: "gentle", labelKey: "petSetup.voice.gentle" },
+  { value: "cheerful", labelKey: "petSetup.voice.cheerful" },
+  { value: "comforting", labelKey: "petSetup.voice.comforting" }
+] as const satisfies readonly { readonly value: TalkingStyle; readonly labelKey: string }[];
 
 export function PetSetupScreen() {
   const { draft, canContinuePetSetup, updateDraft, togglePersonalityTag, startMockGeneration } = useTerrariumSession();
-  const setupSummary = getPetSetupSummaryPresentation(draft);
   const fontFamilies = useFontFamilies();
+  const { t } = useTranslation();
+  const species = draft.species === "dog" ? t("petSetup.species.dog") : t("petSetup.species.cat");
+  const voice = t(`petSetup.voice.${draft.talkingStyle}`);
 
   return (
-    <GardenSceneFrame accessibilityLabel="Pet setup" includeBottomEdge innerStyle={styles.setupFlow}>
-      <BackButton accessibilityLabel="Back to photo" onPress={() => router.replace("/photo-upload")} />
+    <GardenSceneFrame accessibilityLabel={t("petSetup.accessibilityLabel")} includeBottomEdge innerStyle={styles.setupFlow}>
+      <BackButton accessibilityLabel={t("petSetup.back")} onPress={() => router.replace("/photo-upload")} />
 
-      <OnboardingStoryArt accessibilityLabel="Tiny pet moving-in desk with name tag and cozy bed" style={styles.storyArt} variant="profile" />
+      <OnboardingStoryArt accessibilityLabel={t("petSetup.artAccessibilityLabel")} style={styles.storyArt} variant="profile" />
 
       <View style={styles.titleLockup}>
         <View style={styles.eyebrowTag}>
-          <Text style={[styles.eyebrow, { fontFamily: fontFamilies.label }]}>Moving-in papers</Text>
+          <Text style={[styles.eyebrow, { fontFamily: fontFamilies.label }]}>{t("petSetup.eyebrow")}</Text>
         </View>
         <Text accessibilityRole="header" style={[styles.title, { fontFamily: fontFamilies.display }]}>
-          Give your tiny friend a name
+          {t("petSetup.title")}
         </Text>
-        <Text style={[styles.setupCaption, { fontFamily: fontFamilies.body }]}>{setupSummary.detailLabel} · getting ready to move in</Text>
+        <Text style={[styles.setupCaption, { fontFamily: fontFamilies.body }]}>{t("petSetup.summary", { species, voice })}</Text>
       </View>
 
       <View style={styles.setupCard}>
         <View style={styles.namePlate}>
           <View style={styles.namePlateIcon}>
-            <PawPrint color={colors.woodDark} size={18} strokeWidth={2.7} />
+            <MongchiIcon id="paw" size={28} />
           </View>
           <TextInput
-            accessibilityLabel="Pet name"
+            accessibilityLabel={t("petSetup.petName")}
             value={draft.name}
-            placeholder="Pet name"
+            placeholder={t("petSetup.petName")}
             placeholderTextColor={colors.mutedInk}
             autoCapitalize="words"
             style={[styles.input, styles.nameInput, { fontFamily: fontFamilies.title }]}
             onChangeText={(name) => updateDraft({ name })}
           />
         </View>
-        <Text style={[styles.sectionHint, { fontFamily: fontFamilies.body }]}>This is the name that will greet you at the door every day.</Text>
+        <Text style={[styles.sectionHint, { fontFamily: fontFamilies.body }]}>{t("petSetup.nameHint")}</Text>
       </View>
 
       <View style={styles.setupCard}>
         <View style={styles.sectionLabelRow}>
           <View style={styles.sectionLabelDot} />
-          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>How does your buddy feel today?</Text>
+          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>{t("petSetup.personalityQuestion")}</Text>
         </View>
         <View style={styles.chipRow}>
           {personalityOptions.map((option) => (
             <Chip
               key={option.value}
-              label={option.label}
+              label={t(option.labelKey)}
               selected={draft.personalityTags.includes(option.value)}
               onPress={() => togglePersonalityTag(option.value)}
             />
@@ -89,13 +90,13 @@ export function PetSetupScreen() {
 
         <View style={styles.sectionLabelRow}>
           <View style={styles.sectionLabelDot} />
-          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>What does their little voice sound like?</Text>
+          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>{t("petSetup.voiceQuestion")}</Text>
         </View>
         <View style={styles.chipRow}>
           {talkingStyleOptions.map((option) => (
             <Chip
               key={option.value}
-              label={option.label}
+              label={t(option.labelKey)}
               selected={draft.talkingStyle === option.value}
               onPress={() => updateDraft({ talkingStyle: option.value })}
             />
@@ -106,14 +107,14 @@ export function PetSetupScreen() {
       <View style={styles.setupCard}>
         <View style={styles.sectionLabelRow}>
           <View style={styles.sectionLabelDot} />
-          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>What do they already love?</Text>
+          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>{t("petSetup.favoriteQuestion")}</Text>
         </View>
         <View style={styles.favoritePlate}>
-          <PawPrint color={colors.woodDark} size={18} strokeWidth={2.7} />
+          <MongchiIcon id="paw" size={28} />
           <TextInput
-            accessibilityLabel="Favorite tiny thing"
+            accessibilityLabel={t("petSetup.favoriteThing")}
             value={draft.favoriteThing}
-            placeholder="Favorite tiny thing"
+            placeholder={t("petSetup.favoriteThing")}
             placeholderTextColor={colors.mutedInk}
             style={[styles.input, styles.favoriteInput, { fontFamily: fontFamilies.title }]}
             onChangeText={(favoriteThing) => updateDraft({ favoriteThing })}
@@ -124,14 +125,14 @@ export function PetSetupScreen() {
 
         <View style={styles.sectionLabelRow}>
           <View style={styles.sectionLabelDot} />
-          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>Any tiny memory to carry with them?</Text>
+          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>{t("petSetup.memoryQuestion")}</Text>
         </View>
         <View style={styles.favoritePlate}>
-          <PawPrint color={colors.woodDark} size={18} strokeWidth={2.7} />
+          <MongchiIcon id="paw" size={28} />
           <TextInput
-            accessibilityLabel="First tiny memory"
+            accessibilityLabel={t("petSetup.firstMemory")}
             value={draft.firstMemory ?? ""}
-            placeholder="A little memory with your buddy…"
+            placeholder={t("petSetup.firstMemoryPlaceholder")}
             placeholderTextColor={colors.mutedInk}
             style={[styles.input, styles.favoriteInput, { fontFamily: fontFamilies.title }]}
             onChangeText={(firstMemory) => updateDraft({ firstMemory })}
@@ -140,8 +141,8 @@ export function PetSetupScreen() {
       </View>
 
       <ActionButton
-        label="Continue"
-        Icon={ArrowRight}
+        label={t("common.actions.continue")}
+        iconId="forward"
         disabled={!canContinuePetSetup}
         onPress={() => {
           startMockGeneration();
@@ -149,7 +150,7 @@ export function PetSetupScreen() {
         }}
       />
       {!canContinuePetSetup ? (
-        <Text style={[styles.continueHint, { fontFamily: fontFamilies.body }]}>Pick a name, a mood, and a voice to continue.</Text>
+        <Text style={[styles.continueHint, { fontFamily: fontFamilies.body }]}>{t("petSetup.continueHint")}</Text>
       ) : null}
 
     </GardenSceneFrame>

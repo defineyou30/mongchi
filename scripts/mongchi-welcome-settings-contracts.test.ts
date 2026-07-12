@@ -40,12 +40,49 @@ describe("Mongchi Welcome and Settings icon contracts", () => {
     }
   });
 
+  it("uses the shared pixel-gloss icon set throughout pet creation and the first-home welcome", () => {
+    const flowIconIdsBySource = {
+      "features/photoUpload/PhotoUploadScreen.tsx": ["add-photo", "camera", "check", "forward"],
+      "features/petSetup/PetSetupScreen.tsx": ["paw", "forward"],
+      "features/generation/GenerationScreen.tsx": ["sparkles", "affection", "gift", "alert", "forward", "refresh"],
+      "features/petReveal/PetRevealScreen.tsx": ["forward", "share"]
+    } as const;
+
+    for (const [relativePath, iconIds] of Object.entries(flowIconIdsBySource)) {
+      const source = readMobileSource(relativePath);
+
+      expect(source, relativePath).not.toContain("lucide-react-native");
+      for (const iconId of iconIds) {
+        expect(source, `${relativePath} should use ${iconId}`).toContain(`\"${iconId}\"`);
+      }
+    }
+
+    const homeSource = readMobileSource("features/terrarium/TerrariumHomeScreen.tsx");
+    const welcomeModalStart = homeSource.indexOf('<Modal animationType="fade" transparent visible={welcomeVisible}');
+    const welcomeModalEnd = homeSource.indexOf("</Modal>", welcomeModalStart);
+    const welcomeModalSource = homeSource.slice(welcomeModalStart, welcomeModalEnd);
+
+    expect(welcomeModalStart).toBeGreaterThanOrEqual(0);
+    expect(welcomeModalEnd).toBeGreaterThan(welcomeModalStart);
+    expect(welcomeModalSource).toContain('id="food"');
+    expect(welcomeModalSource).toContain('id="chat"');
+    expect(welcomeModalSource).toContain('id="streak"');
+    expect(welcomeModalSource).not.toMatch(/<Utensils|<MessageCircle|<Flame/);
+  });
+
   it("keeps the welcome promise progressive, dog-only, and routed to photo intro", () => {
     const source = readMobileSource("features/onboarding/WelcomeOnboardingScreen.tsx");
+    const englishResource = readMobileSource("localization/resources/en-US.ts");
+    const welcomeResourceStart = englishResource.indexOf("  welcome: {");
+    const welcomeResourceEnd = englishResource.indexOf("  photoIntro: {", welcomeResourceStart);
+    const welcomeResource = englishResource.slice(welcomeResourceStart, welcomeResourceEnd);
 
-    expect(source.match(/step: "Step [123]"/g)).toHaveLength(3);
-    expect(source).not.toMatch(/cat|kitten|feline/i);
-    expect(source.match(/^\s{4}body: "/gm)).toHaveLength(3);
+    expect(welcomeResourceStart).toBeGreaterThanOrEqual(0);
+    expect(welcomeResourceEnd).toBeGreaterThan(welcomeResourceStart);
+    expect(welcomeResource.match(/step: "Step [123]"/g)).toHaveLength(3);
+    expect(welcomeResource).not.toMatch(/cat|kitten|feline/i);
+    expect(welcomeResource.match(/body: "/g)).toHaveLength(3);
+    expect(source.match(/welcome\.slides\.(first|second|third)\.body/g)).toHaveLength(3);
     expect(source).toContain("router.replace(\"/onboarding\")");
     expect(source).toContain("markWelcomeOnboardingSeen");
   });

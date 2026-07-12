@@ -1,6 +1,6 @@
 export type ISODateTime = string;
 
-export type Locale = "ko-KR" | "en-US";
+export type Locale = "en-US" | "ko-KR" | "ja-JP" | "zh-TW" | "de-DE" | "fr-FR" | "pt-BR" | "es-MX";
 
 export type UserId = string;
 export type PetId = string;

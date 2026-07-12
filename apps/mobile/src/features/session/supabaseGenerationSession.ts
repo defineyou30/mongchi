@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { canCreatePet, generationStepStatuses } from "@mongchi/shared";
 import type {
+  CareActionType,
   GeneratedAsset,
   GeneratedAssetState,
   GenerationJobStatus,
@@ -66,7 +67,8 @@ const toLocalGenerationState = (
   pollAttemptCount: number,
   failure?: { failureCode?: string | null; failureMessageSafe?: string | null }
 ): PrototypeSessionState["generation"] => {
-  const currentStepIndex = Math.max(0, generationStepStatuses.indexOf(status));
+  const progressStatus = status === "cleanup_pending" ? "quality_checking" : status;
+  const currentStepIndex = Math.max(0, generationStepStatuses.indexOf(progressStatus));
   const terminal = status === "completed" || status === "failed";
 
   return {
@@ -171,8 +173,6 @@ const prepareOriginalPhotoForUpload = async (
   };
 };
 
-const generateOriginalPhotoObjectName = (): string => `${Crypto.randomUUID()}.jpg`;
-
 interface UploadedOriginalPhoto {
   storagePath: string;
 }
@@ -180,10 +180,11 @@ interface UploadedOriginalPhoto {
 const uploadOriginalPhoto = async (
   client: SupabaseClient,
   userId: string,
-  preparedUri: string
+  preparedUri: string,
+  requestId: string
 ): Promise<{ ok: true; data: UploadedOriginalPhoto } | { ok: false; error: MobileApiError }> => {
   try {
-    const storagePath = `original-photos/${userId}/${generateOriginalPhotoObjectName()}`;
+    const storagePath = `original-photos/${userId}/${encodeURIComponent(requestId)}.jpg`;
 
     // React Native's fetch(uri) -> arrayBuffer() -> upload(bytes) path serializes
     // the whole image across the JS<->native bridge as a single message, which
@@ -230,7 +231,7 @@ const uploadOriginalPhoto = async (
         Authorization: `Bearer ${accessToken}`,
         apikey: supabaseAnonKey,
         "Content-Type": "image/jpeg",
-        "x-upsert": "false"
+        "x-upsert": "true"
       },
       uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT
     });
@@ -334,6 +335,21 @@ const invokeGenerateAvatarWithBody = async (
       };
     }
 
+    if (status === 409) {
+      const errorBody = await readInvokeErrorBody(context);
+
+      if (errorBody?.error === "idempotency_conflict") {
+        return {
+          ok: false,
+          error: toMobileError(
+            409,
+            "idempotency_conflict",
+            errorBody.message ?? "This pose-pack request no longer matches. Please start it again."
+          )
+        };
+      }
+    }
+
     if (status === 429) {
       return {
         ok: false,
@@ -367,18 +383,21 @@ const invokeGenerateAvatarWithBody = async (
 const invokeGenerateAvatar = (
   client: SupabaseClient,
   state: PrototypeSessionState,
-  originalPhotoPath: string
+  originalPhotoPath: string,
+  requestId: string
 ): Promise<InvokeGenerateAvatarOutcome> =>
   invokeGenerateAvatarWithBody(client, {
     inputSnapshot: buildGenerationInputSnapshot(state.draft),
-    originalPhotoPath
+    originalPhotoPath,
+    request_id: requestId
   });
 
 const startSupabaseGenerationFlowInner = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
   now: string,
-  manipulate: typeof manipulateAsync = manipulateAsync
+  manipulate: typeof manipulateAsync,
+  requestId: string
 ): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const sourcePhoto = resolveSourcePhotoUri(state);
 
@@ -429,13 +448,13 @@ const startSupabaseGenerationFlowInner = async (
     );
   }
 
-  const uploaded = await uploadOriginalPhoto(client, session.userId, preparedUri);
+  const uploaded = await uploadOriginalPhoto(client, session.userId, preparedUri, requestId);
 
   if (!uploaded.ok) {
     return uploaded;
   }
 
-  const invoked = await invokeGenerateAvatar(client, state, uploaded.data.storagePath);
+  const invoked = await invokeGenerateAvatar(client, state, uploaded.data.storagePath, requestId);
 
   if (!invoked.ok) {
     return invoked;
@@ -505,10 +524,11 @@ export const startSupabaseGenerationFlow = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
   now: string,
-  manipulate: typeof manipulateAsync = manipulateAsync
+  manipulate: typeof manipulateAsync = manipulateAsync,
+  requestId: string = Crypto.randomUUID()
 ): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   try {
-    return await startSupabaseGenerationFlowInner(client, state, now, manipulate);
+    return await startSupabaseGenerationFlowInner(client, state, now, manipulate, requestId);
   } catch (cause) {
     console.warn("[generation] start flow threw:", cause instanceof Error ? cause.message : String(cause));
     reporter.captureMessage("generation: start flow threw", {
@@ -533,8 +553,12 @@ interface GenerationJobRow {
   required_states: string[] | null;
   created_at: string;
   updated_at: string;
+  lease_expires_at: string | null;
   generated_assets: GeneratedAssetRow[] | null;
 }
+
+const generationJobPollSelect =
+  "id,status,failure_code,failure_message_safe,required_states,created_at,updated_at,lease_expires_at,generated_assets(job_id,state,storage_path,width,height)";
 
 interface GeneratedAssetRow {
   job_id: string;
@@ -633,7 +657,7 @@ const pollSupabaseGenerationFlowInner = async (
 
   const polled = await client
     .from("generation_jobs")
-    .select("*, generated_assets(*)")
+    .select(generationJobPollSelect)
     .eq("id", jobId)
     .single();
 
@@ -644,25 +668,61 @@ const pollSupabaseGenerationFlowInner = async (
   const job = polled.data as GenerationJobRow;
   const pollAttemptCount = (state.generation.pollAttemptCount ?? 0) + 1;
 
+  if (
+    job.status !== "completed" &&
+    job.status !== "failed" &&
+    (job.lease_expires_at === null || Date.parse(job.lease_expires_at) <= Date.parse(now))
+  ) {
+    const resumed = await client.functions.invoke("generate-avatar", {
+      body: { resume_job_id: job.id }
+    });
+
+    if (resumed.error) {
+      reporter.captureMessage("generation: stale job resume failed", {
+        jobId: job.id,
+        status: job.status
+      });
+    }
+  }
+
   const generation = toLocalGenerationState(job.status, now, state.generation.retryCount, pollAttemptCount, {
     failureCode: job.failure_code,
     failureMessageSafe: job.failure_message_safe
   });
 
   if (job.status !== "completed" || !job.generated_assets || job.generated_assets.length === 0) {
+    const visibleGeneration = job.status === "completed"
+      ? toLocalGenerationState("quality_checking", now, state.generation.retryCount, pollAttemptCount)
+      : generation;
     return {
       ok: true,
-      data: { generation }
+      data: { generation: visibleGeneration }
     };
   }
 
   const petId = state.petProfile?.id ?? job.id;
   const signedAssets = await signGeneratedAssetUrls(client, job.generated_assets, petId, now);
 
-  if (signedAssets.length === 0) {
+  const requiredStates = job.required_states && job.required_states.length > 0 ? job.required_states : ["idle"];
+  const signedStates = new Set<string>(signedAssets.map((asset) => asset.state));
+
+  if (requiredStates.some((state) => !signedStates.has(state))) {
     return {
       ok: true,
-      data: { generation }
+      data: {
+        generation: toLocalGenerationState("quality_checking", now, state.generation.retryCount, pollAttemptCount)
+      }
+    };
+  }
+
+  const idleAsset = signedAssets.find((asset) => asset.state === "idle") ?? signedAssets[0];
+
+  if (!idleAsset) {
+    return {
+      ok: true,
+      data: {
+        generation: toLocalGenerationState("quality_checking", now, state.generation.retryCount, pollAttemptCount)
+      }
     };
   }
 
@@ -670,7 +730,7 @@ const pollSupabaseGenerationFlowInner = async (
     ok: true,
     data: {
       generation,
-      acceptedAsset: signedAssets[0]!,
+      acceptedAsset: idleAsset,
       acceptedAssets: signedAssets
     }
   };
@@ -710,12 +770,32 @@ export const retrySupabaseGenerationFlow = async (
   client: SupabaseClient,
   state: PrototypeSessionState & PetBundle,
   now: string,
-  manipulate: typeof manipulateAsync = manipulateAsync
+  manipulate: typeof manipulateAsync = manipulateAsync,
+  requestId: string = Crypto.randomUUID()
 ): Promise<SupabaseGenerationFlowResult<Partial<PrototypeSessionState> & Partial<PetBundle>>> => {
   const jobId = state.petProfile?.activeGenerationJobId;
 
   if (!jobId) {
-    return errorResult(toMobileError(0, "generation_job_missing", "Generation job could not be found."));
+    const replayed = await startSupabaseGenerationFlow(client, state, now, manipulate, requestId);
+
+    if (!replayed.ok) {
+      return replayed;
+    }
+
+    if (!replayed.data.generation) {
+      return errorResult(toMobileError(0, "generate_avatar_response_invalid", "Could not reconnect to your companion. Try again.", true));
+    }
+
+    return {
+      ok: true,
+      data: {
+        ...replayed.data,
+        generation: {
+          ...replayed.data.generation,
+          retryCount: state.generation.retryCount + 1
+        }
+      }
+    };
   }
 
   const session = await ensureSupabaseSession(client);
@@ -788,13 +868,13 @@ export const retrySupabaseGenerationFlow = async (
     };
   }
 
-  const uploaded = await uploadOriginalPhoto(client, session.userId, preparedUri);
+  const uploaded = await uploadOriginalPhoto(client, session.userId, preparedUri, requestId);
 
   if (!uploaded.ok) {
     return uploaded;
   }
 
-  const invoked = await invokeGenerateAvatar(client, state, uploaded.data.storagePath);
+  const invoked = await invokeGenerateAvatar(client, state, uploaded.data.storagePath, requestId);
 
   if (!invoked.ok) {
     return invoked;
@@ -1028,7 +1108,7 @@ const pollSupabaseExpressionPackFlowInner = async (
 
   const polled = await client
     .from("generation_jobs")
-    .select("*, generated_assets(*)")
+    .select(generationJobPollSelect)
     .eq("id", jobId)
     .single();
 
@@ -1037,6 +1117,23 @@ const pollSupabaseExpressionPackFlowInner = async (
   }
 
   const job = polled.data as GenerationJobRow;
+
+  if (
+    job.status !== "completed" &&
+    job.status !== "failed" &&
+    (job.lease_expires_at === null || Date.parse(job.lease_expires_at) <= Date.parse(now))
+  ) {
+    const resumed = await client.functions.invoke("generate-avatar", {
+      body: { resume_job_id: job.id }
+    });
+
+    if (resumed.error) {
+      reporter.captureMessage("expressionPack: stale job resume failed", {
+        jobId: job.id,
+        status: job.status
+      });
+    }
+  }
 
   if (job.status === "failed") {
     return {
@@ -1055,7 +1152,10 @@ const pollSupabaseExpressionPackFlowInner = async (
 
   const signedAssets = await signGeneratedAssetUrls(client, job.generated_assets, petId, now);
 
-  if (signedAssets.length === 0) {
+  const requiredStates = job.required_states ?? [];
+  const signedStateSet = new Set<string>(signedAssets.map((asset) => asset.state));
+
+  if (requiredStates.length === 0 || signedAssets.length !== requiredStates.length || requiredStates.some((state) => !signedStateSet.has(state))) {
     return { ok: true, data: { status: "pending", assets: [], failureMessageSafe: null } };
   }
 
@@ -1086,6 +1186,60 @@ export const pollSupabaseExpressionPackFlow = async (
       toMobileError(0, "generation_job_poll_failed", "Could not check on your companion's new expressions.", true)
     );
   }
+};
+
+export interface StarterPoseUnlockOutcome {
+  assets: GeneratedAsset[];
+}
+
+export const unlockSupabaseStarterPosesForCareAction = async (
+  client: SupabaseClient,
+  state: PrototypeSessionState & PetBundle,
+  action: CareActionType,
+  now: string
+): Promise<SupabaseGenerationFlowResult<StarterPoseUnlockOutcome>> => {
+  const session = await ensureSupabaseSession(client);
+
+  if (!session.ok) {
+    return { ok: false, error: session.error };
+  }
+
+  const idleAsset = state.acceptedAssets.find((asset) => asset.state === "idle") ?? state.acceptedAsset;
+
+  if (!idleAsset) {
+    return { ok: true, data: { assets: [] } };
+  }
+
+  const result = await client.rpc("unlock_starter_poses_for_care_action", {
+    p_action: action,
+    p_job_id: idleAsset.generationJobId
+  });
+
+  if (result.error) {
+    return errorResult(toMobileError(0, "starter_pose_unlock_failed", "That new pose needs another moment. Try the care action again.", true));
+  }
+
+  const returnedRows = Array.isArray(result.data) ? result.data : result.data ? [result.data] : [];
+  const rows: GeneratedAssetRow[] = [];
+
+  for (const row of returnedRows) {
+    if (
+      row &&
+      typeof row === "object" &&
+      typeof row.job_id === "string" &&
+      typeof row.state === "string" &&
+      typeof row.storage_path === "string" &&
+      typeof row.width === "number" &&
+      typeof row.height === "number"
+    ) {
+      rows.push(row as GeneratedAssetRow);
+    }
+  }
+
+  return {
+    ok: true,
+    data: { assets: await signGeneratedAssetUrls(client, rows, idleAsset.petId, now) }
+  };
 };
 
 // ---------------------------------------------------------------------------

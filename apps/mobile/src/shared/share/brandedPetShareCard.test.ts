@@ -6,9 +6,33 @@ describe("buildBrandedPetShareCardCopy", () => {
   it("builds a warm, branded dayless card without inventing a link", () => {
     expect(buildBrandedPetShareCardCopy({ petName: " Miso " })).toEqual({
       petName: "Miso",
+      heading: "MY TINY GARDEN FRIEND",
       warmLine: "A tiny friend, always close.",
-      attribution: "Made with MongChi",
+      attribution: "Made with Mongchi",
       publicUrl: null
+    });
+  });
+
+  it("builds a fully Korean branded card while preserving the pet name", () => {
+    expect(buildBrandedPetShareCardCopy({ petName: "Miso", daysTogether: 12, locale: "ko-KR" })).toMatchObject({
+      petName: "Miso",
+      heading: "나의 작은 정원 친구",
+      warmLine: "작은 정원에서 함께한 지 12일.",
+      attribution: "Mongchi에서 만들었어요"
+    });
+  });
+
+  it("builds Japanese and German branded cards without English fallback copy", () => {
+    expect(buildBrandedPetShareCardCopy({ petName: "Miso", daysTogether: 12, locale: "ja-JP" })).toMatchObject({
+      petName: "Miso",
+      heading: "小さな庭のお友だち",
+      warmLine: "小さな庭で一緒に過ごして12日。",
+      attribution: "Mongchiで作りました"
+    });
+    expect(buildBrandedPetShareCardCopy({ petName: "Miso", locale: "de-DE" })).toMatchObject({
+      heading: "MEIN KLEINER GARTENFREUND",
+      warmLine: "Ein kleiner Freund, immer ganz nah.",
+      attribution: "Erstellt mit Mongchi"
     });
   });
 

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Share2 } from "lucide-react-native";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
+import { normalizeAppLocale } from "../../localization/locale";
 import { playSfx } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPetAssets";
@@ -22,6 +23,8 @@ export function PetRevealScreen() {
   const { acceptGeneratedPet, acceptedAsset, activePet, generation, generatedAssetUriById, pollMockGeneration, retryMockGeneration } =
     useTerrariumSession();
   const fontFamilies = useFontFamilies();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const petAssetId = acceptedAsset?.id ?? getFallbackGeneratedPetAssetId(activePet.species, "happy");
   const petAssetUri = generatedAssetUriById[petAssetId] ?? null;
   const [isSharing, setIsSharing] = useState(false);
@@ -74,7 +77,7 @@ export function PetRevealScreen() {
       await sharePetCard({
         petName: activePet.name,
         brandedCardUri,
-        message: buildPetRevealShareMessage(activePet.name)
+        message: buildPetRevealShareMessage(activePet.name, locale)
       });
     } finally {
       setIsSharing(false);
@@ -82,20 +85,21 @@ export function PetRevealScreen() {
   };
 
   return (
-    <GardenSceneFrame accessibilityLabel={`${activePet.name}'s reveal`}>
+    <GardenSceneFrame accessibilityLabel={t("reveal.accessibilityLabel", { petName: activePet.name })}>
       <View style={styles.shareCaptureHost}>
         <BrandedPetShareCard
           ref={shareCardRef}
           assetId={petAssetId}
           petAssetUri={petAssetUri}
           petName={activePet.name}
+          locale={locale}
         />
       </View>
 
-      <BackButton accessibilityLabel="Back to moving-in" onPress={() => router.replace("/generation")} />
+      <BackButton accessibilityLabel={t("reveal.back")} onPress={() => router.replace("/generation")} />
 
       <TerrariumArt
-        accessibilityLabel={`${activePet.name}'s joyful pet reveal celebration`}
+        accessibilityLabel={t("reveal.artAccessibilityLabel", { petName: activePet.name })}
         petAssetId={petAssetId}
         petAssetUri={petAssetUri}
         scene="reveal"
@@ -105,24 +109,24 @@ export function PetRevealScreen() {
       >
         <View style={styles.namePlaque}>
           <Text numberOfLines={1} style={[styles.namePlaqueText, { fontFamily: fontFamilies.label }]}>
-            New friend
+            {t("reveal.plaque")}
           </Text>
         </View>
       </TerrariumArt>
 
       <View style={styles.copy}>
-        <Text style={[styles.eyebrow, { fontFamily: fontFamilies.label }]}>Pet reveal</Text>
+        <Text style={[styles.eyebrow, { fontFamily: fontFamilies.label }]}>{t("reveal.eyebrow")}</Text>
         <Text accessibilityRole="header" style={[styles.title, { fontFamily: fontFamilies.display }]}>
-          Meet {activePet.name}
+          {t("reveal.title", { petName: activePet.name })}
         </Text>
       </View>
 
       <View style={styles.actionPanel}>
-        <ActionButton label="Step into the garden" Icon={ArrowRight} onPress={handleAccept} />
+        <ActionButton label={t("reveal.enter")} iconId="forward" onPress={handleAccept} />
         <ActionButton
-          accessibilityLabel={`Share ${activePet.name}`}
-          label="Share"
-          Icon={Share2}
+          accessibilityLabel={t("reveal.shareAccessibilityLabel", { petName: activePet.name })}
+          label={t("common.actions.share")}
+          iconId="share"
           variant="secondary"
           size="compact"
           disabled={isSharing}
@@ -131,14 +135,14 @@ export function PetRevealScreen() {
       </View>
 
       <View style={styles.notQuiteRightRow}>
-        <Text style={[styles.notQuiteRightLabel, { fontFamily: fontFamilies.body }]}>Not quite right?</Text>
+        <Text style={[styles.notQuiteRightLabel, { fontFamily: fontFamilies.body }]}>{t("reveal.notRight")}</Text>
         <View style={styles.notQuiteRightLinks}>
           <Pressable accessibilityRole="button" hitSlop={8} onPress={handleRetry}>
-            <Text style={[styles.textLink, { fontFamily: fontFamilies.label }]}>Try again</Text>
+            <Text style={[styles.textLink, { fontFamily: fontFamilies.label }]}>{t("common.actions.tryAgain")}</Text>
           </Pressable>
           <Text style={[styles.textLinkDivider, { fontFamily: fontFamilies.body }]}>·</Text>
           <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push("/support")}>
-            <Text style={[styles.textLink, { fontFamily: fontFamilies.label }]}>Report issue</Text>
+            <Text style={[styles.textLink, { fontFamily: fontFamilies.label }]}>{t("common.actions.reportIssue")}</Text>
           </Pressable>
         </View>
       </View>

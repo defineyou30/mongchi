@@ -61,61 +61,36 @@ const flowContracts = [
   {
     label: "splash restore routing",
     path: "apps/mobile/src/features/onboarding/SplashScreen.tsx",
-    fragments: ["getConfiguredQaScreenPresetRoute", "qaScreenPresetRoute", "/terrarium", "/onboarding"]
+    fragments: ["getConfiguredQaScreenPresetRoute", "getConfiguredStoreScreenshotPresetRoute", "getInitialPetLaunchRoute"]
+  },
+  {
+    label: "initial launch route resolution",
+    path: "apps/mobile/src/features/onboarding/initialPetLaunchRoute.ts",
+    fragments: ['return "/terrarium"', 'return "/pet-reveal"', 'return "/generation"', 'return "/pet-setup"', 'return hasSeenWelcome ? "/onboarding" : "/welcome"']
   },
   {
     label: "welcome to photo upload",
     path: "apps/mobile/src/features/onboarding/OnboardingScreen.tsx",
-    fragments: ['label="Choose pet photo"', 'router.push("/photo-upload")']
+    fragments: ['label={t("photoIntro.choosePhoto")}', 'router.push("/photo-upload")']
   },
   {
     label: "photo upload to pet setup",
     path: "apps/mobile/src/features/photoUpload/PhotoUploadScreen.tsx",
-    fragments: ['label="Photo library"', 'label="Camera"', 'label="Continue"', 'router.push("/pet-setup")']
+    fragments: ['label={t("photoUpload.library")}', 'label={t("common.actions.camera")}', 'label={t("common.actions.continue")}', 'router.push("/pet-setup")']
   },
   {
     label: "pet setup to generation",
     path: "apps/mobile/src/features/petSetup/PetSetupScreen.tsx",
-    fragments: ['label="Continue"', 'router.push("/generation")']
-  },
-  {
-    label: "first-session progress rail",
-    path: "apps/mobile/src/features/firstSession/firstSessionProgressPresentation.ts",
-    fragments: ['"welcome"', '"setup"', '"photo"', '"hatch"', '"reveal"', "First session progress"]
-  },
-  {
-    label: "first-session progress rail applied to welcome",
-    path: "apps/mobile/src/features/onboarding/OnboardingScreen.tsx",
-    fragments: ["FirstSessionProgress", 'currentStep="welcome"']
-  },
-  {
-    label: "first-session progress rail applied to setup",
-    path: "apps/mobile/src/features/petSetup/PetSetupScreen.tsx",
-    fragments: ["FirstSessionProgress", 'currentStep="setup"']
-  },
-  {
-    label: "first-session progress rail applied to photo",
-    path: "apps/mobile/src/features/photoUpload/PhotoUploadScreen.tsx",
-    fragments: ["FirstSessionProgress", 'currentStep="photo"']
-  },
-  {
-    label: "first-session progress rail applied to hatching",
-    path: "apps/mobile/src/features/generation/GenerationScreen.tsx",
-    fragments: ["FirstSessionProgress", 'currentStep="hatch"']
-  },
-  {
-    label: "first-session progress rail applied to reveal",
-    path: "apps/mobile/src/features/petReveal/PetRevealScreen.tsx",
-    fragments: ["FirstSessionProgress", 'currentStep="reveal"']
+    fragments: ['label={t("common.actions.continue")}', "startMockGeneration", 'router.push("/generation")']
   },
   {
     label: "generation to reveal",
     path: "apps/mobile/src/features/generation/GenerationScreen.tsx",
     fragments: [
-      'label="Reveal pet"',
+      'label={t("generation.reveal")}',
       'router.push("/pet-reveal")',
-      'label="Continue hatching"',
-      'label="Choose another photo"',
+      'label={t("common.actions.continue")}',
+      'label={t("common.actions.chooseAnotherPhoto")}',
       'router.push("/photo-upload")'
     ]
   },
@@ -123,12 +98,13 @@ const flowContracts = [
     label: "reveal to terrarium",
     path: "apps/mobile/src/features/petReveal/PetRevealScreen.tsx",
     fragments: [
-      'label="Enter terrarium"',
+      'label={t("reveal.enter")}',
+      "acceptGeneratedPet",
       'router.replace("/terrarium")',
-      'label="Try again"',
+      't("common.actions.tryAgain")',
       "retryMockGeneration",
       'router.push("/generation")',
-      'label="Report issue"',
+      't("common.actions.reportIssue")',
       'router.push("/support")'
     ]
   },
@@ -148,17 +124,16 @@ const flowContracts = [
     label: "premium chat gate",
     path: "apps/mobile/src/features/chat/ChatGateScreen.tsx",
     fragments: [
-      "premiumChatGate.disclosureText",
+      't("chat.disclosure")',
       "startApiPremiumChatThread",
       "sendApiPremiumChatTurn",
       "getShortChatReplyText",
       "getPremiumChatAccessPresentation",
       "premiumChatAccess.ctaLabel",
-      "View Plus pass",
       "premiumGate",
-      "Premium chat message",
+      't("chat.inputAccessibilityLabel")',
       'router.push("/shop")',
-      "Back home",
+      't("chat.back")',
       'router.replace("/terrarium")'
     ]
   },
@@ -167,31 +142,29 @@ const flowContracts = [
     path: "apps/mobile/src/features/chat/chatGatePresentation.ts",
     fragments: [
       "getPremiumChatAccessPresentation",
-      "Start long chat",
-      "Long chat preview",
-      "Plus chat locked",
-      "Tickets and credits are saved for Plus chat."
+      "getLocalizedText",
+      '"en-US"',
+      '"ko-KR"',
+      '"es-MX"'
     ]
   },
   {
     label: "inventory to shop",
     path: "apps/mobile/src/features/inventory/InventoryScreen.tsx",
     fragments: [
-      'label="Back home"',
+      'label={t("common.actions.backHome")}',
       'router.push("/terrarium")',
-      'label="Shop"',
+      'label={t("inventory.shop")}',
       'router.push("/shop")',
-      "placeInventoryItem",
-      "removePlacedItem",
-      '"Place"',
-      '"Remove"'
+      "getHomeDockActionForItem",
+      "openTray"
     ]
   },
   {
     label: "shop return path",
     path: "apps/mobile/src/features/shop/ShopPreviewScreen.tsx",
     fragments: [
-      'accessibilityLabel="Back home"',
+      'backAccessibilityLabel={t("shop.back")}',
       'router.replace("/terrarium")',
       "creditHud",
       "itemPreviewPanel",
@@ -209,13 +182,13 @@ const flowContracts = [
     fragments: [
       "apiSyncStatus",
       "apiErrorMessage",
-      "Privacy action needs attention",
-      "Privacy action in progress",
+      't("settings.status.attention")',
+      't("settings.status.inProgress")',
       'router.push("/privacy")',
       'router.push("/terms")',
       'router.push("/support")',
-      'backAccessibilityLabel="Back home"',
-      'backHref="/terrarium"'
+      'backAccessibilityLabel={t("settings.back")}',
+      'onBack={() => router.replace("/terrarium")}'
     ]
   },
   {
@@ -243,13 +216,13 @@ const flowContracts = [
     label: "safe generation issue report controls",
     path: "apps/mobile/src/features/legal/SupportScreen.tsx",
     fragments: [
-      "generationIssueOptions",
+      "generationIssueIcons",
       'category: "wrong_pet"',
       'category: "unsafe_or_scary"',
       'category: "poor_quality"',
       "reportGenerationIssue",
       'recordMobileEvent("generation_issue_reported"',
-      'label={selected ? "Saved" : "Report"}'
+      'label={selected ? t("legal.support.saved") : t("legal.support.report")}'
     ]
   },
   {

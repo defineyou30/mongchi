@@ -236,7 +236,7 @@ type EpisodeRule = {
 ```ts
 type EpisodeLine = {
   id: string;
-  locale: "ko-KR" | "en-US";
+  locale: "en-US" | "ko-KR" | "ja-JP" | "zh-TW" | "de-DE" | "fr-FR" | "pt-BR" | "es-MX";
   text: string;
   tone: "gentle" | "playful" | "comforting" | "curious" | "sleepy";
   safety: "normal" | "ai_disclosure_needed" | "monetization_sensitive";

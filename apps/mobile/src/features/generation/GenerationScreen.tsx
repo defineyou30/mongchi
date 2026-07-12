@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Gift, Heart, RotateCcw, Sparkles } from "lucide-react-native";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
-import { generationSteps } from "@mongchi/shared";
 import type { GenerationJobStatus } from "@mongchi/shared";
 
+import { getLocalizedText, normalizeAppLocale } from "../../localization/locale";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { colors, radii, shadows, spacing } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { TerrariumArt } from "../../shared/ui/GameIllustrations";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { getGenerationMotionPolicy } from "./generationMotionPolicy";
@@ -18,56 +19,49 @@ import { getGenerationPresentation, playGenerationStartCueOnce } from "./generat
 
 // Rotating personalized narration keeps the wait feeling like the pet is being
 // hand-crafted rather than a spinner running.
-const hatchingObservationLines = [
-  "Studying the fur colors from your photo...",
-  "Sketching {petName}'s ear shape very carefully...",
-  "Choosing the fluffiest pixels one by one...",
-  "Practicing {petName}'s first hello...",
-  "Measuring the perfect tail wiggle...",
-  "Teaching the sunlight where {petName} will nap...",
-  "Packing tiny memories of {favoriteThing}...",
-  "Polishing the glossy eyes until they sparkle..."
-];
+const generationStepKeys = [
+  "generation.steps.preparing",
+  "generation.steps.details",
+  "generation.steps.creating",
+  "generation.steps.polishing",
+  "generation.steps.movingIn"
+] as const;
 
-const eggWarmLines = [
-  "Your warmth reached the egg. It wiggled a little!",
-  "The egg feels cozier now.",
-  "A tiny heartbeat said thank you.",
-  "Almost there. Your hand is helping."
-];
+const hatchingObservationKeys = [
+  "generation.observations.first",
+  "generation.observations.second",
+  "generation.observations.third",
+  "generation.observations.fourth",
+  "generation.observations.fifth",
+  "generation.observations.sixth",
+  "generation.observations.seventh",
+  "generation.observations.eighth"
+] as const;
 
-const hatchingStatusCopy: Record<GenerationJobStatus, string> = {
-  created: "Warming the tiny studio.",
-  queued: "Waiting for a clear moving-in spot.",
-  claimed: "Opening the little studio.",
-  validating: "Checking the photo details.",
-  preprocessing: "Preparing the photo.",
-  safety_checking: "Making sure the tiny friend can move in safely.",
-  generating: "Creating the first tiny companion.",
-  postprocessing: "Softening the fur and final details.",
-  quality_checking: "Checking the final look.",
-  uploading_assets: "Packing the pet for home.",
-  completed: "Ready to meet.",
-  failed: "Move-in paused.",
-  cancelled: "Move-in was stopped.",
-  expired: "Move-in timed out."
-};
+const eggWarmKeys = [
+  "generation.warmLines.first",
+  "generation.warmLines.second",
+  "generation.warmLines.third",
+  "generation.warmLines.fourth"
+] as const;
 
-const personalityTeaserPhrases: Record<string, string> = {
-  playful: "Someone playful is",
-  calm: "Someone calm is",
-  shy: "Someone a little shy is",
-  curious: "Someone curious is",
-  sleepy: "Someone sleepy is",
-  affectionate: "Someone sweet is"
-};
-
-const buildWhosOnTheWayTeaser = (personalityTags: readonly string[]): string => {
-  const firstTag = personalityTags[0];
-  const phrase = (firstTag && personalityTeaserPhrases[firstTag]) || "Someone sweet is";
-
-  return `${phrase} packing their bags...`;
-};
+const hatchingStatusKeys = {
+  created: "generation.statuses.created",
+  queued: "generation.statuses.queued",
+  claimed: "generation.statuses.claimed",
+  validating: "generation.statuses.validating",
+  preprocessing: "generation.statuses.preprocessing",
+  safety_checking: "generation.statuses.safety_checking",
+  generating: "generation.statuses.generating",
+  postprocessing: "generation.statuses.postprocessing",
+  quality_checking: "generation.statuses.quality_checking",
+  uploading_assets: "generation.statuses.uploading_assets",
+  cleanup_pending: "generation.statuses.cleanup_pending",
+  completed: "generation.statuses.completed",
+  failed: "generation.statuses.failed",
+  cancelled: "generation.statuses.cancelled",
+  expired: "generation.statuses.expired"
+} as const satisfies Record<GenerationJobStatus, string>;
 
 export function GenerationScreen() {
   const {
@@ -79,6 +73,8 @@ export function GenerationScreen() {
     pollMockGeneration,
     retryMockGeneration
   } = useTerrariumSession();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const generationPresentation = getGenerationPresentation({
     activeGenerationJobId: petProfile?.activeGenerationJobId,
     status: generation.status
@@ -96,13 +92,37 @@ export function GenerationScreen() {
   const [retryTapDisabled, setRetryTapDisabled] = useState(false);
   const observationLine = useMemo(
     () =>
-      hatchingObservationLines[observationIndex % hatchingObservationLines.length]!
-        .replaceAll("{petName}", activePet.name)
-        .replaceAll("{favoriteThing}", activePet.favoriteThing ?? "cozy little things"),
-    [activePet.favoriteThing, activePet.name, observationIndex]
+      t(hatchingObservationKeys[observationIndex % hatchingObservationKeys.length] ?? hatchingObservationKeys[0], {
+        petName: activePet.name,
+        favoriteThing: activePet.favoriteThing ?? t("generation.favoriteFallback")
+      }),
+    [activePet.favoriteThing, activePet.name, observationIndex, t]
   );
-  const warmLine = warmTapCount > 0 ? eggWarmLines[(warmTapCount - 1) % eggWarmLines.length]! : null;
-  const whosOnTheWayTeaser = useMemo(() => buildWhosOnTheWayTeaser(activePet.personalityTags), [activePet.personalityTags]);
+  const warmLine = warmTapCount > 0 ? t(eggWarmKeys[(warmTapCount - 1) % eggWarmKeys.length] ?? eggWarmKeys[0]) : null;
+  const firstPersonalityTag = activePet.personalityTags[0];
+  const teaserKey = (() => {
+    switch (firstPersonalityTag) {
+      case "playful": return "generation.teaser.playful" as const;
+      case "calm": return "generation.teaser.calm" as const;
+      case "shy": return "generation.teaser.shy" as const;
+      case "curious": return "generation.teaser.curious" as const;
+      case "sleepy": return "generation.teaser.sleepy" as const;
+      case "affectionate": return "generation.teaser.affectionate" as const;
+      default: return "generation.teaser.fallback" as const;
+    }
+  })();
+  const whosOnTheWayTeaser = t(teaserKey);
+  const localizedRetryFailure = t("generation.retryFailure", { petName: activePet.name });
+  const safeFailureMessage = getLocalizedText(locale, {
+    "en-US": generation.failureMessageSafe ?? localizedRetryFailure,
+    "ko-KR": localizedRetryFailure,
+    "ja-JP": localizedRetryFailure,
+    "zh-TW": localizedRetryFailure,
+    "de-DE": localizedRetryFailure,
+    "fr-FR": localizedRetryFailure,
+    "pt-BR": localizedRetryFailure,
+    "es-MX": localizedRetryFailure
+  });
   const reduceMotionEnabled = useReducedMotionPreference();
   const motionPolicy = getGenerationMotionPolicy({
     reduceMotionEnabled,
@@ -153,25 +173,25 @@ export function GenerationScreen() {
   }, [motionPolicy.shouldScheduleAutomaticPoll, pollMockGeneration]);
 
   return (
-    <GardenSceneFrame accessibilityLabel={`${activePet.name}'s moving-in flow`}>
-      <BackButton accessibilityLabel="Back to pet setup" onPress={() => router.replace("/pet-setup")} />
+    <GardenSceneFrame accessibilityLabel={t("generation.accessibilityLabel", { petName: activePet.name })}>
+      <BackButton accessibilityLabel={t("generation.back")} onPress={() => router.replace("/pet-setup")} />
 
       <View style={styles.copy}>
-        <Text style={styles.eyebrow}>Moving in</Text>
+        <Text style={styles.eyebrow}>{t("generation.eyebrow")}</Text>
         <Text accessibilityRole="header" style={styles.title}>
-          {completed ? `${activePet.name} is ready` : `${activePet.name} is moving in`}
+          {completed ? t("generation.titleReady", { petName: activePet.name }) : t("generation.titleMoving", { petName: activePet.name })}
         </Text>
       </View>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Warm ${activePet.name}'s egg with a gentle tap`}
+        accessibilityLabel={t("generation.warmAccessibilityLabel", { petName: activePet.name })}
         disabled={completed || failed}
         onPress={() => setWarmTapCount((count) => count + 1)}
         style={({ pressed }) => (pressed && !completed && !failed ? styles.hatchingScenePressed : null)}
       >
         <TerrariumArt
-          accessibilityLabel={`${activePet.name}'s magical moving-in scene`}
+          accessibilityLabel={t("generation.artAccessibilityLabel", { petName: activePet.name })}
           scene="hatching"
           showAmbientItems={false}
           variant="hatching"
@@ -181,11 +201,11 @@ export function GenerationScreen() {
 
       {!completed && !failed ? (
         <View style={styles.warmRow}>
-          <Sparkles color={colors.honey} size={15} strokeWidth={2.6} />
-          <Text style={styles.warmText}>{warmLine ?? "Your tiny friend is forming from the photo details."}</Text>
+          <MongchiIcon id="sparkles" size={22} />
+          <Text style={styles.warmText}>{warmLine ?? t("generation.forming")}</Text>
           {warmTapCount > 0 ? (
             <View style={styles.warmCounter}>
-              <Heart color={colors.rose} fill={colors.rose} size={12} strokeWidth={2} />
+              <MongchiIcon id="affection" size={18} />
               <Text style={styles.warmCounterText}>{warmTapCount}</Text>
             </View>
           ) : null}
@@ -194,53 +214,83 @@ export function GenerationScreen() {
 
       <View
         accessibilityRole="progressbar"
-        accessibilityLabel="Moving-in progress"
+        accessibilityLabel={t("generation.progressAccessibilityLabel")}
         accessibilityValue={{ min: 0, max: 100, now: generationProgress }}
         style={styles.progressBlock}
       >
         <View style={styles.progressHeader}>
           <View style={styles.stepTitle}>
-            <Gift color={colors.honey} size={18} strokeWidth={2.8} />
-            <Text style={styles.stepText}>{generationSteps[generation.currentStepIndex]}</Text>
+            <MongchiIcon id="gift" size={24} />
+            <Text style={styles.stepText}>{t(generationStepKeys[generation.currentStepIndex] ?? generationStepKeys[0])}</Text>
           </View>
         </View>
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${generationProgress}%` }]} />
         </View>
-        {!failed ? <Text style={styles.pollText}>{generationPresentation.statusCopy ?? hatchingStatusCopy[generationPollSnapshot.status]}</Text> : null}
+        {!failed ? <Text style={styles.pollText}>{t(hatchingStatusKeys[generationPollSnapshot.status])}</Text> : null}
         {!completed && !failed ? <Text style={styles.observationText}>{observationLine}</Text> : null}
       </View>
 
       {!failed ? (
         <View style={styles.recapCard}>
-          <Text style={styles.recapTitle}>Who's on the way</Text>
+          <Text style={styles.recapTitle}>{t("generation.recapTitle")}</Text>
           <Text style={styles.recapLine}>{whosOnTheWayTeaser}</Text>
-          {generationPresentation.guidance ? <Text style={styles.resumeGuidance}>{generationPresentation.guidance}</Text> : null}
+          {generationPresentation.guidance ? <Text style={styles.resumeGuidance}>{t("generation.guidance")}</Text> : null}
         </View>
       ) : null}
 
       {failed ? (
         <View style={styles.failureBlock}>
-          <AlertTriangle color={colors.coral} size={22} strokeWidth={2.6} />
+          <MongchiIcon id="alert" size={28} />
           <View style={styles.failureCopy}>
-            <Text style={styles.failureTitle}>Move-in paused</Text>
+            <Text style={styles.failureTitle}>{t("generation.failureTitle")}</Text>
             <Text style={styles.failureText}>
               {isQuotaFailure
-                ? "Your tiny friend will be ready to move in soon — check back in a little while."
-                : (generation.failureMessageSafe ?? `The tiny door got stuck. Let's try creating ${activePet.name} again.`)}
+                ? t("generation.quotaFailure")
+                : safeFailureMessage}
             </Text>
           </View>
         </View>
       ) : null}
 
+      {motionPolicy.shouldShowManualContinue ? (
+        <ActionButton label={t("common.actions.continue")} iconId="forward" onPress={() => pollMockGeneration({ force: true })} />
+      ) : null}
+      {completed ? (
+        <ActionButton
+          label={t("generation.reveal")}
+          iconId="forward"
+          onPress={() => router.push("/pet-reveal")}
+        />
+      ) : null}
+      {failed && !isQuotaFailure ? (
+        <>
+          <ActionButton
+            label={t("common.actions.tryAgain")}
+            iconId="refresh"
+            disabled={retryTapDisabled}
+            onPress={() => {
+              setRetryTapDisabled(true);
+              retryMockGeneration();
+            }}
+          />
+          <ActionButton label={t("common.actions.chooseAnotherPhoto")} iconId="refresh" variant="secondary" onPress={() => router.push("/photo-upload")} />
+        </>
+      ) : null}
+      {isQuotaFailure ? (
+        <Pressable accessibilityRole="button" hitSlop={8} style={styles.homeLinkRow} onPress={() => router.replace("/")}>
+          <Text style={styles.homeLinkText}>{t("common.actions.backHome")}</Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.stepList}>
-        <Text style={styles.stepListTitle}>Along the way</Text>
-        {generationSteps.map((step, index) => {
+        <Text style={styles.stepListTitle}>{t("generation.stepsTitle")}</Text>
+        {generationStepKeys.map((stepKey, index) => {
           const isCurrent = index === generation.currentStepIndex && !completed;
           const isPast = index < generation.currentStepIndex || completed;
 
           return (
-            <View key={step} style={styles.stepRow}>
+            <View key={stepKey} style={styles.stepRow}>
               <View
                 style={[
                   styles.stepDot,
@@ -255,42 +305,12 @@ export function GenerationScreen() {
                   isCurrent ? styles.stepLabelCurrent : null
                 ]}
               >
-                {step}
+                {t(stepKey)}
               </Text>
             </View>
           );
         })}
       </View>
-
-      {motionPolicy.shouldShowManualContinue ? (
-        <ActionButton label="Continue" Icon={ArrowRight} onPress={() => pollMockGeneration({ force: true })} />
-      ) : null}
-      {completed ? (
-        <ActionButton
-          label="Reveal pet"
-          Icon={ArrowRight}
-          onPress={() => router.push("/pet-reveal")}
-        />
-      ) : null}
-      {failed && !isQuotaFailure ? (
-        <>
-          <ActionButton
-            label="Try again"
-            Icon={RotateCcw}
-            disabled={retryTapDisabled}
-            onPress={() => {
-              setRetryTapDisabled(true);
-              retryMockGeneration();
-            }}
-          />
-          <ActionButton label="Choose another photo" Icon={RotateCcw} variant="secondary" onPress={() => router.push("/photo-upload")} />
-        </>
-      ) : null}
-      {isQuotaFailure ? (
-        <Pressable accessibilityRole="button" hitSlop={8} style={styles.homeLinkRow} onPress={() => router.replace("/")}>
-          <Text style={styles.homeLinkText}>Back to home</Text>
-        </Pressable>
-      ) : null}
     </GardenSceneFrame>
   );
 }

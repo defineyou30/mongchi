@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -41,11 +42,51 @@ const forbiddenCopy = [
   { pattern: /\bjob\b/i, reason: "worker implementation detail" }
 ];
 
-const stringLiteralPattern = /(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g;
 const hangulPattern = /[가-힣]/;
 const failures = [];
+const appLocaleKeys = new Set(["en-US", "ko-KR", "ja-JP", "zh-TW", "de-DE", "fr-FR", "pt-BR", "es-MX"]);
 
-const lineNumberAt = (content, index) => content.slice(0, index).split("\n").length;
+const getPropertyName = (property) => {
+  if (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)) {
+    return property.name.text;
+  }
+
+  return null;
+};
+
+const getLocalizedPropertyName = (node) => {
+  const property = node.parent;
+
+  if (!ts.isPropertyAssignment(property) || property.initializer !== node) {
+    return null;
+  }
+
+  const objectLiteral = property.parent;
+  const propertyNames = objectLiteral.properties
+    .filter(ts.isPropertyAssignment)
+    .map(getPropertyName)
+    .filter((name) => name !== null);
+
+  if (propertyNames.length !== appLocaleKeys.size || propertyNames.some((name) => !appLocaleKeys.has(name))) {
+    return null;
+  }
+
+  return getPropertyName(property);
+};
+
+const inspectCopy = (relativePath, sourceFile, text, position) => {
+  const lineNumber = sourceFile.getLineAndCharacterOfPosition(position).line + 1;
+
+  if (hangulPattern.test(text)) {
+    failures.push(`${relativePath}:${lineNumber} contains Korean copy in the English mobile UI: ${text}`);
+  }
+
+  for (const forbidden of forbiddenCopy) {
+    if (forbidden.pattern.test(text)) {
+      failures.push(`${relativePath}:${lineNumber} contains ${forbidden.reason}: ${text}`);
+    }
+  }
+};
 
 for (const relativePath of checkedFiles) {
   const absolutePath = resolve(ROOT, relativePath);
@@ -56,21 +97,30 @@ for (const relativePath of checkedFiles) {
   }
 
   const source = readFileSync(absolutePath, "utf8");
-  let match;
+  const sourceFile = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
-  while ((match = stringLiteralPattern.exec(source)) !== null) {
-    const literal = match[0];
+  const visit = (node) => {
+    if (ts.isStringLiteralLike(node)) {
+      const localizedPropertyName = getLocalizedPropertyName(node);
 
-    if (hangulPattern.test(literal)) {
-      failures.push(`${relativePath}:${lineNumberAt(source, match.index)} contains Korean copy in the English mobile UI: ${literal}`);
-    }
-
-    for (const forbidden of forbiddenCopy) {
-      if (forbidden.pattern.test(literal)) {
-        failures.push(`${relativePath}:${lineNumberAt(source, match.index)} contains ${forbidden.reason}: ${literal}`);
+      if (localizedPropertyName !== null && localizedPropertyName !== "en-US") {
+        return;
       }
+
+      inspectCopy(relativePath, sourceFile, node.text, node.getStart(sourceFile));
+      return;
     }
-  }
+
+    if (ts.isTemplateExpression(node)) {
+      const text = [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join(" ");
+      inspectCopy(relativePath, sourceFile, text, node.getStart(sourceFile));
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
 }
 
 if (failures.length > 0) {

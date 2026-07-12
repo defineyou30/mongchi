@@ -1,15 +1,16 @@
-import { ArrowRight, Camera, Check, ImagePlus } from "lucide-react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image, Pressable, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { validateLocalPhotoCandidate } from "@mongchi/shared";
 
 import { GeneratedPetAssetImage, getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPetAssets";
-import { colors, useFontFamilies } from "../../shared/design/tokens";
+import { useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { useAppDialog } from "../../shared/ui/AppDialog";
 import { BackButton } from "../../shared/ui/BackButton";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { OnboardingStoryArt } from "../../shared/ui/OnboardingStoryArt";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
@@ -17,6 +18,7 @@ import { photoUploadScreenStyles as styles } from "./photoUploadScreen.styles";
 
 export function PhotoUploadScreen() {
   const { showDialog } = useAppDialog();
+  const { t } = useTranslation();
   const fontFamilies = useFontFamilies();
   const { activePet, photo, canContinuePhotoStep, setConsentAccepted, setMockPhotoSelected, setSelectedPhotoUri } = useTerrariumSession();
 
@@ -31,7 +33,10 @@ export function PhotoUploadScreen() {
     });
 
     if (!validation.ok) {
-      showDialog({ title: "Photo cannot be used", message: validation.messageSafe });
+      showDialog({
+        title: t("photoUpload.errors.invalidTitle"),
+        message: validation.issue === "too_large" ? t("photoUpload.errors.tooLarge") : t("photoUpload.errors.invalidType")
+      });
       return;
     }
 
@@ -46,7 +51,7 @@ export function PhotoUploadScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      showDialog({ title: "Photo access needed", message: "Choose one pet photo so the app can create your tiny friend." });
+      showDialog({ title: t("photoUpload.errors.libraryTitle"), message: t("photoUpload.errors.libraryMessage") });
       return;
     }
 
@@ -70,7 +75,7 @@ export function PhotoUploadScreen() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
 
     if (!permission.granted) {
-      showDialog({ title: "Camera access needed", message: "Camera access is only used when you choose to take a pet photo." });
+      showDialog({ title: t("photoUpload.errors.cameraTitle"), message: t("photoUpload.errors.cameraMessage") });
       return;
     }
 
@@ -95,15 +100,15 @@ export function PhotoUploadScreen() {
   const photoActionControls = (
     <View style={styles.photoActions}>
       <ActionButton
-        label="Photo library"
-        Icon={ImagePlus}
+        label={t("photoUpload.library")}
+        iconId="gallery"
         size="compact"
         style={styles.photoAction}
         onPress={handleLibraryPick}
       />
       <ActionButton
-        label="Camera"
-        Icon={Camera}
+        label={t("common.actions.camera")}
+        iconId="camera"
         size="compact"
         variant="secondary"
         onPress={handleCameraPick}
@@ -117,28 +122,28 @@ export function PhotoUploadScreen() {
 
   const createPetButton = (
     <ActionButton
-      label="Continue"
-      Icon={ArrowRight}
+      label={t("common.actions.continue")}
+      iconId="forward"
       disabled={!canContinuePhotoStep}
       onPress={handleContinue}
     />
   );
 
   return (
-    <GardenSceneFrame accessibilityLabel="Pet photo upload" includeBottomEdge innerStyle={styles.photoFlow}>
-      <BackButton accessibilityLabel="Back to photo intro" onPress={() => router.replace("/onboarding")} />
+    <GardenSceneFrame accessibilityLabel={t("photoUpload.accessibilityLabel")} includeBottomEdge innerStyle={styles.photoFlow}>
+      <BackButton accessibilityLabel={t("photoUpload.back")} onPress={() => router.replace("/onboarding")} />
 
       <View style={styles.uploadPass}>
         <Text accessibilityRole="header" style={[styles.title, { fontFamily: fontFamilies.display }]}>
-          Pick their one best photo
+          {t("photoUpload.title")}
         </Text>
       </View>
 
-      <OnboardingStoryArt accessibilityLabel="Safe pet photo selection board" style={styles.storyArt} variant="photo" />
+      <OnboardingStoryArt accessibilityLabel={t("photoUpload.artAccessibilityLabel")} style={styles.storyArt} variant="photo" />
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={selected ? "Change selected pet photo" : "Choose pet photo"}
+        accessibilityLabel={selected ? t("photoUpload.changeSelected") : t("photoUpload.choosePhoto")}
         accessibilityState={{ selected }}
         style={[styles.photoPicker, selected ? styles.photoPickerSelected : null]}
         onPress={handleLibraryPick}
@@ -146,38 +151,38 @@ export function PhotoUploadScreen() {
         {selectedPhotoUri ? (
           <Image
             accessibilityIgnoresInvertColors
-            accessibilityLabel={`${activePet.name}'s selected pet photo preview`}
+            accessibilityLabel={t("photoUpload.selectedPreview", { petName: activePet.name })}
             source={{ uri: selectedPhotoUri }}
             style={styles.photoPreview}
           />
         ) : (
           <GeneratedPetAssetImage
-            accessibilityLabel={selected ? `${activePet.name}'s selected sample pet photo preview` : "Sample pet photo preview"}
+            accessibilityLabel={selected ? t("photoUpload.selectedSamplePreview", { petName: activePet.name }) : t("photoUpload.samplePreview")}
             assetId={getFallbackGeneratedPetAssetId(activePet.species, "idle")}
             style={styles.photoPreview}
           />
         )}
         <View style={styles.photoCopy}>
           <Text style={[styles.photoTitle, { fontFamily: fontFamilies.title }]}>
-            {selected ? (photo.source === "sample" ? "Sample photo selected" : "Pet photo selected") : "Choose pet photo"}
+            {selected ? (photo.source === "sample" ? t("photoUpload.sampleSelected") : t("photoUpload.photoSelected")) : t("photoUpload.choosePhoto")}
           </Text>
-          <Text style={[styles.photoBody, { fontFamily: fontFamilies.body }]}>Used to create the tiny friend who lives in your garden.</Text>
+          <Text style={[styles.photoBody, { fontFamily: fontFamilies.body }]}>{t("photoUpload.purpose")}</Text>
         </View>
-        {selected ? <Check color={colors.leaf} size={24} strokeWidth={3} /> : <ImagePlus color={colors.ink} size={24} />}
+        <MongchiIcon id={selected ? "check" : "add-photo"} size={28} />
       </Pressable>
 
       {photoActionControls}
       {createPetButton}
       <Pressable
-        accessibilityLabel="Meet a sample friend"
+        accessibilityLabel={t("photoUpload.sampleAccessibilityLabel")}
         accessibilityRole="button"
         hitSlop={8}
         style={styles.sampleLinkRow}
         onPress={handleSamplePick}
       >
-        <Text style={[styles.sampleLinkText, { fontFamily: fontFamilies.label }]}>No photo handy? Meet a sample friend</Text>
+        <Text style={[styles.sampleLinkText, { fontFamily: fontFamilies.label }]}>{t("photoUpload.sampleAction")}</Text>
       </Pressable>
-      <Text style={[styles.privacyNotice, { fontFamily: fontFamilies.body }]}>Only used to create your tiny friend. You can delete the original after move-in.</Text>
+      <Text style={[styles.privacyNotice, { fontFamily: fontFamilies.body }]}>{t("photoUpload.privacy")}</Text>
     </GardenSceneFrame>
   );
 }

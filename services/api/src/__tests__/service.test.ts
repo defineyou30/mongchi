@@ -1680,4 +1680,12 @@ describe("mock API service daily loop boundary", () => {
     });
     expectApiError(service.claimWalkReward(userContext, started.walk.id), 409, "walk_already_claimed");
   });
+
+  it("localizes directly generated walk discovery copy for Spanish", () => {
+    const service = createMockApiService({ now: () => "2026-06-24T09:00:00.000Z" });
+
+    const started = unwrap(service.startWalk({ ...userContext, locale: "es-MX" }, mockPetProfile.id));
+
+    expect(started.walk.discoveryLine).toBe("Una hojita pensó en ti.");
+  });
 });

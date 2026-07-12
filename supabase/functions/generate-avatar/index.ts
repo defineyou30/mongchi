@@ -37,6 +37,8 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { type ChromaKeyOutcome, removeChromaKeyBackground } from "./chromakey.ts";
+import { readOpenAiErrorDetail } from "./openAiError.ts";
+import { buildPoseSheetLayoutPrompt, splitPoseSheet, validatePoseSheetPanels } from "./spriteSheet.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,19 +100,16 @@ interface GenerationInputSnapshot {
 // mirrors the generation_jobs column names on the wire since this is a new,
 // separate contract from inputSnapshot/originalPhotoPath.
 interface GenerateAvatarRequestBody {
-  inputSnapshot: GenerationInputSnapshot;
+  inputSnapshot?: GenerationInputSnapshot;
   // Required unless source_asset_path is set (expression pack mode) -- see
   // the isExpressionPackRequest branch in the HTTP handler below.
   originalPhotoPath?: string;
   source_asset_path?: string;
   expression_pack_id?: string;
   requested_states?: string[];
-  // Idempotency key for any credit-funded request (currently: expression
-  // packs). Client-supplied (a UUID generated once per logical purchase
-  // attempt and reused across retries) so consume_credits never double-
-  // charges a retried request. Optional for now because the client hasn't
-  // been migrated to send it yet (Phase 1c) -- see request_id fallback in
-  // the HTTP handler below.
+  // Client-generated idempotency key persisted before upload or purchase.
+  // It is required for both initial avatars and expression packs so a lost
+  // HTTP response can always resolve to the already-funded job.
   request_id?: string;
   // Which of the caller's pets this request is for (see 0005_pet_namespace.sql
   // and the module doc comment above). Optional and, as of this migration,
@@ -119,6 +118,7 @@ interface GenerateAvatarRequestBody {
   // used as a literal storage path segment, so it's restricted to a safe
   // charset rather than accepting arbitrary strings).
   pet_id?: string;
+  resume_job_id?: string;
 }
 
 interface GenerationJobRow {
@@ -131,6 +131,8 @@ interface GenerationJobRow {
   source_asset_path: string | null;
   credit_ref: string | null;
   pet_id: string | null;
+  lease_token: string;
+  attempt_count: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +155,10 @@ const DEFAULT_IMAGE_QUALITY = Deno.env.get("OPENAI_IMAGE_QUALITY") ?? "low";
 // rate-limited request never spends a quota unit it can't use.
 const RATE_LIMIT_WINDOW_SECONDS = 300;
 const RATE_LIMIT_MAX_ATTEMPTS = 3;
+const GENERATION_MAINTENANCE_MODE = /^(1|true|yes)$/i.test(
+  Deno.env.get("GENERATION_MAINTENANCE_MODE") ?? ""
+);
+const MAX_GENERATION_ATTEMPTS = 3;
 
 // Server-authoritative expression pack cost in credit_wallets credits (see
 // supabase/migrations/0004_credit_ledger.sql). Deliberately a server
@@ -161,19 +167,16 @@ const RATE_LIMIT_MAX_ATTEMPTS = 3;
 // tampered request can't buy a paid generation for less than this.
 const EXPRESSION_PACK_CREDIT_COST = 12;
 
-// Hard cap on how many distinct states a single expression-pack request can
-// ask for. Without this, a client could submit requested_states padded with
-// duplicates (e.g. ['happy','happy',...] x hundreds) and turn one rate-limit
-// slot into an unbounded number of paid OpenAI generation calls, since
-// generation fans out per requested state. Deduplication happens before this
-// cap is enforced (see the isExpressionPackRequest validation below), so the
-// cap always bounds distinct, billable states -- not raw array length.
+// Every generation is one fixed three-slot sheet. Expression packs must match
+// one server-owned three-state bundle exactly; clients cannot change its size,
+// order, or price by padding requested_states.
 const MAX_EXPRESSION_PACK_STATES = 3;
 
 const EXPRESSION_PACKS = [
   { id: "pack-everyday-moments", states: ["curious", "play", "hungry"] },
   { id: "pack-care-reactions", states: ["treat_reaction", "walk_return", "chat_portrait"] },
-  { id: "pack-special-days", states: ["celebrate", "garden_help", "seasonal"] }
+  { id: "pack-special-days", states: ["celebrate", "garden_help", "seasonal"] },
+  { id: "pack-tender-care", states: ["sad", "sick", "messy"] }
 ] as const;
 
 const getServerExpressionPack = (packId: string) => EXPRESSION_PACKS.find((pack) => pack.id === packId) ?? null;
@@ -190,12 +193,11 @@ const sameStringArray = (left: readonly string[], right: readonly string[]): boo
 const PET_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // Per-OpenAI-call abort timeout. Chosen so that safety check (1 call) +
-// state generation (calls now run in parallel, so this is ~1 call's worth of
-// wall time) + upload can all fail fast enough to leave room, within the
-// platform's 400s Edge Function wall-clock limit, for markJobFailed +
+// one three-pose sheet generation call + upload can all fail fast enough to
+// leave room within the platform's 400s Edge Function wall-clock limit for markJobFailed +
 // refund_generation_quota to complete:
 //   safety check   <= 150s
-//   generation     <= 150s (parallel across states, not per-state)
+//   generation     <= 150s (one sheet call)
 //   upload+misc    ~50s budget (storage + DB writes, not OpenAI-bounded)
 //   failure/refund margin ~50s
 //   150 + 150 + 50 + 50 = 400s ceiling, ~200s in the common/success case.
@@ -207,7 +209,7 @@ const MIN_ASSET_SIDE_PX = 128;
 // ---------------------------------------------------------------------------
 // DRY RUN mode
 //
-// Bypasses only the two paid OpenAI calls (safety classification + per-state
+// Bypasses only the two paid OpenAI calls (safety classification + pose-sheet
 // image generation) with deterministic local fixtures, so the rest of the
 // pipeline -- status transitions, chroma-key, the quality gate, storage
 // upload, generated_assets insert, completion, refund-on-failure, and
@@ -269,12 +271,9 @@ if (DRY_RUN && DRY_RUN_DELAY_MS !== DRY_RUN_DEFAULT_DELAY_MS) {
 // Unlike DRY_RUN, this is NOT gated on a missing OPENAI_API_KEY -- it needs
 // to work with real credentials too, so a single real generation can be
 // smoke-tested against production/staging OpenAI without paying for the
-// full required_states set. Comma-separated list of known state names (see
-// KNOWN_ASSET_STATES above); unknown entries are dropped, and an
-// empty/all-unknown result is ignored (falls back to the DB default). This
-// is DANGEROUS to leave set in production (it silently shrinks every user's
-// avatar to fewer states), hence the loud boot warning and the
-// docs/launch-plan.md §6 pre-launch checklist entry.
+// full required_states set. The sheet contract requires exactly three distinct
+// known states, so legacy one-state overrides are ignored and fall back to the
+// DB default. This remains a QA-only override and must be unset for production.
 // ---------------------------------------------------------------------------
 
 const parseTestStatesOverride = (): string[] | null => {
@@ -289,9 +288,9 @@ const parseTestStatesOverride = (): string[] | null => {
     .map((state) => state.trim())
     .filter((state) => state.length > 0);
 
-  const known = requested.filter((state) => KNOWN_ASSET_STATES.includes(state));
+  const known = [...new Set(requested.filter((state) => KNOWN_ASSET_STATES.includes(state)))];
 
-  return known.length > 0 ? known : null;
+  return known.length === MAX_EXPRESSION_PACK_STATES ? known : null;
 };
 
 const TEST_STATES_OVERRIDE = parseTestStatesOverride();
@@ -337,6 +336,13 @@ class HttpStatusError extends Error {
     super(message);
     this.name = "HttpStatusError";
     this.status = status;
+  }
+}
+
+class LeaseLostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LeaseLostError";
   }
 }
 
@@ -616,7 +622,12 @@ const classifySourcePhotoSafety = async (input: {
   });
 
   if (!response.ok) {
-    throw new HttpStatusError(`OpenAI source photo safety request failed with status ${response.status}.`, response.status);
+    const detail = await readOpenAiErrorDetail(response);
+    console.error("[generate-avatar] OpenAI safety request failed", { detail, status: response.status });
+    throw new HttpStatusError(
+      `OpenAI source photo safety request failed with status ${response.status}.`,
+      response.status
+    );
   }
 
   const json = (await response.json()) as {
@@ -708,60 +719,30 @@ const classifySourcePhotoSafety = async (input: {
   };
 };
 
-// ---------------------------------------------------------------------------
-// Image generation (ported from workers/ai/src/openAiImageProvider.ts, minus
-// the sharp-based multi-state sheet slicing — one call per requested state)
-// ---------------------------------------------------------------------------
-
-const buildImagePrompt = (input: {
-  state: GeneratedAssetState;
+const buildPoseSheetPrompt = (input: {
+  states: readonly GeneratedAssetState[];
   species: PetSpecies;
   petName?: string;
   personalityTags?: string[];
   talkingStyle?: TalkingStyle;
+  promptMode: "photo" | "expression_pack";
 }): string =>
   [
-    "Use the provided dog or cat photo as the identity reference, but transform it into a Mongchi companion avatar.",
-    "Only the main pet becomes the avatar. Ignore and remove the source photo background, furniture, scenery, lighting, people, duplicate animals, and loose props.",
+    input.promptMode === "expression_pack"
+      ? "Use the provided pixel-art Mongchi sprite as the canonical identity and style reference for one additional three-pose pack."
+      : "Use the provided dog or cat photo as the identity reference, but transform only the main pet into one consistent Mongchi companion.",
+    input.promptMode === "expression_pack"
+      ? `Same exact ${input.species} character, same palette, outline thickness, pixel density, scale, body proportions, markings, and bottom paw/contact anchor as the input sprite.`
+      : "Ignore and remove the source photo background, furniture, scenery, lighting, people, duplicate animals, and loose props.",
     `Pet species: ${input.species}.`,
     ...(input.petName ? [`Pet name for personality only, do not render text: ${input.petName}.`] : []),
-    `Requested state: ${input.state}. ${statePosePrompts[input.state] ?? statePosePrompts.idle}`,
     `Personality tags: ${(input.personalityTags ?? []).join(", ") || "gentle"}.`,
     `Talking style: ${input.talkingStyle ?? "gentle"}.`,
-    ...contractPromptLines,
-    // Background is deliberately NOT requested as "transparent" here: that
-    // instruction is not honored by /images/edits (see stylePromptLines'
-    // chroma-key contract below, which requests solid green instead and
-    // gets keyed out in postprocessing).
-    "App integration contract: one complete pet only, centered, full body unless the requested state is chat_portrait, generous padding, no text, no UI, no watermark, no frame, no scenery, no full floor, no detached props except a tiny attached state cue when explicitly allowed.",
-    ...stylePromptLines
-  ].join(" ");
-
-// Expression pack mode: the seed image is already one of our own generated
-// pixel sprites (typically the idle state), not a raw source photo. Unlike
-// buildImagePrompt above, this deliberately drops the "ignore and remove the
-// source photo background / furniture / scenery" line (there is no messy
-// photo background to strip -- the seed is already a clean sprite on a
-// transparent/keyed background) and instead leads with an explicit
-// same-character consistency instruction, per the expression-pack contract.
-const buildExpressionPackPrompt = (input: {
-  state: GeneratedAssetState;
-  species: PetSpecies;
-  petName?: string;
-  personalityTags?: string[];
-  talkingStyle?: TalkingStyle;
-}): string =>
-  [
-    "Use the provided pixel-art sprite of a Mongchi companion avatar as the canonical identity and style reference for one additional expression-pack pose.",
-    `Same exact ${input.species} character, same palette, outline thickness, pixel density, scale, body proportions, markings, and bottom paw/contact anchor as the input sprite; only the pose/expression changes.`,
-    `Pet species: ${input.species}.`,
-    ...(input.petName ? [`Pet name for personality only, do not render text: ${input.petName}.`] : []),
-    `Requested state: ${input.state}. ${statePosePrompts[input.state] ?? statePosePrompts.idle}`,
-    `Personality tags: ${(input.personalityTags ?? []).join(", ") || "gentle"}.`,
-    `Talking style: ${input.talkingStyle ?? "gentle"}.`,
-    "Expression-pack contract: this output will sit beside two sibling states in a 3-pose product pack, so preserve identity harder than novelty; make the requested state readable through posture, face, or a tiny attached cue, not through a new costume, prop set, or background.",
-    ...contractPromptLines,
-    "App integration contract: one complete pet only, centered, full body unless the requested state is chat_portrait, generous padding, no text, no UI, no watermark, no frame, no scenery, no full floor, no detached props except a tiny attached state cue when explicitly allowed.",
+    buildPoseSheetLayoutPrompt(
+      input.states.map((state) => ({ state, pose: statePosePrompts[state] ?? statePosePrompts.idle }))
+    ),
+    ...(input.promptMode === "photo" ? contractPromptLines : contractPromptLines.slice(2)),
+    "App integration contract: exactly three complete pets total, one per slot, generous padding, no text, no UI, no watermark, no frame, no scenery, no full floor, and no detached props except a tiny attached state cue when explicitly allowed.",
     ...stylePromptLines
   ].join(" ");
 
@@ -793,12 +774,12 @@ const isPng = (bytes: Uint8Array): boolean => PNG_SIGNATURE.every((byte, index) 
 // still keep the extension honest for anyone inspecting request logs.
 const sourceFileExtensionFor = (contentType: string): string => (contentType === "image/jpeg" ? "jpg" : "png");
 
-const generateStateImage = async (input: {
+const generatePoseSheet = async (input: {
   apiKey: string;
   model: string;
   sourceImageBytes: Uint8Array;
   sourceContentType: string;
-  state: GeneratedAssetState;
+  states: readonly GeneratedAssetState[];
   species: PetSpecies;
   petName?: string;
   personalityTags?: string[];
@@ -811,7 +792,6 @@ const generateStateImage = async (input: {
   promptMode?: "photo" | "expression_pack";
 }): Promise<GeneratedImageResult> => {
   const formData = new FormData();
-  const buildPrompt = input.promptMode === "expression_pack" ? buildExpressionPackPrompt : buildImagePrompt;
 
   formData.append(
     "image",
@@ -821,16 +801,18 @@ const generateStateImage = async (input: {
   formData.append("model", input.model);
   formData.append(
     "prompt",
-    buildPrompt({
-      state: input.state,
+    buildPoseSheetPrompt({
+      states: input.states,
       species: input.species,
       petName: input.petName,
       personalityTags: input.personalityTags,
-      talkingStyle: input.talkingStyle
+      talkingStyle: input.talkingStyle,
+      promptMode: input.promptMode ?? "photo"
     })
   );
   formData.append("n", "1");
-  formData.append("size", "1024x1024");
+  formData.append("size", "1536x1024");
+  formData.append("input_fidelity", "high");
   // No `background` field: background=transparent is not honored by
   // /images/edits (verified against gpt-image-1 and gpt-image-1.5 — the
   // model paints a background regardless). We instead force a uniform green
@@ -847,7 +829,12 @@ const generateStateImage = async (input: {
   });
 
   if (!response.ok) {
-    throw new HttpStatusError(`OpenAI image provider request failed with status ${response.status}.`, response.status);
+    const detail = await readOpenAiErrorDetail(response);
+    console.error("[generate-avatar] OpenAI image request failed", { detail, status: response.status });
+    throw new HttpStatusError(
+      `OpenAI image provider request failed with status ${response.status}.`,
+      response.status
+    );
   }
 
   const json = (await response.json()) as { data?: Array<{ b64_json?: unknown }> };
@@ -889,13 +876,25 @@ const passesLightweightQualityGate = (asset: GeneratedImageResult): boolean =>
 
 const updateJobStatus = async (
   admin: SupabaseClient,
-  jobId: string,
+  job: GenerationJobRow,
   patch: Record<string, unknown>
 ): Promise<void> => {
-  await admin
-    .from("generation_jobs")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", jobId);
+  const status = patch.status;
+
+  if (typeof status !== "string") {
+    throw new Error("Generation status update requires a status.");
+  }
+
+  const { data, error } = await admin.rpc("advance_generation_job", {
+    p_job_id: job.id,
+    p_lease_token: job.lease_token,
+    p_status: status,
+    p_quality: patch.quality ?? null
+  });
+
+  if (error || data !== true) {
+    throw new Error(`Generation job lease was lost while advancing to ${status}: ${error?.message ?? "not updated"}`);
+  }
 };
 
 // Diagnostic-only detail captured alongside a failure. internalError/
@@ -937,57 +936,144 @@ const diagnosticsForStage = (failedStage: string, cause: unknown): JobFailureDia
 
 const markJobFailed = async (
   admin: SupabaseClient,
-  jobId: string,
-  userId: string,
+  job: GenerationJobRow,
   failureCode: string,
   failureMessageSafe: string,
-  refund: boolean,
-  diagnostics?: JobFailureDiagnostics,
-  creditRef?: string | null,
-  usedPetSlotBundle?: boolean
+  diagnostics?: JobFailureDiagnostics
 ): Promise<void> => {
-  const patch: Record<string, unknown> = {
-    status: "failed",
-    failure_code: failureCode,
-    failure_message_safe: failureMessageSafe
-  };
-
-  if (diagnostics) {
-    patch.quality = {
+  const quality = diagnostics
+    ? {
       failedStage: diagnostics.failedStage,
       ...(diagnostics.internalError ? { internalError: diagnostics.internalError } : {}),
       ...(diagnostics.httpStatus !== undefined ? { httpStatus: diagnostics.httpStatus } : {})
-    };
+    }
+    : null;
+
+  console.error("[generate-avatar] job failed", {
+    jobId: job.id,
+    failureCode,
+    ...(diagnostics?.failedStage ? { failedStage: diagnostics.failedStage } : {}),
+    ...(diagnostics?.internalError ? { internalError: diagnostics.internalError } : {}),
+    ...(diagnostics?.httpStatus !== undefined ? { httpStatus: diagnostics.httpStatus } : {})
+  });
+
+  const { data, error } = await admin.rpc("fail_generation_job", {
+    p_job_id: job.id,
+    p_lease_token: job.lease_token,
+    p_failure_code: failureCode,
+    p_failure_message_safe: failureMessageSafe,
+    p_quality: quality
+  });
+
+  if (error || (data !== "failed" && data !== "cleanup_pending" && data !== "already_failed" && data !== "already_completed")) {
+    throw new Error(`Generation job failure/refund was not committed: ${error?.message ?? String(data)}`);
   }
 
-  await updateJobStatus(admin, jobId, patch);
+  if (data === "cleanup_pending" && job.original_photo_path) {
+    await finalizeSourceCleanup(admin, job, job.original_photo_path);
+  }
+};
 
-  if (refund) {
-    // Jobs funded by consume_credits (currently: expression packs) carry a
-    // credit_ref -- the request_id used as the consume_credits idempotency
-    // key -- and must be refunded through refund_credits against that same
-    // key, not refund_generation_quota, since no generation_quota unit was
-    // ever spent for them. Jobs funded by a purchased pet slot's bundled
-    // generation grant (usedPetSlotBundle, see reserve_pet_generation_slot in
-    // 0005_pet_namespace.sql) similarly never touched generation_quota or
-    // credit_wallets, and must instead have that bundle restored via
-    // refund_pet_generation_slot so a transient failure doesn't burn the one
-    // free generation a purchased slot grants. Every other job (credit_ref
-    // null, usedPetSlotBundle false/undefined) was funded by the free
-    // allowance and keeps using refund_generation_quota exactly as before.
-    // All three refund RPCs are safe against a retried markJobFailed call
-    // (e.g. from an outer catch running after an inner one already
-    // refunded) -- refund_credits is ref-keyed idempotent, and refund_
-    // generation_quota/refund_pet_generation_slot rely on this function only
-    // ever being called once per job (every failure path returns
-    // immediately after calling it -- see runPipeline below).
-    if (creditRef) {
-      await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
-    } else if (usedPetSlotBundle) {
-      await admin.rpc("refund_pet_generation_slot", { p_user: userId });
-    } else {
-      await admin.rpc("refund_generation_quota", { p_user: userId });
+const finalizeSourceCleanup = async (
+  admin: SupabaseClient,
+  job: GenerationJobRow,
+  originalPhotoPath: string
+): Promise<boolean> => {
+  let removal: Awaited<ReturnType<ReturnType<SupabaseClient["storage"]["from"]>["remove"]>>;
+
+  try {
+    removal = await admin.storage.from(BUCKET).remove([originalPhotoPath]);
+  } catch (cause) {
+    console.error("[generate-avatar] source cleanup threw", {
+      jobId: job.id,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
+    return false;
+  }
+
+  if (removal.error) {
+    console.error("[generate-avatar] source cleanup failed", {
+      jobId: job.id,
+      error: removal.error.message
+    });
+    return false;
+  }
+
+  const { data: finalized, error: finalizeError } = await admin.rpc("finalize_generation_source_cleanup", {
+    p_job_id: job.id,
+    p_lease_token: job.lease_token
+  });
+
+  if (finalizeError || finalized !== true) {
+    console.error("[generate-avatar] source cleanup finalization failed", {
+      jobId: job.id,
+      error: finalizeError?.message ?? "lease lost"
+    });
+    return false;
+  }
+
+  return true;
+};
+
+const cleanupSupersededAttemptAssets = async (
+  admin: SupabaseClient,
+  job: GenerationJobRow
+): Promise<void> => {
+  const jobPrefix = job.pet_id
+    ? `avatars/${job.user_id}/${job.pet_id}/${job.id}`
+    : `avatars/${job.user_id}/${job.id}`;
+
+  try {
+    const listedAttempts = await admin.storage.from(BUCKET).list(jobPrefix, { limit: 20 });
+
+    if (listedAttempts.error) {
+      console.error("[generate-avatar] stale attempt listing failed", {
+        jobId: job.id,
+        error: listedAttempts.error.message
+      });
+      return;
     }
+
+    for (const attempt of listedAttempts.data ?? []) {
+      if (!UUID_PATTERN.test(attempt.name) || attempt.name === job.lease_token) {
+        continue;
+      }
+
+      const attemptPrefix = `${jobPrefix}/${attempt.name}`;
+      const listedAssets = await admin.storage.from(BUCKET).list(attemptPrefix, { limit: 20 });
+
+      if (listedAssets.error) {
+        console.error("[generate-avatar] stale attempt asset listing failed", {
+          jobId: job.id,
+          attemptToken: attempt.name,
+          error: listedAssets.error.message
+        });
+        continue;
+      }
+
+      const stalePaths = (listedAssets.data ?? [])
+        .filter((asset) => asset.name.endsWith(".png"))
+        .map((asset) => `${attemptPrefix}/${asset.name}`);
+
+      if (stalePaths.length === 0) {
+        continue;
+      }
+
+      const removal = await admin.storage.from(BUCKET).remove(stalePaths);
+
+      if (removal.error) {
+        console.error("[generate-avatar] stale attempt cleanup failed", {
+          jobId: job.id,
+          attemptToken: attempt.name,
+          error: removal.error.message
+        });
+      }
+    }
+  } catch (cause) {
+    console.error("[generate-avatar] stale attempt cleanup threw", {
+      jobId: job.id,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
   }
 };
 
@@ -1001,15 +1087,8 @@ const runPipeline = async (input: {
   openAiApiKey: string;
   imageModel: string;
   dryRun: boolean;
-  // Whether this job was funded by a purchased pet slot's bundled generation
-  // grant (see reserve_pet_generation_slot in 0005_pet_namespace.sql) rather
-  // than consume_credits or the free generation_quota allowance. Threaded in
-  // from the HTTP handler's step 4 funding decision, the same way dryRun is
-  // -- it's an outcome of that request-time decision, not something re-
-  // derivable from the job row alone.
-  usedPetSlotBundle: boolean;
 }): Promise<void> => {
-  const { admin, job, openAiApiKey, imageModel, dryRun, usedPetSlotBundle } = input;
+  const { admin, job, openAiApiKey, imageModel, dryRun } = input;
   const originalPhotoPath = job.original_photo_path;
   const sourceAssetPath = job.source_asset_path;
 
@@ -1019,6 +1098,24 @@ const runPipeline = async (input: {
   // privacy afterwards; the seed is one of our own previously generated
   // sprites instead.
   const isExpressionPackMode = Boolean(sourceAssetPath);
+
+  if (job.status === "cleanup_pending" && originalPhotoPath) {
+    await finalizeSourceCleanup(admin, job, originalPhotoPath);
+    return;
+  }
+
+  await cleanupSupersededAttemptAssets(admin, job);
+
+  if (job.attempt_count > MAX_GENERATION_ATTEMPTS) {
+    await markJobFailed(
+      admin,
+      job,
+      "generation_attempts_exhausted",
+      failureMessages.unexpected,
+      { failedStage: "created", internalError: "Generation attempt limit exhausted." }
+    );
+    return;
+  }
 
   // Every job funded a purchase (either consume_credits, recorded as
   // job.credit_ref, a purchased pet slot's bundled generation grant
@@ -1032,20 +1129,13 @@ const runPipeline = async (input: {
   // job is created (see the HTTP handler's step 4), so a failure that
   // doesn't refund would silently keep the user's credits without ever
   // delivering the generation.
-  const shouldRefundOnFailure = true;
-  const creditRef = job.credit_ref;
-
   if (!originalPhotoPath && !sourceAssetPath) {
     await markJobFailed(
       admin,
-      job.id,
-      job.user_id,
+      job,
       "original_photo_missing",
       failureMessages.photoMissing,
-      shouldRefundOnFailure,
-      { failedStage: "created", internalError: "Job row has no original_photo_path or source_asset_path." },
-      creditRef,
-      usedPetSlotBundle
+      { failedStage: "created", internalError: "Job row has no original_photo_path or source_asset_path." }
     );
     return;
   }
@@ -1058,19 +1148,15 @@ const runPipeline = async (input: {
     if (download.error || !download.data) {
       await markJobFailed(
         admin,
-        job.id,
-        job.user_id,
+        job,
         isExpressionPackMode ? "source_asset_missing" : "original_photo_missing",
         isExpressionPackMode ? failureMessages.sourceAssetMissing : failureMessages.photoMissing,
-        shouldRefundOnFailure,
         {
           failedStage: "preprocessing",
           internalError:
             toInternalErrorMessage(download.error) ??
             (isExpressionPackMode ? "Source asset download returned no data." : "Original photo download returned no data.")
-        },
-        creditRef,
-        usedPetSlotBundle
+        }
       );
       return;
     }
@@ -1087,7 +1173,7 @@ const runPipeline = async (input: {
     if (isExpressionPackMode) {
       safety = { safetyApproved: true, manualReviewRequired: false, confidence: 1, failedChecks: [], warnings: [] };
     } else {
-      await updateJobStatus(admin, job.id, { status: "safety_checking" });
+      await updateJobStatus(admin, job, { status: "safety_checking" });
 
       try {
         safety = dryRun
@@ -1102,14 +1188,10 @@ const runPipeline = async (input: {
       } catch (cause) {
         await markJobFailed(
           admin,
-          job.id,
-          job.user_id,
+          job,
           "source_photo_safety_unavailable",
           failureMessages.safetyFailed,
-          true,
-          diagnosticsForStage("safety_checking", cause),
-          creditRef,
-          usedPetSlotBundle
+          diagnosticsForStage("safety_checking", cause)
         );
         return;
       }
@@ -1117,19 +1199,15 @@ const runPipeline = async (input: {
       if (safety.manualReviewRequired) {
         await markJobFailed(
           admin,
-          job.id,
-          job.user_id,
+          job,
           "source_photo_manual_review_required",
           failureMessages.safetyManualReview,
-          true,
           {
             failedStage: "safety_checking",
             internalError: truncateInternalError(
               `Manual review required (confidence=${safety.confidence}): ${safety.failedChecks.join(", ") || "no specific checks flagged"}.`
             )
-          },
-          creditRef,
-          usedPetSlotBundle
+          }
         );
         return;
       }
@@ -1137,26 +1215,21 @@ const runPipeline = async (input: {
       if (!safety.safetyApproved) {
         await markJobFailed(
           admin,
-          job.id,
-          job.user_id,
+          job,
           "source_photo_safety_failed",
           failureMessages.safetyFailed,
-          true,
           {
             failedStage: "safety_checking",
             internalError: truncateInternalError(
               `Safety check rejected (confidence=${safety.confidence}): ${safety.failedChecks.join(", ") || "no specific checks flagged"}.`
             )
-          },
-          creditRef,
-          usedPetSlotBundle
+          }
         );
         return;
       }
     }
 
-    // c. Generation, one call per required state.
-    await updateJobStatus(admin, job.id, { status: "generating" });
+    await updateJobStatus(admin, job, { status: "generating" });
 
     const requiredStates = job.required_states.length > 0 ? job.required_states : ["idle", "happy", "sleep"];
     let generated: Array<{ state: string; result: GeneratedImageResult }>;
@@ -1189,41 +1262,38 @@ const runPipeline = async (input: {
           };
         });
       } else {
-        // Generate all required states concurrently rather than sequentially.
-        // Sequential generation (60-120s per state) multiplied by 3+ states
-        // could exceed the Edge Function's 400s wall-clock limit; running them
-        // in parallel bounds total generation time to roughly one call's
-        // duration regardless of state count. Promise.all fails fast (and the
-        // whole batch is treated as failed, refund included) if any state
-        // errors out, matching the prior all-or-nothing failure behavior.
-        generated = await Promise.all(
-          requiredStates.map((state) =>
-            generateStateImage({
-              apiKey: openAiApiKey,
-              model: imageModel,
-              sourceImageBytes: sourceBytes,
-              sourceContentType,
-              state,
-              species: job.input_snapshot.species,
-              petName: job.input_snapshot.petName,
-              personalityTags: job.input_snapshot.personalityTags,
-              talkingStyle: job.input_snapshot.talkingStyle,
-              promptMode: isExpressionPackMode ? "expression_pack" : "photo"
-            }).then((result) => ({ state, result }))
-          )
-        );
+        const sheet = await generatePoseSheet({
+          apiKey: openAiApiKey,
+          model: imageModel,
+          sourceImageBytes: sourceBytes,
+          sourceContentType,
+          states: requiredStates,
+          species: job.input_snapshot.species,
+          petName: job.input_snapshot.petName,
+          personalityTags: job.input_snapshot.personalityTags,
+          talkingStyle: job.input_snapshot.talkingStyle,
+          promptMode: isExpressionPackMode ? "expression_pack" : "photo"
+        });
+
+        const panels = splitPoseSheet(sheet.bytes, requiredStates);
+        const sheetValidation = validatePoseSheetPanels(panels);
+
+        if (!sheetValidation.valid) {
+          throw new Error(`Pose sheet quality failed: ${sheetValidation.failures.join(", ")}`);
+        }
+
+        generated = panels.map((panel) => ({
+          state: panel.state,
+          result: { bytes: panel.bytes, width: panel.width, height: panel.height }
+        }));
       }
     } catch (cause) {
       await markJobFailed(
         admin,
-        job.id,
-        job.user_id,
+        job,
         "generation_failed",
         failureMessages.generationFailed,
-        shouldRefundOnFailure,
-        diagnosticsForStage("generating", cause),
-        creditRef,
-        usedPetSlotBundle
+        diagnosticsForStage("generating", cause)
       );
       return;
     }
@@ -1251,40 +1321,30 @@ const runPipeline = async (input: {
     });
 
     // e. Lightweight quality gate, run against the post-chroma-key PNGs.
-    await updateJobStatus(admin, job.id, { status: "quality_checking" });
+    await updateJobStatus(admin, job, { status: "quality_checking" });
 
     const failedStates = generated.filter(({ result }) => !passesLightweightQualityGate(result));
 
     if (failedStates.length > 0) {
-      await updateJobStatus(admin, job.id, {
-        quality: {
-          qualityStatus: "failed",
-          failedChecks: failedStates.map(({ state }) => `generated_asset_quality_failed_${state}`),
-          manualReviewRequired: false,
-          retryRecommended: true,
-          // Diagnostic-only, see JobFailureDiagnostics above.
+      await markJobFailed(
+        admin,
+        job,
+        "generated_asset_quality_failed",
+        failureMessages.qualityFailed,
+        {
           failedStage: "quality_checking",
           internalError: truncateInternalError(
             `Quality gate failed for states: ${failedStates.map(({ state }) => state).join(", ")}.`
           )
         }
-      });
-      await markJobFailed(
-        admin,
-        job.id,
-        job.user_id,
-        "generated_asset_quality_failed",
-        failureMessages.qualityFailed,
-        shouldRefundOnFailure,
-        undefined,
-        creditRef,
-        usedPetSlotBundle
       );
       return;
     }
 
     // f. Upload assets.
-    await updateJobStatus(admin, job.id, { status: "uploading_assets" });
+    await updateJobStatus(admin, job, { status: "uploading_assets" });
+
+    const unlockedAt = new Date().toISOString();
 
     try {
       // pet_id-namespaced storage path when the job carries one, otherwise
@@ -1296,81 +1356,112 @@ const runPipeline = async (input: {
       // right after "avatars" either way.
       for (const { state, result } of generated) {
         const storagePath = job.pet_id
-          ? `avatars/${job.user_id}/${job.pet_id}/${job.id}/${state}.png`
-          : `avatars/${job.user_id}/${job.id}/${state}.png`;
+          ? `avatars/${job.user_id}/${job.pet_id}/${job.id}/${job.lease_token}/${state}.png`
+          : `avatars/${job.user_id}/${job.id}/${job.lease_token}/${state}.png`;
         const contentHash = `sha256:${await sha256Hex(result.bytes)}`;
 
         const upload = await admin.storage.from(BUCKET).upload(storagePath, result.bytes, {
           contentType: "image/png",
-          upsert: true
+          upsert: false
         });
 
         if (upload.error) {
           throw new Error(`Asset upload failed for state "${state}": ${upload.error.message}`);
         }
 
-        const insert = await admin.from("generated_assets").insert({
-          job_id: job.id,
-          user_id: job.user_id,
-          pet_id: job.pet_id,
-          state,
-          storage_path: storagePath,
-          width: result.width,
-          height: result.height,
-          content_hash: contentHash
+        const { data: recorded, error: recordError } = await admin.rpc("record_generation_asset", {
+          p_job_id: job.id,
+          p_lease_token: job.lease_token,
+          p_state: state,
+          p_storage_path: storagePath,
+          p_width: result.width,
+          p_height: result.height,
+          p_content_hash: contentHash,
+          p_unlocked_at: isExpressionPackMode || state === "idle" ? unlockedAt : null
         });
 
-        if (insert.error) {
-          throw new Error(`Asset record insert failed for state "${state}": ${insert.error.message}`);
+        if (recordError) {
+          throw new Error(`Asset record insert failed for state "${state}": ${recordError.message}`);
+        }
+
+        if (recorded !== true) {
+          await admin.storage.from(BUCKET).remove([storagePath]);
+          throw new LeaseLostError(`Generation lease expired before publishing state "${state}".`);
         }
       }
     } catch (cause) {
+      if (cause instanceof LeaseLostError) {
+        return;
+      }
+
       await markJobFailed(
         admin,
-        job.id,
-        job.user_id,
+        job,
         "asset_upload_failed",
         failureMessages.uploadFailed,
-        shouldRefundOnFailure,
-        diagnosticsForStage("uploading_assets", cause),
-        creditRef,
-        usedPetSlotBundle
+        diagnosticsForStage("uploading_assets", cause)
       );
       return;
     }
 
-    // g. Mark completed, then (outside expression pack mode) delete the
-    // original photo for privacy -- see the isExpressionPackMode branch below.
-    await updateJobStatus(admin, job.id, {
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      quality: {
+    const completionQuality = {
         qualityStatus: "passed",
         failedChecks: [],
         manualReviewRequired: false,
         retryRecommended: false,
         chromaKey: chromaKeyTags
-      }
+      };
+    const { data: completed, error: completionError } = await admin.rpc("complete_generation_job", {
+      p_job_id: job.id,
+      p_lease_token: job.lease_token,
+      p_quality: completionQuality
     });
 
-    // g (cont'd). Delete the original photo for privacy -- but never the
-    // seed asset in expression pack mode: that's a permanent, reusable
-    // generated_assets entry (e.g. the idle sprite), not a transient photo
-    // upload, so it must survive to seed future expression pack requests too.
+    if (completionError || completed !== true) {
+      const completionRecovery = await admin
+        .from("generation_jobs")
+        .select("status, cleanup_target_status")
+        .eq("id", job.id)
+        .maybeSingle();
+
+      if (completionRecovery.error) {
+        console.error("[generate-avatar] completion recovery lookup failed", {
+          jobId: job.id,
+          error: completionRecovery.error.message
+        });
+        throw new Error(`Generation completion was not committed: ${completionError?.message ?? "not completed"}`);
+      }
+
+      const completionWasCommitted =
+        completionRecovery.data?.status === "completed" ||
+        (completionRecovery.data?.status === "cleanup_pending" && completionRecovery.data.cleanup_target_status === "completed");
+
+      if (!completionWasCommitted) {
+        throw new Error(`Generation completion was not committed: ${completionError?.message ?? "not completed"}`);
+      }
+    }
+
     if (!isExpressionPackMode && originalPhotoPath) {
-      await admin.storage.from(BUCKET).remove([originalPhotoPath]);
+      try {
+        await finalizeSourceCleanup(admin, job, originalPhotoPath);
+      } catch (cause) {
+        console.error("[generate-avatar] source cleanup scheduling failed", {
+          jobId: job.id,
+          error: cause instanceof Error ? cause.message : String(cause)
+        });
+      }
     }
   } catch (cause) {
+    if (cause instanceof LeaseLostError) {
+      return;
+    }
+
     await markJobFailed(
       admin,
-      job.id,
-      job.user_id,
+      job,
       "unexpected_pipeline_error",
       failureMessages.unexpected,
-      shouldRefundOnFailure,
-      diagnosticsForStage("unexpected", cause),
-      creditRef,
-      usedPetSlotBundle
+      diagnosticsForStage("unexpected", cause)
     );
   }
 };
@@ -1424,6 +1515,118 @@ const isValidInputSnapshot = (value: unknown): value is GenerationInputSnapshot 
   return true;
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const claimGenerationJob = async (
+  admin: SupabaseClient,
+  userId: string,
+  jobId: string
+): Promise<GenerationJobRow | null> => {
+  const { data, error } = await admin.rpc("claim_generation_job", {
+    p_user: userId,
+    p_job_id: jobId,
+    p_lease_seconds: 420,
+    p_max_attempts: MAX_GENERATION_ATTEMPTS
+  });
+
+  if (error) {
+    throw new Error(`Generation job claim failed: ${error.message}`);
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+
+  if (!row) {
+    return null;
+  }
+
+  if (
+    typeof row.job_id !== "string" ||
+    typeof row.user_id !== "string" ||
+    typeof row.lease_token !== "string" ||
+    !Array.isArray(row.required_states)
+  ) {
+    throw new Error("Generation job claim returned an invalid row.");
+  }
+
+  return {
+    id: row.job_id,
+    user_id: row.user_id,
+    status: String(row.status),
+    input_snapshot: row.input_snapshot as GenerationInputSnapshot,
+    required_states: row.required_states.map(String),
+    original_photo_path: typeof row.original_photo_path === "string" ? row.original_photo_path : null,
+    source_asset_path: typeof row.source_asset_path === "string" ? row.source_asset_path : null,
+    credit_ref: typeof row.credit_ref === "string" ? row.credit_ref : null,
+    pet_id: typeof row.pet_id === "string" ? row.pet_id : null,
+    lease_token: row.lease_token,
+    attempt_count: typeof row.attempt_count === "number" ? row.attempt_count : 0
+  };
+};
+
+const scheduleGenerationPipeline = (input: Parameters<typeof runPipeline>[0]): void => {
+  const pipelinePromise = runPipeline(input);
+  const runtime = (globalThis as EdgeRuntimeGlobal).EdgeRuntime;
+
+  if (runtime && typeof runtime.waitUntil === "function") {
+    runtime.waitUntil(pipelinePromise);
+    return;
+  }
+
+  pipelinePromise.catch((cause) => {
+    console.error("[generate-avatar] detached pipeline rejected", {
+      jobId: input.job.id,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
+  });
+};
+
+const removeUnclaimedSourcePhoto = async (
+  admin: SupabaseClient,
+  userId: string,
+  originalPhotoPath: string,
+  reason: string
+): Promise<void> => {
+  try {
+    const { data: owningJob, error: ownershipError } = await admin
+      .from("generation_jobs")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("original_photo_path", originalPhotoPath)
+      .neq("status", "failed")
+      .limit(1)
+      .maybeSingle();
+
+    if (ownershipError) {
+      console.error("[generate-avatar] unclaimed source ownership check failed", {
+        path: originalPhotoPath,
+        reason,
+        error: ownershipError.message
+      });
+      return;
+    }
+
+    if (owningJob) {
+      return;
+    }
+
+    const removal = await admin.storage.from(BUCKET).remove([originalPhotoPath]);
+
+    if (removal.error) {
+      console.error("[generate-avatar] unclaimed source cleanup failed", {
+        path: originalPhotoPath,
+        reason,
+        error: removal.error.message
+      });
+    }
+  } catch (cause) {
+    console.error("[generate-avatar] unclaimed source cleanup threw", {
+      path: originalPhotoPath,
+      reason,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
+  }
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonResponse({ error: "method_not_allowed" }, 405);
@@ -1464,9 +1667,64 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "invalid_json" }, 400);
   }
 
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false }
+  });
+
+  if (body.resume_job_id !== undefined) {
+    if (typeof body.resume_job_id !== "string" || !UUID_PATTERN.test(body.resume_job_id)) {
+      return jsonResponse({ error: "invalid_request" }, 400);
+    }
+
+    try {
+      const resumedJob = await claimGenerationJob(admin, userId, body.resume_job_id);
+
+      if (resumedJob) {
+        scheduleGenerationPipeline({
+          admin,
+          job: resumedJob,
+          openAiApiKey: openAiApiKey ?? "",
+          imageModel,
+          dryRun: DRY_RUN
+        });
+      }
+
+      return jsonResponse({ jobId: body.resume_job_id }, 202);
+    } catch (cause) {
+      console.error("[generate-avatar] resume failed", {
+        jobId: body.resume_job_id,
+        error: cause instanceof Error ? cause.message : String(cause)
+      });
+      return jsonResponse({ error: "job_resume_failed" }, 500);
+    }
+  }
+
+  if (GENERATION_MAINTENANCE_MODE) {
+    const maintenanceOriginalPhotoPath =
+      typeof body.originalPhotoPath === "string" && body.originalPhotoPath.startsWith(`original-photos/${userId}/`)
+        ? body.originalPhotoPath.trim()
+        : null;
+
+    if (maintenanceOriginalPhotoPath) {
+      await removeUnclaimedSourcePhoto(admin, userId, maintenanceOriginalPhotoPath, "maintenance");
+    }
+
+    return jsonResponse(
+      { error: "generation_maintenance" },
+      503,
+      { "Retry-After": "60" }
+    );
+  }
+
   if (!isValidInputSnapshot(body.inputSnapshot)) {
     return jsonResponse({ error: "invalid_request" }, 400);
   }
+
+  if (typeof body.request_id !== "string" || body.request_id.trim().length === 0 || body.request_id.length > 128) {
+    return jsonResponse({ error: "invalid_request" }, 400);
+  }
+
+  const requestId = body.request_id.trim();
 
   // pet_id (see 0005_pet_namespace.sql and the GenerateAvatarRequestBody doc
   // comment): optional, and as of this migration no shipped client sends it
@@ -1497,16 +1755,15 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "invalid_request" }, 400);
   }
 
+  const ordinaryOriginalPhotoPath = isExpressionPackRequest ? null : body.originalPhotoPath?.trim() ?? null;
+
   // service_role client for privileged writes (quota, job rows, storage) --
   // created here (rather than further down) because the expression pack
   // pet-ownership check right below needs it.
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false }
-  });
-
   let requestedStates: string[] = [];
   let expressionPackRequestId: string | null = null;
   let expressionPackSourceAssetPath: string | null = null;
+  let expressionPackId: string | null = null;
 
   if (isExpressionPackRequest) {
     if (
@@ -1541,8 +1798,8 @@ Deno.serve(async (req: Request) => {
     }
 
     requestedStates = [...expressionPack.states];
-    expressionPackRequestId =
-      typeof body.request_id === "string" && body.request_id.trim().length > 0 ? body.request_id.trim() : crypto.randomUUID();
+    expressionPackRequestId = requestId;
+    expressionPackId = expressionPack.id;
 
     // Ownership check: the Edge Function runs with the service_role key
     // (bypasses RLS) and downloads whatever path it's given, so an
@@ -1564,9 +1821,11 @@ Deno.serve(async (req: Request) => {
     // legacy null-pet-id pet) in generated_assets.
     let seedOwnershipQuery = admin
       .from("generated_assets")
-      .select("id")
+      .select("id, job_id")
       .eq("user_id", userId)
-      .eq("storage_path", sourceAssetPath);
+      .eq("storage_path", sourceAssetPath)
+      .eq("state", "idle")
+      .not("unlocked_at", "is", null);
     seedOwnershipQuery =
       requestedPetId === null ? seedOwnershipQuery.is("pet_id", null) : seedOwnershipQuery.eq("pet_id", requestedPetId);
 
@@ -1580,35 +1839,21 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "invalid_request" }, 400);
     }
 
-    if (expressionPackRequestId) {
-      const { data: existingJob, error: existingJobError } = await admin
-        .from("generation_jobs")
-        .select("id, source_asset_path, required_states, pet_id")
-        .eq("user_id", userId)
-        .eq("credit_ref", expressionPackRequestId)
-        .maybeSingle();
+    const { data: seedJobRow, error: seedJobError } = await admin
+      .from("generation_jobs")
+      .select("status, source_asset_path")
+      .eq("id", (seedAssetRow as { job_id: string }).job_id)
+      .eq("user_id", userId)
+      .single();
 
-      if (existingJobError) {
-        return jsonResponse({ error: "job_idempotency_check_failed" }, 500);
-      }
-
-      if (existingJob) {
-        const existing = existingJob as {
-          id: string;
-          source_asset_path: string | null;
-          required_states: string[] | null;
-          pet_id: string | null;
-        };
-        const samePet = requestedPetId === null ? existing.pet_id === null : existing.pet_id === requestedPetId;
-        const sameStates = Array.isArray(existing.required_states) && sameStringArray(existing.required_states, requestedStates);
-
-        if (existing.source_asset_path === sourceAssetPath && samePet && sameStates) {
-          return jsonResponse({ jobId: existing.id }, 202);
-        }
-
-        return jsonResponse({ error: "idempotency_conflict" }, 409);
-      }
+    if (seedJobError) {
+      return jsonResponse({ error: "source_asset_check_failed" }, 500);
     }
+
+    if (!seedJobRow || seedJobRow.status !== "completed" || seedJobRow.source_asset_path !== null) {
+      return jsonResponse({ error: "invalid_request" }, 400);
+    }
+
   }
 
   // 3. Rate limit: cap burst attempts before touching quota/credits or doing
@@ -1641,178 +1886,129 @@ Deno.serve(async (req: Request) => {
 
     console.warn("[generate-avatar] rate limit check failed, failing open:", rateLimitError.message);
   } else if (rateLimitOk !== true) {
+    if (ordinaryOriginalPhotoPath) {
+      await removeUnclaimedSourcePhoto(admin, userId, ordinaryOriginalPhotoPath, "rate_limited");
+    }
     return jsonResponse({ error: "rate_limited" }, 429, { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) });
   }
 
-  // 4. Secure a paid generation slot atomically before doing any paid work.
-  //
-  // Expression pack requests are now billed server-side against
-  // credit_wallets via consume_credits (supabase/migrations/0004_credit_ledger.sql)
-  // instead of skipping server-side accounting entirely -- see
-  // docs/credit-phase1-design.md §4.2. The debit happens here, *before* the
-  // job row exists, so credit_request idempotency has to key off a
-  // client-supplied request_id rather than the not-yet-created job id (see
-  // §3.6 of that design doc). requestId falls back to a server-generated
-  // UUID when the client hasn't been migrated to send one yet (Phase 1c) --
-  // that fallback is only safe here because it's generated fresh per HTTP
-  // call, so it can never coincide with a real retry's key and cause a
-  // false-idempotent skip; it just means an old client's literal button-mash
-  // retries aren't deduplicated until Phase 1c ships, same as before this
-  // change.
-  //
-  // All other (non-expression-pack) requests are, by default, funded by the
-  // free generation_quota allowance exactly as before -- paid generation-
-  // credit pricing for regeneration/full-set is a later credit phase, not
-  // Phase 1. The one exception (multi-pet W2): a non-expression-pack request
-  // for a genuinely new pet beyond the user's first is instead gated on
-  // pet_slots (reserve_pet_generation_slot, 0005_pet_namespace.sql) --
-  // free_limit is per-USER, not per-pet, so it would otherwise already be
-  // exhausted by the time a second pet exists, which is exactly the
-  // multi-pet-slot-plan.md blocker this closes.
-  let creditRef: string | null = null;
-  let usedPetSlotBundle = false;
+  let jobId: string;
 
-  if (isExpressionPackRequest) {
-    const requestId = expressionPackRequestId ?? crypto.randomUUID();
-
-    const { data: newBalance, error: consumeError } = await admin.rpc("consume_credits", {
+  if (isExpressionPackRequest && expressionPackRequestId && expressionPackSourceAssetPath && expressionPackId) {
+    const { data: atomicResult, error: atomicError } = await admin.rpc("create_expression_pack_job", {
       p_user: userId,
       p_cost: EXPRESSION_PACK_CREDIT_COST,
-      p_reason: "consume_expression_pack",
-      p_ref_type: "credit_request",
-      p_ref_id: requestId
-    });
-
-    if (consumeError) {
-      return jsonResponse({ error: "credit_check_failed" }, 500);
-    }
-
-    if (newBalance === -1) {
-      return jsonResponse({ error: "insufficient_credits", message: failureMessages.insufficientCredits }, 402);
-    }
-
-    creditRef = requestId;
-  } else {
-    const { data: slotDecision, error: slotError } = await admin.rpc("reserve_pet_generation_slot", {
-      p_user: userId,
+      p_request_id: expressionPackRequestId,
+      p_product_key: expressionPackId,
+      p_input_snapshot: body.inputSnapshot,
+      p_source_asset_path: expressionPackSourceAssetPath,
+      p_required_states: requestedStates,
       p_pet_id: requestedPetId
     });
 
-    if (slotError) {
-      return jsonResponse({ error: "pet_slot_check_failed" }, 500);
+    if (atomicError) {
+      return jsonResponse({ error: "job_create_failed" }, 500);
     }
 
-    if (slotDecision === "slot_required") {
+    const atomicRow = Array.isArray(atomicResult) ? atomicResult[0] : atomicResult;
+
+    if (!atomicRow || typeof atomicRow !== "object" || typeof atomicRow.outcome !== "string") {
+      return jsonResponse({ error: "job_create_failed" }, 500);
+    }
+
+    if (atomicRow.outcome === "insufficient_credits") {
+      return jsonResponse({ error: "insufficient_credits", message: failureMessages.insufficientCredits }, 402);
+    }
+
+    if (atomicRow.outcome === "conflict" || atomicRow.outcome === "refunded_request") {
+      return jsonResponse({ error: "idempotency_conflict" }, 409);
+    }
+
+    if ((atomicRow.outcome !== "created" && atomicRow.outcome !== "existing") || typeof atomicRow.job_id !== "string") {
+      return jsonResponse({ error: "job_create_failed" }, 500);
+    }
+
+    jobId = atomicRow.job_id;
+  } else {
+    const originalPhotoPath = ordinaryOriginalPhotoPath ?? "";
+    const { data: createResult, error: createError } = await admin.rpc("create_generation_job", {
+      p_user: userId,
+      p_request_id: requestId,
+      p_input_snapshot: body.inputSnapshot,
+      p_original_photo_path: originalPhotoPath,
+      p_pet_id: requestedPetId,
+      p_required_states: TEST_STATES_OVERRIDE ?? ["idle", "happy", "sleep"]
+    });
+
+    if (createError) {
+      await removeUnclaimedSourcePhoto(admin, userId, originalPhotoPath, "job_create_failed");
+      return jsonResponse({ error: "job_create_failed" }, 500);
+    }
+
+    const createRow = Array.isArray(createResult) ? createResult[0] : createResult;
+
+    if (!createRow || typeof createRow.outcome !== "string") {
+      await removeUnclaimedSourcePhoto(admin, userId, originalPhotoPath, "job_create_response_invalid");
+      return jsonResponse({ error: "job_create_failed" }, 500);
+    }
+
+    if (createRow.outcome === "pet_slot_required") {
+      await removeUnclaimedSourcePhoto(admin, userId, originalPhotoPath, "pet_slot_required");
       return jsonResponse({ error: "pet_slot_required", message: failureMessages.petSlotRequired }, 402);
     }
 
-    if (slotDecision === "ok_slot_bundle") {
-      // Already fully paid for at slot-purchase time (grant_pet_slot) --
-      // skip both generation_quota and consume_credits for this request.
-      usedPetSlotBundle = true;
-    } else {
-      // "ok_default": either this user's first pet, or a from-photo
-      // regeneration of a pet that already has a completed generation --
-      // both keep going through the existing free quota allowance.
-      const { data: quotaConsumed, error: quotaError } = await admin.rpc("consume_generation_quota", { p_user: userId });
-
-      if (quotaError) {
-        return jsonResponse({ error: "quota_check_failed" }, 500);
-      }
-
-      if (quotaConsumed !== true) {
-        return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
-      }
+    if (createRow.outcome === "quota_exhausted") {
+      await removeUnclaimedSourcePhoto(admin, userId, originalPhotoPath, "quota_exhausted");
+      return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
     }
-  }
 
-  // 5. Create the job row and respond immediately; run the pipeline in the background.
-  // required_states is only included when GENERATION_TEST_STATES is active or
-  // this is an expression pack request (requestedStates) -- otherwise the
-  // column's DB default ({idle,happy,sleep}) applies unchanged. original_photo_path
-  // stays null for expression pack requests; source_asset_path carries the
-  // seed sprite's storage path instead (see 0003_expression_pack_source_asset.sql).
-  // credit_ref carries the consume_credits idempotency key from step 4 above
-  // (null for the free-quota and pet-slot-bundle paths), used to refund the
-  // right ledger entry on pipeline failure -- see markJobFailed/runPipeline.
-  // pet_id is requestedPetId verbatim (null for the pre-multi-pet default).
-  const { data: insertedJob, error: insertError } = await admin
-    .from("generation_jobs")
-    .insert({
-      user_id: userId,
-      status: "created",
-      input_snapshot: body.inputSnapshot,
-      original_photo_path: isExpressionPackRequest ? null : body.originalPhotoPath,
-      credit_ref: creditRef,
-      pet_id: requestedPetId,
-      ...(isExpressionPackRequest ? { source_asset_path: expressionPackSourceAssetPath, required_states: requestedStates } : {}),
-      ...(!isExpressionPackRequest && TEST_STATES_OVERRIDE ? { required_states: TEST_STATES_OVERRIDE } : {})
-    })
-    .select("id, user_id, status, input_snapshot, required_states, original_photo_path, source_asset_path, credit_ref, pet_id")
-    .single();
+    if (createRow.outcome === "conflict" || createRow.outcome === "refunded_request") {
+      await removeUnclaimedSourcePhoto(admin, userId, originalPhotoPath, createRow.outcome);
+      return jsonResponse({ error: "idempotency_conflict" }, 409);
+    }
 
-  if (insertError || !insertedJob) {
-    if (isExpressionPackRequest && creditRef) {
-      const { data: existingJob, error: existingJobError } = await admin
-        .from("generation_jobs")
-        .select("id, source_asset_path, required_states, pet_id")
-        .eq("user_id", userId)
-        .eq("credit_ref", creditRef)
-        .maybeSingle();
+    if ((createRow.outcome !== "created" && createRow.outcome !== "existing") || typeof createRow.job_id !== "string") {
+      await removeUnclaimedSourcePhoto(admin, userId, originalPhotoPath, "job_create_outcome_invalid");
+      return jsonResponse({ error: "job_create_failed" }, 500);
+    }
 
-      if (!existingJobError && existingJob) {
-        const existing = existingJob as {
-          id: string;
-          source_asset_path: string | null;
-          required_states: string[] | null;
-          pet_id: string | null;
-        };
-        const samePet = requestedPetId === null ? existing.pet_id === null : existing.pet_id === requestedPetId;
-        const sameStates = Array.isArray(existing.required_states) && sameStringArray(existing.required_states, requestedStates);
+    if (
+      createRow.outcome === "existing" &&
+      typeof createRow.stored_original_photo_path === "string" &&
+      createRow.stored_original_photo_path !== originalPhotoPath
+    ) {
+      const redundantUploadRemoval = await admin.storage.from(BUCKET).remove([originalPhotoPath]);
 
-        if (existing.source_asset_path === expressionPackSourceAssetPath && samePet && sameStates) {
-          return jsonResponse({ jobId: existing.id }, 202);
-        }
-
-        return jsonResponse({ error: "idempotency_conflict" }, 409);
+      if (redundantUploadRemoval.error) {
+        console.error("[generate-avatar] redundant retry upload cleanup failed", {
+          jobId: createRow.job_id,
+          error: redundantUploadRemoval.error.message
+        });
       }
     }
 
-    if (creditRef) {
-      await admin.rpc("refund_credits", { p_user: userId, p_ref_type: "credit_request", p_ref_id: creditRef });
-    } else if (usedPetSlotBundle) {
-      await admin.rpc("refund_pet_generation_slot", { p_user: userId });
-    } else {
-      await admin.rpc("refund_generation_quota", { p_user: userId });
+    jobId = createRow.job_id;
+  }
+
+  try {
+    const claimedJob = await claimGenerationJob(admin, userId, jobId);
+
+    if (claimedJob) {
+      scheduleGenerationPipeline({
+        admin,
+        job: claimedJob,
+        openAiApiKey: openAiApiKey ?? "",
+        imageModel,
+        dryRun: DRY_RUN
+      });
     }
-    return jsonResponse({ error: "job_create_failed" }, 500);
+  } catch (cause) {
+    console.error("[generate-avatar] initial claim failed", {
+      jobId,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
+    return jsonResponse({ error: "job_claim_failed" }, 500);
   }
 
-  const job = insertedJob as GenerationJobRow;
-
-  const runtime = (globalThis as EdgeRuntimeGlobal).EdgeRuntime;
-
-  // openAiApiKey is only genuinely absent when DRY_RUN is active (the
-  // server_misconfigured check above already guarantees that combination is
-  // impossible otherwise) -- runPipeline's dryRun branches never dereference
-  // it in that case, so the empty-string fallback here is unreachable in
-  // practice and exists purely to satisfy the non-optional parameter type.
-  const pipelinePromise = runPipeline({
-    admin,
-    job,
-    openAiApiKey: openAiApiKey ?? "",
-    imageModel,
-    dryRun: DRY_RUN,
-    usedPetSlotBundle
-  });
-
-  if (runtime && typeof runtime.waitUntil === "function") {
-    runtime.waitUntil(pipelinePromise);
-  } else {
-    // Local/non-EdgeRuntime fallback: don't block the response, but don't
-    // let an unhandled rejection crash the isolate either.
-    pipelinePromise.catch(() => {});
-  }
-
-  return jsonResponse({ jobId: job.id }, 202);
+  return jsonResponse({ jobId }, 202);
 });

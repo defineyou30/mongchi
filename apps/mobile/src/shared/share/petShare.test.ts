@@ -32,8 +32,18 @@ describe("buildPetRevealShareMessage", () => {
     const message = buildPetRevealShareMessage("Miso");
 
     expect(message).toContain("Miso");
-    expect(message).toContain("Made with MongChi");
+    expect(message).toContain("Made with Mongchi");
     expect(message).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+  });
+
+  it("builds Korean reveal copy when the active locale is Korean", () => {
+    expect(buildPetRevealShareMessage("보리", "ko-KR")).toContain("보리");
+    expect(buildPetRevealShareMessage("보리", "ko-KR")).toMatch(/[가-힣]/);
+  });
+
+  it("builds Japanese and Brazilian Portuguese reveal copy", () => {
+    expect(buildPetRevealShareMessage("Miso", "ja-JP")).toMatch(/[ぁ-ヿ一-鿿]/u);
+    expect(buildPetRevealShareMessage("Miso", "pt-BR")).toMatch(/amiguinho|jardim/u);
   });
 
   it("only ever returns one of the known template variants", () => {
@@ -46,7 +56,7 @@ describe("buildPetRevealShareMessage", () => {
     expect(seen.size).toBeGreaterThan(0);
     for (const variant of seen) {
       expect(variant).toContain("{name}");
-      expect(variant).toContain("Made with MongChi");
+      expect(variant).toContain("Made with Mongchi");
     }
   });
 });
@@ -55,25 +65,40 @@ describe("buildFriendShareMessage", () => {
   it("includes the day count when daysTogether is positive", () => {
     const message = buildFriendShareMessage({ petName: "Luna", daysTogether: 12 });
 
-    expect(message).toBe("Luna has been my tiny garden friend for 12 days. Made with MongChi.");
+    expect(message).toBe("Luna has been my tiny garden friend for 12 days. Made with Mongchi.");
+  });
+
+  it("builds Korean friend copy without translating the pet name", () => {
+    expect(buildFriendShareMessage({ petName: "Miso", daysTogether: 12, locale: "ko-KR" })).toBe(
+      "Miso와 작은 정원에서 함께한 지 12일 됐어요. Mongchi에서 만들었어요."
+    );
+  });
+
+  it("builds German and Japanese friend copy without translating the pet name", () => {
+    expect(buildFriendShareMessage({ petName: "Miso", daysTogether: 12, locale: "de-DE" })).toBe(
+      "Miso ist seit 12 Tagen mein kleiner Gartenfreund. Erschaffen mit Mongchi."
+    );
+    expect(buildFriendShareMessage({ petName: "Miso", locale: "ja-JP" })).toBe(
+      "小さな庭のお友だち、Misoです。Mongchiで作りました。"
+    );
   });
 
   it("uses singular day wording for exactly 1 day", () => {
     const message = buildFriendShareMessage({ petName: "Luna", daysTogether: 1 });
 
-    expect(message).toBe("Luna has been my tiny garden friend for 1 day. Made with MongChi.");
+    expect(message).toBe("Luna has been my tiny garden friend for 1 day. Made with Mongchi.");
   });
 
   it("falls back to a dayless line when daysTogether is 0", () => {
     const message = buildFriendShareMessage({ petName: "Luna", daysTogether: 0 });
 
-    expect(message).toBe("Meet Luna, my tiny garden friend. Made with MongChi.");
+    expect(message).toBe("Meet Luna, my tiny garden friend. Made with Mongchi.");
   });
 
   it("falls back to a dayless line when daysTogether is missing", () => {
     const message = buildFriendShareMessage({ petName: "Luna" });
 
-    expect(message).toBe("Meet Luna, my tiny garden friend. Made with MongChi.");
+    expect(message).toBe("Meet Luna, my tiny garden friend. Made with Mongchi.");
   });
 });
 

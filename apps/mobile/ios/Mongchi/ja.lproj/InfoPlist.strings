@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "Mongchi";
+"NSCameraUsageDescription" = "ペットのアバター用写真を撮影するときにカメラを使用します。";
+"NSPhotoLibraryUsageDescription" = "選んだペットの写真から小さなアバターを作るために写真ライブラリを使用します。";
+"NSPhotoLibraryAddUsageDescription" = "希望したときだけ、ペットのシェア画像を写真ライブラリに保存します。";
+"NSLocationWhenInUseUsageDescription" = "ペットの庭に地域の天気を反映するとき、おおよその位置情報を使用します。";

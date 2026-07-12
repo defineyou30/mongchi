@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { PropsWithChildren } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, shadows } from "../design/tokens";
@@ -24,6 +25,7 @@ interface AppDialogContextValue {
 const AppDialogContext = createContext<AppDialogContextValue | null>(null);
 
 export function AppDialogProvider({ children }: PropsWithChildren) {
+  const { t } = useTranslation();
   const [dialog, setDialog] = useState<AppDialogOptions | null>(null);
   const dismissDialog = useCallback(() => setDialog(null), []);
   const showDialog = useCallback((options: AppDialogOptions) => setDialog(options), []);
@@ -80,11 +82,11 @@ export function AppDialogProvider({ children }: PropsWithChildren) {
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={dialog?.primaryLabel ?? "OK"}
+                accessibilityLabel={dialog?.primaryLabel ?? t("common.actions.ok")}
                 style={[styles.button, styles.primaryButton]}
                 onPress={handlePrimary}
               >
-                <Text style={[styles.buttonText, styles.primaryButtonText]}>{dialog?.primaryLabel ?? "OK"}</Text>
+                <Text style={[styles.buttonText, styles.primaryButtonText]}>{dialog?.primaryLabel ?? t("common.actions.ok")}</Text>
               </Pressable>
             </View>
           </View>

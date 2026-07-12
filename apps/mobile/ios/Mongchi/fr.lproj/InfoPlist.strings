@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "Mongchi";
+"NSCameraUsageDescription" = "Mongchi utilise l’appareil photo uniquement lorsque tu prends une photo de ton animal pour créer son avatar.";
+"NSPhotoLibraryUsageDescription" = "Mongchi utilise la photo d’animal que tu choisis pour créer son petit avatar.";
+"NSPhotoLibraryAddUsageDescription" = "Mongchi enregistre une image de ton animal uniquement lorsque tu le demandes.";
+"NSLocationWhenInUseUsageDescription" = "Mongchi utilise ta position approximative uniquement si tu choisis la météo locale pour le jardin.";

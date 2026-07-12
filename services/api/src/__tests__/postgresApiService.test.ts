@@ -1809,6 +1809,57 @@ describe("Postgres API service", () => {
     expect(purchaseClient.queries.some((query) => query.sql.includes("INSERT INTO public.inventory_items"))).toBe(true);
   });
 
+  it("localizes persisted walk discovery copy for Brazilian Portuguese", async () => {
+    const client = new QueueDatabaseClient([
+      [apiUserRow],
+      [activePetRow],
+      [],
+      [careStateRow(careState)],
+      [relationshipStateRow(relationshipState)],
+      (_sql, params) => [walkRowFromParams(params)],
+      (_sql, params) => [careStateRowFromParams(params)],
+      (_sql, params) => [relationshipStateRowFromParams(params)],
+      [{ ...reactionCatalogVersionRow([]), locale: "pt-BR" }],
+      [],
+      (_sql, params) => [reactionRowFromParams(params)]
+    ]);
+    const router = createApiHttpRouter({
+      allowMockAuth: false,
+      service: createPostgresApiService({
+        repositories: createPostgresRepositoryBundle(client),
+        now: () => "2026-06-24T09:10:00.000Z"
+      }),
+      sessionVerifier: {
+        verifySession: async (input) => ({
+          ok: true,
+          session: {
+            userId: "user_provider_001",
+            locale: input.locale,
+            timezone: input.timezone,
+            provider: "test-provider",
+            subject: "provider-subject-001"
+          }
+        })
+      }
+    });
+
+    const response = await router.handleAsync({
+      method: "POST",
+      path: "/v1/pets/pet_db_001/walks",
+      headers: {
+        authorization: "Bearer provider-token",
+        "x-locale": "pt-BR"
+      }
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      walk: {
+        discoveryLine: "Uma folhinha pensou em você."
+      }
+    });
+  });
+
   it("serves the active Postgres reaction catalog version without reseeding starter rules", async () => {
     const activeRule: ReactionRule = {
       id: "en_active_catalog_test_001",

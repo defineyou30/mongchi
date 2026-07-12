@@ -61,6 +61,57 @@ describe("home retention prompt presentation", () => {
     });
   });
 
+  it("localizes the D7 memory prompt for Korean", () => {
+    expect(
+      getHomeRetentionPromptPresentation({
+        petName: "몽치",
+        daysTogether: 5,
+        hasCaredToday: true,
+        hasOpenedMonthlyLetter: false,
+        isOnWalk: false,
+        locale: "ko-KR"
+      })
+    ).toMatchObject({
+      title: "일주일의 추억",
+      line: "일주일의 추억이 가까워졌어요. 추억책이 조금씩 우리 이야기로 채워지고 있어요.",
+      ctaLabel: "프로필 보기"
+    });
+  });
+
+  it("localizes the completed D7 memory prompt for Japanese", () => {
+    expect(
+      getHomeRetentionPromptPresentation({
+        petName: "Momo",
+        daysTogether: 5,
+        hasCaredToday: true,
+        hasOpenedMonthlyLetter: false,
+        isOnWalk: false,
+        locale: "ja-JP"
+      })
+    ).toMatchObject({
+      title: "1週間の思い出",
+      line: "1週間の思い出までもう少し。スクラップブックが少しずつふたりらしくなっています。",
+      ctaLabel: "プロフィールを見る"
+    });
+  });
+
+  it("localizes the waiting D30 letter prompt for Mexican Spanish", () => {
+    expect(
+      getHomeRetentionPromptPresentation({
+        petName: "Momo",
+        daysTogether: 31,
+        hasCaredToday: false,
+        hasOpenedMonthlyLetter: false,
+        isOnWalk: false,
+        locale: "es-MX"
+      })
+    ).toMatchObject({
+      title: "Carta del primer mes",
+      line: "Momo dejó una carta sobre su primer mes juntos.",
+      ctaLabel: "Abrir carta"
+    });
+  });
+
   it("keeps D14 as a profile-oriented relationship prompt once care is complete", () => {
     expect(
       getHomeRetentionPromptPresentation({

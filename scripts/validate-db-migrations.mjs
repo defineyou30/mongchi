@@ -130,6 +130,14 @@ const serviceRoleOnlySupabaseFunctions = [
   "grant_pet_slot(UUID, TEXT)",
   "reserve_pet_generation_slot(UUID, TEXT)",
   "refund_pet_generation_slot(UUID)",
+  "create_expression_pack_job(UUID, INTEGER, TEXT, TEXT, JSONB, TEXT, TEXT[], TEXT)",
+  "create_generation_job(UUID, TEXT, JSONB, TEXT, TEXT, TEXT[])",
+  "claim_generation_job(UUID, UUID, INTEGER, INTEGER)",
+  "advance_generation_job(UUID, UUID, TEXT, JSONB)",
+  "complete_generation_job(UUID, UUID, JSONB)",
+  "record_generation_asset(UUID, UUID, TEXT, TEXT, INTEGER, INTEGER, TEXT, TIMESTAMPTZ)",
+  "finalize_generation_source_cleanup(UUID, UUID)",
+  "fail_generation_job(UUID, UUID, TEXT, TEXT, JSONB)",
   "compact_conversation(UUID, TEXT, TIMESTAMPTZ)",
   "purge_expired_conversation_messages(INTEGER, INTEGER)"
 ];

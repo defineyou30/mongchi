@@ -1,4 +1,4 @@
-import type { ISODateTime, ItemId } from "./common";
+import type { ISODateTime, ItemId, Locale } from "./common";
 
 export const DAILY_FREE_CHAT_TICKETS = 3;
 
@@ -187,8 +187,28 @@ export const hasCaredToday = (state: CareStreakState, now: ISODateTime): boolean
  * no wiring to a toast/home surface here; callers decide when/where to show
  * it (kept separate so this stays testable without a UI harness).
  */
-export const getStreakGraceReturnLine = (petName: string): string => {
-  const trimmedName = petName.trim() || "Your pet";
+export const getStreakGraceReturnLine = (petName: string, locale: Locale = "en-US"): string => {
+  const fallbackNameByLocale: Record<Locale, string> = {
+    "en-US": "Your pet",
+    "ko-KR": "친구",
+    "ja-JP": "おともだち",
+    "zh-TW": "你的小夥伴",
+    "de-DE": "Dein Liebling",
+    "fr-FR": "Votre compagnon",
+    "pt-BR": "Seu companheiro",
+    "es-MX": "Tu compañero"
+  };
+  const name = petName.trim() || fallbackNameByLocale[locale];
+  const lineByLocale: Record<Locale, string> = {
+    "en-US": `${name} kept your streak warm while you were away.`,
+    "ko-KR": `${name}가 네가 없는 동안 연속 돌봄을 포근하게 지켜줬어.`,
+    "ja-JP": `${name}が留守の間も連続記録をあたためてくれたよ。`,
+    "zh-TW": `${name}在你不在時替你守住了溫暖的連續紀錄。`,
+    "de-DE": `${name} hat deine Serie warmgehalten, während du weg warst.`,
+    "fr-FR": `${name} a gardé votre série bien au chaud pendant votre absence.`,
+    "pt-BR": `${name} manteve sua sequência aquecida enquanto você estava fora.`,
+    "es-MX": `${name} mantuvo cálida tu racha mientras no estabas.`
+  };
 
-  return `${trimmedName} kept your streak warm while you were away.`;
+  return lineByLocale[locale];
 };

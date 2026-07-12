@@ -14,6 +14,7 @@ import {
   mergePrototypeGeneratedAssets,
   recordExpressionPackJobStart,
   recordExpressionPackUnlock,
+  unlockPrototypeStarterPosesForCareAction,
   validatePrototypeExpressionPackPurchase
 } from "../index";
 import { makeMockGeneratedAsset } from "../mock/mockData";
@@ -37,12 +38,22 @@ describe("expressionPacks catalog", () => {
 
   it("exposes packs as an array so future packs can be appended", () => {
     expect(Array.isArray(expressionPacks)).toBe(true);
-    expect(expressionPacks.length).toBe(3);
+    expect(expressionPacks.length).toBe(4);
+  });
+
+  it("includes a tender-care pack for vulnerable care moments", () => {
+    const pack = getExpressionPackById("pack-tender-care");
+
+    expect(pack?.nameEn).toBe("Tender Care");
+    expect(pack?.states).toEqual(["sad", "sick", "messy"]);
   });
 
   it("keeps every expression pack to the 3-state product unit", () => {
     for (const pack of expressionPacks) {
       expect(pack.states).toHaveLength(EXPRESSION_PACK_SIZE);
+      expect(pack.poseDetails).toHaveLength(EXPRESSION_PACK_SIZE);
+      expect(pack.poseDetails.map((pose) => pose.state)).toEqual(pack.states);
+      expect(pack.poseDetails.every((pose) => pose.nameEn.length > 0 && pose.usageEn.length > 0)).toBe(true);
       expect(pack.creditCost).toBe(12);
     }
   });
@@ -365,7 +376,11 @@ describe("recordExpressionPackJobStart", () => {
 
 describe("mergePrototypeGeneratedAssets", () => {
   it("adds new expression-pack assets alongside the existing free trio without dropping any", () => {
-    const state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    const state = unlockPrototypeStarterPosesForCareAction(
+      acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now),
+      "rest",
+      now
+    );
     const originalStates = active(state).acceptedAssets.map((asset) => asset.state);
     expect(originalStates).toContain("idle");
     expect(originalStates).toContain("happy");

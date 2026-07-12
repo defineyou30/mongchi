@@ -268,10 +268,17 @@ for (const filePath of resolveTargets()) {
 }
 
 if (requestedPaths.length === 0) {
+  const sharedHeaderPath = path.join(rootDir, "apps/mobile/src/shared/ui/ScreenHeaderRow.tsx");
+  const sharedHeaderHasAccessibleTitle =
+    fs.existsSync(sharedHeaderPath) &&
+    fs.readFileSync(sharedHeaderPath, "utf8").includes('accessibilityRole="header"');
+
   for (const relativePath of screenHeaderContracts) {
     const filePath = path.join(rootDir, relativePath);
+    const source = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+    const usesAccessibleSharedHeader = source.includes("<ScreenHeaderRow") && sharedHeaderHasAccessibleTitle;
 
-    if (!fs.existsSync(filePath) || !fs.readFileSync(filePath, "utf8").includes('accessibilityRole="header"')) {
+    if (!source.includes('accessibilityRole="header"') && !usesAccessibleSharedHeader) {
       failures.push(`${relativePath} must expose a primary screen title with accessibilityRole="header".`);
     }
   }

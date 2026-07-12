@@ -108,6 +108,15 @@ describe("friend walk collection presentation", () => {
     expect(presentation.found).toBe(2);
     expect(presentation.progressLabel).toBe(`2 of ${presentation.total} found`);
   });
+
+  it("localizes German walk-find names and progress", () => {
+    const presentation = getFriendWalkCollectionPresentation({
+      col_sunny_petal: { count: 2, firstFoundAt: "2026-06-24T09:00:00.000Z" }
+    }, "de-DE");
+
+    expect(presentation.cells.find((cell) => cell.id === "col_sunny_petal")?.name).toBe("Sonniges Blütenblatt");
+    expect(presentation.progressLabel).toBe(`1 von ${presentation.total} gefunden`);
+  });
 });
 
 describe("days together / moved-in copy", () => {
@@ -128,6 +137,24 @@ describe("days together / moved-in copy", () => {
     expect(getMovedInLine(0)).toBe("Moved in today");
     expect(getMovedInLine(1)).toBe("Moved in 1 day ago");
     expect(getMovedInLine(4)).toBe("Moved in 4 days ago");
+  });
+
+  it("renders Korean moved-in and streak copy without changing counts", () => {
+    expect(getMovedInLine(4, "ko-KR")).toBe("입주한 지 4일 됐어요");
+    expect(getFriendStreakPresentation(4, 7, "ko-KR")).toMatchObject({
+      current: 4,
+      best: 7,
+      headline: "4일 연속으로 인사했어요",
+      subline: "최고 연속 돌봄: 7일"
+    });
+  });
+
+  it("renders Japanese moved-in copy and German streak copy", () => {
+    expect(getMovedInLine(4, "ja-JP")).toBe("4日前にお引っ越ししました");
+    expect(getFriendStreakPresentation(4, 7, "de-DE")).toMatchObject({
+      headline: "Seit 4 Tagen begrüßt ihr euch jeden Tag",
+      subline: "Längste Serie: 7 Tage"
+    });
   });
 });
 
@@ -156,6 +183,12 @@ describe("relative day label", () => {
 
   it("falls back to 'Just now' for invalid timestamps instead of throwing", () => {
     expect(getRelativeDayLabel("not-a-date", now)).toBe("Just now");
+  });
+
+  it("uses Japanese relative-day labels", () => {
+    expect(getRelativeDayLabel("2026-07-07T01:00:00.000Z", now, "ja-JP")).toBe("今日");
+    expect(getRelativeDayLabel("2026-07-06T23:00:00.000Z", now, "ja-JP")).toBe("昨日");
+    expect(getRelativeDayLabel("2026-07-01T12:00:00.000Z", now, "ja-JP")).toBe("6日前");
   });
 });
 
@@ -239,6 +272,17 @@ describe("friend memory album presentation", () => {
     expect(presentation.sparseLine).toBe("More moments will find their way here.");
   });
 
+  it("localizes Japanese memory lines instead of rendering stored English copy", () => {
+    const memories: MemoryEntry[] = [
+      buildMemory({ id: "m1", type: "first_walk", occurredAt: now, line: "First walk together." })
+    ];
+
+    const presentation = getFriendMemoryAlbumPresentation(memories, now, "ja-JP");
+
+    expect(presentation.rows[0]?.line).toBe("初めて一緒にお散歩した日です。");
+    expect(presentation.sparseLine).toBe("ここにもっとたくさんの思い出が集まってきます。");
+  });
+
   it("flags isSparse for a genuinely empty memory list too", () => {
     const presentation = getFriendMemoryAlbumPresentation([], now);
 
@@ -317,6 +361,21 @@ describe("companion habit summary presentation", () => {
     expect(getFriendHabitSummaryPresentation(["foodie"], undefined, null, mockItems).favoriteTreatLine).toBeNull();
     expect(getFriendHabitSummaryPresentation(["foodie"], undefined, "item_does_not_exist", mockItems).favoriteTreatLine).toBeNull();
   });
+
+  it("localizes Brazilian Portuguese habits and favorite lines", () => {
+    const treatItem = mockItems[0]!;
+    const presentation = getFriendHabitSummaryPresentation(
+      ["loves_playtime"],
+      "folhas em forma de nuvem",
+      treatItem.id,
+      mockItems,
+      "pt-BR"
+    );
+
+    expect(presentation.habitLines).toEqual(["anda adorando a hora de brincar"]);
+    expect(presentation.favoriteThingLine).toBe("Sempre anima com folhas em forma de nuvem");
+    expect(presentation.favoriteTreatLine).toMatch(/^Petisco favorito agora: /u);
+  });
 });
 
 describe("friend monthly letter presentation", () => {
@@ -374,6 +433,16 @@ describe("friend monthly letter presentation", () => {
 
     expect(presentation.letterText).toContain(treatItem.name);
   });
+
+  it("builds a Japanese monthly letter without English fallback copy", () => {
+    const presentation = getFriendMonthlyLetterPresentation(baseInput(30), false, "ja-JP");
+
+    expect(presentation.previewLine).toBe("お手紙が届きました。開きたいときにどうぞ。");
+    expect(presentation.progressLabel).toBe("30日目 / 30日");
+    expect(presentation.letterText).toContain("Momo");
+    expect(presentation.letterText).toMatch(/[ぁ-ヿ一-鿿]/u);
+    expect(presentation.letterText).not.toContain("Our first month");
+  });
 });
 
 describe("friend pose gallery presentation", () => {
@@ -422,6 +491,19 @@ describe("friend pose gallery presentation", () => {
     expect(card?.failureLine).toBeNull();
   });
 
+  it("localizes German pose-pack labels and progress", () => {
+    const presentation = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo", {
+      "pack-everyday-moments": { status: "pending" }
+    }, "de-DE");
+    const card = presentation.cards.find((candidate) => candidate.packId === "pack-everyday-moments");
+
+    expect(card).toMatchObject({
+      nameEn: "Alltagsmomente",
+      label: "Mehr von Momo entdecken — Alltagsmomente · 12 Credits",
+      progressLine: "Neue Momente sind unterwegs..."
+    });
+  });
+
   it("surfaces a warm failure line and lets the card return to available for retry", () => {
     const presentation = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo", {
       "pack-everyday-moments": { status: "failed", failureMessageSafe: "That didn't quite work. Let's try again." }
@@ -467,6 +549,10 @@ describe("pose reveal showcase (newly-revealed states + banner line)", () => {
     expect(getPoseRevealBannerLine("Momo", 1)).toBe("One new side of Momo.");
     expect(getPoseRevealBannerLine("Momo", 2)).toBe("Two new sides of Momo.");
     expect(getPoseRevealBannerLine("Momo", 3)).toBe("Three new sides of Momo.");
+  });
+
+  it("localizes a Brazilian Portuguese reveal banner", () => {
+    expect(getPoseRevealBannerLine("Momo", 3, "pt-BR")).toBe("Três novos jeitinhos de Momo.");
   });
 
   it("falls back to digits for a reveal count beyond the spelled-out range", () => {

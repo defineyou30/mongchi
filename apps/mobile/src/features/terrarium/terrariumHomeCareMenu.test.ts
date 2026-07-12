@@ -68,6 +68,21 @@ describe("getVisibleHomeCareMenuOptions", () => {
     expect(options[1]?.id).toBe("base-clean");
   });
 
+  it("localizes the water and bath base options for Traditional Chinese", () => {
+    const options = getVisibleHomeCareMenuOptions({
+      action: "water_garden",
+      catalogItems: [],
+      devStoreUnlocked: false,
+      inventory: mockInventory,
+      locale: "zh-TW"
+    });
+
+    expect(options).toMatchObject([
+      { id: "base-water", title: "喝水", meta: "+水分" },
+      { id: "base-clean", title: "洗澡", meta: "+清爽" }
+    ]);
+  });
+
   it("does not leak the Bath option into unrelated trays (e.g. feed)", () => {
     const options = getVisibleHomeCareMenuOptions({
       action: "feed",

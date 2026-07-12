@@ -4,6 +4,7 @@ import type { ViewStyle } from "react-native";
 import Svg, { Circle, Defs, Image as SvgImage, LinearGradient, Path, Rect, Stop, Text as SvgText } from "react-native-svg";
 
 import type { GeneratedAssetId } from "@mongchi/shared";
+import type { AppLocale } from "../../localization/localeNormalization";
 
 import { getGeneratedPetAssetSource } from "../assets/generatedPetAssets";
 import { colors, useFontFamilies } from "../design/tokens";
@@ -21,6 +22,7 @@ interface BrandedPetShareCardProps {
   readonly petAssetUri?: string | null;
   readonly publicUrl?: string | null;
   readonly style?: ViewStyle;
+  readonly locale?: AppLocale;
 }
 
 export const BRANDED_SHARE_CARD_SIZE = {
@@ -31,7 +33,7 @@ export const BRANDED_SHARE_CARD_SIZE = {
 const exportViewBox = "0 0 1080 1350";
 
 export const BrandedPetShareCard = forwardRef<BrandedPetShareCardHandle, BrandedPetShareCardProps>(
-  ({ assetId, daysTogether, petName, petAssetUri, publicUrl, style }, ref) => {
+  ({ assetId, daysTogether, petName, petAssetUri, publicUrl, style, locale = "en-US" }, ref) => {
     const fontFamilies = useFontFamilies();
     const svgRef = useRef<Svg>(null);
     const imageReadyRef = useRef(false);
@@ -39,7 +41,8 @@ export const BrandedPetShareCard = forwardRef<BrandedPetShareCardHandle, Branded
     const copy = buildBrandedPetShareCardCopy({
       petName,
       daysTogether: daysTogether ?? null,
-      publicUrl: publicUrl ?? null
+      publicUrl: publicUrl ?? null,
+      locale
     });
 
     const capture = useCallback(async (): Promise<string | null> => {
@@ -111,7 +114,7 @@ export const BrandedPetShareCard = forwardRef<BrandedPetShareCardHandle, Branded
             x="540"
             y="154"
           >
-            MY TINY GARDEN FRIEND
+            {copy.heading}
           </SvgText>
 
           <Circle cx="540" cy="572" fill={colors.parchment} opacity="0.92" r="352" />

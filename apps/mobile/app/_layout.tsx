@@ -28,9 +28,10 @@ import {
   Nunito_900Black
 } from "@expo-google-fonts/nunito";
 import { StatusBar } from "expo-status-bar";
-import { Text, TextInput, View } from "react-native";
+import { AppState, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { getActiveAppLocale, syncAppLocale } from "../src/localization/config";
 import { TerrariumSessionProvider } from "../src/features/session/TerrariumSessionProvider";
 import { AppDialogProvider } from "../src/shared/ui/AppDialog";
 import { useNotificationSync } from "../src/features/notifications/useNotificationSync";
@@ -56,8 +57,7 @@ const rootBackground = "#9FDBFF";
 // a typography token yet (see shared/design/tokens.ts). Migrated screens
 // override this per-role via typography.<role>.fontFamily, so this only
 // needs to be Pair A's body face, not pair-reactive.
-const fallbackFontFamily = fontPairFamilies.A.body;
-let defaultFontApplied = false;
+const getFallbackFontFamily = () => getActiveAppLocale() === "ko-KR" ? "System" : fontPairFamilies.A.body;
 
 function NotificationSync() {
   useNotificationSync();
@@ -98,13 +98,12 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (!fontsLoaded || defaultFontApplied) {
+    if (!fontsLoaded) {
       return;
     }
 
-    applyDefaultFont(Text, fallbackFontFamily);
-    applyDefaultFont(TextInput, fallbackFontFamily);
-    defaultFontApplied = true;
+    applyDefaultFont(Text, getFallbackFontFamily());
+    applyDefaultFont(TextInput, getFallbackFontFamily());
   }, [fontsLoaded]);
 
   // Sound Phase 1+2 (see docs/gamefeel-sound-plan.md §2): set the global
@@ -119,6 +118,19 @@ export default function RootLayout() {
     preloadBgm();
     preloadAmbience();
     registerBackgroundAudioHandling();
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void syncAppLocale().then(() => {
+          applyDefaultFont(Text, getFallbackFontFamily());
+          applyDefaultFont(TextInput, getFallbackFontFamily());
+        });
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   if (!fontsLoaded) {

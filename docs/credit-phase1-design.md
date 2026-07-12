@@ -509,3 +509,17 @@ UPDATE public.generation_quota SET paid_credits = 0 WHERE paid_credits > 0;
 - **⚠️ services/api QueueDatabaseClient**: 이 Phase는 `services/api`(라이브 폐기, launch-plan §2)를 건드리지 않는다 — 크레딧 원장은 전부 Supabase 스택. `services/api`의 스크립트된 쿼리 큐는 무관하므로 **손대지 말 것**.
 
 검증 명령: `npx vitest run`(도메인) + `npm run typecheck` + `npx tsc -p apps/mobile --noEmit`(P1c 모바일 변경 시). Deno Edge는 CI 밖 수동.
+
+---
+
+## 11. 현재 배포 순서
+
+이 변경은 구 Edge와 새 DB를 동시에 서비스하는 rolling deploy가 아니다. 짧은 생성 유지보수 구간을 먼저 열어야 한다.
+
+1. `supabase secrets set GENERATION_MAINTENANCE_MODE=true` 후 현재 코드의 `generate-avatar`를 먼저 배포한다. 유지보수 모드는 신규 작업을 만들지 않고 503을 반환하며, 일반 생성 요청이 이미 올린 미소유 원본 사진도 정리한다.
+2. 생성 중인 `generation_jobs`가 없는지 확인한다. `0013_generation_job_durability.sql`은 자금 출처를 확정할 수 없는 활성 잡이 있으면 추측하지 않고 중단된다.
+3. `supabase db push`로 `0013_generation_job_durability.sql`을 배포한다. 이 단계는 구 7-인자 `create_expression_pack_job` 오버로드를 제거하고, 내구성 메타데이터가 없는 활성 잡 생성을 DB 제약으로 차단한다.
+4. `supabase secrets set GENERATION_MAINTENANCE_MODE=false` 후 같은 `generate-avatar`를 다시 배포해 신규 RPC 경로를 연다.
+5. 일반 생성 1건과 표정 팩 1건을 스모크 테스트한 뒤 앱을 마지막에 배포한다. 새 앱은 모든 일반 생성과 표정 팩 요청에 영속 request ID를 보내므로 구 Edge와 혼용하지 않는다.
+
+원본 사진 정리는 `cleanup_pending` 상태로 별도 추적된다. 삭제가 실패하면 잡을 완료 처리하지 않고 lease 만료 후 재개하며, 삭제와 `finalize_generation_source_cleanup`이 모두 성공해야 `completed`가 된다.

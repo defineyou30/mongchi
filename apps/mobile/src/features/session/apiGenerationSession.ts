@@ -106,7 +106,9 @@ const sourcePhotoError = (code: string, messageSafe: string): { ok: false; error
 
 export const createConfiguredGenerationApiClient = (
   baseUrl: string | null = getConfiguredApiBaseUrl(),
-  authTokenProvider: MobileApiClientOptions["authTokenProvider"] = createMobileApiAuthTokenProvider()
+  authTokenProvider: MobileApiClientOptions["authTokenProvider"] = createMobileApiAuthTokenProvider(),
+  localeProvider?: MobileApiClientOptions["localeProvider"],
+  timezoneProvider?: MobileApiClientOptions["timezoneProvider"]
 ): ApiGenerationClientResolution => {
   if (!baseUrl?.trim()) {
     return {
@@ -131,7 +133,9 @@ export const createConfiguredGenerationApiClient = (
     error: null,
     client: createMobileApiClient({
       baseUrl: resolved.baseUrl,
-      authTokenProvider
+      authTokenProvider,
+      ...(localeProvider ? { localeProvider } : {}),
+      ...(timezoneProvider ? { timezoneProvider } : {})
     })
   };
 };

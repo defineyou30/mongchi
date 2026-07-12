@@ -1,5 +1,6 @@
 import { Gift } from "lucide-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import type { CareActionType, ItemId } from "@mongchi/shared";
 
@@ -17,14 +18,6 @@ interface HomeCareActionTrayProps {
   readonly onOpenShop: () => void;
   readonly onSelectOption: (action: CareActionType, itemId?: ItemId) => void;
 }
-
-const trayTitleByAction: Record<HomeFloatingDockAction, string> = {
-  affection: "Bond boosters",
-  feed: "Food & treats",
-  play: "Play choices",
-  walk: "Path choices",
-  water_garden: "Water"
-};
 
 const formatCooldownBadge = (milliseconds: number): string => {
   const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -52,9 +45,17 @@ export function HomeCareActionTray({
   onSelectOption
 }: HomeCareActionTrayProps) {
   const fontFamilies = useFontFamilies();
+  const { t } = useTranslation();
+  const trayTitleByAction: Record<HomeFloatingDockAction, string> = {
+    affection: t("home.care.tray.titles.affection"),
+    feed: t("home.care.tray.titles.feed"),
+    play: t("home.care.tray.titles.play"),
+    walk: t("home.care.tray.titles.walk"),
+    water_garden: t("home.care.tray.titles.water_garden")
+  };
 
   return (
-    <View accessibilityLabel={`${trayTitleByAction[action]} options`} style={styles.tray}>
+    <View accessibilityLabel={t("home.care.tray.optionsAccessibilityLabel", { title: trayTitleByAction[action] })} style={styles.tray}>
       <Text style={[styles.trayTitle, { fontFamily: fontFamilies.label }]}>{trayTitleByAction[action]}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.options}>
         {options.map((option) => {
@@ -67,10 +68,10 @@ export function HomeCareActionTray({
           const disabled = isCareActionLocked || (option.owned && cooldownLeftMs > 0);
           const cooldownLabel = cooldownLeftMs > 0 ? formatCooldownBadge(cooldownLeftMs) : null;
           const accessibilityLabel = !option.owned
-            ? `Open shop for ${option.title}.`
+            ? t("home.care.tray.shopOption", { title: option.title })
             : cooldownLabel
-              ? `${option.title} is cooling down for ${cooldownLabel}.`
-              : `Use ${option.title} for ${activePetName}.`;
+              ? t("home.care.tray.cooldownOption", { title: option.title, cooldown: cooldownLabel })
+              : t("home.care.tray.useOption", { title: option.title, petName: activePetName });
 
           return (
             <Pressable
@@ -108,15 +109,15 @@ export function HomeCareActionTray({
         })}
 
         {options.length === 0 ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Open shop for care items." style={[styles.option, styles.shopOption]} onPress={onOpenShop}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t("home.care.tray.openShop")} style={[styles.option, styles.shopOption]} onPress={onOpenShop}>
             <View style={styles.optionIconFrame}>
               <Gift color={colors.woodDark} size={30} strokeWidth={2.6} />
             </View>
             <Text numberOfLines={1} style={[styles.optionTitle, { fontFamily: fontFamilies.label }]}>
-              Shop
+              {t("home.care.tray.shop")}
             </Text>
             <Text numberOfLines={1} style={[styles.optionMeta, { fontFamily: fontFamilies.label }]}>
-              Open
+              {t("common.actions.open")}
             </Text>
           </Pressable>
         ) : null}

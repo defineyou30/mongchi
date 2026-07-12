@@ -1,12 +1,13 @@
-import type { ExpressionPack, GeneratedAssetState } from "@mongchi/shared";
-import { expressionPacks } from "@mongchi/shared";
+import type { GeneratedAssetState } from "@mongchi/shared";
+import { getLocalizedText } from "../../localization/localizedText";
+import type { LocalizedText } from "../../localization/localizedText";
+import type { AppLocale } from "../../localization/localeNormalization";
+import { getResourcesForLocale } from "../../localization/resourceCatalog";
 
-import type { FriendPoseCard, FriendPoseCell } from "./friendProfilePresentation";
+import type { FriendPoseCell } from "./friendProfilePresentation";
 
 export interface HeroPoseSlide {
   cell: FriendPoseCell;
-  /** Present only for a locked cell -- the pack card that would unlock it. Null for an owned cell, or (defensively) if no pack claims the state. */
-  lockedCard: FriendPoseCard | null;
 }
 
 /**
@@ -29,53 +30,41 @@ export const orderHeroPoseCells = (cells: readonly FriendPoseCell[]): FriendPose
   return [idleCell, ...cells.slice(0, idleIndex), ...cells.slice(idleIndex + 1)];
 };
 
-const findPackForState = (state: GeneratedAssetState): ExpressionPack | null =>
-  (expressionPacks as readonly ExpressionPack[]).find((pack) => pack.states.includes(state)) ?? null;
+export const buildHeroPoseSlides = (cells: readonly FriendPoseCell[]): HeroPoseSlide[] => {
+  const ownedCells = orderHeroPoseCells(cells).filter((cell) => cell.status === "owned");
+  const fallbackCell: FriendPoseCell = { state: "idle", status: "owned", assetId: null };
+  const visibleCells = ownedCells.length > 0 ? ownedCells : [fallbackCell];
 
-/**
- * Pairs each ordered pose cell with the pack card that would unlock it
- * (locked cells only), so the hero pager's locked slide can render its own
- * "Unlock" overlay without the screen re-deriving the state -> pack lookup
- * inline. Purely a display-layer join over the two arrays
- * getFriendPoseGalleryPresentation already returns -- it doesn't change what
- * either one contains.
- */
-export const buildHeroPoseSlides = (cells: readonly FriendPoseCell[], cards: readonly FriendPoseCard[]): HeroPoseSlide[] =>
-  orderHeroPoseCells(cells).map((cell) => {
-    if (cell.status === "owned") {
-      return { cell, lockedCard: null };
-    }
-
-    const pack = findPackForState(cell.state);
-    const lockedCard = pack ? (cards.find((card) => card.packId === pack.id) ?? null) : null;
-
-    return { cell, lockedCard };
-  });
-
-/**
- * How many locked slides in this pager belong to each pack. A pack's unlock
- * card renders identically on every one of its locked slides (see
- * buildHeroPoseSlides above), which used to read like a per-slide price tag
- * -- this count lets the hero pager's overlay instead say "Unlock 3 more
- * moments · 12cr", making it unmistakable that the price buys the whole
- * pack's remaining poses at once, not just the one slide it happens to be
- * showing.
- */
-export const getRemainingPoseCountByPackId = (slides: readonly HeroPoseSlide[]): Record<string, number> => {
-  const counts: Record<string, number> = {};
-
-  for (const slide of slides) {
-    if (slide.cell.status !== "locked" || !slide.lockedCard) {
-      continue;
-    }
-
-    const packId = slide.lockedCard.packId;
-    counts[packId] = (counts[packId] ?? 0) + 1;
-  }
-
-  return counts;
+  return visibleCells.map((cell) => ({ cell }));
 };
 
-/** "Unlock 3 more moments · 12cr" -- the hero pager's locked-slide overlay headline, built from the pack-wide remaining count rather than the (misleadingly per-slide-looking) card.label. */
-export const getUnlockOverlayHeadline = (remainingCount: number, creditCost: number): string =>
-  `Unlock ${remainingCount} more moment${remainingCount === 1 ? "" : "s"} · ${creditCost}cr`;
+const paidPoseLabelByState = {
+  base: { "en-US": "Base pose", "ko-KR": "기본 포즈", "ja-JP": "ベースポーズ", "zh-TW": "基本姿勢", "de-DE": "Grundpose", "fr-FR": "Pose de base", "pt-BR": "Pose base", "es-MX": "Pose base" },
+  play: { "en-US": "Playful", "ko-KR": "신나게", "ja-JP": "あそびたい", "zh-TW": "愛玩", "de-DE": "Verspielt", "fr-FR": "Joueur", "pt-BR": "Brincalhão", "es-MX": "Juguetón" },
+  hungry: { "en-US": "Hungry", "ko-KR": "배고파", "ja-JP": "おなかすいた", "zh-TW": "肚子餓", "de-DE": "Hungrig", "fr-FR": "Affamé", "pt-BR": "Com fome", "es-MX": "Con hambre" },
+  walk_return: { "en-US": "Walk home", "ko-KR": "산책 다녀와", "ja-JP": "お散歩から帰宅", "zh-TW": "散步回家", "de-DE": "Vom Spaziergang zurück", "fr-FR": "Retour de balade", "pt-BR": "De volta do passeio", "es-MX": "De vuelta del paseo" },
+  treat_reaction: { "en-US": "Treat joy", "ko-KR": "간식 최고", "ja-JP": "おやつ最高", "zh-TW": "點心好開心", "de-DE": "Leckerli-Freude", "fr-FR": "Joie du goûter", "pt-BR": "Alegria do petisco", "es-MX": "Alegría por el premio" },
+  chat_portrait: { "en-US": "Chat close-up", "ko-KR": "대화 가까이", "ja-JP": "おしゃべりアップ", "zh-TW": "聊天特寫", "de-DE": "Plaudern ganz nah", "fr-FR": "Gros plan papote", "pt-BR": "Conversa de pertinho", "es-MX": "Charla de cerca" },
+  curious: { "en-US": "Curious", "ko-KR": "궁금해", "ja-JP": "なになに？", "zh-TW": "好奇", "de-DE": "Neugierig", "fr-FR": "Curieux", "pt-BR": "Curioso", "es-MX": "Curioso" },
+  celebrate: { "en-US": "Celebrate", "ko-KR": "축하해", "ja-JP": "お祝い", "zh-TW": "慶祝", "de-DE": "Feierlaune", "fr-FR": "Célébration", "pt-BR": "Comemorando", "es-MX": "Celebración" },
+  garden_help: { "en-US": "Garden helper", "ko-KR": "정원 도우미", "ja-JP": "お庭のお手伝い", "zh-TW": "花園小幫手", "de-DE": "Gartenhelfer", "fr-FR": "Aide au jardin", "pt-BR": "Ajudante do jardim", "es-MX": "Ayudante del jardín" },
+  seasonal: { "en-US": "Seasonal", "ko-KR": "계절 느낌", "ja-JP": "季節の装い", "zh-TW": "季節造型", "de-DE": "Jahreszeitlich", "fr-FR": "De saison", "pt-BR": "Clima da estação", "es-MX": "De temporada" },
+  sad: { "en-US": "Needs comfort", "ko-KR": "위로가 필요해", "ja-JP": "なぐさめて", "zh-TW": "想被安慰", "de-DE": "Braucht Trost", "fr-FR": "Besoin de réconfort", "pt-BR": "Quer carinho", "es-MX": "Necesita consuelo" },
+  sick: { "en-US": "Under the weather", "ko-KR": "기운이 없어", "ja-JP": "ちょっと元気がない", "zh-TW": "有點不舒服", "de-DE": "Etwas angeschlagen", "fr-FR": "Un peu patraque", "pt-BR": "Meio indisposto", "es-MX": "Un poco indispuesto" },
+  messy: { "en-US": "A little messy", "ko-KR": "조금 꼬질꼬질", "ja-JP": "ちょっぴり汚れた", "zh-TW": "有點髒亂", "de-DE": "Ein bisschen schmutzig", "fr-FR": "Un peu décoiffé", "pt-BR": "Um pouco bagunçado", "es-MX": "Un poco desarreglado" }
+} as const satisfies Record<Exclude<GeneratedAssetState, "idle" | "happy" | "sleep">, LocalizedText>;
+
+export const getHeroPoseLabel = (state: GeneratedAssetState, locale: AppLocale = "en-US"): string => {
+  const resources = getResourcesForLocale(locale);
+
+  switch (state) {
+    case "idle":
+      return resources.friend.pose.labels.everyday;
+    case "happy":
+      return resources.friend.pose.labels.happy;
+    case "sleep":
+      return resources.friend.pose.labels.sleepy;
+    default:
+      return getLocalizedText(locale, paidPoseLabelByState[state]);
+  }
+};

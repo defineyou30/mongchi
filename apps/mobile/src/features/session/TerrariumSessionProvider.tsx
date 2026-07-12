@@ -57,6 +57,7 @@ import {
   setPrototypeWeatherEnabled,
   startPrototypeGeneration,
   togglePrototypePersonalityTag,
+  unlockPrototypeStarterPosesForCareAction,
   updatePrototypeDraft,
   validatePrototypeExpressionPackPurchase,
   withActivePetBundle
@@ -84,6 +85,7 @@ import type {
 import { homeWalkDurationMs } from "../terrarium/terrariumHomeInteractionContract";
 import type { MobileApiError } from "../../shared/api";
 import { reporter } from "../../shared/errors/reporter";
+import { getActiveAppLocale, getActiveTimeZone } from "../../localization/config";
 
 import {
   acceptApiGeneratedPet,
@@ -93,6 +95,10 @@ import {
   startApiGenerationFlow
 } from "./apiGenerationSession";
 import { createAsyncActionGuard } from "./asyncActionGuard";
+import { clearAvatarGenerationRequestId, getOrCreateAvatarGenerationRequestId, rotateAvatarGenerationRequestId } from "./avatarGenerationRequestIdStore";
+import { getDevelopmentStoreCreditPresentation, getExpressionPackValidationWallet } from "./developmentStoreCredits";
+import { createExpressionPackPurchaseCoordinator } from "./expressionPackPurchaseCoordinator";
+import { clearExpressionPackRequestId, getOrCreateExpressionPackRequestId, rotateExpressionPackRequestId } from "./expressionPackRequestIdStore";
 import { hasActiveGenerationJob } from "./generationJobGuards";
 import { getSupabaseClient } from "./supabaseClient";
 import { deleteSupabaseAccountData } from "./supabaseAccountDeletion";
@@ -102,7 +108,8 @@ import {
   pollSupabaseGenerationFlow,
   retrySupabaseGenerationFlow,
   startSupabaseExpressionPackFlow,
-  startSupabaseGenerationFlow
+  startSupabaseGenerationFlow,
+  unlockSupabaseStarterPosesForCareAction
 } from "./supabaseGenerationSession";
 import {
   claimApiDailyLoopWalkReward,
@@ -176,7 +183,7 @@ type PurchaseCatalogItemResult =
     };
 
 export type PurchaseExpressionPackResult =
-  | { ok: true; messageSafe: string }
+  | { ok: true; messageSafe: string; started: boolean }
   | { ok: false; messageSafe: string };
 
 /**
@@ -218,6 +225,7 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   satisfactionSummary: CareSatisfactionSummary;
   bondProgress: number;
   creditBalance: number;
+  expressionPackCreditBalance: number;
   generationProgress: number;
   generationPollSnapshot: ReturnType<typeof getPrototypeGenerationPollSnapshot>;
   generatedAssetUriById: Partial<Record<GeneratedAssetId, string>>;
@@ -233,6 +241,7 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   purchaseInProgressProductId: string | null;
   purchaseStatusMessage: string | null;
   devStoreUnlocked: boolean;
+  devStoreCreditsAvailable: boolean;
   weatherLocationStatus: LocationWeatherRefreshStatus;
   weatherLocationMessage: string | null;
   updateDraft: (patch: Partial<PetSetupDraft>) => void;
@@ -566,8 +575,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         : createInitialPrototypeSession(nowIso())
   );
   const [isHydrated, setIsHydrated] = useState(false);
-  const [apiRuntime] = useState(() => createConfiguredDailyLoopApiClient());
-  const [generationApiRuntime] = useState(() => createConfiguredGenerationApiClient());
+  const [apiRuntime] = useState(() =>
+    createConfiguredDailyLoopApiClient(undefined, undefined, getActiveAppLocale, getActiveTimeZone)
+  );
+  const [generationApiRuntime] = useState(() =>
+    createConfiguredGenerationApiClient(undefined, undefined, getActiveAppLocale, getActiveTimeZone)
+  );
   const [apiCatalogItems, setApiCatalogItems] = useState<Item[] | null>(null);
   const [apiCommerceProducts, setApiCommerceProducts] = useState<CommerceProduct[] | null>(null);
   const [apiEntitlements, setApiEntitlements] = useState<Entitlement[] | null>(null);
@@ -591,6 +604,9 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const [expressionPackJobIdByPackId, setExpressionPackJobIdByPackId] = useState<Partial<Record<string, string>>>({});
   const expressionPackPollGuard = useRef(createAsyncActionGuard());
   const expressionPackInFlightPackIdsRef = useRef<Set<string>>(new Set());
+  const expressionPackPurchaseCoordinatorRef = useRef(
+    createExpressionPackPurchaseCoordinator(() => Crypto.randomUUID())
+  );
   // In-flight guards for the generation start/poll/retry flows. These calls
   // are triggered both from explicit user taps and from effects (see
   // GenerationScreen's poll interval and mount-triggered start), so a guard
@@ -1042,9 +1058,40 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setApiSyncStatus("syncing");
         setApiErrorMessage(null);
 
-        const result = await startSupabaseGenerationFlow(supabaseClient, legacyFlatState, startedAt);
+        const storedRequest = await getOrCreateAvatarGenerationRequestId(
+          AsyncStorage,
+          activePet.id,
+          state.photo.selectedPhotoUri ?? "mock-photo",
+          () => Crypto.randomUUID()
+        );
+
+        if (!storedRequest.ok) {
+          setApiGenerationError({
+            status: 0,
+            code: "generation_request_storage_failed",
+            messageSafe: "Could not safely start this move-in. Try again soon.",
+            retryable: true
+          });
+          return;
+        }
+
+        const result = await startSupabaseGenerationFlow(
+          supabaseClient,
+          legacyFlatState,
+          startedAt,
+          undefined,
+          storedRequest.requestId
+        );
 
         if (!result.ok) {
+          if (result.error.code === "idempotency_conflict") {
+            await rotateAvatarGenerationRequestId(
+              AsyncStorage,
+              activePet.id,
+              state.photo.selectedPhotoUri ?? "mock-photo",
+              Crypto.randomUUID()
+            );
+          }
           setApiGenerationError(result.error);
           return;
         }
@@ -1106,6 +1153,11 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
             return;
           }
 
+          const terminalStatus = result.data.generation?.status;
+
+          if (terminalStatus === "completed" || terminalStatus === "failed") {
+            await clearAvatarGenerationRequestId(AsyncStorage, activePet.id);
+          }
           applyApiStatePatch(result.data);
           setApiSyncStatus("ready");
         });
@@ -1128,6 +1180,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         const result = await pollApiGenerationFlow(generationApiRuntime.client, legacyFlatState, polledAt);
 
         if (!result.ok) {
+          if (result.error.code === "idempotency_conflict") {
+            await rotateAvatarGenerationRequestId(
+              AsyncStorage,
+              activePet.id,
+              state.photo.selectedPhotoUri ?? "mock-photo",
+              Crypto.randomUUID()
+            );
+          }
           setApiGenerationError(result.error);
           return;
         }
@@ -1148,9 +1208,40 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setApiSyncStatus("syncing");
         setApiErrorMessage(null);
 
-        const result = await retrySupabaseGenerationFlow(supabaseClient, legacyFlatState, retriedAt);
+        const storedRequest = await getOrCreateAvatarGenerationRequestId(
+          AsyncStorage,
+          activePet.id,
+          state.photo.selectedPhotoUri ?? "mock-photo",
+          () => Crypto.randomUUID()
+        );
+
+        if (!storedRequest.ok) {
+          setApiGenerationError({
+            status: 0,
+            code: "generation_request_storage_failed",
+            messageSafe: "Could not safely retry this move-in. Try again soon.",
+            retryable: true
+          });
+          return;
+        }
+
+        const result = await retrySupabaseGenerationFlow(
+          supabaseClient,
+          legacyFlatState,
+          retriedAt,
+          undefined,
+          storedRequest.requestId
+        );
 
         if (!result.ok) {
+          if (result.error.code === "idempotency_conflict") {
+            await rotateAvatarGenerationRequestId(
+              AsyncStorage,
+              activePet.id,
+              state.photo.selectedPhotoUri ?? "mock-photo",
+              Crypto.randomUUID()
+            );
+          }
           setApiGenerationError(result.error);
           return;
         }
@@ -1191,12 +1282,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     // default (non-preserveAssets) call below does. preserveAssets: true
     // keeps whatever real assets are already in state.
     if (getSupabaseClient()) {
-      setState((current) => acceptPrototypeGeneratedPet(current, nowIso(), { preserveAssets: true }));
+      setState((current) => acceptPrototypeGeneratedPet(current, nowIso(), { preserveAssets: true, locale: getActiveAppLocale() }));
       return;
     }
 
     if (generationApiRuntime.mode !== "api") {
-      setState((current) => acceptPrototypeGeneratedPet(current, nowIso()));
+      setState((current) => acceptPrototypeGeneratedPet(current, nowIso(), { locale: getActiveAppLocale() }));
       return;
     }
 
@@ -1214,12 +1305,44 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     });
   }, [applyApiStatePatch, generationApiRuntime, legacyFlatState, setApiError, state]);
 
+  const unlockStarterPosesAfterCare = useCallback(
+    (action: CareActionType, occurredAt: string) => {
+      const supabaseClient = getSupabaseClient();
+
+      if (!supabaseClient) {
+        return;
+      }
+
+      void unlockSupabaseStarterPosesForCareAction(supabaseClient, legacyFlatState, action, occurredAt).then((result) => {
+        if (!result.ok) {
+          reporter.captureMessage("starterPose: unlock failed", { action, code: result.error.code });
+          return;
+        }
+
+        if (result.data.assets.length > 0) {
+          setState((current) => mergePrototypeGeneratedAssets(current, result.data.assets));
+        }
+      });
+    },
+    [legacyFlatState]
+  );
+
   const performCareAction = useCallback(
     (action: CareActionType, itemId?: ItemId) => {
       const occurredAt = nowIso();
 
       if (apiRuntime.mode !== "api") {
-        setState((current) => performPrototypeCareAction(current, action, occurredAt, itemId, { walkDurationMs: homeWalkDurationMs }));
+        const supabaseClient = getSupabaseClient();
+
+        setState((current) => {
+          const cared = performPrototypeCareAction(current, action, occurredAt, itemId, {
+            locale: getActiveAppLocale(),
+            walkDurationMs: homeWalkDurationMs
+          });
+
+          return supabaseClient ? cared : unlockPrototypeStarterPosesForCareAction(cared, action, occurredAt);
+        });
+        unlockStarterPosesAfterCare(action, occurredAt);
         return;
       }
 
@@ -1234,11 +1357,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           }
 
           applyApiStatePatch(result.data);
+          unlockStarterPosesAfterCare(action, occurredAt);
           setApiSyncStatus("ready");
         }
       );
     },
-    [activePet.id, apiRuntime, applyApiStatePatch, catalogItems, legacyFlatState, setApiError]
+    [activePet.id, apiRuntime, applyApiStatePatch, catalogItems, legacyFlatState, setApiError, unlockStarterPosesAfterCare]
   );
 
   const setCareActionCooldown = useCallback((action: CareActionType, cooldownUntil: number) => {
@@ -1264,7 +1388,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     const result = await refreshApproximateLocationWeather({
       runtimeMode: apiRuntime.mode,
       client: apiRuntime.client,
-      locale: "en-US",
+      locale: getActiveAppLocale(),
       requestedAt
     });
 
@@ -1297,7 +1421,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     const refreshedAt = nowIso();
 
     if (apiRuntime.mode !== "api") {
-      setState((current) => refreshPrototypeWalk(current, refreshedAt));
+      setState((current) => refreshPrototypeWalk(current, refreshedAt, getActiveAppLocale()));
       return;
     }
 
@@ -1311,7 +1435,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   /** Spends 1 credit to bring the pet home early; leaves state untouched (and returns false) if the balance is insufficient. */
   const completeWalkEarly = useCallback(() => {
     if (apiRuntime.mode !== "api") {
-      const result = completePrototypeWalkEarlyWithCredit(state, nowIso());
+      const result = completePrototypeWalkEarlyWithCredit(state, nowIso(), 1, getActiveAppLocale());
 
       if (!result.ok) {
         return false;
@@ -1326,7 +1450,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
   const claimWalkReward = useCallback(() => {
     if (apiRuntime.mode !== "api") {
-      setState((current) => claimPrototypeWalkReward(current, nowIso()));
+      setState((current) => claimPrototypeWalkReward(current, nowIso(), getActiveAppLocale()));
       return;
     }
 
@@ -1350,7 +1474,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
   const purchaseThemeBundle = useCallback(
     (bundleId: string): PurchaseCatalogItemResult => {
-      if (apiRuntime.mode === "api") {
+      if (apiRuntime.mode === "api" || getSupabaseClient()) {
         return { ok: false, messageSafe: "Theme bundles are coming to the live store soon." };
       }
 
@@ -1359,7 +1483,8 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       const result = purchasePrototypeThemeBundle(
         devStoreUnlocked ? withDevelopmentPurchaseWallet(state, DEVELOPMENT_STORE_CREDIT_BALANCE, purchasedAt) : state,
         bundleId,
-        purchasedAt
+        purchasedAt,
+        getActiveAppLocale()
       );
 
       if (!result.ok) {
@@ -1467,14 +1592,28 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       const existingStatus = expressionPackPurchaseStatusById[packId]?.status;
 
       if (expressionPackInFlightPackIdsRef.current.has(packId) || existingStatus === "pending" || alreadyPending) {
-        return { ok: true, messageSafe: "New moments are already on their way..." };
+        return { ok: true, messageSafe: "New moments are already on their way...", started: false };
       }
 
       const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+      const supabaseClient = getSupabaseClient();
       const purchasedAt = nowIso();
-      const validationState = devStoreUnlocked
+      const hasAuthoritativeWallet = supabaseClient !== null || apiRuntime.mode === "api";
+      const { devStoreCreditsAvailable } = getDevelopmentStoreCreditPresentation({
+        developmentCreditBalance: DEVELOPMENT_STORE_CREDIT_BALANCE,
+        devStoreUnlocked,
+        hasServerWallet: hasAuthoritativeWallet,
+        serverCreditBalance: state.wallet.credits,
+        spendableCreditBalance: getSpendableCreditBalance(state.wallet)
+      });
+      const validationState = devStoreCreditsAvailable
         ? withDevelopmentPurchaseWallet(state, DEVELOPMENT_STORE_CREDIT_BALANCE, purchasedAt)
-        : state;
+        : hasAuthoritativeWallet
+          ? {
+              ...state,
+              wallet: getExpressionPackValidationWallet(state.wallet, true)
+            }
+          : state;
       const validation = validatePrototypeExpressionPackPurchase(validationState, packId);
 
       if (!validation.ok) {
@@ -1491,11 +1630,13 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       }
 
       const pack = validation.pack;
-      setExpressionPackPending(pack.id);
 
-      const supabaseClient = getSupabaseClient();
+      if (!supabaseClient && apiRuntime.mode === "api") {
+        return { ok: false, messageSafe: "Pose packs are coming to the live store soon." };
+      }
 
       if (!supabaseClient) {
+        setExpressionPackPending(pack.id);
         // Local/dev fallback: no live backend to poll, so confirm the
         // purchase and merge in mock assets for the pack's states right
         // away -- this is what lets the dev-unlocked wallet path exercise
@@ -1523,17 +1664,30 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setState(mergePrototypeGeneratedAssets(confirmed.state, mockAssets));
         clearExpressionPackStatus(pack.id);
 
-        return { ok: true, messageSafe: `New moments unlocked: ${pack.nameEn}!` };
+        return { ok: true, messageSafe: `New moments unlocked: ${pack.nameEn}!`, started: true };
       }
 
-      // Credit Phase 1c (docs/credit-phase1-design.md §6.3/§6.4): expression
-      // packs are a paid, server-debited generation now, so this purchase is
-      // never optimistic. request_id is minted fresh per purchase *attempt*
-      // (not per retry within the same attempt -- startSupabaseExpressionPackFlow
-      // sends it as-is) and is the idempotency key the Edge Function's
-      // consume_credits call keys its ledger row on, so a dropped response
-      // followed by this same call retrying never double-charges.
-      const requestId = Crypto.randomUUID();
+      setExpressionPackPending(pack.id);
+      const storedRequest = await getOrCreateExpressionPackRequestId(
+        AsyncStorage,
+        activePet.id,
+        pack.id,
+        () => Crypto.randomUUID()
+      );
+
+      if (!storedRequest.ok) {
+        setExpressionPackFailed(pack.id, "Could not safely start this pose pack. Try again soon.");
+        return { ok: false, messageSafe: "Could not safely start this pose pack. Try again soon." };
+      }
+
+      const attempt = expressionPackPurchaseCoordinatorRef.current.begin(pack.id, storedRequest.requestId);
+
+      if (!attempt.ok) {
+        setExpressionPackFailed(pack.id, "Wait for the current pose pack to start, then try again.");
+        return { ok: false, messageSafe: "Wait for the current pose pack to start, then try again." };
+      }
+
+      const requestId = attempt.requestId;
       const started = await startSupabaseExpressionPackFlow(supabaseClient, legacyFlatState, pack.id, pack.states, requestId);
 
       if (!started.ok) {
@@ -1546,30 +1700,59 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         // non-guilt tone (see failureMessages.insufficientCredits in
         // generate-avatar/index.ts): "You're out of credits for this one.
         // Grab more and let's try again soon."
+        const definitiveFailure = started.error.code === "insufficient_credits" || started.error.code === "idempotency_conflict";
+        expressionPackPurchaseCoordinatorRef.current.finish(
+          pack.id,
+          definitiveFailure ? "definitive_failure" : "retryable_failure"
+        );
+
+        if (definitiveFailure) {
+          let requestIdUpdated: boolean;
+
+          if (started.error.code === "idempotency_conflict") {
+            requestIdUpdated = await rotateExpressionPackRequestId(AsyncStorage, activePet.id, pack.id, Crypto.randomUUID());
+          } else {
+            requestIdUpdated = await clearExpressionPackRequestId(AsyncStorage, activePet.id, pack.id);
+          }
+
+          if (!requestIdUpdated) {
+            reporter.captureMessage("expressionPack: terminal request id update failed", {
+              packId: pack.id,
+              outcome: started.error.code
+            });
+          }
+          const hydrated = await hydrateServerCreditBalance(supabaseClient);
+
+          if (hydrated.ok) {
+            setState((current) => ({
+              ...current,
+              wallet: { ...current.wallet, credits: hydrated.credits, updatedAt: nowIso() }
+            }));
+          }
+        }
+
         setExpressionPackFailed(pack.id, started.error.messageSafe);
         return { ok: false, messageSafe: started.error.messageSafe };
       }
 
-      const pet = getActivePrototypePet(state, purchasedAt);
-      const recorded = recordExpressionPackJobStart(
-        state,
-        {
-          packId: pack.id,
-          jobId: started.data.jobId,
-          requestId,
-          petId: pet.id,
-          startedAt: purchasedAt
-        },
-        purchasedAt
-      );
+      setState((current) => {
+        const pet = getActivePrototypePet(current, purchasedAt);
+        const recorded = recordExpressionPackJobStart(
+          current,
+          {
+            packId: pack.id,
+            jobId: started.data.jobId,
+            requestId,
+            petId: pet.id,
+            startedAt: purchasedAt
+          },
+          purchasedAt
+        );
 
-      if (!recorded.ok) {
-        setExpressionPackFailed(pack.id, "Something went sideways starting these new expressions. Try again soon.");
-        return { ok: false, messageSafe: "Something went sideways starting these new expressions. Try again soon." };
-      }
-
-      setState(recorded.state);
+        return recorded.ok ? recorded.state : current;
+      });
       setExpressionPackJobIdByPackId((current) => ({ ...current, [pack.id]: started.data.jobId }));
+      expressionPackPurchaseCoordinatorRef.current.finish(pack.id, "completed");
 
       // Best-effort: sync the local credits cache to the server's post-debit
       // balance now that the charge is confirmed. Never blocks the purchase
@@ -1587,10 +1770,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         }));
       });
 
-      return { ok: true, messageSafe: "New moments are on their way..." };
+      return { ok: true, messageSafe: "New moments are on their way...", started: true };
     },
     [
       clearExpressionPackStatus,
+      activePet.id,
+      apiRuntime.mode,
       expressionPackPurchaseStatusById,
       legacyFlatState,
       setExpressionPackFailed,
@@ -1636,15 +1821,35 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           }
 
           if (result.data.status === "failed") {
+            const requestIdCleared = await clearExpressionPackRequestId(AsyncStorage, petId, packId);
+
+            if (!requestIdCleared) {
+              reporter.captureMessage("expressionPack: failed request id cleanup failed", { packId });
+            }
             setState((current) => clearPendingExpressionPackJob(current, packId, polledAt));
             setExpressionPackFailed(
               packId,
               result.data.failureMessageSafe ?? "The tiny door got stuck. Let's try adding these expressions again."
             );
+            void hydrateServerCreditBalance(supabaseClient).then((hydrated) => {
+              if (!hydrated.ok) {
+                return;
+              }
+
+              setState((current) => ({
+                ...current,
+                wallet: { ...current.wallet, credits: hydrated.credits, updatedAt: nowIso() }
+              }));
+            });
             continue;
           }
 
           if (result.data.status === "completed") {
+            const requestIdCleared = await clearExpressionPackRequestId(AsyncStorage, petId, packId);
+
+            if (!requestIdCleared) {
+              reporter.captureMessage("expressionPack: completed request id cleanup failed", { packId });
+            }
             setState((current) => {
               const withAssets = mergePrototypeGeneratedAssets(current, result.data.assets);
               const unlocked = recordExpressionPackUnlock(withAssets, packId, polledAt);
@@ -1665,6 +1870,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     async (itemId: ItemId): Promise<PurchaseCatalogItemResult> => {
       const price = getCreditItemPrice(itemId);
       const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+      const supabaseClient = getSupabaseClient();
 
       if (!price) {
         return {
@@ -1676,6 +1882,13 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       const purchasedAt = nowIso();
 
       if (apiRuntime.mode !== "api") {
+        if (supabaseClient) {
+          return {
+            ok: false,
+            messageSafe: "Credit items are coming to the live store soon."
+          };
+        }
+
         if (!devStoreUnlocked && getSpendableCreditBalance(state.wallet) < price.creditCost) {
           return {
             ok: false,
@@ -2186,6 +2399,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   }, [hydrateCreditBalance]);
 
   const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
+  const hasAuthoritativeWallet = getSupabaseClient() !== null || apiRuntime.mode === "api";
+  const storeCreditPresentation = getDevelopmentStoreCreditPresentation({
+    developmentCreditBalance: DEVELOPMENT_STORE_CREDIT_BALANCE,
+    devStoreUnlocked,
+    hasServerWallet: hasAuthoritativeWallet,
+    serverCreditBalance: state.wallet.credits,
+    spendableCreditBalance: getSpendableCreditBalance(state.wallet)
+  });
   const activeEntitlements = useMemo(() => {
     const runtimeEntitlements = getRuntimeActiveEntitlements(apiRuntime.mode, apiEntitlements);
 
@@ -2234,9 +2455,8 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     satisfactionScore: satisfactionSummary.score,
     satisfactionSummary,
     bondProgress: getBondProgressValue(activeBundle.relationshipState),
-    creditBalance: devStoreUnlocked
-      ? Math.max(DEVELOPMENT_STORE_CREDIT_BALANCE, getSpendableCreditBalance(state.wallet))
-      : getSpendableCreditBalance(state.wallet),
+    creditBalance: storeCreditPresentation.creditBalance,
+    expressionPackCreditBalance: storeCreditPresentation.expressionPackCreditBalance,
     generationProgress,
     generationPollSnapshot: getPrototypeGenerationPollSnapshot(state),
     generatedAssetUriById,
@@ -2253,6 +2473,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     purchaseInProgressProductId,
     purchaseStatusMessage,
     devStoreUnlocked,
+    devStoreCreditsAvailable: storeCreditPresentation.devStoreCreditsAvailable,
     weatherLocationStatus,
     weatherLocationMessage,
     updateDraft,

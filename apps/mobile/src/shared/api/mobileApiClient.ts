@@ -83,6 +83,8 @@ export type MobileApiFetch = (url: string, init: MobileApiRequestInit) => Promis
 export interface MobileApiClientOptions {
   baseUrl: string;
   authTokenProvider?: () => Promise<string | null> | string | null;
+  localeProvider?: () => string;
+  timezoneProvider?: () => string;
   fetchImpl?: MobileApiFetch;
 }
 
@@ -193,6 +195,16 @@ export function createMobileApiClient(options: MobileApiClientOptions) {
     const headers: Record<string, string> = {
       Accept: "application/json"
     };
+    const locale = options.localeProvider?.().trim();
+    const timezone = options.timezoneProvider?.().trim();
+
+    if (locale) {
+      headers["x-locale"] = locale;
+    }
+
+    if (timezone) {
+      headers["x-timezone"] = timezone;
+    }
 
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";

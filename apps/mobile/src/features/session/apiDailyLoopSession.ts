@@ -226,7 +226,9 @@ export const getConfiguredMockAuthToken = getConfiguredDevelopmentAuthToken;
 
 export const createConfiguredDailyLoopApiClient = (
   baseUrl: string | null = getConfiguredApiBaseUrl(),
-  authTokenProvider: MobileApiClientOptions["authTokenProvider"] = createMobileApiAuthTokenProvider()
+  authTokenProvider: MobileApiClientOptions["authTokenProvider"] = createMobileApiAuthTokenProvider(),
+  localeProvider?: MobileApiClientOptions["localeProvider"],
+  timezoneProvider?: MobileApiClientOptions["timezoneProvider"]
 ): ApiDailyLoopClientResolution => {
   if (!baseUrl?.trim()) {
     return {
@@ -251,7 +253,9 @@ export const createConfiguredDailyLoopApiClient = (
     error: null,
     client: createMobileApiClient({
       baseUrl: resolved.baseUrl,
-      authTokenProvider
+      authTokenProvider,
+      ...(localeProvider ? { localeProvider } : {}),
+      ...(timezoneProvider ? { timezoneProvider } : {})
     })
   };
 };

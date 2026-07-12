@@ -68,12 +68,6 @@ requireIncludes(
 );
 
 requireIncludes(
-  "apps/mobile/src/features/firstSession/FirstSessionProgress.tsx",
-  ["Hatch pass", "passSeal", "progressRail", "nodeActive", "rgba(28,34,55"],
-  "First-session game HUD progress"
-);
-
-requireIncludes(
   "apps/mobile/src/shared/ui/GameIllustrations.tsx",
   [
     'scene?: "garden" | "hatching" | "reveal" | "welcome" | "loading" | "chat"',
@@ -97,14 +91,14 @@ requireIncludes(
 
 requireIncludes(
   "apps/mobile/src/features/petReveal/PetRevealScreen.tsx",
-  ["scene=\"reveal\"", "New friend", "Bond Lv", "relationshipState.bondLevel", "Avatar hatched", "actionPanel"],
+  ["scene=\"reveal\"", "shareCaptureHost", "namePlaque", "actionPanel", "notQuiteRightRow", 't("reveal.enter")'],
   "Pet reveal celebration"
 );
 
 requireIncludes(
   "apps/mobile/src/features/terrarium/TerrariumHomeScreen.tsx",
   [
-    "tiny garden",
+    't("home.',
     "resourceBar",
     "scene=\"garden\"",
     "hudButtonAssets",
@@ -128,57 +122,57 @@ requireExcludes(
 
 requireIncludes(
   "apps/mobile/src/features/onboarding/OnboardingScreen.tsx",
-  ["scene=\"welcome\"", "entryPanel", "Choose pet photo", "Start with one pet photo"],
+  ["OnboardingStoryArt", 'variant="welcome"', "questRow", "photoNotice", 't("photoIntro.choosePhoto")'],
   "Welcome tiny-world entry"
 );
 
 requireIncludes(
   "apps/mobile/src/features/petSetup/PetSetupScreen.tsx",
-  ["Adoption pass", "setupPass", "namePlate", "passStats", "sectionHint"],
+  ["OnboardingStoryArt", 'variant="profile"', "setupCard", "sectionLabelRow", "sectionHint", "favoritePlate"],
   "Pet setup adoption pass"
 );
 
 requireIncludes(
-  "apps/mobile/src/shared/ui/GameIllustrations.tsx",
-  ["PetSetupArt", "setupGlow", "setupPortraitShadow", "setupCardTape", "setupPortraitGloss"],
+  "apps/mobile/src/shared/ui/OnboardingStoryArt.tsx",
+  ["storyArtSources", "profile", "photo", "welcome"],
   "Pet setup collectible portrait art"
 );
 
 requireIncludes(
   "apps/mobile/src/features/photoUpload/PhotoUploadScreen.tsx",
-  ["Photo pass", "uploadPass", "qualityRow", "qualityPip", "Pick one pet photo"],
+  ["OnboardingStoryArt", 'variant="photo"', "uploadPass", "photoPicker", "photoActions", 't("photoUpload.library")'],
   "Photo upload card HUD"
 );
 
 requireIncludes(
-  "apps/mobile/src/shared/ui/GameIllustrations.tsx",
-  ["PhotoUploadArt", "photoGlow", "photoCardShadow", "photoCardTape", "photoSlotPlus"],
+  "apps/mobile/src/shared/ui/OnboardingStoryArt.tsx",
+  ["Image", "accessibilityLabel", "resizeMode=\"cover\"", "storyArt"],
   "Photo upload collectible card art"
 );
 
 requireIncludes(
   "apps/mobile/src/features/generation/GenerationScreen.tsx",
-  ["scene=\"hatching\"", "Gift", "progressBlock", "shadows.gamePanel"],
+  ["scene=\"hatching\"", "progressBlock", "recapCard", "stepList", "failureBlock", "shadows.gamePanel"],
   "Hatching HUD"
 );
 
 requireIncludes(
   "apps/mobile/src/features/chat/ChatGateScreen.tsx",
-  ["chatStage", "sceneTopBar", "moodMeter", "petThought", "inputBar", "disclosureStrip", "shadows.gamePanel", "Back home"],
+  ["chatStage", "sceneTopBar", "petStage", "premiumGate", "inputBar", "disclosureStrip", "shadows.gamePanel", 't("chat.back")'],
   "Premium chat mood scene"
 );
 
 requireIncludes(
   "apps/mobile/src/features/shop/ShopPreviewScreen.tsx",
   [
-    "shopTopBar",
+    "ScreenHeaderRow",
     "creditHud",
     "itemPreviewPanel",
     "shopCategoryTabs",
     "shopShelf",
     "productCard",
-    'accessibilityLabel="Back home"',
-    "Garden Shop",
+    'backAccessibilityLabel={t("shop.back")}',
+    'title={t("shop.title")}',
     "shadows.gamePanel"
   ],
   "Collectible shop shelf"
@@ -186,7 +180,7 @@ requireIncludes(
 
 requireIncludes(
   "apps/mobile/src/features/inventory/InventoryScreen.tsx",
-  ["Garden kit", "inventoryPass", "Placed in garden", "summaryPanel", "itemCard", "shadows.gamePanel"],
+  ["sceneRoot", "sceneBackground", "itemGrid", "itemCard", "emptyState", "footerActions", "shadows.tile"],
   "Collectible inventory"
 );
 
@@ -223,7 +217,7 @@ requireIncludes(
 
 requireIncludes(
   "apps/mobile/src/features/settings/SettingsScreen.tsx",
-  ["Setting", "privacyPass", "passHud", "controlIconFrame", "linkDeck", "Back home", "shadows.tile"],
+  ["ScreenHeaderRow", "settingsHero", "settingsSection", "statusNotice", "compactIconFrame", "linkGrid", 't("settings.back")', "shadows.tile"],
   "Settings visual consistency"
 );
 

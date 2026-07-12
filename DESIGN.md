@@ -104,6 +104,13 @@ All spacing derives from 4px. Use the existing `spacing` tokens: `xs=4`, `sm=8`,
 - **Categories**: treats, themes, inventory. Plant/placement/decor shelves are archived until layout placement returns.
 - **States**: purchasable, owned, applied theme, preview-only, dev open.
 
+### Expression Pack Slot Board
+- **Structure**: one full-width repeated pack board with title/description, a connected three-slot rail, and one pack-level action footer.
+- **Slot copy**: every slot names the generated pose and the in-app moment that uses it. Locked art stays abstract; do not imply that a finished pose already exists.
+- **Pricing**: price and CTA appear once per board and must explicitly say that all three poses unlock together. Never repeat a price on each slot.
+- **Profile handoff**: the friend profile is a collection surface. It pages through owned poses only and routes to the Moments shop for more; it never sells from an individual locked pose.
+- **States**: available, insufficient credits, generating, failed/retry, owned. Generating and owned keep the three slots visually grouped.
+
 ### Welcome Popup
 - **Structure**: custom dialog layered over onboarding, Happy Dog Lottie, friendly title, one primary action.
 - **Rules**: no native alert; no long explanatory paragraph.

@@ -180,7 +180,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - ExpoAsset (57.0.3):
+  - ExpoAsset (56.0.18):
     - ExpoModulesCore
   - ExpoAudio (56.0.12):
     - ExpoModulesCore
@@ -205,7 +205,9 @@ PODS:
     - ExpoModulesCore
   - ExpoKeepAwake (56.0.3):
     - ExpoModulesCore
-  - ExpoLinking (56.0.15):
+  - ExpoLinking (56.0.14):
+    - ExpoModulesCore
+  - ExpoLocalization (56.0.6):
     - ExpoModulesCore
   - ExpoLocation (56.0.18):
     - ExpoModulesCore
@@ -2187,28 +2189,6 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNGestureHandler (3.0.2):
-    - hermes-engine
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
   - RNReanimated (4.3.1):
     - hermes-engine
     - RCTRequired
@@ -2458,7 +2438,7 @@ DEPENDENCIES:
   - expo-dev-launcher (from `../../../node_modules/expo-dev-launcher`)
   - expo-dev-menu (from `../../../node_modules/expo-dev-menu`)
   - expo-dev-menu-interface (from `../../../node_modules/expo-dev-menu-interface/ios`)
-  - ExpoAsset (from `../../../node_modules/expo-asset/ios`)
+  - ExpoAsset (from `../../../node_modules/expo/node_modules/expo-asset/ios`)
   - ExpoAudio (from `../../../node_modules/expo-audio/ios`)
   - ExpoCrypto (from `../../../node_modules/expo-crypto/ios`)
   - "ExpoDomWebView (from `../../../node_modules/@expo/dom-webview/ios`)"
@@ -2470,7 +2450,8 @@ DEPENDENCIES:
   - ExpoImageManipulator (from `../../../node_modules/expo-image-manipulator/ios/ExpoImageManipulator.podspec`)
   - ExpoImagePicker (from `../../../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../../../node_modules/expo-keep-awake/ios`)
-  - ExpoLinking (from `../../../node_modules/expo-linking/ios`)
+  - ExpoLinking (from `../node_modules/expo-linking/ios`)
+  - ExpoLocalization (from `../../../node_modules/expo-localization/ios`)
   - ExpoLocation (from `../../../node_modules/expo-location/ios/ExpoLocation.podspec`)
   - "ExpoLogBox (from `../../../node_modules/@expo/log-box`)"
   - ExpoModulesCore (from `../../../node_modules/expo/node_modules/expo-modules-core/ExpoModulesCore.podspec`)
@@ -2561,7 +2542,6 @@ DEPENDENCIES:
   - ReactNativeDependencies (from `../../../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - "RNCAsyncStorage (from `../../../node_modules/@react-native-async-storage/async-storage`)"
   - "RNCMaskedView (from `../../../node_modules/@react-native-masked-view/masked-view`)"
-  - RNGestureHandler (from `../../../node_modules/react-native-gesture-handler`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../../../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
@@ -2593,7 +2573,7 @@ EXTERNAL SOURCES:
   expo-dev-menu-interface:
     :path: "../../../node_modules/expo-dev-menu-interface/ios"
   ExpoAsset:
-    :path: "../../../node_modules/expo-asset/ios"
+    :path: "../../../node_modules/expo/node_modules/expo-asset/ios"
   ExpoAudio:
     :path: "../../../node_modules/expo-audio/ios"
   ExpoCrypto:
@@ -2617,7 +2597,9 @@ EXTERNAL SOURCES:
   ExpoKeepAwake:
     :path: "../../../node_modules/expo-keep-awake/ios"
   ExpoLinking:
-    :path: "../../../node_modules/expo-linking/ios"
+    :path: "../node_modules/expo-linking/ios"
+  ExpoLocalization:
+    :path: "../../../node_modules/expo-localization/ios"
   ExpoLocation:
     :podspec: "../../../node_modules/expo-location/ios/ExpoLocation.podspec"
   ExpoLogBox:
@@ -2797,8 +2779,6 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/@react-native-async-storage/async-storage"
   RNCMaskedView:
     :path: "../../../node_modules/@react-native-masked-view/masked-view"
-  RNGestureHandler:
-    :path: "../../../node_modules/react-native-gesture-handler"
   RNReanimated:
     :path: "../node_modules/react-native-reanimated"
   RNScreens:
@@ -2820,7 +2800,7 @@ SPEC CHECKSUMS:
   expo-dev-launcher: bc47194e2f18957d77f384bcf7eca52a91e4b074
   expo-dev-menu: 03c2584bc53a500f9eaf96aa51b502adea2f75cb
   expo-dev-menu-interface: 65402d4affb8b418aa6cec29b3abb0e313c8f443
-  ExpoAsset: 586e89aeaab2e23bfa90b9dce4d7d5e36815c039
+  ExpoAsset: b4d20fb5e56abe866465a1bb0cc22870a6a4e4d3
   ExpoAudio: 8c4882515dee2f71d519ee64bb05c14945a5e1a2
   ExpoCrypto: b54a97c4357d46d7f8de079e69fa89029572244b
   ExpoDomWebView: 4e53b05879dc73ba374f76bff93dd64c8a0d91b3
@@ -2832,7 +2812,8 @@ SPEC CHECKSUMS:
   ExpoImageManipulator: adcc5d5b08c08d66273e5f96ad1f0449d27d5c72
   ExpoImagePicker: 080421aeaf3836250e5fb764123f1d7f7905ea04
   ExpoKeepAwake: 359c47a1d9ccc3a3c519bca6e39562cce230c5bb
-  ExpoLinking: f8a78524352bf2c3baed5b33c8b56cd57c448702
+  ExpoLinking: f3d1883179d784e3d74c0eaf6ae8b03ec3571da3
+  ExpoLocalization: cf50efc436b2ec313510131c1ee0e778366d64b0
   ExpoLocation: d47116c4daea734eea77648c36503a52b4ed63fc
   ExpoLogBox: cdad5c9402a186574fb5924ea91df1f08ba9a98a
   ExpoModulesCore: cc9ac67593a8d6f4a1f58b9ba2726a6c71aab100
@@ -2924,7 +2905,6 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: 6c733401b69f049d048bd21a2825df45670f2175
   RNCAsyncStorage: 2ad919e88b8bc2cd80e8697ce66d04d006743283
   RNCMaskedView: eb2b2e538afa907f05a5848a1a1ac26092e6fec9
-  RNGestureHandler: ea542e5ad254ac2d234024168a8b87d723cf9463
   RNReanimated: 07fe6682b1d90b9d536540614562850503c63dbb
   RNScreens: f94000b3cb1eb14cbb8d08dd6074fdd6ccf0e6b0
   RNSVG: 04044c3abcf177fd674a1a3d13097efa1adebcbe

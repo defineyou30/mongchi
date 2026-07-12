@@ -20,6 +20,7 @@ import {
   getHudMeterGuidePresentation,
   getStreakToastPersistedKey,
   getWalkCollectionCompleteTogglePresentation,
+  getLocalizedWalkCollectibleName,
   getWalkDiscoveryCardPresentation,
   isCelebrationReaction,
   pruneEventToastPersistedKeys
@@ -60,6 +61,34 @@ describe("terrarium home presentation", () => {
     ).toMatchObject({
       icon: "food",
       line: "My belly sent an official request for dinner."
+    });
+  });
+
+  it("uses Korean home thought copy when the active locale is Korean", () => {
+    expect(
+      getHomeThoughtPresentation({
+        petName: "Miso",
+        reaction: idleReaction,
+        satisfactionSummary: { hint: "Care rhythm is good." },
+        daysAway: 2,
+        locale: "ko-KR"
+      })
+    ).toMatchObject({
+      line: "Miso가 돌아오길 기다렸어요. 다시 만나서 정말 좋아요!"
+    });
+  });
+
+  it("uses Spanish home thought copy for a warm return greeting", () => {
+    expect(
+      getHomeThoughtPresentation({
+        petName: "Miso",
+        reaction: idleReaction,
+        satisfactionSummary: { hint: "Care rhythm is good." },
+        daysAway: 2,
+        locale: "es-MX"
+      })
+    ).toMatchObject({
+      line: "Miso te estuvo esperando. ¡Qué alegría tenerte de vuelta!"
     });
   });
 
@@ -449,6 +478,36 @@ describe("terrarium home event toasts", () => {
     });
   });
 
+  it("localizes Korean care celebrations without changing stable toast ids", () => {
+    expect(getHomeStreakTogglePresentation(5, "ko-KR")).toMatchObject({
+      id: "streak-5",
+      line: "5일 연속으로 함께했어요. 작은 정원이 이 리듬을 좋아해요."
+    });
+    expect(getWalkDiscoveryCardPresentation("햇살 꽃잎", "common", "ko-KR")).toMatchObject({
+      id: "walk-discovery-햇살 꽃잎",
+      line: "새 발견: 햇살 꽃잎"
+    });
+  });
+
+  it("localizes Traditional Chinese streak and discovery output", () => {
+    expect(getHomeStreakTogglePresentation(5, "zh-TW")).toMatchObject({
+      id: "streak-5",
+      line: "連續陪伴 5 天了。小花園很喜歡這個節奏。"
+    });
+    expect(getWalkDiscoveryCardPresentation("陽光花瓣", "common", "zh-TW")).toMatchObject({
+      id: "walk-discovery-陽光花瓣",
+      line: "新發現：陽光花瓣"
+    });
+  });
+
+  it("selects localized walk collectible names", () => {
+    const collectible = { id: "col_sunny_petal", nameEn: "Sunny Petal", nameKo: "햇살 꽃잎" };
+
+    expect(getLocalizedWalkCollectibleName(collectible, "ja-JP")).toBe("ひだまりの花びら");
+    expect(getLocalizedWalkCollectibleName(collectible, "es-MX")).toBe("Pétalo soleado");
+    expect(getLocalizedWalkCollectibleName(collectible, "zh-TW")).toBe("陽光花瓣");
+  });
+
   it("produces a one-shot toast id per buff so it never re-fires for the same grant", () => {
     const toast = getHomeBuffTogglePresentation({ buffId: "buff_favorite_toy", labelEn: "Favorite toy" });
 
@@ -599,6 +658,24 @@ describe("HUD gauge guide popup", () => {
     expect(guide.statusLine).not.toMatch(/garden|soil|leaves|leaf/i);
     expect(guide.description).not.toMatch(/garden|soil|leaves|leaf/i);
     expect(guide.howTo).not.toMatch(/garden|soil|leaves|leaf/i);
+  });
+
+  it("localizes the gauge guide for Korean", () => {
+    expect(getHudMeterGuidePresentation("thirst", 12, "ko-KR")).toMatchObject({
+      title: "물",
+      description: "신선한 물은 우리 친구의 몸과 기분을 촉촉하게 해줘요.",
+      howTo: "깨끗한 물 한 그릇을 채워주세요.",
+      statusLine: "목이 많이 말라 보여요. 신선한 물이 큰 도움이 될 거예요."
+    });
+  });
+
+  it("localizes the thirst gauge guide for Japanese", () => {
+    expect(getHudMeterGuidePresentation("thirst", 12, "ja-JP")).toMatchObject({
+      title: "お水",
+      description: "新鮮なお水で、いきいき心地よく過ごせます。",
+      howTo: "新鮮なお水を一杯あげると、すぐに潤います。",
+      statusLine: "喉がかなり渇いているみたい。新鮮なお水がうれしいはずです。"
+    });
   });
 
   it("points the mood gauge at play and petting, and the energy gauge at rest and feeding", () => {

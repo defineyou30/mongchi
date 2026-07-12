@@ -265,6 +265,16 @@ const UPLOAD_URL_TTL_MS = 15 * 60 * 1000;
 const ASSET_READ_URL_TTL_MS = 10 * 60 * 1000;
 const MOCK_WALK_DURATION_MS = 15 * 1000;
 const WALK_REWARD_ITEM_ID: ItemId = "item_flower_pot_sunny";
+const walkDiscoveryLineByLocale: Record<Locale, string> = {
+  "en-US": "A tiny leaf thought of you.",
+  "ko-KR": "작은 잎사귀가 네 생각을 했대.",
+  "ja-JP": "小さな葉っぱが、きみのことを思い出したんだって。",
+  "zh-TW": "一片小葉子說它想起了你。",
+  "de-DE": "Ein kleines Blatt hat an dich gedacht.",
+  "fr-FR": "Une petite feuille a pensé à toi.",
+  "pt-BR": "Uma folhinha pensou em você.",
+  "es-MX": "Una hojita pensó en ti."
+};
 const mockGenerationPollStatuses: GenerationJobStatus[] = [
   "preprocessing",
   "safety_checking",
@@ -564,7 +574,9 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
       });
     }
 
-    const weather = createApproximateLocationWeatherContext(coordinates, fetchedAt);
+    const weather = createApproximateLocationWeatherContext(coordinates, fetchedAt, {
+      locale: request.locale ?? auth.data.locale
+    });
     const response: WeatherLookupResponse = {
       weather,
       cache: {
@@ -1300,7 +1312,7 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
       startedAt,
       returnAt,
       rewardItemIds: [WALK_REWARD_ITEM_ID],
-      discoveryLine: auth.data.locale === "ko-KR" ? "작은 잎사귀가 네 생각을 했대." : "A tiny leaf thought of you.",
+      discoveryLine: walkDiscoveryLineByLocale[auth.data.locale],
       energyCost: 12,
       createdAt: startedAt,
       updatedAt: startedAt
@@ -3374,7 +3386,7 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
       return pet;
     }
 
-    const moderation = moderatePremiumChatInput(request.text);
+    const moderation = moderatePremiumChatInput(request.text, auth.data.locale);
 
     if (!moderation.ok) {
       return fail(moderation.status, moderation.code, moderation.messageSafe);

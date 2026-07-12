@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { router } from "expo-router";
 import { Image, ImageBackground, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
@@ -18,6 +19,7 @@ const loadingAnimation = require("../../../assets/lottie/loading.json");
 export function SplashScreen() {
   const { acceptedAsset, acceptedAssets, generation, isHydrated, petProfile, photo } = useTerrariumSession();
   const fontFamilies = useFontFamilies();
+  const { t } = useTranslation();
   const storeScreenshotPresetRoute = getConfiguredStoreScreenshotPresetRoute();
   const qaScreenPresetRoute = getConfiguredQaScreenPresetRoute();
 
@@ -57,13 +59,13 @@ export function SplashScreen() {
 
   return (
     <View style={styles.root}>
-      <ImageBackground accessibilityLabel="Tiny pet phone home loading screen" resizeMode="cover" source={loadingBackground} style={styles.background}>
+      <ImageBackground accessibilityLabel={t("splash.accessibilityLabel")} resizeMode="cover" source={loadingBackground} style={styles.background}>
         <View style={styles.vignette} />
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.copy}>
             <Image
               accessibilityIgnoresInvertColors
-              accessibilityLabel="Mongchi app logo"
+              accessibilityLabel={t("splash.logoAccessibilityLabel")}
               resizeMode="contain"
               source={appLogo}
               style={styles.appLogo}
@@ -72,12 +74,12 @@ export function SplashScreen() {
               Mongchi
             </Text>
             <LottieAnimation
-              accessibilityLabel="Tiny world loading animation"
+              decorative
               loop
               source={loadingAnimation}
               style={styles.loadingAnimation}
             />
-            <Text style={[styles.body, { fontFamily: fontFamilies.body }]}>{isHydrated ? "Opening tiny home" : "Warming cozy room"}</Text>
+            <Text style={[styles.body, { fontFamily: fontFamilies.body }]}>{isHydrated ? t("splash.opening") : t("splash.warming")}</Text>
           </View>
         </SafeAreaView>
       </ImageBackground>

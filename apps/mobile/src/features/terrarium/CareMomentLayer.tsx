@@ -11,8 +11,7 @@ import { getCareMomentStaging } from "./terrariumHomeCareMoment";
 import type {
   CareMomentBallStaging,
   CareMomentBowlStaging,
-  CareMomentBubbleBurstStaging,
-  CareMomentHeartBurstStaging
+  CareMomentBubbleBurstStaging
 } from "./terrariumHomeCareMoment";
 
 // The affection care moment's one-shot burst (see HeartBurstMoment below) --
@@ -69,7 +68,7 @@ export function CareMomentLayer({ action, actedAtMs, petStageBottomPx }: CareMom
     return <BubbleBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
   }
 
-  return <HeartBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
+  return <HeartBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} />;
 }
 
 function BowlMoment({
@@ -205,11 +204,9 @@ function BallMoment({
 const HEART_BURST_FADE_OUT_MS = 280;
 
 function HeartBurstMoment({
-  staging,
   petStageBottomPx,
   reduceMotionEnabled
 }: {
-  staging: CareMomentHeartBurstStaging;
   petStageBottomPx: number;
   reduceMotionEnabled: boolean;
 }) {
@@ -248,8 +245,8 @@ function HeartBurstMoment({
       style={[styles.heartBurstAnchor, { bottom: petStageBottomPx + 30, opacity }]}
     >
       <LottieAnimation
-        accessibilityLabel={staging.accessibilityLabel}
         autoPlay
+        decorative
         loop={false}
         source={heartBurstAnimation}
         style={styles.heartBurstAnimation}

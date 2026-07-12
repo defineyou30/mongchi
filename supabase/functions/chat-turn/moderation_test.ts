@@ -71,6 +71,38 @@ Deno.test("moderatePremiumChatInput: crisis referral copy is locale-aware", () =
   }
 });
 
+Deno.test("moderatePremiumChatInput: crisis referral copy is localized for Japanese and Mexican Spanish", () => {
+  const ja = moderatePremiumChatInput("I want to kill myself", "ja-JP");
+  const es = moderatePremiumChatInput("I want to kill myself", "es-MX");
+
+  assert(ja.ok && ja.crisisReferral);
+  assert(es.ok && es.crisisReferral);
+
+  if (ja.ok && ja.crisisReferral && es.ok && es.crisisReferral) {
+    assert(ja.replyText.startsWith("話してくれて本当にありがとう"));
+    assert(es.replyText.startsWith("Gracias por contármelo"));
+    assert(ja.replyText.includes("findahelpline.com"));
+    assert(es.replyText.includes("988"));
+  }
+});
+
+Deno.test("moderatePremiumChatInput: native-language crisis phrases bypass the provider in every non-English launch locale", () => {
+  const cases = [
+    ["ko-KR", "죽고 싶어"],
+    ["ja-JP", "もう死にたい"],
+    ["zh-TW", "我不想活了"],
+    ["de-DE", "Ich will mich umbringen"],
+    ["fr-FR", "J'ai envie de mourir"],
+    ["pt-BR", "Quero me matar"],
+    ["es-MX", "Quiero matarme"]
+  ] as const;
+
+  for (const [locale, text] of cases) {
+    const result = moderatePremiumChatInput(text, locale);
+    assertEquals(result.ok && result.crisisReferral, true);
+  }
+});
+
 Deno.test("moderatePremiumChatInput: crisisResourceText matches the moderation output exactly (single source of copy)", () => {
   const result = moderatePremiumChatInput("I want to end my life", "en");
   assert(result.ok && result.crisisReferral);
@@ -153,6 +185,15 @@ Deno.test("moderatePremiumChatProviderReply: professional-advice content is soft
     assertEquals(result.moderated, true);
     assert(result.safetyFlags.includes("professional_advice_boundary"));
     assertFalse(result.text.includes("medical advice"));
+  }
+});
+
+Deno.test("moderatePremiumChatProviderReply: professional-advice safety copy is localized for Brazilian Portuguese", () => {
+  const result = moderatePremiumChatProviderReply({ text: "I'll give you medical advice now.", safetyFlags: [] }, "pt-BR");
+
+  assert(result.ok);
+  if (result.ok) {
+    assertEquals(result.text, "Isso precisa ser confirmado com um profissional qualificado. Posso ficar aqui com você, com calma.");
   }
 });
 

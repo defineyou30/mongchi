@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { getRuntimeResources } from "../../localization/runtimeResources";
 
 export type NotificationPermissionGateStatus = "granted" | "denied" | "undetermined" | "skipped";
 
@@ -18,9 +19,11 @@ export const configureGardenNotificationChannel = async (): Promise<void> => {
     return;
   }
 
+  const channel = getRuntimeResources().notifications.channel;
+
   await Notifications.setNotificationChannelAsync(GARDEN_CHANNEL_ID, {
-    name: "Garden updates",
-    description: "Gentle updates about your garden",
+    name: channel.name,
+    description: channel.description,
     importance: Notifications.AndroidImportance.DEFAULT,
     sound: null
   });

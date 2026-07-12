@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { syncAmbienceWithSettings, syncBgmWithSettings, useAudioSettings } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
@@ -16,17 +17,25 @@ import { clearErrorLog, readErrorLog } from "../../shared/errors/reporter";
 import type { ErrorLogEntry } from "../../shared/errors/reporter";
 import type { WeatherCondition } from "@mongchi/shared";
 
-const weatherPreviewOptions: Array<{ condition: WeatherCondition; label: string; detail: string }> = [
-  { condition: "clear", label: "Clear", detail: "Default sunny garden." },
-  { condition: "rain", label: "Rain", detail: "Rain overlay and cozy weather lines." },
-  { condition: "snow", label: "Snow", detail: "Winter background and soft cold lines." },
-  { condition: "wind", label: "Wind", detail: "Leafy movement and walk discoveries." },
-  { condition: "hot", label: "Warm", detail: "Sunny scene and extra garden-care cues." }
-];
-const fallbackWeatherPreview = weatherPreviewOptions[0]!;
+import { getLocalizedText, normalizeAppLocale } from "../../localization/locale";
+import type { AppLocale } from "../../localization/locale";
+
+const getSafeServerMessage = (locale: AppLocale, englishMessage: string, localizedFallback: string): string =>
+  getLocalizedText(locale, {
+    "en-US": englishMessage,
+    "ko-KR": localizedFallback,
+    "ja-JP": localizedFallback,
+    "zh-TW": localizedFallback,
+    "de-DE": localizedFallback,
+    "fr-FR": localizedFallback,
+    "pt-BR": localizedFallback,
+    "es-MX": localizedFallback
+  });
 
 export function SettingsScreen() {
   const { showDialog } = useAppDialog();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const fontFamilies = useFontFamilies();
   const [fontPairId, setFontPairId] = useFontPair();
   const [audioSettings, setAudioSettings] = useAudioSettings();
@@ -56,6 +65,27 @@ export function SettingsScreen() {
   const [restoreInputText, setRestoreInputText] = useState("");
   const [restoreInFlight, setRestoreInFlight] = useState(false);
   const weatherLocationInProgress = weatherLocationStatus === "requesting";
+  const localizedWeatherLocationMessage = weatherLocationStatus === "idle"
+    ? weatherLocationMessage
+    : t(`settings.weather.locationMessages.${weatherLocationStatus}`);
+  const activeLanguageName = getLocalizedText(locale, {
+    "en-US": "English",
+    "ko-KR": "한국어",
+    "ja-JP": "日本語",
+    "zh-TW": "繁體中文",
+    "de-DE": "Deutsch",
+    "fr-FR": "Français",
+    "pt-BR": "Português (Brasil)",
+    "es-MX": "Español (México)"
+  });
+  const fallbackWeatherPreview = { condition: "clear" as const, label: t("settings.weather.options.clear.label"), detail: t("settings.weather.options.clear.detail") };
+  const weatherPreviewOptions: Array<{ condition: WeatherCondition; label: string; detail: string }> = [
+    fallbackWeatherPreview,
+    { condition: "rain", label: t("settings.weather.options.rain.label"), detail: t("settings.weather.options.rain.detail") },
+    { condition: "snow", label: t("settings.weather.options.snow.label"), detail: t("settings.weather.options.snow.detail") },
+    { condition: "wind", label: t("settings.weather.options.wind.label"), detail: t("settings.weather.options.wind.detail") },
+    { condition: "hot", label: t("settings.weather.options.hot.label"), detail: t("settings.weather.options.hot.detail") }
+  ];
   const activeWeatherIndex = Math.max(0, weatherPreviewOptions.findIndex((option) => option.condition === weatherState.context.condition));
   const activeWeather = weatherPreviewOptions[activeWeatherIndex] ?? fallbackWeatherPreview;
   const nextWeather = weatherPreviewOptions[(activeWeatherIndex + 1) % weatherPreviewOptions.length] ?? fallbackWeatherPreview;
@@ -88,7 +118,7 @@ export function SettingsScreen() {
   const handleShareErrorLog = () => {
     void readErrorLog().then((entries) => {
       if (entries.length === 0) {
-        showDialog({ title: "Error log", message: "No recent errors logged on this device." });
+        showDialog({ title: t("settings.dialogs.errorLog"), message: t("settings.dialogs.noErrors") });
         return;
       }
 
@@ -106,20 +136,20 @@ export function SettingsScreen() {
 
   const confirmDeleteOriginalPhoto = () => {
     showDialog({
-      title: "Delete local photo copy?",
-      message: "This clears the photo copy saved on this device. Your friend was already made — nothing about them changes.",
-      primaryLabel: "Delete",
-      secondaryLabel: "Cancel",
+      title: t("settings.dialogs.deletePhotoTitle"),
+      message: t("settings.dialogs.deletePhotoMessage"),
+      primaryLabel: t("common.actions.delete"),
+      secondaryLabel: t("common.actions.cancel"),
       onPrimary: deleteOriginalPhoto
     });
   };
 
   const confirmDeleteChatHistory = () => {
     showDialog({
-      title: "Delete chat history?",
-      message: "This clears local chat history for this session. It does not affect free care reactions.",
-      primaryLabel: "Delete",
-      secondaryLabel: "Cancel",
+      title: t("settings.dialogs.deleteChatTitle"),
+      message: t("settings.dialogs.deleteChatMessage"),
+      primaryLabel: t("common.actions.delete"),
+      secondaryLabel: t("common.actions.cancel"),
       onPrimary: deleteChatHistory
     });
   };
@@ -132,7 +162,10 @@ export function SettingsScreen() {
     const result = exportSessionBackup();
 
     if (!result.ok) {
-      showDialog({ title: "Backup", message: result.messageSafe });
+      showDialog({
+        title: t("settings.dialogs.backup"),
+        message: getSafeServerMessage(locale, result.messageSafe, t("settings.dialogs.backupFailed"))
+      });
       return;
     }
 
@@ -142,7 +175,7 @@ export function SettingsScreen() {
       title: `mongchi-backup-${todayKey}.json`,
       message: result.backupText
     }).catch(() => {
-      showDialog({ title: "Backup", message: "Couldn't open the share sheet. Please try again." });
+      showDialog({ title: t("settings.dialogs.backup"), message: t("settings.dialogs.shareFailed") });
     });
   };
 
@@ -162,28 +195,31 @@ export function SettingsScreen() {
 
   const confirmRestoreFromBackup = () => {
     if (restoreInputText.trim().length === 0) {
-      showDialog({ title: "Restore from backup", message: "Paste your backup text first." });
+      showDialog({ title: t("settings.dialogs.restore"), message: t("settings.dialogs.pasteFirst") });
       return;
     }
 
     showDialog({
-      title: "Restore this backup?",
-      message: "This will replace your current garden. Your current friend will be backed up first, just in case.",
-      primaryLabel: "Restore",
-      secondaryLabel: "Cancel",
+      title: t("settings.dialogs.restoreConfirmTitle"),
+      message: t("settings.dialogs.restoreConfirmMessage"),
+      primaryLabel: t("common.actions.restore"),
+      secondaryLabel: t("common.actions.cancel"),
       onPrimary: () => {
         setRestoreInFlight(true);
 
         void importSessionBackup(restoreInputText)
           .then((result) => {
             if (!result.ok) {
-              showDialog({ title: "Restore from backup", message: result.messageSafe });
+              showDialog({
+                title: t("settings.dialogs.restore"),
+                message: getSafeServerMessage(locale, result.messageSafe, t("settings.dialogs.restoreFailed"))
+              });
               return;
             }
 
             setRestoreModalVisible(false);
             setRestoreInputText("");
-            showDialog({ title: "Welcome back!", message: "Your garden has been restored from the backup." });
+            showDialog({ title: t("settings.dialogs.restoredTitle"), message: t("settings.dialogs.restoredMessage") });
           })
           .finally(() => setRestoreInFlight(false));
       }
@@ -192,11 +228,10 @@ export function SettingsScreen() {
 
   const handleReset = () => {
     showDialog({
-      title: "Delete all your data?",
-      message:
-        "This deletes this device's pet setup, generated pet, care state, and inventory, and also asks our servers to delete your photo, generated avatars, and account data. This can't be undone.",
-      primaryLabel: "Delete",
-      secondaryLabel: "Cancel",
+      title: t("settings.dialogs.deleteAllTitle"),
+      message: t("settings.dialogs.deleteAllMessage"),
+      primaryLabel: t("common.actions.delete"),
+      secondaryLabel: t("common.actions.cancel"),
       onPrimary: () => {
         void resetSession().then((result) => {
           if (!result.ok) {
@@ -206,7 +241,10 @@ export function SettingsScreen() {
           router.replace("/onboarding");
 
           if (result.serverDeleteWarning) {
-            showDialog({ title: "Server delete needs a retry", message: result.serverDeleteWarning });
+            showDialog({
+              title: t("settings.dialogs.serverRetry"),
+              message: getSafeServerMessage(locale, result.serverDeleteWarning, t("settings.dialogs.serverRetryMessage"))
+            });
           }
         });
       }
@@ -243,14 +281,14 @@ export function SettingsScreen() {
 
   return (
     <GardenSceneFrame
-      accessibilityLabel={`${activePet.name}'s settings and privacy vault`}
+      accessibilityLabel={t("settings.accessibilityLabel", { petName: activePet.name })}
       contentStyle={styles.settingsContent}
       innerStyle={styles.settingsInner}
     >
       <ScreenHeaderRow
-        title="Settings"
+        title={t("settings.title")}
         titleFontFamily={fontFamilies.display}
-        backAccessibilityLabel="Back home"
+        backAccessibilityLabel={t("settings.back")}
         style={styles.headerRow}
         onBack={() => router.replace("/terrarium")}
       />
@@ -261,7 +299,7 @@ export function SettingsScreen() {
         </View>
         <View style={styles.heroCopy}>
           <Text style={[styles.heroText, { fontFamily: fontFamilies.body }]}>
-            Weather, reminders, privacy, and support — all in one cozy spot.
+            {t("settings.hero")}
           </Text>
           {/*
             Guest badge removed: with only anonymous auth and no account
@@ -272,17 +310,40 @@ export function SettingsScreen() {
         </View>
       </View>
 
+      <View style={styles.settingsSection}>
+        <View style={styles.compactRow}>
+          <View style={styles.compactIconFrame}>
+            <MongchiIcon id="typography" size={22} />
+          </View>
+          <View style={styles.compactCopy}>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.language.title")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
+              {activeLanguageName} · {t("settings.language.detail")}
+            </Text>
+          </View>
+          <ActionButton
+            label={t("settings.language.action")}
+            variant="secondary"
+            size="compact"
+            style={styles.compactAction}
+            onPress={() => {
+              void Linking.openSettings();
+            }}
+          />
+        </View>
+      </View>
+
       {privacyActionInProgress || privacyActionError ? (
         <View style={[styles.statusNotice, privacyActionError ? styles.statusNoticeError : null]}>
           <View style={styles.statusRibbon}>
             <MongchiIcon id={privacyActionError ? "shield-alert" : "shield-check"} size={22} />
-            <Text style={[styles.statusRibbonText, { fontFamily: fontFamilies.label }]}>{privacyActionError ? "Needs check" : "Syncing"}</Text>
+            <Text style={[styles.statusRibbonText, { fontFamily: fontFamilies.label }]}>{privacyActionError ? t("settings.status.needsCheck") : t("settings.status.syncing")}</Text>
           </View>
           <Text style={[styles.statusTitle, { fontFamily: fontFamilies.title }]}>
-            {privacyActionError ? "Privacy action needs attention" : "Privacy action in progress"}
+            {privacyActionError ? t("settings.status.attention") : t("settings.status.inProgress")}
           </Text>
           <Text style={[styles.statusText, { fontFamily: fontFamilies.body }]}>
-            {privacyActionError ?? "Keep the app open while the change finishes."}
+            {privacyActionError ? t("settings.status.errorDetail") : t("settings.status.keepOpen")}
           </Text>
         </View>
       ) : null}
@@ -290,7 +351,7 @@ export function SettingsScreen() {
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
           <MongchiIcon id="rain" size={22} />
-          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Little reminders</Text>
+          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.sections.reminders")}</Text>
         </View>
 
         <View style={styles.compactRow}>
@@ -302,13 +363,13 @@ export function SettingsScreen() {
             )}
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Weather scenes</Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.weather.scenes")}</Text>
             {weatherState.settings.enabled ? (
               <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{activeWeather.label}: {activeWeather.detail}</Text>
             ) : null}
           </View>
           <ActionButton
-            label={weatherState.settings.enabled ? "Turn off" : "Enable"}
+            label={weatherState.settings.enabled ? t("common.actions.turnOff") : t("common.actions.enable")}
             variant="secondary"
             size="compact"
             style={styles.compactAction}
@@ -323,13 +384,13 @@ export function SettingsScreen() {
             <MongchiIcon id="location" size={22} />
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Use my location</Text>
-            {weatherLocationMessage ? (
-              <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{weatherLocationMessage}</Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.weather.useLocation")}</Text>
+            {localizedWeatherLocationMessage ? (
+              <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{localizedWeatherLocationMessage}</Text>
             ) : null}
           </View>
           <ActionButton
-            label={weatherLocationInProgress ? "Checking" : "Enable"}
+            label={weatherLocationInProgress ? t("common.actions.checking", { defaultValue: "Checking" }) : t("common.actions.enable")}
             variant="secondary"
             size="compact"
             style={styles.compactAction}
@@ -348,11 +409,11 @@ export function SettingsScreen() {
                 <MongchiIcon id="rain" size={22} />
               </View>
               <View style={styles.compactCopy}>
-                <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Preview weather</Text>
-                <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>Next: {nextWeather.label}</Text>
+                <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.weather.preview")}</Text>
+                <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.weather.next", { weather: nextWeather.label })}</Text>
               </View>
               <ActionButton
-                label="Change"
+                label={t("common.actions.change")}
                 variant="secondary"
                 size="compact"
                 style={styles.compactAction}
@@ -366,7 +427,7 @@ export function SettingsScreen() {
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
           <MongchiIcon id="music" size={22} />
-          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Sound & feel</Text>
+          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.sections.sound")}</Text>
         </View>
 
         <View style={styles.compactRow}>
@@ -378,13 +439,11 @@ export function SettingsScreen() {
             )}
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Sounds</Text>
-            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
-              Little chimes and taps, paired with gentle vibrations.
-            </Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.sound.effects")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.sound.effectsDetail")}</Text>
           </View>
           <ActionButton
-            label={audioSettings.soundsEnabled ? "Turn off" : "Enable"}
+            label={audioSettings.soundsEnabled ? t("common.actions.turnOff") : t("common.actions.enable")}
             variant="secondary"
             size="compact"
             style={styles.compactAction}
@@ -397,13 +456,11 @@ export function SettingsScreen() {
             <MongchiIcon id="ambience" size={22} style={!audioSettings.musicEnabled ? styles.mutedIcon : undefined} />
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Music & ambience</Text>
-            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
-              Soft garden music and background sounds, like birdsong or rain.
-            </Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.sound.music")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.sound.musicDetail")}</Text>
           </View>
           <ActionButton
-            label={audioSettings.musicEnabled ? "Turn off" : "Enable"}
+            label={audioSettings.musicEnabled ? t("common.actions.turnOff") : t("common.actions.enable")}
             variant="secondary"
             size="compact"
             style={styles.compactAction}
@@ -415,7 +472,7 @@ export function SettingsScreen() {
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
           <MongchiIcon id="shield-check" size={22} />
-          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Privacy & care</Text>
+          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.sections.privacy")}</Text>
         </View>
 
         <View style={styles.compactRow}>
@@ -423,13 +480,13 @@ export function SettingsScreen() {
             <MongchiIcon id="camera" size={22} />
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Local photo copy</Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.privacy.localPhoto")}</Text>
             <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
-              {originalPhotoDeletedAt ? "Deleted from this device." : "A copy is kept on this device only."}
+              {originalPhotoDeletedAt ? t("settings.privacy.photoDeleted") : t("settings.privacy.photoStored")}
             </Text>
           </View>
           <ActionButton
-            label={privacyActionInProgress ? "Deleting" : originalPhotoDeletedAt ? "Cleared" : "Delete"}
+            label={privacyActionInProgress ? t("common.actions.deleting") : originalPhotoDeletedAt ? t("common.actions.cleared") : t("common.actions.delete")}
             iconId="delete"
             variant="danger"
             size="compact"
@@ -442,7 +499,7 @@ export function SettingsScreen() {
         <View style={styles.rowDivider} />
 
         <Text style={[styles.privacyNote, { fontFamily: fontFamilies.body }]}>
-          Your photo was only used to create your friend — it was tucked away right after move-in.
+          {t("settings.privacy.photoNote")}
         </Text>
 
         <View style={styles.rowDivider} />
@@ -452,13 +509,13 @@ export function SettingsScreen() {
             <MongchiIcon id="chat" size={22} />
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Chat history</Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.privacy.chatHistory")}</Text>
             <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
-              {chatHistoryDeletedAt ? "Deleted for this session." : "Manage longer conversations here."}
+              {chatHistoryDeletedAt ? t("settings.privacy.chatDeleted") : t("settings.privacy.chatDetail")}
             </Text>
           </View>
           <ActionButton
-            label={privacyActionInProgress ? "Deleting" : chatHistoryDeletedAt ? "Cleared" : "Delete"}
+            label={privacyActionInProgress ? t("common.actions.deleting") : chatHistoryDeletedAt ? t("common.actions.cleared") : t("common.actions.delete")}
             iconId="delete"
             variant="danger"
             size="compact"
@@ -475,13 +532,11 @@ export function SettingsScreen() {
             <MongchiIcon id="download" size={22} />
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Back up your friend</Text>
-            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
-              Save a copy of your garden so it's never only on this device.
-            </Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.privacy.backup")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.privacy.backupDetail")}</Text>
           </View>
           <ActionButton
-            label="Export"
+            label={t("common.actions.export")}
             iconId="download"
             variant="secondary"
             size="compact"
@@ -495,13 +550,11 @@ export function SettingsScreen() {
             <MongchiIcon id="upload" size={22} />
           </View>
           <View style={styles.compactCopy}>
-            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>Restore from backup</Text>
-            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
-              Paste a saved backup to bring your garden back.
-            </Text>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.privacy.restore")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.privacy.restoreDetail")}</Text>
           </View>
           <ActionButton
-            label="Restore"
+            label={t("common.actions.restore")}
             iconId="upload"
             variant="secondary"
             size="compact"
@@ -514,7 +567,7 @@ export function SettingsScreen() {
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
           <MongchiIcon id="shopping-bag" size={22} />
-          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Support & legal</Text>
+          <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.sections.support")}</Text>
         </View>
 
         {/*
@@ -546,9 +599,9 @@ export function SettingsScreen() {
         */}
 
         <View style={styles.linkGrid}>
-          <ActionButton label="Privacy" iconId="shield-check" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/privacy")} />
-          <ActionButton label="Terms" iconId="document" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/terms")} />
-          <ActionButton label="Support" iconId="support" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/support")} />
+          <ActionButton label={t("settings.links.privacy")} iconId="shield-check" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/privacy")} />
+          <ActionButton label={t("settings.links.terms")} iconId="document" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/terms")} />
+          <ActionButton label={t("settings.links.support")} iconId="support" variant="secondary" size="compact" style={styles.linkButton} onPress={() => router.push("/support")} />
         </View>
       </View>
 
@@ -556,10 +609,10 @@ export function SettingsScreen() {
         <View style={styles.devSection}>
           <View style={styles.sectionHeader}>
             <MongchiIcon id="typography" size={22} />
-            <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Dev: font pair</Text>
+            <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.dev.fontTitle")}</Text>
           </View>
           <Text style={[styles.controlText, { fontFamily: fontFamilies.body }]}>
-            Compares the two W2 font pairs across the app. Not shown in production builds.
+            {t("settings.dev.fontDetail")}
           </Text>
           <View style={styles.linkGrid}>
             {fontPairOptions.map((option) => (
@@ -581,25 +634,25 @@ export function SettingsScreen() {
         <View style={styles.devSection}>
           <View style={styles.sectionHeader}>
             <MongchiIcon id="bug" size={22} />
-            <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>Dev: error log</Text>
+            <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.dev.errorTitle")}</Text>
           </View>
           <Text style={[styles.controlText, { fontFamily: fontFamilies.body }]}>
             {errorLogEntries.length > 0
-              ? `${errorLogEntries.length} recent error${errorLogEntries.length === 1 ? "" : "s"} logged on this device.`
-              : "No recent errors logged on this device."}
+              ? t("settings.dev.errorCount", { count: errorLogEntries.length })
+              : t("settings.dialogs.noErrors")}
           </Text>
           <View style={styles.linkGrid}>
-            <ActionButton label="Share log" iconId="support" variant="secondary" size="compact" style={styles.linkButton} onPress={handleShareErrorLog} />
-            <ActionButton label="Clear log" iconId="delete" variant="secondary" size="compact" style={styles.linkButton} onPress={handleClearErrorLog} />
+            <ActionButton label={t("settings.dev.shareLog")} iconId="support" variant="secondary" size="compact" style={styles.linkButton} onPress={handleShareErrorLog} />
+            <ActionButton label={t("settings.dev.clearLog")} iconId="delete" variant="secondary" size="compact" style={styles.linkButton} onPress={handleClearErrorLog} />
           </View>
         </View>
       ) : null}
 
       <View style={styles.dangerZone}>
-        <Text style={[styles.dangerTitle, { fontFamily: fontFamilies.label }]}>Reset</Text>
-        <Text style={[styles.dangerText, { fontFamily: fontFamilies.body }]}>Deletes this device's local pet setup and starts onboarding again.</Text>
+        <Text style={[styles.dangerTitle, { fontFamily: fontFamilies.label }]}>{t("settings.reset.title")}</Text>
+        <Text style={[styles.dangerText, { fontFamily: fontFamilies.body }]}>{t("settings.reset.detail")}</Text>
         <ActionButton
-          label={privacyActionInProgress ? "Deleting" : "Delete pet data"}
+          label={privacyActionInProgress ? t("common.actions.deleting") : t("settings.reset.action")}
           iconId="refresh"
           variant="danger"
           disabled={privacyActionInProgress}
@@ -610,26 +663,26 @@ export function SettingsScreen() {
       <Modal transparent animationType="fade" statusBarTranslucent visible={restoreModalVisible} onRequestClose={closeRestoreModal}>
         <View style={styles.restoreOverlay}>
           <View
-            accessibilityLabel="Restore from backup"
+            accessibilityLabel={t("settings.restoreModal.accessibilityLabel")}
             accessibilityRole="alert"
             accessibilityViewIsModal
             style={styles.restoreCard}
           >
             <Text accessibilityRole="header" style={[styles.restoreTitle, { fontFamily: fontFamilies.title }]}>
-              Restore from backup
+              {t("settings.restoreModal.title")}
             </Text>
             <Text style={[styles.restoreHint, { fontFamily: fontFamilies.body }]}>
-              Paste the backup text you saved earlier (from iCloud, Notes, or email).
+              {t("settings.restoreModal.hint")}
             </Text>
             <TextInput
               value={restoreInputText}
               onChangeText={setRestoreInputText}
-              placeholder="Paste your backup JSON here"
+              placeholder={t("settings.restoreModal.placeholder")}
               placeholderTextColor={colors.mutedInk}
               multiline
               editable={!restoreInFlight}
               style={styles.restoreInput}
-              accessibilityLabel="Backup text"
+              accessibilityLabel={t("settings.restoreModal.inputAccessibilityLabel")}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -640,7 +693,7 @@ export function SettingsScreen() {
                 disabled={restoreInFlight}
                 onPress={closeRestoreModal}
               >
-                <Text style={[styles.restoreButtonText, styles.restoreSecondaryButtonText]}>Cancel</Text>
+                <Text style={[styles.restoreButtonText, styles.restoreSecondaryButtonText]}>{t("common.actions.cancel")}</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -649,7 +702,7 @@ export function SettingsScreen() {
                 onPress={confirmRestoreFromBackup}
               >
                 <Text style={[styles.restoreButtonText, styles.restorePrimaryButtonText]}>
-                  {restoreInFlight ? "Restoring" : "Restore"}
+                  {restoreInFlight ? t("common.actions.restoring") : t("common.actions.restore")}
                 </Text>
               </Pressable>
             </View>

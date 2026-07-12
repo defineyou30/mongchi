@@ -67,4 +67,23 @@ describe("premium chat moderation", () => {
       code: "premium_chat_output_unavailable"
     });
   });
+
+  it("localizes deterministic input failures and detects native-language crisis copy", () => {
+    expect(moderatePremiumChatInput("   ", "ja-JP")).toMatchObject({
+      ok: false,
+      messageSafe: "まず短いメッセージを書いてください。"
+    });
+    expect(moderatePremiumChatInput("もう死にたい", "ja-JP")).toMatchObject({
+      ok: false,
+      code: "safety_self_harm"
+    });
+    expect(moderatePremiumChatInput("Quero me matar", "pt-BR")).toMatchObject({
+      ok: false,
+      code: "safety_self_harm"
+    });
+    expect(moderatePremiumChatProviderReply({ text: "\u0000", safetyFlags: [] }, "pt-BR")).toMatchObject({
+      ok: false,
+      messageSafe: "A conversa não está disponível agora."
+    });
+  });
 });

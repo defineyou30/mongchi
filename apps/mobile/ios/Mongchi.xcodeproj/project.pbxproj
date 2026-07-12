@@ -11,6 +11,7 @@
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4D67C9A52347C0120A043B0B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4AC96703D8C761C93EA3D079 /* PrivacyInfo.xcprivacy */; };
 		5D64D71993A0B3B6B44162D1 /* ManualTapQA.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA95E1AFB710818F6C83BF7E /* ManualTapQA.swift */; };
+		71A63E0030F1000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 71A63E0030F1000000000004 /* InfoPlist.strings */; };
 		A50991CAD2933DA067746969 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C038A64BA268E0E31656729 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		CE6D0F625C702FBAD121767E /* libPods-Mongchi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A49DAF7E1D5CDAD8AA3286A9 /* libPods-Mongchi.a */; };
@@ -34,6 +35,14 @@
 		4AC96703D8C761C93EA3D079 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Mongchi/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5B258B7D7CAAC96BA4376D0F /* Pods-Mongchi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Mongchi.debug.xcconfig"; path = "Target Support Files/Pods-Mongchi/Pods-Mongchi.debug.xcconfig"; sourceTree = "<group>"; };
 		6C038A64BA268E0E31656729 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Mongchi/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		71A63E0030F1000000000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = Mongchi/en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		71A63E0030F1000000000003 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = Mongchi/ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		71A63E0030F1000000000005 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = Mongchi/ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		71A63E0030F1000000000006 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "Mongchi/zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		71A63E0030F1000000000007 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = Mongchi/de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		71A63E0030F1000000000008 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = Mongchi/fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		71A63E0030F1000000000009 /* pt-BR */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "pt-BR"; path = "Mongchi/pt-BR.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		71A63E0030F1000000000010 /* es-MX */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "es-MX"; path = "Mongchi/es-MX.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A49DAF7E1D5CDAD8AA3286A9 /* libPods-Mongchi.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Mongchi.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Mongchi/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BA95E1AFB710818F6C83BF7E /* ManualTapQA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualTapQA.swift; sourceTree = "<group>"; };
@@ -74,6 +83,7 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				4AC96703D8C761C93EA3D079 /* PrivacyInfo.xcprivacy */,
+				71A63E0030F1000000000004 /* InfoPlist.strings */,
 			);
 			name = Mongchi;
 			sourceTree = "<group>";
@@ -229,6 +239,13 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ko,
+				ja,
+				"zh-Hant",
+				de,
+				fr,
+				"pt-BR",
+				"es-MX",
 				Base,
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
@@ -258,10 +275,29 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				4D67C9A52347C0120A043B0B /* PrivacyInfo.xcprivacy in Resources */,
+				71A63E0030F1000000000001 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		71A63E0030F1000000000004 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				71A63E0030F1000000000002 /* en */,
+				71A63E0030F1000000000003 /* ko */,
+				71A63E0030F1000000000005 /* ja */,
+				71A63E0030F1000000000006 /* zh-Hant */,
+				71A63E0030F1000000000007 /* de */,
+				71A63E0030F1000000000008 /* fr */,
+				71A63E0030F1000000000009 /* pt-BR */,
+				71A63E0030F1000000000010 /* es-MX */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
@@ -368,6 +404,7 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoLocalization/ExpoLocalization_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoNotifications/ExpoNotifications_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNCAsyncStorage/RNCAsyncStorage_resources.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
@@ -385,6 +422,7 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoLocalization_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNCAsyncStorage_resources.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",

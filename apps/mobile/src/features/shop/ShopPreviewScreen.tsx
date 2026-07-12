@@ -1,14 +1,16 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { CheckCircle2, Lock } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { DEFAULT_THEME_ID, expressionPacks, themeBundles } from "@mongchi/shared";
 import type { CommerceProduct, EntitlementKey, Item, ItemId } from "@mongchi/shared";
 import { themeBackgroundSourceById } from "../../shared/assets/weatherSceneAssets";
 
+import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { playSfx } from "../../shared/audio";
 import { colors, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
 import { GameItemImage, gameItemAssetByCatalogId } from "../../shared/ui/GameIllustrations";
@@ -18,6 +20,8 @@ import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import {
   getLocalShopSummaryPresentation,
+  getLocalizedCatalogItemCopy,
+  getLocalizedExpressionPackCopy,
   getLocalShopCatalogPresentation,
   getExpressionPackShopPresentation,
   getPremiumPassShopPresentation,
@@ -28,86 +32,54 @@ import {
   isPremiumPassProduct
 } from "./shopCatalogPresentation";
 import { balanceShopItemName, resolveShopGridLayout } from "./shopGridLayout";
+import { ExpressionPackShelf } from "./ExpressionPackShelf";
+import type { ExpressionPackShelfItem } from "./ExpressionPackShelf";
+import { getInitialExpressionPackId, getInitialShopCategory } from "./shopRouteParams";
+import type { ShopCategoryId } from "./shopRouteParams";
 
-const productCopyById: Record<string, { name: string; description: string; item: GameItemAssetKey }> = {
-  premium_chat_monthly: {
-    name: "Plus monthly chat",
-    description: "Longer, warmer chats whenever the Plus pass is active.",
-    item: "gift"
-  },
-  extra_pet_slot_1: {
-    name: "Extra pet slot",
-    description: "Make room for one more tiny pet profile.",
-    item: "doghouse"
-  },
-  regeneration_credit_1: {
-    name: "Regeneration credit",
-    description: "One avatar retry when you want a fresh look.",
-    item: "gem"
-  },
-  theme_pack_starter: {
-    name: "Starter theme pack",
-    description: "A fresh backdrop for the tiny home.",
-    item: "flowerPot"
-  }
+const productAssetById: Readonly<Record<string, GameItemAssetKey>> = {
+  premium_chat_monthly: "gift",
+  extra_pet_slot_1: "doghouse",
+  regeneration_credit_1: "gem",
+  theme_pack_starter: "flowerPot"
 };
 
-const fallbackCopyByEntitlement: Record<EntitlementKey, { name: string; description: string; item: GameItemAssetKey }> = {
-  premium_chat: {
-    name: "Plus monthly chat",
-    description: "Longer, warmer chats whenever the Plus pass is active.",
-    item: "gift"
-  },
-  extra_pet_slot: {
-    name: "Extra pet slot",
-    description: "Make room for one more tiny pet profile.",
-    item: "doghouse"
-  },
-  regeneration_credit: {
-    name: "Regeneration credit",
-    description: "One avatar retry when you want a fresh look.",
-    item: "gem"
-  },
-  theme_pack: {
-    name: "Starter theme pack",
-    description: "A fresh backdrop for the tiny home.",
-    item: "flowerPot"
-  },
-  item_pack: {
-    name: "Item pack",
-    description: "A curated set of treats and toys.",
-    item: "toyBall"
-  },
-  treat_pack: {
-    name: "Treat pack",
-    description: "Special snacks for cute reaction moments.",
-    item: "bone"
-  },
-  subscription_plus: {
-    name: "Plus pass",
-    description: "Premium bond perks for longer chats and future Plus features.",
-    item: "gem"
-  }
+const fallbackAssetByEntitlement: Record<EntitlementKey, GameItemAssetKey> = {
+  premium_chat: "gift",
+  extra_pet_slot: "doghouse",
+  regeneration_credit: "gem",
+  theme_pack: "flowerPot",
+  item_pack: "toyBall",
+  treat_pack: "bone",
+  subscription_plus: "gem"
 };
 
-const grantLabels: Record<CommerceProduct["grantType"], string> = {
-  consumable: "Credit",
-  durable: "Owned once",
-  subscription: "Subscription"
+type ProductCopyKey = "premiumChat" | "extraPetSlot" | "regenerationCredit" | "starterTheme" | "itemPack" | "treatPack" | "plusPass";
+
+const productCopyKeyById: Readonly<Record<string, ProductCopyKey>> = {
+  premium_chat_monthly: "premiumChat",
+  extra_pet_slot_1: "extraPetSlot",
+  regeneration_credit_1: "regenerationCredit",
+  theme_pack_starter: "starterTheme"
+};
+
+const fallbackCopyKeyByEntitlement: Record<EntitlementKey, ProductCopyKey> = {
+  premium_chat: "premiumChat",
+  extra_pet_slot: "extraPetSlot",
+  regeneration_credit: "regenerationCredit",
+  theme_pack: "starterTheme",
+  item_pack: "itemPack",
+  treat_pack: "treatPack",
+  subscription_plus: "plusPass"
 };
 
 const shopBackground = require("../../../assets/generated/backgrounds/candidates/shop-market-premium-v1-portrait.png");
-const getProductCopy = (product: CommerceProduct) =>
-  productCopyById[product.productId] ?? fallbackCopyByEntitlement[product.entitlementKey];
-
 /**
- * Shop categories (see mongchi "상점 재편" wave): care consumables,
+ * Shop categories: care consumables,
  * toy/rest comfort items, expression moments, and background-only garden
  * makeovers. Placeable home decor no longer exists as a shop concept -- the
  * garden background is a finished illustration.
  */
-type ShopCategoryId = "treats" | "toysAndRest" | "moments" | "themes";
-
 interface ShopEntry {
   id: string;
   category: ShopCategoryId;
@@ -130,26 +102,28 @@ interface ShopEntry {
   previewImage?: ImageSourcePropType;
 }
 
-const shopCategoryLabels: Record<ShopCategoryId, string> = {
-  treats: "Treats",
-  toysAndRest: "Toys",
-  moments: "Moments",
-  themes: "Themes"
-};
-
 interface BackgroundThemeEntry {
   readonly id: ItemId;
   readonly bundleId: string | null;
-  readonly name: string;
-  readonly description: string;
+  readonly copyKey: ThemeCopyKey;
   readonly creditCost: number;
   readonly previewImage: ImageSourcePropType;
 }
 
+type ThemeCopyKey = "default" | "fairy" | "seaside" | "autumn" | "winter";
+
+const themeCopyKeyById: Readonly<Record<ItemId, ThemeCopyKey>> = {
+  [DEFAULT_THEME_ID]: "default",
+  "theme-fairy-garden": "fairy",
+  "theme-seaside-cove": "seaside",
+  "theme-autumn-woods": "autumn",
+  "theme-winter-lights": "winter"
+};
+
 const defaultGardenPreviewImage = require("../../../assets/generated/backgrounds/candidates/home-garden-premium-v2-portrait.png");
 
 /**
- * Single source of Themes-tab cards (see the "테마 BM 결함" fix): the
+ * Single source of Themes-tab cards: the
  * always-free default garden plus every purchasable bundle from
  * themeBundles.ts. Every card renders through the same 3-state presentation
  * (getThemeCardPresentation) -- there is no more separate "free instant
@@ -159,16 +133,14 @@ const backgroundThemeEntries: readonly BackgroundThemeEntry[] = [
   {
     id: DEFAULT_THEME_ID,
     bundleId: null,
-    name: "Cozy Garden",
-    description: "The garden's original, always-free backdrop.",
+    copyKey: "default",
     creditCost: 0,
     previewImage: defaultGardenPreviewImage
   },
   ...themeBundles.map((bundle) => ({
     id: bundle.themeId,
     bundleId: bundle.id,
-    name: bundle.nameEn,
-    description: bundle.descriptionEn,
+    copyKey: themeCopyKeyById[bundle.themeId] ?? "default",
     creditCost: bundle.creditCost,
     previewImage: themeBackgroundSourceById[bundle.themeId] ?? defaultGardenPreviewImage
   }))
@@ -211,7 +183,20 @@ const getProductShopCategory = (product: CommerceProduct): ShopCategoryId | null
 };
 
 export function ShopPreviewScreen() {
+  const { category: requestedCategory, packId: requestedPackParam } = useLocalSearchParams<{
+    category?: string | string[];
+    packId?: string | string[];
+  }>();
+  const requestedPackId = getInitialExpressionPackId(requestedPackParam);
   const { showDialog } = useAppDialog();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
+  const shopCategoryLabels: Record<ShopCategoryId, string> = {
+    treats: t("shop.categories.treats"),
+    toysAndRest: t("shop.categories.toysAndRest"),
+    moments: t("shop.categories.moments"),
+    themes: t("shop.categories.themes")
+  };
   const { fontScale, width: viewportWidth } = useWindowDimensions();
   const {
     activeEntitlements,
@@ -220,7 +205,9 @@ export function ShopPreviewScreen() {
     catalogItems,
     commerceProducts,
     creditBalance,
+    devStoreCreditsAvailable,
     devStoreUnlocked,
+    expressionPackCreditBalance,
     hydrateCreditBalance,
     inventory,
     expressionPackPurchaseStatusById,
@@ -244,7 +231,7 @@ export function ShopPreviewScreen() {
   }, [hydrateCreditBalance]);
   const useServerCatalog = runtimeMode === "api" && commerceProducts.length > 0;
   const checkoutAvailable = useServerCatalog && nativeCheckoutReady;
-  const premiumPass = getPremiumPassShopPresentation(commerceProducts, activeEntitlements);
+  const premiumPass = getPremiumPassShopPresentation(commerceProducts, activeEntitlements, locale);
   // IAP-backed commerce products (credit packs, subscriptions) render as
   // browsable-but-unbuyable "Soon" cards whenever native checkout isn't wired
   // up for this build (checkoutAvailable false) -- that reads as a broken
@@ -257,13 +244,13 @@ export function ShopPreviewScreen() {
     ? commerceProducts.filter((product) => !isPremiumPassProduct(product) && getProductShopCategory(product) !== null)
     : [];
   const rawShopSummary = useServerCatalog
-    ? getServerShopSummaryPresentation(commerceProducts, activeEntitlements, premiumPass)
-    : getLocalShopSummaryPresentation(catalogItems, inventory, premiumPass);
+    ? getServerShopSummaryPresentation(commerceProducts, activeEntitlements, premiumPass, locale)
+    : getLocalShopSummaryPresentation(catalogItems, inventory, premiumPass, locale);
   const shopSummary = devStoreUnlocked
     ? {
         ...rawShopSummary,
         lockedCount: 0,
-        plusLabel: "Dev open"
+        plusLabel: t("shop.devOpen")
       }
     : rawShopSummary;
   const localShopItems = useServerCatalog
@@ -271,7 +258,7 @@ export function ShopPreviewScreen() {
     : catalogItems
         .filter((item) => getItemShopCategory(item) !== null)
         .map((item) => {
-          const presentation = getLocalShopCatalogPresentation(item, inventory);
+          const presentation = getLocalShopCatalogPresentation(item, inventory, locale);
           const assetKey = gameItemAssetByCatalogId[item.id] ?? "flowerPot";
           const canBuyWithCredits =
             presentation.purchaseLabel !== null &&
@@ -287,7 +274,8 @@ export function ShopPreviewScreen() {
             showCreditPurchase
           };
         });
-  const [selectedCategory, setSelectedCategory] = useState<ShopCategoryId>("treats");
+  const [selectedCategory, setSelectedCategory] = useState<ShopCategoryId>(() => getInitialShopCategory(requestedCategory));
+  const displayedCreditBalance = selectedCategory === "moments" ? expressionPackCreditBalance : creditBalance;
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [shopShelfWidth, setShopShelfWidth] = useState(() => Math.max(0, viewportWidth - spacing.lg * 2));
   const shopGridLayout = useMemo(
@@ -296,16 +284,19 @@ export function ShopPreviewScreen() {
   );
   const shopProductCardWidthStyle = useMemo(() => ({ width: shopGridLayout.cardWidth }), [shopGridLayout.cardWidth]);
   const acceptedAssetStates = useMemo(() => acceptedAssets.map((asset) => asset.state), [acceptedAssets]);
+  useEffect(() => {
+    setSelectedCategory(getInitialShopCategory(requestedCategory));
+  }, [requestedCategory]);
   const themeEntries = useMemo<ShopEntry[]>(
     () =>
       backgroundThemeEntries.map((theme) => {
-        const presentation = getThemeCardPresentation(theme.id, theme.creditCost, inventory, devStoreUnlocked, creditBalance);
+        const presentation = getThemeCardPresentation(theme.id, theme.creditCost, inventory, devStoreUnlocked, creditBalance, locale);
 
         return {
           id: `theme-${theme.id}`,
           category: "themes",
-          name: theme.name,
-          description: theme.description,
+          name: t(`shop.themes.${theme.copyKey}Name`),
+          description: t(`shop.themes.${theme.copyKey}Description`),
           assetKey: "seasonalFlowers",
           statusLabel: presentation.statusLabel,
           priceLabel: presentation.priceLabel,
@@ -318,7 +309,7 @@ export function ShopPreviewScreen() {
           previewImage: theme.previewImage
         };
       }),
-    [creditBalance, devStoreUnlocked, inventory]
+    [creditBalance, devStoreUnlocked, inventory, locale, t]
   );
 
   const localShopEntries = useMemo<ShopEntry[]>(
@@ -331,6 +322,7 @@ export function ShopPreviewScreen() {
         }
 
         const owned = presentation.ownedQuantity > 0;
+        const copy = getLocalizedCatalogItemCopy(item, locale);
         // Owned, non-repeatable items with nothing left to buy (purchaseLabel
         // null) are simply owned and settled — nothing more to do with them.
         const ownedAndSettled = owned && !showCreditPurchase;
@@ -338,21 +330,21 @@ export function ShopPreviewScreen() {
         entries.push({
           id: `local-${item.id}`,
           category,
-          name: item.name,
-          description: item.description,
+          name: copy.name,
+          description: copy.description,
           assetKey,
           statusLabel: ownedAndSettled
-            ? "Owned"
+            ? t("shop.owned")
             : owned
-              ? `Owned x${presentation.ownedQuantity}`
+              ? t("shop.ownedQuantity", { count: presentation.ownedQuantity })
               : devStoreUnlocked && showCreditPurchase
-                ? "Dev open"
+                ? t("shop.devOpen")
                 : showCreditPurchase
-                  ? "Available"
+                  ? t("shop.available")
                   : presentation.statusLabel,
           priceLabel:
             owned && !presentation.repeatable
-              ? `Owned x${presentation.ownedQuantity}`
+              ? t("shop.ownedQuantity", { count: presentation.ownedQuantity })
               : presentation.creditCost !== null
                 ? `${presentation.creditCost}`
                 : presentation.statusLabel,
@@ -364,7 +356,7 @@ export function ShopPreviewScreen() {
 
         return entries;
       }, []),
-    [devStoreUnlocked, localShopItems]
+    [devStoreUnlocked, localShopItems, locale, t]
   );
 
   const commerceShopEntries = useMemo<ShopEntry[]>(
@@ -376,8 +368,14 @@ export function ShopPreviewScreen() {
           return entries;
         }
 
-        const copy = getProductCopy(product);
+        const copyKey = productCopyKeyById[product.productId] ?? fallbackCopyKeyByEntitlement[product.entitlementKey];
+        const copy = {
+          name: t(`shop.products.${copyKey}.name`),
+          description: t(`shop.products.${copyKey}.description`),
+          item: productAssetById[product.productId] ?? fallbackAssetByEntitlement[product.entitlementKey]
+        };
         const active = hasActiveProductEntitlement(product, activeEntitlements);
+        const grantLabel = t(`shop.grants.${product.grantType}`);
 
         entries.push({
           id: `product-${product.productId}`,
@@ -385,8 +383,8 @@ export function ShopPreviewScreen() {
           name: copy.name,
           description: copy.description,
           assetKey: copy.item,
-          statusLabel: active ? "Owned" : grantLabels[product.grantType],
-          priceLabel: active ? "Owned" : grantLabels[product.grantType],
+          statusLabel: active ? t("shop.owned") : grantLabel,
+          priceLabel: active ? t("shop.owned") : grantLabel,
           ownedQuantity: active ? 1 : 0,
           canAct: !active && checkoutAvailable && purchaseInProgressProductId === null,
           kind: "commerce_product",
@@ -396,39 +394,50 @@ export function ShopPreviewScreen() {
 
         return entries;
       }, []),
-    [activeEntitlements, checkoutAvailable, purchaseInProgressProductId, visibleCommerceProducts]
+    [activeEntitlements, checkoutAvailable, purchaseInProgressProductId, t, visibleCommerceProducts]
   );
+
+  const expressionPackShelfItems = useMemo<ExpressionPackShelfItem[]>(() => {
+    const items = expressionPacks.map((pack) => ({
+      pack,
+      presentation: getExpressionPackShopPresentation(
+        pack,
+        acceptedAssetStates,
+        inventory,
+        expressionPackPurchaseStatusById[pack.id],
+        devStoreCreditsAvailable,
+        expressionPackCreditBalance,
+        locale
+      )
+    }));
+    const requestedItem = requestedPackId ? items.find((item) => item.pack.id === requestedPackId) : undefined;
+
+    return requestedItem ? [requestedItem, ...items.filter((item) => item.pack.id !== requestedPackId)] : items;
+  }, [acceptedAssetStates, devStoreCreditsAvailable, expressionPackCreditBalance, expressionPackPurchaseStatusById, inventory, locale, requestedPackId]);
 
   const expressionPackEntries = useMemo<ShopEntry[]>(
     () =>
-      expressionPacks.map((pack) => {
-        const presentation = getExpressionPackShopPresentation(
-          pack,
-          acceptedAssetStates,
-          inventory,
-          expressionPackPurchaseStatusById[pack.id],
-          devStoreUnlocked,
-          creditBalance
-        );
+      expressionPackShelfItems.map(({ pack, presentation }) => {
         const assetKey: GameItemAssetKey =
           pack.id === "pack-care-reactions" ? "rewardPouch" : pack.id === "pack-special-days" ? "seasonalFlowers" : "giftBox";
+        const copy = getLocalizedExpressionPackCopy(pack, locale);
 
         return {
           id: `expression-${pack.id}`,
           category: "moments",
-          name: pack.nameEn,
-          description: pack.descriptionEn,
+          name: copy.name,
+          description: copy.description,
           assetKey,
           statusLabel: presentation.statusLabel,
           priceLabel: presentation.priceLabel,
-          ownedQuantity: presentation.ownedStateCount,
+          ownedQuantity: presentation.status === "owned" ? presentation.totalStateCount : 0,
           canAct: presentation.canAct,
           actionLabel: presentation.actionLabel,
           kind: "expression_pack",
           packId: pack.id
         };
       }),
-    [acceptedAssetStates, creditBalance, devStoreUnlocked, expressionPackPurchaseStatusById, inventory]
+    [expressionPackShelfItems, locale]
   );
 
   const shopEntries = useMemo<ShopEntry[]>(
@@ -455,10 +464,10 @@ export function ShopPreviewScreen() {
     id: "empty-shop-preview",
     category: selectedCategory,
     name: shopCategoryLabels[selectedCategory],
-    description: "New cozy items will appear here when this shelf is stocked.",
+    description: t("shop.emptyPreview"),
     assetKey: selectedCategory === "treats" ? "treatPlate" : selectedCategory === "themes" ? "seasonalFlowers" : selectedCategory === "moments" ? "giftBox" : "toyBall",
-    statusLabel: "Coming soon",
-    priceLabel: "Soon",
+    statusLabel: t("shop.comingSoon"),
+    priceLabel: t("shop.soon"),
     ownedQuantity: 0,
     canAct: false,
     kind: "preview"
@@ -473,12 +482,12 @@ export function ShopPreviewScreen() {
   const handlePurchase = (product: CommerceProduct) => {
     void purchaseProduct(product).then((result) => {
       if (!result.ok) {
-        showDialog({ title: "Checkout", message: result.messageSafe });
+        showDialog({ title: t("shop.dialogs.checkout"), message: locale === "en-US" ? result.messageSafe : t("shop.dialogs.checkoutFailed") });
         return;
       }
 
       // Purchase-specific SFX is Phase 2 (see docs/gamefeel-sound-plan.md §2,
-      // "구매(카지노 느낌 회피)") -- reusing the shared toast chime for now.
+      // Purchase feedback avoids a casino-like sound; reuse the shared toast chime for now.
       playSfx("sfx_toast");
     });
   };
@@ -486,15 +495,37 @@ export function ShopPreviewScreen() {
   const handleCreditItemPurchase = (itemId: ItemId) => {
     void purchaseCatalogItem(itemId).then((result) => {
       if (!result.ok) {
-        showDialog({ title: "Shop", message: result.messageSafe });
+        showDialog({ title: t("shop.dialogs.shop"), message: locale === "en-US" ? result.messageSafe : t("shop.dialogs.shopFailed") });
         return;
       }
 
       playSfx("sfx_toast");
       showDialog({
-        title: "Item added",
-        message: result.messageSafe,
-        primaryLabel: "OK"
+        title: t("shop.dialogs.itemAdded"),
+        message: locale === "en-US" ? result.messageSafe : t("shop.dialogs.itemAddedMessage"),
+        primaryLabel: t("common.actions.ok")
+      });
+    });
+  };
+
+  const handleExpressionPackPurchase = (packId: string) => {
+    void purchaseExpressionPack(packId).then((result) => {
+      if (!result.ok) {
+        showDialog({ title: t("shop.dialogs.posePack"), message: locale === "en-US" ? result.messageSafe : t("shop.dialogs.posePackFailed") });
+        return;
+      }
+
+      if (!result.started) {
+        return;
+      }
+
+      playSfx("sfx_toast");
+      showDialog({
+        title: t("shop.dialogs.posesOnWay"),
+        message: locale === "en-US" ? result.messageSafe : t("shop.dialogs.posesOnWayMessage"),
+        primaryLabel: t("common.actions.ok"),
+        secondaryLabel: t("common.actions.seeProfile"),
+        onSecondary: () => router.replace("/friend")
       });
     });
   };
@@ -511,21 +542,7 @@ export function ShopPreviewScreen() {
     }
 
     if (entry.kind === "expression_pack" && entry.packId && entry.canAct) {
-      void purchaseExpressionPack(entry.packId).then((result) => {
-        if (!result.ok) {
-          showDialog({ title: "Moment pack", message: result.messageSafe });
-          return;
-        }
-
-        playSfx("sfx_toast");
-        showDialog({
-          title: "Moments unlocked",
-          message: result.messageSafe,
-          primaryLabel: "OK",
-          secondaryLabel: "See profile",
-          onSecondary: () => router.replace("/friend")
-        });
-      });
+      handleExpressionPackPurchase(entry.packId);
       return;
     }
 
@@ -539,15 +556,15 @@ export function ShopPreviewScreen() {
           : applyTheme(entry.itemId);
 
       if (!result.ok) {
-        showDialog({ title: "Theme", message: result.messageSafe });
+        showDialog({ title: t("shop.dialogs.theme"), message: locale === "en-US" ? result.messageSafe : t("shop.dialogs.themeFailed") });
         return;
       }
 
       showDialog({
-        title: entry.themeStatus === "locked_for_purchase" ? "Garden makeover!" : "Theme applied",
-        message: `${entry.name} is now your garden background.`,
-        primaryLabel: "OK",
-        secondaryLabel: "View home",
+        title: entry.themeStatus === "locked_for_purchase" ? t("shop.dialogs.makeover") : t("shop.dialogs.themeApplied"),
+        message: t("shop.dialogs.themeAppliedMessage", { name: entry.name }),
+        primaryLabel: t("common.actions.ok"),
+        secondaryLabel: t("common.actions.viewHome"),
         onSecondary: () => router.replace("/terrarium")
       });
       return;
@@ -559,35 +576,35 @@ export function ShopPreviewScreen() {
       <ImageBackground accessibilityElementsHidden resizeMode="cover" source={shopBackground} style={styles.sceneBackground}>
         <View style={styles.sceneWash} />
       </ImageBackground>
-      <SafeAreaView accessibilityLabel="Garden shop" edges={["top", "left", "right"]} style={styles.sceneSafe}>
+      <SafeAreaView accessibilityLabel={t("shop.accessibilityLabel")} edges={["top", "left", "right"]} style={styles.sceneSafe}>
         <ScrollView bounces={false} contentContainerStyle={styles.sceneContent} showsVerticalScrollIndicator={false}>
           <ScreenHeaderRow
-            backAccessibilityLabel="Back home"
+            backAccessibilityLabel={t("shop.back")}
             right={
-              <View accessibilityLabel={`Shop wallet, ${creditBalance} credits and ${shopSummary.ownedQuantity} owned kit items`} style={styles.creditHud}>
-                <GameItemImage accessibilityLabel="Shop credit gem icon" decorative item="gem" style={styles.creditHudIcon} variant="hud" />
-                <Text style={[styles.creditHudText, typography.label]}>{creditBalance}</Text>
+              <View accessibilityLabel={t("shop.walletAccessibilityLabel", { credits: displayedCreditBalance, owned: shopSummary.ownedQuantity })} style={styles.creditHud}>
+                <GameItemImage accessibilityLabel={t("shop.creditGemAccessibilityLabel")} decorative item="gem" style={styles.creditHudIcon} variant="hud" />
+                <Text style={[styles.creditHudText, typography.label]}>{displayedCreditBalance}</Text>
               </View>
             }
             style={styles.headerRow}
-            title="Garden Shop"
+            title={t("shop.title")}
             titleFontFamily={fontFamilies.title}
             onBack={() => router.replace("/terrarium")}
           />
 
-          <View style={styles.itemPreviewPanel}>
+          {selectedCategory !== "moments" ? <View style={styles.itemPreviewPanel}>
             <View style={styles.previewArtFrame}>
               <View style={styles.previewGlow} />
               {selectedEntry.previewImage ? (
                 <Image
                   accessibilityIgnoresInvertColors
-                  accessibilityLabel={`${selectedEntry.name} background preview`}
+                  accessibilityLabel={t("shop.backgroundPreview", { name: selectedEntry.name })}
                   resizeMode="contain"
                   source={selectedEntry.previewImage}
                   style={styles.previewBackgroundImage}
                 />
               ) : (
-                <GameItemImage accessibilityLabel={`${selectedEntry.name} large preview`} item={selectedEntry.assetKey} style={styles.previewIcon} variant="ui" />
+                <GameItemImage accessibilityLabel={t("shop.largePreview", { name: selectedEntry.name })} item={selectedEntry.assetKey} style={styles.previewIcon} variant="ui" />
               )}
             </View>
             <View style={styles.previewCopy}>
@@ -604,10 +621,10 @@ export function ShopPreviewScreen() {
                 )}
                 <Text style={[styles.featuredOwnedText, typography.label]}>{selectedEntry.statusLabel}</Text>
               </View>
-              <View accessibilityLabel="Gem and coin prices accepted" style={styles.previewPricePill}>
-                <GameItemImage accessibilityLabel="Wallet credit gem" decorative item="gem" style={styles.productPriceIcon} variant="hud" />
+              <View accessibilityLabel={t("shop.pricesAccessibilityLabel")} style={styles.previewPricePill}>
+                <GameItemImage accessibilityLabel={t("shop.walletGemAccessibilityLabel")} decorative item="gem" style={styles.productPriceIcon} variant="hud" />
                 <Text style={[styles.productPriceText, typography.label]}>{selectedEntry.priceLabel}</Text>
-                <GameItemImage accessibilityLabel="Coin currency" decorative item="coin" style={styles.productPriceIcon} variant="hud" />
+                <GameItemImage accessibilityLabel={t("shop.coinAccessibilityLabel")} decorative item="coin" style={styles.productPriceIcon} variant="hud" />
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -615,17 +632,17 @@ export function ShopPreviewScreen() {
                   selectedEntry.kind === "theme"
                     ? selectedEntry.themeStatus === "locked_for_purchase"
                       ? selectedEntry.canAct
-                        ? `Unlock ${selectedEntry.name} for ${selectedEntry.priceLabel}`
-                        : `${selectedEntry.name} is locked`
+                        ? t("shop.actionAccessibility.unlockTheme", { name: selectedEntry.name, price: selectedEntry.priceLabel })
+                        : t("shop.actionAccessibility.themeLocked", { name: selectedEntry.name })
                       : selectedEntry.canAct
-                        ? `Apply ${selectedEntry.name}`
-                        : `${selectedEntry.name} is applied`
+                        ? t("shop.actionAccessibility.applyTheme", { name: selectedEntry.name })
+                        : t("shop.actionAccessibility.themeApplied", { name: selectedEntry.name })
                     : selectedEntry.kind === "expression_pack"
                       ? selectedEntry.canAct
-                        ? `${selectedEntry.actionLabel ?? "Unlock pack"} ${selectedEntry.name}`
+                        ? `${selectedEntry.actionLabel ?? t("shop.actions.unlockPack")} ${selectedEntry.name}`
                         : `${selectedEntry.name}. ${selectedEntry.statusLabel}`
                     : selectedEntry.canAct
-                      ? `Buy ${selectedEntry.name}`
+                      ? t("shop.actionAccessibility.buy", { name: selectedEntry.name })
                       : selectedEntry.statusLabel
                 }
                 accessibilityState={{ disabled: !selectedEntry.canAct }}
@@ -641,27 +658,27 @@ export function ShopPreviewScreen() {
                   {selectedEntry.kind === "theme"
                     ? selectedEntry.themeStatus === "locked_for_purchase"
                       ? selectedEntry.canAct
-                        ? "Unlock theme"
-                        : "Locked"
+                        ? t("shop.actions.unlockTheme")
+                        : t("shop.locked")
                       : selectedEntry.canAct
-                        ? "Apply theme"
-                        : "Applied"
+                        ? t("shop.actions.applyTheme")
+                        : t("common.actions.applied")
                     : selectedEntry.kind === "expression_pack"
-                      ? (selectedEntry.actionLabel ?? (selectedEntry.canAct ? "Unlock pack" : "Locked"))
+                      ? (selectedEntry.actionLabel ?? (selectedEntry.canAct ? t("shop.actions.unlockPack") : t("shop.locked")))
                     : selectedEntry.canAct
-                      ? "Get item"
-                      : "Locked"}
+                      ? t("shop.actions.getItem")
+                      : t("shop.locked")}
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </View> : null}
 
           <View style={styles.shopCategoryTabs}>
             {shopCategories.map((category) => (
               <Pressable
                 key={category.id}
                 accessibilityRole="button"
-                accessibilityLabel={`${category.label}, ${category.count} items`}
+                accessibilityLabel={t("shop.categoryAccessibilityLabel", { label: category.label, count: category.count })}
                 accessibilityState={{ selected: selectedCategory === category.id }}
                 style={[styles.categoryTab, selectedCategory === category.id ? styles.categoryTabActive : null]}
                 onPress={() => {
@@ -683,14 +700,21 @@ export function ShopPreviewScreen() {
             ))}
           </View>
 
-          <View
-            style={styles.shopShelf}
-            onLayout={({ nativeEvent }) => {
-              const measuredWidth = nativeEvent.layout.width;
-              setShopShelfWidth((currentWidth) => Math.abs(currentWidth - measuredWidth) > 0.5 ? measuredWidth : currentWidth);
-            }}
-          >
-            {selectedCategoryEntries.length > 0 ? selectedCategoryEntries.map((entry) => {
+          {selectedCategory === "moments" ? (
+            <ExpressionPackShelf
+              items={expressionPackShelfItems}
+              ownedStates={acceptedAssetStates}
+              onUnlockPack={handleExpressionPackPurchase}
+            />
+          ) : (
+            <View
+              style={styles.shopShelf}
+              onLayout={({ nativeEvent }) => {
+                const measuredWidth = nativeEvent.layout.width;
+                setShopShelfWidth((currentWidth) => Math.abs(currentWidth - measuredWidth) > 0.5 ? measuredWidth : currentWidth);
+              }}
+            >
+              {selectedCategoryEntries.length > 0 ? selectedCategoryEntries.map((entry) => {
               const selected = selectedEntry.id === entry.id;
 
               return (
@@ -701,7 +725,7 @@ export function ShopPreviewScreen() {
                   accessibilityState={{ selected }}
                   style={({ pressed }) => [
                     styles.productCard,
-                    selectedCategory === "moments" ? null : shopProductCardWidthStyle,
+                    shopProductCardWidthStyle,
                     selected ? styles.productCardSelected : null,
                     pressed ? styles.productCardPressed : null
                   ]}
@@ -715,41 +739,42 @@ export function ShopPreviewScreen() {
                   {entry.previewImage ? (
                     <Image
                       accessibilityIgnoresInvertColors
-                      accessibilityLabel={`${entry.name} background thumbnail`}
+                  accessibilityLabel={t("shop.backgroundThumbnail", { name: entry.name })}
                       resizeMode="cover"
                       source={entry.previewImage}
                       style={styles.productPreviewImage}
                     />
                   ) : (
-                    <GameItemImage accessibilityLabel={`${entry.name} icon`} item={entry.assetKey} style={styles.productIcon} variant="ui" />
+                    <GameItemImage accessibilityLabel={t("shop.itemIcon", { name: entry.name })} item={entry.assetKey} style={styles.productIcon} variant="ui" />
                   )}
                   <Text
-                    adjustsFontSizeToFit={selectedCategory !== "moments" && shopGridLayout.columnCount > 2}
+                    adjustsFontSizeToFit={shopGridLayout.columnCount > 2}
                     minimumFontScale={0.82}
                     numberOfLines={2}
                     style={[styles.productName, typography.label]}
                   >
-                    {selectedCategory === "moments" ? entry.name : balanceShopItemName(entry.name)}
+                    {balanceShopItemName(entry.name)}
                   </Text>
                   <View style={[styles.productPrice, entry.ownedQuantity > 0 ? styles.productOwnedPrice : null]}>
-                    {entry.ownedQuantity > 0 ? <CheckCircle2 color={colors.leaf} size={15} strokeWidth={2.8} /> : <GameItemImage accessibilityLabel="Gem price" decorative item="gem" style={styles.productPriceIcon} variant="hud" />}
+                    {entry.ownedQuantity > 0 ? <CheckCircle2 color={colors.leaf} size={15} strokeWidth={2.8} /> : <GameItemImage accessibilityLabel={t("shop.gemPriceAccessibilityLabel")} decorative item="gem" style={styles.productPriceIcon} variant="hud" />}
                     <Text style={[styles.productPriceText, typography.label]}>{entry.priceLabel}</Text>
                   </View>
                 </Pressable>
               );
-            }) : (
-              <View style={styles.emptyShelf}>
-                <Text style={[styles.emptyShelfText, typography.body]}>This shelf is being stocked.</Text>
-              </View>
-            )}
-          </View>
+              }) : (
+                <View style={styles.emptyShelf}>
+                  <Text style={[styles.emptyShelfText, typography.body]}>{t("shop.emptyShelf")}</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <View
-            accessibilityLabel={`${shopSummary.ownedQuantity} owned kit items, ${shopSummary.lockedCount} locked shop items, ${shopSummary.plusLabel}`}
+            accessibilityLabel={t("shop.summary.accessibilityLabel", { owned: shopSummary.ownedQuantity, locked: shopSummary.lockedCount, plus: shopSummary.plusLabel })}
             style={styles.shopAccessibilitySummary}
           >
-            <Text>Kit owned</Text>
-            <Text>{shopSummary.lockedCount} locked shop items</Text>
+            <Text>{t("shop.summary.owned")}</Text>
+            <Text>{t("shop.summary.locked", { count: shopSummary.lockedCount })}</Text>
             <Text>{shopSummary.plusLabel}</Text>
           </View>
         </ScrollView>

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { Droplets, Flame, Footprints, Gift, Heart, MessageCircle, Moon, Utensils, Zap } from "lucide-react-native";
+import { Droplets, Footprints, Gift, Heart, MessageCircle, Moon, Utensils, Zap } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Animated, Easing, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import {
   createSeededRandom,
@@ -23,7 +24,6 @@ import {
   isNightTime,
   pickAutonomousBehavior,
   pickButterflyTapLine,
-  pickWalkCommentaryLine,
   projectCareStreakForNow,
   pruneActiveCareBuffs,
   selectEpisodeLine,
@@ -39,6 +39,7 @@ import type {
   CareState,
   GeneratedAssetState,
   ItemId,
+  Locale,
   MemoryEntry,
   RelationshipState,
   SelectedReaction,
@@ -50,10 +51,12 @@ import { getHomeBackgroundSource } from "../../shared/assets/weatherSceneAssets"
 import { GameItemImage, gameItemAssetByCatalogId } from "../../shared/ui/GameIllustrations";
 import type { GameItemAssetKey } from "../../shared/ui/GameIllustrations";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { WeatherSceneLayer } from "../../shared/ui/WeatherSceneLayer";
 import { useTypewriter } from "../../shared/ui/useTypewriter";
 import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
+import { normalizeAppLocale } from "../../localization/localeNormalization";
 import {
   careActionSfxById,
   duckBgmForMs,
@@ -66,7 +69,10 @@ import {
 } from "../../shared/audio";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { requestNotificationPermissionAfterFirstCareAction } from "../notifications/notificationPermission";
-import { cancelWalkReturnNotification, scheduleWalkReturnNotification } from "../notifications/walkReturnNotification";
+import {
+  cancelPersistedWalkReturnNotification,
+  synchronizeWalkReturnNotification
+} from "../notifications/walkReturnNotification";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
 import { CareMomentLayer } from "./CareMomentLayer";
 import { NightWashLayer, NightZzzFloat } from "./NightOverlayLayer";
@@ -98,6 +104,7 @@ import {
   getHudMeterGuidePresentation,
   getStreakToastPersistedKey,
   getWalkCollectionCompleteTogglePresentation,
+  getLocalizedWalkCollectibleName,
   getWalkDiscoveryCardPresentation,
   isCelebrationReaction,
   pruneEventToastPersistedKeys
@@ -168,6 +175,18 @@ const careButtons: CareButtonConfig[] = [
   { action: "treat", label: "Treat", Icon: Gift, color: colors.wood, item: "treatPlate" }
 ];
 
+const careActionTranslationKeyByAction = {
+  feed: "home.care.actions.feed",
+  talk: "home.care.actions.talk",
+  walk: "home.care.actions.walk",
+  play: "home.care.actions.play",
+  rest: "home.care.actions.rest",
+  affection: "home.care.actions.affection",
+  water_garden: "home.care.actions.water_garden",
+  clean: "home.care.actions.clean",
+  treat: "home.care.actions.treat"
+} as const;
+
 const hudMeterSegments = [0, 1, 2, 3, 4] as const;
 const HOME_WELCOME_SEEN_KEY = "mongchi.home.welcome.v1";
 const HOME_EVENT_TOAST_SHOWN_KEYS_KEY = "mongchi.home.eventToast.shownKeys.v1";
@@ -175,15 +194,6 @@ const HOME_EVENT_TOAST_SHOWN_KEYS_KEY = "mongchi.home.eventToast.shownKeys.v1";
 const MONTHLY_LETTER_OPENED_KEY = "mongchi.friend.monthlyLetter.openedAt.v1";
 /** Local-wallet cost of the "Bring home now" early-walk-return button. */
 const WALK_EARLY_RETURN_CREDIT_COST = 1;
-/**
- * Persists the currently-scheduled walk-return notification's id across a
- * navigate-away-and-back remount of this screen (the schedule/cancel pair
- * itself lives in walkReturnNotification.ts) -- without this, leaving Home
- * mid-walk and coming back to tap "Bring home now" would have no id left to
- * cancel, and the player would still get a "you're home!" ping for a walk
- * that already ended early.
- */
-const WALK_RETURN_NOTIFICATION_ID_KEY = "mongchi.walk.returnNotificationId.v1";
 /** Fade in/hold/out timings for each running-commentary line over the walk paw trail. */
 const WALK_COMMENTARY_APPEAR_MS = 420;
 const WALK_COMMENTARY_HOLD_MS = 3400;
@@ -273,12 +283,13 @@ const createInitialReaction = (
   pet: ReturnType<typeof useTerrariumSession>["activePet"],
   now: string,
   recentReactions: ReturnType<typeof useTerrariumSession>["recentReactions"],
-  weather: WeatherContext
+  weather: WeatherContext,
+  locale: Locale
 ): SelectedReaction =>
   selectLocalReaction(
     starterReactionRules,
     {
-      locale: "en-US",
+      locale,
       now,
       pet,
       careState,
@@ -308,13 +319,13 @@ const formatCooldownBadge = (milliseconds: number): string => {
 const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
   switch (icon) {
     case "food":
-      return <GameItemImage accessibilityLabel="Food feedback" decorative item="foodBowl" style={styles.careFeedbackItemIcon} variant="hud" />;
+      return <GameItemImage accessibilityLabel="" decorative item="foodBowl" style={styles.careFeedbackItemIcon} variant="hud" />;
     case "play":
-      return <GameItemImage accessibilityLabel="Play feedback" decorative item="toyBall" style={styles.careFeedbackItemIcon} variant="hud" />;
+      return <GameItemImage accessibilityLabel="" decorative item="toyBall" style={styles.careFeedbackItemIcon} variant="hud" />;
     case "water":
-      return <GameItemImage accessibilityLabel="Water feedback" decorative item="drinkWaterBowl" style={styles.careFeedbackItemIcon} variant="hud" />;
+      return <GameItemImage accessibilityLabel="" decorative item="drinkWaterBowl" style={styles.careFeedbackItemIcon} variant="hud" />;
     case "treat":
-      return <GameItemImage accessibilityLabel="Treat feedback" decorative item="treatPlate" style={styles.careFeedbackItemIcon} variant="hud" />;
+      return <GameItemImage accessibilityLabel="" decorative item="treatPlate" style={styles.careFeedbackItemIcon} variant="hud" />;
     case "reward":
       return <Gift color={colors.honey} size={22} strokeWidth={3} />;
     case "talk":
@@ -322,8 +333,10 @@ const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
     case "walk":
       return (
         <Image
+          accessible={false}
+          accessibilityElementsHidden
           accessibilityIgnoresInvertColors
-          accessibilityLabel="Path feedback"
+          importantForAccessibility="no-hide-descendants"
           resizeMode="contain"
           source={pathButtonAsset}
           style={styles.careFeedbackItemIcon}
@@ -332,8 +345,10 @@ const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
     case "rest":
       return (
         <Image
+          accessible={false}
+          accessibilityElementsHidden
           accessibilityIgnoresInvertColors
-          accessibilityLabel="Rest feedback"
+          importantForAccessibility="no-hide-descendants"
           resizeMode="contain"
           source={restFeedbackAsset}
           style={styles.careFeedbackItemIcon}
@@ -342,8 +357,10 @@ const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
     case "clean":
       return (
         <Image
+          accessible={false}
+          accessibilityElementsHidden
           accessibilityIgnoresInvertColors
-          accessibilityLabel="Clean feedback"
+          importantForAccessibility="no-hide-descendants"
           resizeMode="contain"
           source={cleanFeedbackAsset}
           style={styles.careFeedbackItemIcon}
@@ -352,8 +369,10 @@ const renderCareFeedbackIcon = (icon: HomeCareActionFeedbackIcon) => {
     case "heart":
       return (
         <Image
+          accessible={false}
+          accessibilityElementsHidden
           accessibilityIgnoresInvertColors
-          accessibilityLabel="Heart feedback"
+          importantForAccessibility="no-hide-descendants"
           resizeMode="contain"
           source={heartFeedbackAsset}
           style={styles.careFeedbackItemIcon}
@@ -751,6 +770,7 @@ interface FriendRailButtonProps {
  * shop/chat/settings so the side rail reads as one button family.
  */
 function FriendRailButton({ accessibilityLabel, reduceMotionEnabled, onPress, showBadge = false }: FriendRailButtonProps) {
+  const { t } = useTranslation();
   const motion = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -809,14 +829,14 @@ function FriendRailButton({ accessibilityLabel, reduceMotionEnabled, onPress, sh
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={showBadge ? `${accessibilityLabel}. A new letter is waiting.` : accessibilityLabel}
+      accessibilityLabel={showBadge ? t("home.rail.letterWaiting", { label: accessibilityLabel }) : accessibilityLabel}
       hitSlop={12}
       style={({ pressed }) => [styles.friendRailButton, pressed ? styles.friendRailButtonPressed : null]}
       onPress={onPress}
     >
       <Animated.Image
         accessibilityIgnoresInvertColors
-        accessibilityLabel="Friend button art"
+        accessibilityLabel={t("home.rail.friendArt")}
         resizeMode="contain"
         source={sideRailButtonAssets.friend}
         style={[styles.friendRailButtonImage, animatedStyle]}
@@ -949,11 +969,6 @@ export function TerrariumHomeScreen() {
   // how far along the walk is (see getWalkCommentaryStage). null while
   // nothing should be showing yet/anymore.
   const [walkCommentaryLine, setWalkCommentaryLine] = useState<string | null>(null);
-  // The id of the currently scheduled "welcome home" local notification for
-  // this walk (see walkReturnNotification.ts) -- read back from
-  // AsyncStorage on mount too, so a "Bring home now" tap after navigating
-  // away and back still has something to cancel.
-  const walkReturnNotificationIdRef = useRef<string | null>(null);
   // Bond level-up toast: watches relationshipState.bondLevel for an increase
   // and celebrates every crossed level, independent of which care action (or
   // walk claim) caused it -- see getBondLevelUpTogglePresentation.
@@ -1021,6 +1036,8 @@ export function TerrariumHomeScreen() {
   );
   const showFriendEntryBadge = getFriendEntryBadgeVisible(daysTogether, hasOpenedMonthlyLetter);
   const fontFamilies = useFontFamilies();
+  const { i18n, t } = useTranslation();
+  const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   // Declared here (rather than further down with the rest of the derived
   // render values) because the Tier 3 autonomous-behavior timer effect below
@@ -1101,7 +1118,7 @@ export function TerrariumHomeScreen() {
 
     if (hasCaredToday(careStreak, now) && careStreak.lastCareDayKey) {
       enqueueEventToast(
-        getHomeStreakTogglePresentation(projectCareStreakForNow(careStreak, now).current),
+        getHomeStreakTogglePresentation(projectCareStreakForNow(careStreak, now).current, locale),
         getStreakToastPersistedKey(careStreak.lastCareDayKey)
       );
     }
@@ -1112,7 +1129,7 @@ export function TerrariumHomeScreen() {
     const now = new Date(clock).toISOString();
 
     pruneActiveCareBuffs(activeBuffs ?? [], now).forEach((buff) => {
-      enqueueEventToast(getHomeBuffTogglePresentation(buff), getBuffToastPersistedKey(buff.buffId, buff.startedAt));
+      enqueueEventToast(getHomeBuffTogglePresentation(buff, locale), getBuffToastPersistedKey(buff.buffId, buff.startedAt));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBuffs, persistedEventToastKeysLoaded]);
@@ -1135,7 +1152,7 @@ export function TerrariumHomeScreen() {
 
     if (level > previousBondLevelRef.current) {
       for (let crossed = previousBondLevelRef.current + 1; crossed <= level; crossed += 1) {
-        enqueueEventToast(getBondLevelUpTogglePresentation(crossed), getBondLevelToastPersistedKey(crossed));
+        enqueueEventToast(getBondLevelUpTogglePresentation(crossed, locale), getBondLevelToastPersistedKey(crossed));
       }
 
       setCelebratingBondLevelUntil(Date.now() + homeActionFeedbackMs);
@@ -1154,7 +1171,7 @@ export function TerrariumHomeScreen() {
     memories
       .filter((memory): memory is MemoryEntry => memory.type === "days_milestone")
       .forEach((memory) => {
-        const toast = getDaysMilestoneTogglePresentation(memory, activePet.name, now);
+        const toast = getDaysMilestoneTogglePresentation(memory, activePet.name, now, locale);
         const daysTogetherForKey = memory.refs?.daysTogether;
 
         if (toast && daysTogetherForKey !== undefined) {
@@ -1173,7 +1190,7 @@ export function TerrariumHomeScreen() {
   useEffect(() => {
     (inventory.ownedExpressionPackIds ?? []).forEach((packId) => {
       enqueueEventToast(
-        getExpressionPackUnlockedTogglePresentation(packId, activePet.name),
+        getExpressionPackUnlockedTogglePresentation(packId, activePet.name, locale),
         getExpressionPackToastPersistedKey(packId)
       );
     });
@@ -1209,29 +1226,6 @@ export function TerrariumHomeScreen() {
         setWelcomeVisible(true);
       }
     });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Restores any walk-return notification id scheduled before this screen's
-  // last mount (see the WALK_RETURN_NOTIFICATION_ID_KEY comment above) --
-  // only matters if the walk is still actually in progress; a walk that
-  // already resolved while away leaves a harmless stale id that the next
-  // walk's schedule call overwrites.
-  useEffect(() => {
-    let cancelled = false;
-
-    void AsyncStorage.getItem(WALK_RETURN_NOTIFICATION_ID_KEY)
-      .then((storedId) => {
-        if (!cancelled && storedId) {
-          walkReturnNotificationIdRef.current = storedId;
-        }
-      })
-      .catch(() => {
-        // Silent: worst case a later early-return can't cancel a stale notification.
-      });
 
     return () => {
       cancelled = true;
@@ -1287,10 +1281,11 @@ export function TerrariumHomeScreen() {
             catalogItems,
             devStoreUnlocked,
             inventory,
-            limit: openCareMenu === "feed" ? 5 : 4
+            limit: openCareMenu === "feed" ? 5 : 4,
+            locale
           })
         : [],
-    [catalogItems, devStoreUnlocked, inventory, openCareMenu]
+    [catalogItems, devStoreUnlocked, inventory, locale, openCareMenu]
   );
 
   useEffect(() => {
@@ -1332,7 +1327,7 @@ export function TerrariumHomeScreen() {
         }
 
         const stage = getWalkCommentaryStage(getWalkProgress(Date.now() - startedAtMs, durationMs));
-        setWalkCommentaryLine(pickWalkCommentaryLine(stage, Math.random(), activePet.name));
+        setWalkCommentaryLine(t(`home.walk.commentary.${stage}`, { petName: activePet.name }));
 
         clearTimeoutId = setTimeout(() => {
           if (!cancelled) {
@@ -1355,7 +1350,7 @@ export function TerrariumHomeScreen() {
         clearTimeout(clearTimeoutId);
       }
     };
-  }, [activeWalk?.status, activeWalk?.startedAt, activeWalk?.returnAt, activePet.name]);
+  }, [activeWalk?.status, activeWalk?.startedAt, activeWalk?.returnAt, activePet.name, locale, t]);
 
   useEffect(() => {
     if (!lastActionSnapshot) {
@@ -1488,7 +1483,7 @@ export function TerrariumHomeScreen() {
     }
 
     if (lastWalkDiscovery.collectionCompleted) {
-      enqueueEventToast(getWalkCollectionCompleteTogglePresentation());
+      enqueueEventToast(getWalkCollectionCompleteTogglePresentation(locale));
       return;
     }
 
@@ -1496,7 +1491,7 @@ export function TerrariumHomeScreen() {
       const collectible = getWalkCollectibleById(lastWalkDiscovery.collectibleId);
 
       if (collectible) {
-        enqueueEventToast(getWalkDiscoveryCardPresentation(collectible.nameEn, collectible.rarity));
+        enqueueEventToast(getWalkDiscoveryCardPresentation(getLocalizedWalkCollectibleName(collectible, locale), collectible.rarity, locale));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1563,7 +1558,19 @@ export function TerrariumHomeScreen() {
       // action - never during onboarding, and never again once they've made a
       // choice. requestNotificationPermissionAfterFirstCareAction() already
       // no-ops if permission was previously granted or permanently denied.
-      void requestNotificationPermissionAfterFirstCareAction();
+      void requestNotificationPermissionAfterFirstCareAction()
+        .then((result) => {
+          if (action === "walk" && result.status === "granted") {
+            return synchronizeWalkReturnNotification({
+              petName: activePet.name,
+              returnAt: new Date(nowMs + homeWalkDurationMs).toISOString(),
+              now: new Date(nowMs).toISOString()
+            });
+          }
+
+          return undefined;
+        })
+        .catch(() => undefined);
     }
 
     setFirstCareGuideVisible(false);
@@ -1583,31 +1590,6 @@ export function TerrariumHomeScreen() {
       actedAtMs: nowMs
     });
     setLastAction(action);
-
-    // Local "welcome home" reminder (user feedback: closing the app during
-    // the 3-minute wait felt risky, like you might miss the return) --
-    // scheduled the moment a walk actually starts, so backgrounding the app
-    // still surfaces a ping when Mong is due back. Silently skipped by
-    // scheduleWalkReturnNotification itself if notification permission was
-    // never granted -- never blocks the walk from starting either way.
-    if (action === "walk") {
-      void scheduleWalkReturnNotification({
-        petName: activePet.name,
-        returnInSeconds: homeWalkDurationMs / 1000
-      })
-        .then((result) => {
-          walkReturnNotificationIdRef.current = result.notificationId;
-
-          if (result.notificationId) {
-            void AsyncStorage.setItem(WALK_RETURN_NOTIFICATION_ID_KEY, result.notificationId);
-          } else {
-            void AsyncStorage.removeItem(WALK_RETURN_NOTIFICATION_ID_KEY);
-          }
-        })
-        .catch(() => {
-          // Silent: worst case the player just doesn't get the local reminder for this walk.
-        });
-    }
 
     // Night care, no penalty (docs/gamefeel-sound-plan.md §1 Tier 3): a care
     // tap during the 22:00-06:00 sleep window still fully applies (no stat
@@ -1655,13 +1637,8 @@ export function TerrariumHomeScreen() {
     // walk's original return time, for a walk the player can already see
     // has ended -- cancel it and clear the persisted id so it can't be
     // double-cancelled or leak into the next walk's schedule.
-    const notificationId = walkReturnNotificationIdRef.current;
-    walkReturnNotificationIdRef.current = null;
-    void cancelWalkReturnNotification(notificationId).catch(() => {
+    void cancelPersistedWalkReturnNotification().catch(() => {
       // Silent: worst case a stale "welcome home" notification still fires once.
-    });
-    void AsyncStorage.removeItem(WALK_RETURN_NOTIFICATION_ID_KEY).catch(() => {
-      // Silent: same worst case as above.
     });
   };
 
@@ -1679,8 +1656,7 @@ export function TerrariumHomeScreen() {
     // The walk-return notification already fired (or is about to, right
     // around now) by the time there's something to claim -- nothing to
     // cancel, just clear the stored id so it can't linger into the next walk.
-    walkReturnNotificationIdRef.current = null;
-    void AsyncStorage.removeItem(WALK_RETURN_NOTIFICATION_ID_KEY).catch(() => {
+    void cancelPersistedWalkReturnNotification().catch(() => {
       // Silent: worst case a stale id lingers until the next walk overwrites it.
     });
   };
@@ -1703,9 +1679,9 @@ export function TerrariumHomeScreen() {
 
   const reactionNow = new Date(clock).toISOString();
   const activeWeather = weatherState.settings.enabled ? weatherState.context : defaultWeatherContext;
-  const weatherScene = getWeatherScenePresentation("home", activeWeather, "en-US");
+  const weatherScene = getWeatherScenePresentation("home", activeWeather, locale);
   const daysAway = getCareDaysAway(careState, reactionNow);
-  const ambientReaction = createInitialReaction(careState, activePet, reactionNow, recentReactions, activeWeather);
+  const ambientReaction = createInitialReaction(careState, activePet, reactionNow, recentReactions, activeWeather, locale);
   const reaction = lastActionSnapshot || justClaimedWalkAt !== null ? currentReaction ?? ambientReaction : ambientReaction;
   const displayedCareStreak = projectCareStreakForNow(careStreak, reactionNow).current;
 
@@ -1745,7 +1721,8 @@ export function TerrariumHomeScreen() {
     episodeLine,
     preferEpisodeLine,
     isShowingNightCareAcknowledgement,
-    momentOverrideLine: butterflyCaughtLine
+    momentOverrideLine: butterflyCaughtLine,
+    locale
   });
   const episodeLineIsShowing = Boolean(episodeLine && preferEpisodeLine && homeThought.line === episodeLine.line);
 
@@ -1777,7 +1754,8 @@ export function TerrariumHomeScreen() {
         nextCareState: careState,
         previousRelationshipState: lastActionSnapshot.previousRelationshipState,
         nextRelationshipState: relationshipState,
-        reward: null
+        reward: null,
+        locale
       })
     : null;
   const walkSecondsLeft =
@@ -1874,17 +1852,17 @@ export function TerrariumHomeScreen() {
       const moodValue = Math.max(0, Math.min(100, Math.round(careState.happiness * 0.65 + careState.affection * 0.35)));
 
       return [
-        { key: "fullness", label: "Full", value: careState.satiety, icon: "food", color: colors.coral },
-        { key: "thirst", label: "Water", value: careState.gardenHealth, icon: "water", color: colors.skyDeep },
-        { key: "mood", label: "Mood", value: moodValue, icon: "heart", color: colors.rose },
-        { key: "energy", label: "Energy", value: careState.energy, icon: "zap", color: colors.honey },
-        { key: "cleanliness", label: "Clean", value: careState.cleanliness, icon: "clean", color: colors.mint }
+        { key: "fullness", label: t("home.hud.labels.fullness"), value: careState.satiety, icon: "food", color: colors.coral },
+        { key: "thirst", label: t("home.hud.labels.thirst"), value: careState.gardenHealth, icon: "water", color: colors.skyDeep },
+        { key: "mood", label: t("home.hud.labels.mood"), value: moodValue, icon: "heart", color: colors.rose },
+        { key: "energy", label: t("home.hud.labels.energy"), value: careState.energy, icon: "zap", color: colors.honey },
+        { key: "cleanliness", label: t("home.hud.labels.cleanliness"), value: careState.cleanliness, icon: "clean", color: colors.mint }
       ];
     },
-    [careState.affection, careState.cleanliness, careState.energy, careState.gardenHealth, careState.happiness, careState.satiety]
+    [careState.affection, careState.cleanliness, careState.energy, careState.gardenHealth, careState.happiness, careState.satiety, t]
   );
   const openHudMeter = hudGuideMeterKey ? hudMeters.find((meter) => meter.key === hudGuideMeterKey) ?? null : null;
-  const hudGuidePresentation = openHudMeter ? getHudMeterGuidePresentation(openHudMeter.key, openHudMeter.value) : null;
+  const hudGuidePresentation = openHudMeter ? getHudMeterGuidePresentation(openHudMeter.key, openHudMeter.value, locale) : null;
   // Delta floaters ("+12") for each HUD meter, computed straight from the raw
   // before/after CareState the just-finished action left behind -- kept
   // independent of getHomeCareActionFeedbackPresentation's own label-based
@@ -1904,7 +1882,8 @@ export function TerrariumHomeScreen() {
 
   const floatingDockButtons = homeFloatingDockActions
     .map((action) => careButtons.find((button) => button.action === action))
-    .filter((button): button is CareButtonConfig => Boolean(button));
+    .filter((button): button is CareButtonConfig => Boolean(button))
+    .map((button) => ({ ...button, label: t(careActionTranslationKeyByAction[button.action]) }));
   const recommendedDockAction = satisfactionSummary.recommendedAction
     ? isHomeFloatingDockAction(satisfactionSummary.recommendedAction)
       ? satisfactionSummary.recommendedAction
@@ -1928,7 +1907,8 @@ export function TerrariumHomeScreen() {
     daysTogether,
     hasCaredToday: hasCaredToday(careStreak, reactionNow),
     hasOpenedMonthlyLetter,
-    isOnWalk: activeWalk?.status === "walking" || activeWalk?.status === "returned"
+    isOnWalk: activeWalk?.status === "walking" || activeWalk?.status === "returned",
+    locale
   });
   const showHomeRetentionPrompt =
     Boolean(homeRetentionPrompt) && !openCareMenu && !firstCareGuideVisible && !welcomeVisible;
@@ -1945,24 +1925,24 @@ export function TerrariumHomeScreen() {
         <WeatherSceneLayer overlayKey={weatherScene.overlayKey} />
       </ImageBackground>
       {isNight ? <NightWashLayer /> : null}
-      <SafeAreaView accessibilityLabel={`${activePet.name}'s playable tiny garden home. ${weatherScene.accessibilityLabel}`} edges={["left", "right"]} style={styles.homeSafe}>
+      <SafeAreaView accessibilityLabel={`${t("home.localeAccessibilityLabel", { petName: activePet.name })}. ${weatherScene.accessibilityLabel}`} edges={["left", "right"]} style={styles.homeSafe}>
         <Text accessibilityRole="header" style={[styles.screenReaderTitle, { fontFamily: fontFamilies.display }]}>
-          {activePet.name}'s tiny garden
+          {t("home.localeAccessibilityLabel", { petName: activePet.name })}
         </Text>
         {/* scene="garden" full-screen home canvas */}
         <View style={styles.gameHud}>
-          <View accessibilityLabel="Tiny garden game HUD" style={styles.resourceBar}>
+          <View accessibilityLabel={t("home.hud.accessibilityLabel")} style={styles.resourceBar}>
             {hudMeters.map((meter) => (
               <Pressable
                 key={meter.key}
                 accessibilityRole="button"
-                accessibilityLabel={`${meter.label} status. Tap for details.`}
+                accessibilityLabel={t("home.hud.meterAccessibilityLabel", { label: meter.label })}
                 hitSlop={4}
                 style={styles.resourceChip}
                 onPress={() => setHudGuideMeterKey(meter.key)}
               >
                 <View style={styles.resourceIconFrame}>
-                  <HudMeterIconGlyph accessibilityLabel={`${meter.label} HUD art`} color={meter.color} icon={meter.icon} />
+                  <HudMeterIconGlyph accessibilityLabel={t("home.hud.artAccessibilityLabel", { label: meter.label })} color={meter.color} icon={meter.icon} />
                 </View>
                 <AnimatedResourceTrack color={meter.color} value={meter.value} />
                 {hudMeterDeltaByKey[meter.key] !== 0 ? (
@@ -1986,16 +1966,16 @@ export function TerrariumHomeScreen() {
 
         <View pointerEvents="box-none" style={styles.sceneSideRailLeft}>
           <SceneRailButton
-            accessibilityLabel="Open shop"
+            accessibilityLabel={t("home.rail.openShop")}
             delayMs={0}
-            imageLabel="Shop button art"
+            imageLabel={t("home.rail.shopArt")}
             source={sideRailButtonAssets.shop}
             onPress={() => router.push("/shop")}
           />
           <SceneRailButton
-            accessibilityLabel={`Open ${activePet.name}'s chat`}
+            accessibilityLabel={t("home.rail.openChat", { petName: activePet.name })}
             delayMs={180}
-            imageLabel="Chat button art"
+            imageLabel={t("home.rail.chatArt")}
             source={sideRailButtonAssets.chat}
             onPress={() => router.push("/chat")}
           />
@@ -2003,15 +1983,15 @@ export function TerrariumHomeScreen() {
 
         <View pointerEvents="box-none" style={styles.sceneSideRailRight}>
           <FriendRailButton
-            accessibilityLabel={`Open ${activePet.name}'s friend page`}
+            accessibilityLabel={t("home.rail.openFriend", { petName: activePet.name })}
             reduceMotionEnabled={reduceMotionEnabled}
             showBadge={showFriendEntryBadge}
             onPress={() => router.push("/friend")}
           />
           <SceneRailButton
-            accessibilityLabel="Open settings"
+            accessibilityLabel={t("home.rail.openSettings")}
             delayMs={360}
-            imageLabel="Settings button art"
+            imageLabel={t("home.rail.settingsArt")}
             source={sideRailButtonAssets.settings}
             onPress={() => router.push("/settings")}
           />
@@ -2023,6 +2003,8 @@ export function TerrariumHomeScreen() {
             // paw trail below carries the "gone for a walk" read instead of
             // an idle pet standing in an empty conversation.
             <View
+              accessible
+              accessibilityLabel={t("home.pet.walkingPaws", { petName: activePet.name })}
               pointerEvents="none"
               style={[
                 styles.walkPawsLayer,
@@ -2035,7 +2017,7 @@ export function TerrariumHomeScreen() {
               ]}
             >
               <LottieAnimation
-                accessibilityLabel={`${activePet.name} walking paw steps`}
+                decorative
                 loop
                 source={pawsAnimation}
                 style={styles.walkPawsAnimation}
@@ -2046,8 +2028,8 @@ export function TerrariumHomeScreen() {
             <>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Pet ${activePet.name}`}
-                accessibilityHint={`Long press to open ${activePet.name}'s friend page`}
+                accessibilityLabel={t("home.pet.accessibilityLabel", { petName: activePet.name })}
+                accessibilityHint={t("home.pet.longPressHint", { petName: activePet.name })}
                 disabled={isCareActionLocked}
                 style={[styles.homePetStage, { bottom: homePetStageBottomPx }]}
                 onPress={() => handleCareAction("affection")}
@@ -2075,7 +2057,7 @@ export function TerrariumHomeScreen() {
                 >
                   <BreathingPetLayer>
                     <GeneratedPetAssetImage
-                      accessibilityLabel="Generated pet avatar"
+                      accessibilityLabel={t("home.pet.avatarAccessibilityLabel")}
                       assetId={petAssetId ?? null}
                       remoteUri={petAssetUri ?? null}
                       style={styles.homePetSprite}
@@ -2084,7 +2066,7 @@ export function TerrariumHomeScreen() {
                 </Animated.View>
               </Pressable>
               <Pressable
-                accessibilityHint={homeThoughtTypewriter.isComplete ? undefined : "Tap to show the full message now."}
+                accessibilityHint={homeThoughtTypewriter.isComplete ? undefined : t("home.pet.finishMessageHint")}
                 accessibilityLabel={homeThought.accessibilityLabel}
                 accessibilityRole="button"
                 // The absolute-position anchor must live on this Pressable: its
@@ -2102,6 +2084,7 @@ export function TerrariumHomeScreen() {
                 onPress={homeThoughtTypewriter.skip}
               >
                 <ImageBackground
+                  accessibilityElementsHidden
                   imageStyle={styles.homeThoughtBubbleImage}
                   importantForAccessibility="no"
                   resizeMode="stretch"
@@ -2155,18 +2138,18 @@ export function TerrariumHomeScreen() {
       {activeWalk?.status === "walking" ? (
         <View style={styles.walkPanel}>
           <Text style={[styles.walkPanelTitle, { fontFamily: fontFamilies.body }]}>
-            {activePet.name} is on the path · back in {formatCooldownBadge(walkSecondsLeft * 1000)}
+            {t("home.walk.activeTitle", { petName: activePet.name, time: formatCooldownBadge(walkSecondsLeft * 1000) })}
           </Text>
           <Text style={[styles.walkPanelSubcopy, { fontFamily: fontFamilies.body }]}>
-            Feel free to close the app -- we'll let you know when {activePet.name} is back.
+            {t("home.walk.activeSubcopy", { petName: activePet.name })}
           </Text>
           <View style={styles.walkPanelButtons}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
                 canAffordBringHomeNow
-                  ? `Spend 1 credit to bring ${activePet.name} home right now`
-                  : `Not enough credits to bring ${activePet.name} home right now`
+                  ? t("home.walk.bringHomeAccessibilityLabel", { cost: WALK_EARLY_RETURN_CREDIT_COST, petName: activePet.name })
+                  : t("home.walk.cannotBringHomeAccessibilityLabel", { petName: activePet.name })
               }
               accessibilityState={{ disabled: !canAffordBringHomeNow }}
               disabled={!canAffordBringHomeNow}
@@ -2177,12 +2160,12 @@ export function TerrariumHomeScreen() {
               ]}
               onPress={handleBringHomeNow}
             >
-              <GameItemImage accessibilityLabel="Coin currency" decorative item="coin" style={styles.walkPanelButtonCoinIcon} variant="hud" />
-              <Text style={[styles.walkPanelButtonText, { fontFamily: fontFamilies.button }]}>Bring home now · {WALK_EARLY_RETURN_CREDIT_COST}</Text>
+              <GameItemImage accessibilityLabel={t("home.walk.coinAccessibilityLabel")} decorative item="coin" style={styles.walkPanelButtonCoinIcon} variant="hud" />
+              <Text style={[styles.walkPanelButtonText, { fontFamily: fontFamilies.button }]}>{t("home.walk.bringHome", { cost: WALK_EARLY_RETURN_CREDIT_COST })}</Text>
             </Pressable>
           </View>
           {!canAffordBringHomeNow ? (
-            <Text style={[styles.walkPanelHint, { fontFamily: fontFamilies.body }]}>{activePet.name} will be back soon — hang tight.</Text>
+            <Text style={[styles.walkPanelHint, { fontFamily: fontFamilies.body }]}>{t("home.walk.waiting", { petName: activePet.name })}</Text>
           ) : null}
         </View>
       ) : null}
@@ -2190,17 +2173,17 @@ export function TerrariumHomeScreen() {
       {activeWalk?.status === "returned" ? (
         <View style={styles.walkPanel}>
           <Text style={[styles.walkPanelTitle, { fontFamily: fontFamilies.body }]}>
-            {activePet.name} is back with a little gift!
+            {t("home.walk.returned", { petName: activePet.name })}
           </Text>
           <View style={styles.walkPanelButtons}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Greet ${activePet.name} and claim the walk gift`}
+              accessibilityLabel={t("home.walk.claimAccessibilityLabel", { petName: activePet.name })}
               style={({ pressed }) => [styles.walkPanelButton, styles.walkPanelButtonClaim, pressed ? styles.walkPanelButtonPressed : null]}
               onPress={handleClaimWalkReward}
             >
               <Gift color={colors.ink} size={15} strokeWidth={2.8} />
-              <Text style={[styles.walkPanelButtonText, { fontFamily: fontFamilies.button }]}>Greet & claim</Text>
+              <Text style={[styles.walkPanelButtonText, { fontFamily: fontFamilies.button }]}>{t("home.walk.claim")}</Text>
             </Pressable>
           </View>
         </View>
@@ -2209,9 +2192,9 @@ export function TerrariumHomeScreen() {
       {firstCareGuideVisible && !welcomeVisible ? (
         <View pointerEvents="none" style={styles.firstCareGuide}>
           <Text style={[styles.firstCareGuideText, { fontFamily: fontFamilies.body }]}>
-            {satisfactionSummary.recommendedActionLabel
-              ? `Try "${satisfactionSummary.recommendedActionLabel}" first — ${activePet.name} will love it.`
-              : `Tap a care button below to look after ${activePet.name}.`}
+            {satisfactionSummary.recommendedAction
+              ? t("home.guide.tryAction", { action: t(careActionTranslationKeyByAction[satisfactionSummary.recommendedAction]), petName: activePet.name })
+              : t("home.guide.chooseAction", { petName: activePet.name })}
           </Text>
           <View style={styles.firstCareGuideArrow} />
         </View>
@@ -2248,15 +2231,15 @@ export function TerrariumHomeScreen() {
           const accessibilityLabel =
             action === "feed"
               ? feedCooldownLeftMs > 0
-                ? `Feed menu. Daily meal cooldown ${formatCooldownBadge(feedCooldownLeftMs)}. Treats may still be available.`
-                : `Feed menu for ${activePet.name}.`
+                ? t("home.care.feedCooldown", { cooldown: formatCooldownBadge(feedCooldownLeftMs) })
+                : t("home.care.feedMenu", { petName: activePet.name })
               : action === "walk" && activeWalk?.status === "walking"
-                ? `Walk is active. ${activePet.name} returns in ${walkSecondsLeft} seconds.`
+                ? t("home.care.walkActive", { petName: activePet.name, seconds: walkSecondsLeft })
                 : cooldownLeftMs > 0
-                  ? `${label} menu. Basic option cooldown ${formatCooldownBadge(cooldownLeftMs)}. Special items may still be available.`
+                  ? t("home.care.optionCooldown", { label, cooldown: formatCooldownBadge(cooldownLeftMs) })
                   : recommendedDockAction === action
-                    ? `Recommended: ${label} ${activePet.name}. ${satisfactionSummary.hint}`
-                    : `${label} ${activePet.name}`;
+                    ? t("home.care.recommended", { label, petName: activePet.name, hint: satisfactionSummary.hint })
+                    : t("home.care.actionAccessibilityLabel", { label, petName: activePet.name });
 
           return (
             <Pressable
@@ -2278,7 +2261,7 @@ export function TerrariumHomeScreen() {
               {buttonAsset ? (
                 <Image
                   accessibilityIgnoresInvertColors
-                  accessibilityLabel={`${label} care icon`}
+                  accessibilityLabel={t("home.care.iconAccessibilityLabel", { label })}
                   resizeMode="contain"
                   source={buttonAsset}
                   style={[
@@ -2290,7 +2273,7 @@ export function TerrariumHomeScreen() {
                   ]}
                 />
               ) : item ? (
-                <GameItemImage accessibilityLabel={`${label} care item`} decorative item={item} style={styles.careItemIcon} variant="action" />
+                <GameItemImage accessibilityLabel={t("home.care.itemAccessibilityLabel", { label })} decorative item={item} style={styles.careItemIcon} variant="action" />
               ) : (
                 <Icon color={colors.white} size={25} strokeWidth={2.8} />
               )}
@@ -2309,7 +2292,7 @@ export function TerrariumHomeScreen() {
 
       {originalPhotoDeletedAt ? (
         <View style={styles.privacyNotice}>
-          <Text style={[styles.privacyNoticeText, { fontFamily: fontFamilies.body }]}>Original photo deleted for this session.</Text>
+          <Text style={[styles.privacyNoticeText, { fontFamily: fontFamilies.body }]}>{t("home.originalPhotoDeleted")}</Text>
         </View>
       ) : null}
 
@@ -2319,12 +2302,14 @@ export function TerrariumHomeScreen() {
         visible={hudGuidePresentation !== null}
         onRequestClose={() => setHudGuideMeterKey(null)}
       >
-        <Pressable
-          accessibilityLabel="Close gauge guide"
-          style={styles.hudGuideBackdrop}
-          onPress={() => setHudGuideMeterKey(null)}
-        >
-          <Pressable accessibilityViewIsModal style={styles.hudGuideCard} onPress={(event) => event.stopPropagation()}>
+        <View style={styles.hudGuideBackdrop}>
+          <Pressable
+            accessibilityLabel={t("home.guide.closeAccessibilityLabel")}
+            accessibilityRole="button"
+            style={StyleSheet.absoluteFill}
+            onPress={() => setHudGuideMeterKey(null)}
+          />
+          <View accessibilityLabel={t("home.guide.accessibilityLabel")} accessibilityViewIsModal style={styles.hudGuideCard}>
             <Text accessibilityRole="header" style={[styles.hudGuideTitle, { fontFamily: fontFamilies.title }]}>
               {hudGuidePresentation?.title}
             </Text>
@@ -2351,35 +2336,35 @@ export function TerrariumHomeScreen() {
               <Text style={[styles.hudGuideStatusText, { fontFamily: fontFamilies.label }]}>{hudGuidePresentation?.statusLine}</Text>
             </View>
             <Pressable accessibilityRole="button" style={styles.hudGuideCloseButton} onPress={() => setHudGuideMeterKey(null)}>
-              <Text style={[styles.hudGuideCloseButtonText, { fontFamily: fontFamilies.button }]}>Got it</Text>
+              <Text style={[styles.hudGuideCloseButtonText, { fontFamily: fontFamilies.button }]}>{t("home.guide.gotIt")}</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
       <Modal animationType="fade" transparent visible={welcomeVisible} onRequestClose={dismissWelcome}>
         <View style={styles.welcomeBackdrop}>
-          <View accessibilityViewIsModal style={styles.welcomeCard}>
+          <View accessibilityLabel={t("home.welcome.accessibilityLabel")} accessibilityViewIsModal style={styles.welcomeCard}>
             <Text accessibilityRole="header" style={[styles.welcomeTitle, { fontFamily: fontFamilies.title }]}>
-              Welcome to {activePet.name}'s tiny garden
+              {t("home.welcome.title", { petName: activePet.name })}
             </Text>
             <Text style={[styles.welcomeBody, { fontFamily: fontFamilies.body }]}>
-              {activePet.name} now lives here and counts on you for little moments of care.
+              {t("home.welcome.body", { petName: activePet.name })}
             </Text>
             <View style={styles.welcomeTipRow}>
-              <Utensils color={colors.coral} size={16} strokeWidth={2.8} />
-              <Text style={[styles.welcomeTipText, { fontFamily: fontFamilies.body }]}>Feed, water, play, and pet to keep the meters up.</Text>
+              <MongchiIcon id="food" size={28} />
+              <Text style={[styles.welcomeTipText, { fontFamily: fontFamilies.body }]}>{t("home.welcome.care")}</Text>
             </View>
             <View style={styles.welcomeTipRow}>
-              <MessageCircle color={colors.skyDeep} size={16} strokeWidth={2.8} />
-              <Text style={[styles.welcomeTipText, { fontFamily: fontFamilies.body }]}>The speech bubble tells you what {activePet.name} needs right now.</Text>
+              <MongchiIcon id="chat" size={28} />
+              <Text style={[styles.welcomeTipText, { fontFamily: fontFamilies.body }]}>{t("home.welcome.speech", { petName: activePet.name })}</Text>
             </View>
             <View style={styles.welcomeTipRow}>
-              <Flame color={colors.honey} size={16} strokeWidth={2.8} />
-              <Text style={[styles.welcomeTipText, { fontFamily: fontFamilies.body }]}>Come back every day to grow your care streak.</Text>
+              <MongchiIcon id="streak" size={28} />
+              <Text style={[styles.welcomeTipText, { fontFamily: fontFamilies.body }]}>{t("home.welcome.streak")}</Text>
             </View>
             <Pressable accessibilityRole="button" style={styles.welcomeButton} onPress={dismissWelcome}>
-              <Text style={[styles.welcomeButtonText, { fontFamily: fontFamilies.button }]}>Start caring</Text>
+              <Text style={[styles.welcomeButtonText, { fontFamily: fontFamilies.button }]}>{t("home.welcome.action")}</Text>
             </Pressable>
           </View>
         </View>

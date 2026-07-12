@@ -12,6 +12,9 @@
       ],
       "@mongchi/shared/*": [
         "../../packages/shared/src/*"
+      ],
+      "react-native-svg": [
+        "node_modules/react-native-svg"
       ]
     }
   },

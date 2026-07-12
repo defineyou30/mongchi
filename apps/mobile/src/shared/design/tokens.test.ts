@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fontPairFamilies, fontPairIds } from "./fontPair";
-import { getFontFamilies, getTypography } from "./tokens";
+import { getFontFamilies, getFontFamilyForLocale, getTypography } from "./tokens";
 
 const roles = ["display", "title", "body", "label", "button", "bubble"] as const;
 
@@ -65,5 +65,21 @@ describe("getFontFamilies", () => {
         expect(families[role]).toBe(typography[role].fontFamily);
       }
     }
+  });
+});
+
+describe("getFontFamilyForLocale", () => {
+  it("uses the system font for CJK locales", () => {
+    expect(getFontFamilyForLocale("ko-KR", "BrandBody")).toBe("System");
+    expect(getFontFamilyForLocale("ja-JP", "BrandBody")).toBe("System");
+    expect(getFontFamilyForLocale("zh-TW", "BrandBody")).toBe("System");
+  });
+
+  it("keeps the branded font for supported Latin-script locales", () => {
+    expect(getFontFamilyForLocale("en-US", "BrandBody")).toBe("BrandBody");
+    expect(getFontFamilyForLocale("de-DE", "BrandBody")).toBe("BrandBody");
+    expect(getFontFamilyForLocale("fr-FR", "BrandBody")).toBe("BrandBody");
+    expect(getFontFamilyForLocale("pt-BR", "BrandBody")).toBe("BrandBody");
+    expect(getFontFamilyForLocale("es-MX", "BrandBody")).toBe("BrandBody");
   });
 });

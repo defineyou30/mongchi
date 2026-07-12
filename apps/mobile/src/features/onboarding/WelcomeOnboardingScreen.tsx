@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
@@ -9,41 +10,20 @@ import type { OnboardingStoryArtVariant } from "../../shared/ui/OnboardingStoryA
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { markWelcomeOnboardingSeen } from "./welcomeOnboardingStorage";
 
-interface WelcomeOnboardingSlide {
-  readonly body: string;
-  readonly step: string;
-  readonly title: string;
-  readonly variant: OnboardingStoryArtVariant;
-}
-
-const welcomeSlides = [
-  {
-    step: "Step 1",
-    title: "Your dog, close every day",
-    body: "Turn one favorite dog photo into a tiny friend who waits in your garden.",
-    variant: "welcome"
-  },
-  {
-    step: "Step 2",
-    title: "One photo is all it takes",
-    body: "Choose a clear photo of your dog, then add their name and little personality.",
-    variant: "photo"
-  },
-  {
-    step: "Step 3",
-    title: "Grow your daily bond",
-    body: "Feed, play, chat, and come back to your dog's cozy garden each day.",
-    variant: "profile"
-  }
-] as const satisfies readonly WelcomeOnboardingSlide[];
-
-const lastSlideIndex = welcomeSlides.length - 1;
+const welcomeSlideVariants = ["welcome", "photo", "profile"] as const satisfies readonly OnboardingStoryArtVariant[];
+const lastSlideIndex = welcomeSlideVariants.length - 1;
 
 export function WelcomeOnboardingScreen() {
   const { height, width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
+  const { t } = useTranslation();
   const compact = height < 720 || width < 380;
   const fontFamilies = useFontFamilies();
+  const welcomeSlides = [
+    { step: t("welcome.slides.first.step"), title: t("welcome.slides.first.title"), body: t("welcome.slides.first.body"), variant: welcomeSlideVariants[0] },
+    { step: t("welcome.slides.second.step"), title: t("welcome.slides.second.title"), body: t("welcome.slides.second.body"), variant: welcomeSlideVariants[1] },
+    { step: t("welcome.slides.third.step"), title: t("welcome.slides.third.title"), body: t("welcome.slides.third.body"), variant: welcomeSlideVariants[2] }
+  ] as const;
   const activeSlide = welcomeSlides[activeIndex] ?? welcomeSlides[0];
   const isLastSlide = activeIndex === lastSlideIndex;
 
@@ -63,7 +43,7 @@ export function WelcomeOnboardingScreen() {
 
   return (
     <GardenSceneFrame
-      accessibilityLabel="Mongchi welcome onboarding"
+      accessibilityLabel={t("welcome.accessibilityLabel")}
       contentStyle={compact ? styles.compactContent : styles.content}
       includeBottomEdge
       innerStyle={styles.inner}
@@ -78,13 +58,13 @@ export function WelcomeOnboardingScreen() {
 
         <View style={styles.copy}>
           <Text style={[styles.step, { fontFamily: fontFamilies.label }]}>{activeSlide.step}</Text>
-          <Text accessibilityRole="header" style={[styles.title, { fontFamily: fontFamilies.display }, compact ? styles.compactTitle : null]}>
+          <Text accessibilityRole="header" lineBreakStrategyIOS="hangul-word" style={[styles.title, { fontFamily: fontFamilies.display }, compact ? styles.compactTitle : null]}>
             {activeSlide.title}
           </Text>
-          <Text style={[styles.body, { fontFamily: fontFamilies.body }, compact ? styles.compactBody : null]}>{activeSlide.body}</Text>
+          <Text lineBreakStrategyIOS="hangul-word" style={[styles.body, { fontFamily: fontFamilies.body }, compact ? styles.compactBody : null]}>{activeSlide.body}</Text>
         </View>
 
-        <View accessible accessibilityLabel={`Welcome page ${activeIndex + 1} of ${welcomeSlides.length}`} style={styles.dots}>
+        <View accessible accessibilityLabel={t("welcome.page", { current: activeIndex + 1, total: welcomeSlides.length })} style={styles.dots}>
           {welcomeSlides.map((slide, index) => (
             <View key={slide.step} style={[styles.dot, index === activeIndex ? styles.activeDot : null]} />
           ))}
@@ -92,12 +72,12 @@ export function WelcomeOnboardingScreen() {
 
         <View style={styles.actions}>
           <ActionButton
-            label={isLastSlide ? "Start with a photo" : "Next"}
+            label={isLastSlide ? t("welcome.start") : t("common.actions.next")}
             iconId={isLastSlide ? "camera" : "forward"}
             onPress={handleNext}
           />
-          <Pressable accessibilityLabel="Skip welcome onboarding" accessibilityRole="button" hitSlop={10} style={styles.skipLink} onPress={continueToPetSetup}>
-            <Text style={[styles.skipText, { fontFamily: fontFamilies.label }]}>Skip</Text>
+          <Pressable accessibilityLabel={t("welcome.skipAccessibilityLabel")} accessibilityRole="button" hitSlop={10} style={styles.skipLink} onPress={continueToPetSetup}>
+            <Text style={[styles.skipText, { fontFamily: fontFamilies.label }]}>{t("common.actions.skip")}</Text>
           </Pressable>
         </View>
       </View>

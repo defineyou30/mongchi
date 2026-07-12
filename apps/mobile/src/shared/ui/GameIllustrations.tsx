@@ -252,6 +252,7 @@ export function TerrariumArt({
             <GeneratedPetAssetImage
               accessibilityLabel="Generated pet avatar"
               assetId={petAssetId ?? null}
+              decorative
               remoteUri={petAssetUri ?? null}
               style={[styles.petSprite, sceneMode === "reveal" ? styles.revealPetSprite : null]}
             />
@@ -283,7 +284,11 @@ export function PetSetupArt({
   const hasPhoto = !!photoUri || isSamplePhoto;
 
   return (
-    <View accessibilityLabel="Pet setup decorative portrait frame" style={[styles.panel, styles.setupPanel]}>
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.panel, styles.setupPanel]}
+    >
       {showCharms ? (
         <>
           <GameItemImage accessibilityLabel="Setup gift charm" decorative item="gift" style={styles.setupGiftCharm} />
@@ -351,8 +356,9 @@ export function PhotoUploadArt({
 }) {
   return (
     <ImageBackground
-      accessibilityLabel="Photo upload decorative slots"
+      accessibilityElementsHidden
       imageStyle={styles.panelImage}
+      importantForAccessibility="no-hide-descendants"
       resizeMode="cover"
       source={backgroundSources.pixelGarden}
       style={[styles.panel, styles.photoPanel]}
@@ -406,8 +412,9 @@ export function PremiumBondArt({
 }) {
   return (
     <ImageBackground
-      accessibilityLabel="Premium bond garden art"
+      accessibilityElementsHidden
       imageStyle={styles.panelImage}
+      importantForAccessibility="no-hide-descendants"
       resizeMode="cover"
       source={backgroundSources.chatGarden}
       style={[styles.panel, styles.chatPanel, compact ? styles.chatPanelCompact : null]}

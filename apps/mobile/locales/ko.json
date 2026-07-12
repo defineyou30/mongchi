@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "몽치",
+  "NSCameraUsageDescription": "반려동물 아바타를 만들 사진을 직접 촬영할 때 카메라를 사용합니다.",
+  "NSPhotoLibraryUsageDescription": "선택한 반려동물 사진으로 작은 아바타를 만들기 위해 사진 보관함을 사용합니다.",
+  "NSPhotoLibraryAddUsageDescription": "사용자가 요청할 때만 반려동물 공유 이미지를 사진 보관함에 저장합니다.",
+  "NSLocationWhenInUseUsageDescription": "반려동물 정원에 지역 날씨를 반영하도록 선택할 때 대략적인 위치를 사용합니다."
+}

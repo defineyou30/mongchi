@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { expressionPacks, makeMockGeneratedAsset } from "@mongchi/shared";
 import type { GeneratedAsset } from "@mongchi/shared";
 
-import { buildHeroPoseSlides, getRemainingPoseCountByPackId, getUnlockOverlayHeadline, orderHeroPoseCells } from "./friendHeroPosePresentation";
+import { buildHeroPoseSlides, getHeroPoseLabel, orderHeroPoseCells } from "./friendHeroPosePresentation";
 import { getFriendPoseGalleryPresentation } from "./friendProfilePresentation";
 
 const freeTrioAssets: GeneratedAsset[] = (["idle", "happy", "sleep"] as const).map((state) =>
@@ -46,86 +46,56 @@ describe("orderHeroPoseCells", () => {
 });
 
 describe("buildHeroPoseSlides", () => {
-  it("pairs every locked cell with its owning pack's card", () => {
-    const { cells, cards } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
+  it("keeps locked shop inventory out of the profile pager", () => {
+    const { cells } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
 
-    const slides = buildHeroPoseSlides(cells, cards);
-    const lockedSlides = slides.filter((slide) => slide.cell.status === "locked");
+    const slides = buildHeroPoseSlides(cells);
 
-    expect(lockedSlides.map((slide) => slide.lockedCard?.packId)).toEqual(
-      expect.arrayContaining(expressionPacks.map((pack) => pack.id))
-    );
-  });
-
-  it("never attaches a locked card to an owned slide", () => {
-    const { cells, cards } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
-
-    const slides = buildHeroPoseSlides(cells, cards);
-
-    for (const slide of slides.filter((entry) => entry.cell.status === "owned")) {
-      expect(slide.lockedCard).toBeNull();
-    }
-  });
-
-  it("carries a pack's purchasing/failed status through to every one of its locked slides", () => {
-    const { cells, cards } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo", {
-      "pack-everyday-moments": { status: "failed", failureMessageSafe: "That didn't quite work. Let's try again." }
-    });
-
-    const slides = buildHeroPoseSlides(cells, cards);
-    const lockedSlides = slides.filter((slide) => slide.cell.status === "locked");
-
-    const everydaySlides = lockedSlides.filter((slide) => slide.lockedCard?.packId === "pack-everyday-moments");
-
-    expect(everydaySlides.length).toBeGreaterThan(0);
-    for (const slide of everydaySlides) {
-      expect(slide.lockedCard?.status).toBe("failed");
-      expect(slide.lockedCard?.failureLine).toBe("That didn't quite work. Let's try again.");
-    }
+    expect(slides).toHaveLength(freeTrioAssets.length);
+    expect(slides.every((slide) => slide.cell.status === "owned")).toBe(true);
   });
 
   it("orders slides idle-first, mirroring orderHeroPoseCells", () => {
-    const { cells, cards } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
+    const { cells } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
 
-    const slides = buildHeroPoseSlides(cells, cards);
+    const slides = buildHeroPoseSlides(cells);
 
     expect(slides[0]?.cell.state).toBe("idle");
   });
 
   it("has no locked slides once every pack is fully owned", () => {
     const allAssets: GeneratedAsset[] = [...freeTrioAssets, ...paidPackAssets];
-    const { cells, cards } = getFriendPoseGalleryPresentation(allAssets, "Momo");
+    const { cells } = getFriendPoseGalleryPresentation(allAssets, "Momo");
 
-    const slides = buildHeroPoseSlides(cells, cards);
+    const slides = buildHeroPoseSlides(cells);
 
     expect(slides.every((slide) => slide.cell.status === "owned")).toBe(true);
-    expect(slides.every((slide) => slide.lockedCard === null)).toBe(true);
+  });
+
+  it("supplies an idle fallback when no generated assets are readable", () => {
+    const { cells } = getFriendPoseGalleryPresentation([], "Momo");
+
+    expect(buildHeroPoseSlides(cells).map((slide) => slide.cell.state)).toEqual(["idle"]);
   });
 });
 
-describe("getRemainingPoseCountByPackId", () => {
-  it("counts every locked slide belonging to the same pack, keyed by packId", () => {
-    const { cells, cards } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
-    const slides = buildHeroPoseSlides(cells, cards);
-
-    const counts = getRemainingPoseCountByPackId(slides);
-
-    expect(counts["pack-everyday-moments"]).toBe(3);
+describe("getHeroPoseLabel", () => {
+  it("uses friendly starter and paid pose names", () => {
+    expect(getHeroPoseLabel("idle")).toBe("Everyday");
+    expect(getHeroPoseLabel("treat_reaction")).toBe("Treat joy");
   });
 
-  it("returns an empty map once every pack is fully owned (no locked slides left)", () => {
-    const allAssets: GeneratedAsset[] = [...freeTrioAssets, ...paidPackAssets];
-    const { cells, cards } = getFriendPoseGalleryPresentation(allAssets, "Momo");
-    const slides = buildHeroPoseSlides(cells, cards);
-
-    expect(getRemainingPoseCountByPackId(slides)).toEqual({});
+  it("uses Korean starter and paid pose names without changing state ids", () => {
+    expect(getHeroPoseLabel("idle", "ko-KR")).toBe("일상");
+    expect(getHeroPoseLabel("treat_reaction", "ko-KR")).toBe("간식 최고");
   });
-});
 
-describe("getUnlockOverlayHeadline", () => {
-  it("pluralizes 'moments' for counts other than one, and singularizes for exactly one", () => {
-    expect(getUnlockOverlayHeadline(3, 12)).toBe("Unlock 3 more moments · 12cr");
-    expect(getUnlockOverlayHeadline(1, 12)).toBe("Unlock 1 more moment · 12cr");
-    expect(getUnlockOverlayHeadline(0, 12)).toBe("Unlock 0 more moments · 12cr");
+  it("uses Japanese and German labels for starter and paid poses", () => {
+    expect(getHeroPoseLabel("sleep", "ja-JP")).toBe("ねむねむ");
+    expect(getHeroPoseLabel("treat_reaction", "de-DE")).toBe("Leckerli-Freude");
+  });
+
+  it("localizes a base pose instead of exposing its state id", () => {
+    expect(getHeroPoseLabel("base", "pt-BR")).toBe("Pose base");
   });
 });

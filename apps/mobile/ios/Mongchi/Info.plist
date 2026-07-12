@@ -6,6 +6,19 @@
     <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleAllowMixedLocalizations</key>
+    <true/>
+    <key>CFBundleLocalizations</key>
+    <array>
+      <string>en</string>
+      <string>ko</string>
+      <string>ja</string>
+      <string>zh-Hant</string>
+      <string>de</string>
+      <string>fr</string>
+      <string>pt-BR</string>
+      <string>es-MX</string>
+    </array>
     <key>CFBundleDisplayName</key>
     <string>Mongchi</string>
     <key>CFBundleExecutable</key>

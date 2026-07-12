@@ -12,6 +12,16 @@
     ],
     "backgroundColor": "#9FDBFF",
     "userInterfaceStyle": "light",
+    "locales": {
+      "en": "./locales/en.json",
+      "ko": "./locales/ko.json",
+      "ja": "./locales/ja.json",
+      "zh-TW": "./locales/zh-TW.json",
+      "de": "./locales/de.json",
+      "fr": "./locales/fr.json",
+      "pt-BR": "./locales/pt-BR.json",
+      "es-MX": "./locales/es-MX.json"
+    },
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
@@ -25,6 +35,17 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleLocalizations": [
+          "en",
+          "ko",
+          "ja",
+          "zh-Hant",
+          "de",
+          "fr",
+          "pt-BR",
+          "es-MX"
+        ],
         "NSCameraUsageDescription": "Mongchi can use your camera when you choose to take a pet photo for avatar creation.",
         "NSPhotoLibraryUsageDescription": "Mongchi uses a pet photo you choose to create your tiny avatar.",
         "NSPhotoLibraryAddUsageDescription": "Mongchi can save pet share images only when you ask it to.",
@@ -80,7 +101,34 @@
       "expo-secure-store",
       "expo-iap",
       "expo-font",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "en",
+              "ko",
+              "ja",
+              "zh-Hant",
+              "de",
+              "fr",
+              "pt-BR",
+              "es-MX"
+            ],
+            "android": [
+              "en",
+              "ko",
+              "ja",
+              "zh-TW",
+              "de",
+              "fr",
+              "pt-BR",
+              "es-MX"
+            ]
+          }
+        }
+      ]
     ]
   }
 }

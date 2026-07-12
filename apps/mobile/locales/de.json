@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "Mongchi",
+  "NSCameraUsageDescription": "Mongchi verwendet die Kamera nur, wenn du ein Haustierfoto für deinen Avatar aufnimmst.",
+  "NSPhotoLibraryUsageDescription": "Mongchi verwendet ein von dir ausgewähltes Haustierfoto, um deinen kleinen Avatar zu erstellen.",
+  "NSPhotoLibraryAddUsageDescription": "Mongchi speichert geteilte Haustierbilder nur auf deinen Wunsch.",
+  "NSLocationWhenInUseUsageDescription": "Mongchi verwendet deinen ungefähren Standort nur, wenn du lokales Wetter für den Garten auswählst."
+}

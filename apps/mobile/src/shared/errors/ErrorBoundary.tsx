@@ -1,8 +1,12 @@
 import type { ErrorInfo, PropsWithChildren, ReactNode } from "react";
 import { Component } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import i18n from "i18next";
 
-import { colors, radii, shadows, spacing } from "../design/tokens";
+import { normalizeAppLocale } from "../../localization/localeNormalization";
+import { getResourcesForLocale } from "../../localization/resourceCatalog";
+import { interpolatePetName } from "../../localization/runtimeResources";
+import { colors, getFontFamilyForLocale, radii, shadows, spacing } from "../design/tokens";
 import { fontPairFamilies } from "../design/fontPair";
 import { reporter as defaultReporter } from "./reporter";
 import type { ErrorReporter } from "./reporter";
@@ -63,17 +67,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryLo
       return this.props.renderFallback(error, this.handleRetry);
     }
 
-    const petName = this.props.petName ?? "Your friend";
+    const locale = normalizeAppLocale(i18n.resolvedLanguage);
+    const copy = getResourcesForLocale(locale).errorBoundary;
+    const petName = this.props.petName ?? copy.fallbackPetName;
+    const bodyFontFamily = getFontFamilyForLocale(locale, fallbackFontFamily);
+    const titleFontFamily = getFontFamilyForLocale(locale, fallbackTitleFontFamily);
 
     return (
       <View style={styles.container}>
         <View style={styles.card}>
-          <Text style={[styles.title, { fontFamily: fallbackTitleFontFamily }]}>Something hiccuped</Text>
-          <Text style={[styles.message, { fontFamily: fallbackFontFamily }]}>
-            {petName} is fine — this screen just tripped over its own paws. Let's try again.
+          <Text style={[styles.title, { fontFamily: titleFontFamily }]}>{copy.title}</Text>
+          <Text style={[styles.message, { fontFamily: bodyFontFamily }]}>
+            {interpolatePetName(copy.message, petName)}
           </Text>
-          <Text accessibilityRole="button" style={[styles.retryButton, { fontFamily: fallbackFontFamily }]} onPress={this.handleRetry}>
-            Try again
+          <Text accessibilityRole="button" style={[styles.retryButton, { fontFamily: bodyFontFamily }]} onPress={this.handleRetry}>
+            {copy.retry}
           </Text>
         </View>
       </View>
