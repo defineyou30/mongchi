@@ -1,9 +1,10 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@mongchi/shared";
 
 import { colors, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import type { OptimisticChatTurn } from "./chatOptimisticTurn";
 
 interface ChatConversationHistoryProps {
@@ -11,21 +12,55 @@ interface ChatConversationHistoryProps {
   readonly optimisticTurn: OptimisticChatTurn | null;
   readonly petName: string;
   readonly onRetry: (turn: OptimisticChatTurn) => void;
+  readonly reportedMessageIds: readonly string[];
+  readonly onReport: (messageId: string) => void;
 }
 
 export function ChatConversationHistory({
   messages,
   optimisticTurn,
   petName,
-  onRetry
+  onRetry,
+  reportedMessageIds,
+  onReport
 }: ChatConversationHistoryProps) {
   const fontFamilies = useFontFamilies();
   const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
+  // The very first time this thread has anything to show (the auto-loaded
+  // history landing all at once), jump to the latest turn instantly -- an
+  // animated scroll here races the screen's own mount/keyboard settle and
+  // can look like it silently failed (real-device QA: the viewport stayed
+  // at the top after auto-load). Every later arrival (a new sent/received
+  // turn) gets a smooth animated scroll instead, which doesn't feel abrupt.
+  const hasScrolledToLatestRef = useRef(false);
+
+  const scrollToLatest = () => {
+    const animated = hasScrolledToLatestRef.current;
+
+    hasScrolledToLatestRef.current = true;
+    scrollRef.current?.scrollToEnd({ animated });
+  };
+
+  // Data-driven trigger, independent of onContentSizeChange's layout-callback
+  // timing below -- covers the case where content size settles without
+  // firing (or before the ref is attached). Keyed on turn count, not the
+  // array/turn identity, so this never fires for reasons unrelated to new
+  // content (e.g. a keyboard show/hide, which doesn't touch message counts).
+  const turnCount = messages.length + (optimisticTurn ? 1 : 0);
+
+  useEffect(() => {
+    scrollToLatest();
+    // scrollToLatest reads/writes a ref and is stable in spirit (it doesn't
+    // depend on props); re-running it only on turnCount changes is
+    // intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnCount]);
 
   const renderMessage = (message: ConversationMessage) => {
     const isUser = message.sender === "user";
     const isPet = message.sender === "pet_ai";
+    const reported = reportedMessageIds.includes(message.id);
 
     return (
       <View
@@ -36,6 +71,19 @@ export function ChatConversationHistory({
           {isUser ? t("chat.history.user") : isPet ? petName : t("chat.history.notice")}
         </Text>
         <Text style={[styles.messageText, { fontFamily: fontFamilies.body }]}>{message.text}</Text>
+        {isPet ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={reported ? t("chat.report.reported") : t("chat.report.button")}
+            accessibilityState={{ disabled: reported }}
+            disabled={reported}
+            hitSlop={8}
+            style={[styles.reportButton, reported ? styles.reportButtonDisabled : null]}
+            onPress={() => onReport(message.id)}
+          >
+            <MongchiIcon decorative id="shield-alert" size={18} style={reported ? styles.reportIconDisabled : undefined} />
+          </Pressable>
+        ) : null}
       </View>
     );
   };
@@ -49,7 +97,7 @@ export function ChatConversationHistory({
       nestedScrollEnabled
       showsVerticalScrollIndicator
       style={styles.historyViewport}
-      onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+      onContentSizeChange={scrollToLatest}
     >
       {messages.length === 0 && optimisticTurn === null ? (
         <View style={styles.emptyBubble}>
@@ -89,7 +137,7 @@ export function ChatConversationHistory({
 
 const styles = StyleSheet.create({
   historyViewport: {
-    maxHeight: 268
+    flex: 1
   },
   messageStack: {
     gap: spacing.sm,
@@ -142,6 +190,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     fontWeight: "800"
+  },
+  reportButton: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0
+  },
+  reportButtonDisabled: {
+    opacity: 0.48
+  },
+  reportIconDisabled: {
+    opacity: 0.66
   },
   optimisticCopy: {
     flexShrink: 1,

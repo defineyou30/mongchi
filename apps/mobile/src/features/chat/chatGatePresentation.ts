@@ -1,4 +1,12 @@
-import { buildChatGreetingLine, createInitialCareStats, getCareStatBand, getTimeBucket, selectPetStatusLine } from "@mongchi/shared";
+import {
+  buildChatGreetingLine,
+  chatDayPassCreditCost,
+  createInitialCareStats,
+  getCareStatBand,
+  getTimeBucket,
+  isNightTime,
+  selectPetStatusLine
+} from "@mongchi/shared";
 import type {
   CareState,
   CareSatisfactionSummary,
@@ -65,6 +73,8 @@ export interface ChatTicketPipsPresentation {
 
 export interface ChatAllowanceChipPresentationInput {
   readonly hasPremiumChatEntitlement: boolean;
+  /** True while an active chat day pass (§ chat day pass BM decision) is covering turns for free -- outranks the ticket/credit chip the same way Plus does. */
+  readonly dayPassActive?: boolean | undefined;
   readonly freeChatTickets: number;
   readonly creditBalance: number;
   readonly locale?: AppLocale | undefined;
@@ -77,6 +87,7 @@ export interface ChatAllowanceChipPresentation {
 
 export const getChatAllowanceChipPresentation = ({
   hasPremiumChatEntitlement,
+  dayPassActive = false,
   freeChatTickets,
   creditBalance,
   locale = "en-US"
@@ -102,6 +113,31 @@ export const getChatAllowanceChipPresentation = ({
         "fr-FR": "Le chat Plus est inclus",
         "pt-BR": "O chat Plus está incluído",
         "es-MX": "El chat Plus está incluido"
+      })
+    };
+  }
+
+  if (dayPassActive) {
+    return {
+      label: getLocalizedText(locale, {
+        "en-US": "Day Pass active",
+        "ko-KR": "데이 패스 이용 중",
+        "ja-JP": "デイパス利用中",
+        "zh-TW": "日間通行證使用中",
+        "de-DE": "Day Pass aktiv",
+        "fr-FR": "Day Pass actif",
+        "pt-BR": "Day Pass ativo",
+        "es-MX": "Day Pass activo"
+      }),
+      accessibilityLabel: getLocalizedText(locale, {
+        "en-US": "Chat day pass is active — chat as much as you'd like today",
+        "ko-KR": "데이 패스가 활성화되어 있어요 — 오늘은 마음껏 이야기할 수 있어요",
+        "ja-JP": "デイパスが有効です — 今日は好きなだけおしゃべりできます",
+        "zh-TW": "日間通行證已啟用 — 今天可以盡情聊天",
+        "de-DE": "Der Chat-Day-Pass ist aktiv — heute kannst du so viel plaudern, wie du möchtest",
+        "fr-FR": "Le Day Pass de discussion est actif — discutez autant que vous voulez aujourd’hui",
+        "pt-BR": "O Day Pass de chat está ativo — converse à vontade hoje",
+        "es-MX": "El Day Pass de chat está activo — platica todo lo que quieras hoy"
       })
     };
   }
@@ -303,6 +339,14 @@ export const getShortChatReplyText = ({
     });
   }
 
+  // Reused by both the English (buildChatGreetingLine's isNight tier) and
+  // non-English branches below -- the pet's local sleep window, same
+  // 22:00-05:59 boundary as dayNightCycle.ts's isNightHour/isNightTime
+  // (bgmAssets.ts's day/night crossfade already agrees on it too). Purely
+  // atmospheric: never blocks or changes what the chat can do (see
+  // CLAUDE.md/plan: no locking any feature at night).
+  const isNight = isNightTime(now ?? "2026-06-24T09:00:00.000Z");
+
   if (locale === "en-US") {
     // Walking outranks every other greeting tier, including a fresh
     // milestone memory -- memories/careStats may not be loaded yet in every
@@ -315,7 +359,8 @@ export const getShortChatReplyText = ({
         careStats: careStats ?? createInitialCareStats(),
         careState,
         now: now ?? "2026-06-24T09:00:00.000Z",
-        isOnWalk: true
+        isOnWalk: true,
+        isNight
       });
     }
 
@@ -325,7 +370,8 @@ export const getShortChatReplyText = ({
         memories,
         careStats,
         careState,
-        now: now ?? "2026-06-24T09:00:00.000Z"
+        now: now ?? "2026-06-24T09:00:00.000Z",
+        isNight
       });
     }
 
@@ -362,6 +408,23 @@ export const getShortChatReplyText = ({
       "fr-FR": `${petName} a attendu tout ce temps, une oreille tournée vers la porte.`,
       "pt-BR": `${petName} ficou esperando, com uma orelhinha virada para a porta.`,
       "es-MX": `${petName} esperó todo este tiempo con una orejita hacia la puerta.`
+    });
+  }
+
+  // Drowsy, "just woke up" hello for the pet's local sleep window -- mirrors
+  // buildChatGreetingLine's isNight tier above (same priority slot: below a
+  // fresh "missed you" days-away return, above the ordinary memory/care
+  // status lines below). Never a scold about the hour (healing-app tone).
+  if (isNight) {
+    return getLocalizedText(locale, {
+      "en-US": "Mmh... you're here? Come sit with me.",
+      "ko-KR": "음냐... 왔어? 내 옆에 앉아.",
+      "ja-JP": "んん…来たの？ そばに座って。",
+      "zh-TW": "唔…你來啦？坐到我旁邊來。",
+      "de-DE": "Mmh... bist du da? Setz dich zu mir.",
+      "fr-FR": "Mmh... tu es là ? Viens t’asseoir près de moi.",
+      "pt-BR": "Mmh... você chegou? Vem sentar pertinho de mim.",
+      "es-MX": "Mmh... ¿ya llegaste? Ven, siéntate conmigo."
     });
   }
 
@@ -627,6 +690,234 @@ export const getChatConversationStarters = ({
   }));
 
   return Array.from(new Set(starters)).slice(0, 3);
+};
+
+export interface ChatConversationStartersVisibilityInput {
+  readonly premiumChatReady: boolean;
+  readonly chatStarted: boolean;
+  /** Length of the persisted conversation thread (ChatGateScreen's `messages`). */
+  readonly messageCount: number;
+  /** True while an optimistic turn (in-flight or failed-retry) exists but hasn't been folded into `messages` yet. */
+  readonly hasOptimisticTurn: boolean;
+  readonly hasDraftText: boolean;
+  readonly isSending: boolean;
+}
+
+/**
+ * Starters are only a "how do I begin" affordance for a genuinely empty
+ * thread. Real-device QA found them still showing (covering the pet's latest
+ * reply) whenever the input box happened to be empty, even mid-conversation
+ * -- the previous condition never looked at the thread itself. `messageCount
+ * === 0` covers server-persisted history; `!hasOptimisticTurn` covers a turn
+ * not yet folded into that history (in-flight or failed-retry) -- once
+ * either is non-empty, starters stay hidden even if the draft is cleared
+ * again.
+ */
+export const shouldShowChatConversationStarters = ({
+  premiumChatReady,
+  chatStarted,
+  messageCount,
+  hasOptimisticTurn,
+  hasDraftText,
+  isSending
+}: ChatConversationStartersVisibilityInput): boolean =>
+  premiumChatReady && chatStarted && messageCount === 0 && !hasOptimisticTurn && !hasDraftText && !isSending;
+
+export interface ChatAmbientBubbleVisibilityInput {
+  readonly chatStarted: boolean;
+  /** Length of the persisted conversation thread (ChatGateScreen's `messages`). */
+  readonly messageCount: number;
+  /** True while an optimistic turn (in-flight or failed-retry) exists but hasn't been folded into `messages` yet. */
+  readonly hasOptimisticTurn: boolean;
+}
+
+/**
+ * The chat-focused redesign drops the pet's ambient typewriter greeting once a
+ * real conversation exists -- it stayed visible the whole time in the old
+ * hero-sprite layout, but now that the thread itself is the main surface, a
+ * floating greeting bubble above real messages would just be clutter. It
+ * still shows before the gate is opened (nothing to greet with yet) and for
+ * the brief moment after opening before the first turn lands, matching the
+ * same "genuinely empty thread" reading `shouldShowChatConversationStarters`
+ * uses above.
+ */
+export const shouldShowChatAmbientBubble = ({
+  chatStarted,
+  messageCount,
+  hasOptimisticTurn
+}: ChatAmbientBubbleVisibilityInput): boolean => !chatStarted || (messageCount === 0 && !hasOptimisticTurn);
+
+export interface ChatDisclosureBannerVisibilityInput {
+  /** Whether the persisted "has seen the first-time AI disclosure banner" read has resolved yet -- false for the first render or two, before AsyncStorage answers. */
+  readonly hasHydratedSeenFlag: boolean;
+  /** True once the persisted flag confirms this device already saw (and dismissed) the banner before. */
+  readonly hasSeenDisclosureBanner: boolean;
+}
+
+/**
+ * App-review guidance (and the app's own P15 commitment) rules out hiding the
+ * AI-conversation disclosure entirely behind the header's info icon -- it
+ * must surface at least once, inline, the first time a user opens this
+ * screen. This gates that one-time banner: it stays hidden until the
+ * persisted flag has actually loaded (so a returning user never sees it
+ * flash on before disappearing) and then shows only while that flag reports
+ * "not seen yet".
+ */
+export const shouldShowChatDisclosureBanner = ({
+  hasHydratedSeenFlag,
+  hasSeenDisclosureBanner
+}: ChatDisclosureBannerVisibilityInput): boolean => hasHydratedSeenFlag && !hasSeenDisclosureBanner;
+
+export interface ChatDayPassOfferPresentationInput {
+  petName: string;
+  hasPremiumChatEntitlement: boolean;
+  /** True while a chat day pass is already covering turns -- the offer never shows on top of an active pass. */
+  dayPassActive: boolean;
+  freeChatTickets: number;
+  creditBalance: number;
+  locale?: AppLocale | undefined;
+}
+
+export type ChatDayPassOfferPresentation =
+  | {
+      state: "offer";
+      title: string;
+      detail: string;
+      ctaLabel: string;
+      accessibilityLabel: string;
+    }
+  | {
+      state: "insufficient_credits";
+      title: string;
+      detail: string;
+      ctaLabel: string;
+      accessibilityLabel: string;
+    }
+  | { state: "hidden" };
+
+/**
+ * Once today's free chat turns run out (and no Plus/day-pass is already
+ * covering the pet), this decides whether the gate should warmly suggest a
+ * day pass (Chat Live BM decision: "chatty day pass") or fall back to the
+ * existing "get more credits" copy pattern when the wallet can't even cover
+ * the pass. Never fires while a free ticket, Plus, or an active pass can
+ * still carry the conversation -- this is strictly an upsell for the
+ * "free chat is gone for today" moment, not a blocking gate (sending still
+ * works via the per-turn credit fallback; see getPremiumChatPaymentPreview).
+ */
+export const getChatDayPassOfferPresentation = ({
+  petName,
+  hasPremiumChatEntitlement,
+  dayPassActive,
+  freeChatTickets,
+  creditBalance,
+  locale = "en-US"
+}: ChatDayPassOfferPresentationInput): ChatDayPassOfferPresentation => {
+  if (hasPremiumChatEntitlement || dayPassActive || freeChatTickets > 0) {
+    return { state: "hidden" };
+  }
+
+  if (creditBalance >= chatDayPassCreditCost) {
+    const title = getLocalizedText(locale, {
+      "en-US": `Your free chat with ${petName} returns tomorrow`,
+      "ko-KR": `${petName}와의 무료 대화는 내일 다시 열려요`,
+      "ja-JP": `${petName}との無料チャットは明日また使えるよ`,
+      "zh-TW": `和 ${petName} 的免費聊天明天才會回來`,
+      "de-DE": `Dein Gratis-Chat mit ${petName} kommt morgen zurück`,
+      "fr-FR": `Ta discussion gratuite avec ${petName} revient demain`,
+      "pt-BR": `Sua conversa grátis com ${petName} volta amanhã`,
+      "es-MX": `Tu charla gratis con ${petName} vuelve mañana`
+    });
+    const detail = getLocalizedText(locale, {
+      "en-US": "Or keep chatting together all day today.",
+      "ko-KR": "데이 패스로 오늘 하루 종일 함께 이야기할 수도 있어요.",
+      "ja-JP": "デイパスなら今日一日ずっと一緒におしゃべりできるよ。",
+      "zh-TW": "使用日間通行證，今天可以整天一起聊天。",
+      "de-DE": "Oder plaudert mit einem Day Pass heute den ganzen Tag zusammen weiter.",
+      "fr-FR": "Ou continuez à discuter ensemble toute la journée avec un Day Pass.",
+      "pt-BR": "Ou continuem conversando o dia todo hoje com um Day Pass.",
+      "es-MX": "O sigan charlando todo el día hoy con un Day Pass."
+    });
+    const ctaLabel = getLocalizedText(locale, {
+      "en-US": `Day Pass · ${chatDayPassCreditCost} credits`,
+      "ko-KR": `데이 패스 · 크레딧 ${chatDayPassCreditCost}개`,
+      "ja-JP": `デイパス · ${chatDayPassCreditCost}クレジット`,
+      "zh-TW": `日間通行證 · ${chatDayPassCreditCost} 點`,
+      "de-DE": `Day Pass · ${chatDayPassCreditCost} Credits`,
+      "fr-FR": `Day Pass · ${chatDayPassCreditCost} crédits`,
+      "pt-BR": `Day Pass · ${chatDayPassCreditCost} créditos`,
+      "es-MX": `Day Pass · ${chatDayPassCreditCost} créditos`
+    });
+
+    return {
+      state: "offer",
+      title,
+      detail,
+      ctaLabel,
+      accessibilityLabel: getLocalizedText(locale, {
+        "en-US": `${title} ${detail} Buy a day pass for ${chatDayPassCreditCost} credits to keep chatting together all day today.`,
+        "ko-KR": `${title}. 크레딧 ${chatDayPassCreditCost}개로 데이 패스를 구매하면 오늘 하루 종일 함께 이야기할 수 있어요.`,
+        "ja-JP": `${title}。${chatDayPassCreditCost}クレジットでデイパスを購入すると、今日一日ずっと一緒におしゃべりできます。`,
+        "zh-TW": `${title}。用 ${chatDayPassCreditCost} 點購買日間通行證，今天就能整天一起聊天。`,
+        "de-DE": `${title}. Hol dir für ${chatDayPassCreditCost} Credits einen Day Pass, um heute den ganzen Tag zusammen weiterzuplaudern.`,
+        "fr-FR": `${title}. Achète un Day Pass pour ${chatDayPassCreditCost} crédits afin de discuter ensemble toute la journée aujourd’hui.`,
+        "pt-BR": `${title}. Compre um Day Pass por ${chatDayPassCreditCost} créditos para conversarem o dia todo hoje.`,
+        "es-MX": `${title}. Compra un Day Pass por ${chatDayPassCreditCost} créditos para seguir charlando todo el día hoy.`
+      })
+    };
+  }
+
+  // Reuses the exact locked-state copy pattern from getPremiumChatAccessPresentation
+  // below (same title/detail/ctaLabel strings) -- the wallet can't cover even
+  // the day pass, so this is the same "come back tomorrow, or get credits"
+  // moment the app already shows, not a new tone.
+  const title = getLocalizedText(locale, {
+    "en-US": `${petName} will have more to say tomorrow`,
+    "ko-KR": `${petName}는 내일 더 많은 이야기를 들려줄 거예요`,
+    "ja-JP": `${petName}は明日またたくさんお話ししてくれるよ`,
+    "zh-TW": `${petName} 明天還有更多話想告訴你`,
+    "de-DE": `${petName} hat morgen wieder mehr zu erzählen`,
+    "fr-FR": `${petName} aura encore des choses à raconter demain`,
+    "pt-BR": `${petName} terá mais coisas para contar amanhã`,
+    "es-MX": `${petName} tendrá más cosas que contar mañana`
+  });
+  const detail = getLocalizedText(locale, {
+    "en-US": "...or keep chatting with credits.",
+    "ko-KR": "크레딧으로 대화를 계속할 수도 있어요.",
+    "ja-JP": "クレジットを使えば、もう少しお話しできます。",
+    "zh-TW": "也可以使用點數繼續聊天。",
+    "de-DE": "Du kannst mit Credits weiterplaudern.",
+    "fr-FR": "Vous pouvez aussi continuer avec des crédits.",
+    "pt-BR": "Você também pode continuar a conversa com créditos.",
+    "es-MX": "También puedes seguir charlando con créditos."
+  });
+  const ctaLabel = getLocalizedText(locale, {
+    "en-US": "Get more credits",
+    "ko-KR": "크레딧 받기",
+    "ja-JP": "クレジットを追加",
+    "zh-TW": "取得更多點數",
+    "de-DE": "Mehr Credits holen",
+    "fr-FR": "Obtenir des crédits",
+    "pt-BR": "Conseguir mais créditos",
+    "es-MX": "Conseguir más créditos"
+  });
+
+  return {
+    state: "insufficient_credits",
+    title,
+    detail,
+    ctaLabel,
+    accessibilityLabel: getLocalizedText(locale, {
+      "en-US": `${title} ${detail}`,
+      "ko-KR": `${title}. ${detail}`,
+      "ja-JP": `${title}。${detail}`,
+      "zh-TW": `${title}。${detail}`,
+      "de-DE": `${title}. ${detail}`,
+      "fr-FR": `${title}. ${detail}`,
+      "pt-BR": `${title}. ${detail}`,
+      "es-MX": `${title}. ${detail}`
+    })
+  };
 };
 
 export const getPremiumChatAccessPresentation = ({

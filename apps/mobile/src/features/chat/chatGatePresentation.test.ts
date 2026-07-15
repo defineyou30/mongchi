@@ -6,12 +6,23 @@ import type { CareStats, MemoryEntry } from "@mongchi/shared";
 import {
   getChatAllowanceChipPresentation,
   getChatConversationStarters,
+  getChatDayPassOfferPresentation,
   getChatMoodPresentation,
   getChatTicketPipsPresentation,
   getPremiumChatAccessPresentation,
   getShortChatActionLabel,
-  getShortChatReplyText
+  getShortChatReplyText,
+  shouldShowChatAmbientBubble,
+  shouldShowChatConversationStarters,
+  shouldShowChatDisclosureBanner
 } from "./chatGatePresentation";
+
+/** Builds an ISO string whose *local* hour is `hour` -- getShortChatReplyText's night tier re-derives the hour via isNightTime -> `new Date(iso).getHours()`, so round-tripping through setHours keeps this independent of the test runner's timezone (mirrors packages/shared's dayNightCycle.test.ts/mobileContracts.test.ts isoAtLocalHour). */
+const isoAtLocalHour = (hour: number): string => {
+  const date = new Date("2026-06-24T00:00:00.000Z");
+  date.setHours(hour, 0, 0, 0);
+  return date.toISOString();
+};
 
 describe("chat allowance chip", () => {
   it("shows included chat without inventing a numeric limit for Plus", () => {
@@ -46,6 +57,133 @@ describe("chat allowance chip", () => {
     expect(getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: false, freeChatTickets: 0, creditBalance: 2 })).toEqual({
       label: "2 credits",
       accessibilityLabel: "2 chat credits available"
+    });
+  });
+
+  it("shows an active day pass ahead of the ticket/credit summary", () => {
+    expect(
+      getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: false, dayPassActive: true, freeChatTickets: 0, creditBalance: 0 })
+    ).toEqual({
+      label: "Day Pass active",
+      accessibilityLabel: "Chat day pass is active — chat as much as you'd like today"
+    });
+  });
+
+  it("localizes the active day pass chip for Korean", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        freeChatTickets: 0,
+        creditBalance: 0,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      label: "데이 패스 이용 중",
+      accessibilityLabel: "데이 패스가 활성화되어 있어요 — 오늘은 마음껏 이야기할 수 있어요"
+    });
+  });
+
+  it("prefers Plus over an active day pass when both are somehow true", () => {
+    expect(
+      getChatAllowanceChipPresentation({ hasPremiumChatEntitlement: true, dayPassActive: true, freeChatTickets: 0, creditBalance: 0 })
+    ).toEqual({
+      label: "Plus · Included",
+      accessibilityLabel: "Plus chat is included"
+    });
+  });
+});
+
+describe("chat day pass offer", () => {
+  it("stays hidden while a free ticket can still start a chat", () => {
+    expect(
+      getChatDayPassOfferPresentation({
+        petName: "Miso",
+        hasPremiumChatEntitlement: false,
+        dayPassActive: false,
+        freeChatTickets: 1,
+        creditBalance: 0
+      })
+    ).toEqual({ state: "hidden" });
+  });
+
+  it("stays hidden once a day pass is already active", () => {
+    expect(
+      getChatDayPassOfferPresentation({
+        petName: "Miso",
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        freeChatTickets: 0,
+        creditBalance: 0
+      })
+    ).toEqual({ state: "hidden" });
+  });
+
+  it("stays hidden for a Plus member even with free tickets exhausted", () => {
+    expect(
+      getChatDayPassOfferPresentation({
+        petName: "Miso",
+        hasPremiumChatEntitlement: true,
+        dayPassActive: false,
+        freeChatTickets: 0,
+        creditBalance: 0
+      })
+    ).toEqual({ state: "hidden" });
+  });
+
+  it("offers the day pass once free turns are gone and the wallet can afford it", () => {
+    expect(
+      getChatDayPassOfferPresentation({
+        petName: "Miso",
+        hasPremiumChatEntitlement: false,
+        dayPassActive: false,
+        freeChatTickets: 0,
+        creditBalance: 5
+      })
+    ).toEqual({
+      state: "offer",
+      title: "Your free chat with Miso returns tomorrow",
+      detail: "Or keep chatting together all day today.",
+      ctaLabel: "Day Pass · 5 credits",
+      accessibilityLabel:
+        "Your free chat with Miso returns tomorrow Or keep chatting together all day today. Buy a day pass for 5 credits to keep chatting together all day today."
+    });
+  });
+
+  it("localizes the day pass offer for Korean", () => {
+    expect(
+      getChatDayPassOfferPresentation({
+        petName: "몽치",
+        hasPremiumChatEntitlement: false,
+        dayPassActive: false,
+        freeChatTickets: 0,
+        creditBalance: 5,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      state: "offer",
+      title: "몽치와의 무료 대화는 내일 다시 열려요",
+      detail: "데이 패스로 오늘 하루 종일 함께 이야기할 수도 있어요.",
+      ctaLabel: "데이 패스 · 크레딧 5개",
+      accessibilityLabel: "몽치와의 무료 대화는 내일 다시 열려요. 크레딧 5개로 데이 패스를 구매하면 오늘 하루 종일 함께 이야기할 수 있어요."
+    });
+  });
+
+  it("falls back to the existing get-more-credits copy pattern when even the day pass is unaffordable", () => {
+    expect(
+      getChatDayPassOfferPresentation({
+        petName: "Miso",
+        hasPremiumChatEntitlement: false,
+        dayPassActive: false,
+        freeChatTickets: 0,
+        creditBalance: 4
+      })
+    ).toEqual({
+      state: "insufficient_credits",
+      title: "Miso will have more to say tomorrow",
+      detail: "...or keep chatting with credits.",
+      ctaLabel: "Get more credits",
+      accessibilityLabel: "Miso will have more to say tomorrow ...or keep chatting with credits."
     });
   });
 });
@@ -135,7 +273,7 @@ describe("chat gate presentation", () => {
         lastInteractionAt: "2026-06-20T08:00:00.000Z",
         updatedAt: "2026-06-24T09:00:00.000Z"
       },
-      now: "2026-06-24T09:00:00.000Z"
+      now: isoAtLocalHour(9)
     });
 
     expect(line).toBe("I always look forward to the good brushes with you.");
@@ -168,6 +306,90 @@ describe("chat gate presentation", () => {
     });
 
     expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("greets with a drowsy night line during the pet's local sleep window", () => {
+    const careStats: CareStats = { ...createInitialCareStats(), actionCounts: { clean: 3 }, totalCareActions: 3 };
+    const memories: MemoryEntry[] = [];
+
+    const line = getShortChatReplyText({
+      petName: "Miso",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      memories,
+      careStats,
+      now: isoAtLocalHour(23)
+    });
+
+    expect([
+      "Mmh... you're here? Come sit with me.",
+      "*yawns softly* I was just dozing off. Stay a little while?",
+      "Mm, hi... still sleepy, but happy you came."
+    ]).toContain(line);
+  });
+
+  it("lets an active walk still outrank the night greeting", () => {
+    const careStats: CareStats = { ...createInitialCareStats(), actionCounts: { clean: 3 }, totalCareActions: 3 };
+    const memories: MemoryEntry[] = [];
+
+    const line = getShortChatReplyText({
+      petName: "Miso",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      memories,
+      careStats,
+      now: isoAtLocalHour(23),
+      isOnWalk: true
+    });
+
+    expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("greets with a localized drowsy night line for Korean, ahead of the generic memory line", () => {
+    const careStats: CareStats = { ...createInitialCareStats(), actionCounts: { clean: 3 }, totalCareActions: 3 };
+    const memories: MemoryEntry[] = [];
+
+    const line = getShortChatReplyText({
+      petName: "몽치",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      memories,
+      careStats,
+      now: isoAtLocalHour(2),
+      locale: "ko-KR"
+    });
+
+    expect(line).toBe("음냐... 왔어? 내 옆에 앉아.");
+  });
+
+  it("lets a fresh days-away return still outrank the night greeting for Korean", () => {
+    const line = getShortChatReplyText({
+      petName: "몽치",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      daysAway: 2,
+      now: isoAtLocalHour(23),
+      locale: "ko-KR"
+    });
+
+    expect(line).toBe("몽치는 문 쪽을 바라보며 기다렸어요.");
+  });
+
+  it("does not show the night line during the day for Korean, falling back to the generic memory line", () => {
+    const careStats: CareStats = { ...createInitialCareStats(), actionCounts: { clean: 3 }, totalCareActions: 3 };
+    const memories: MemoryEntry[] = [];
+
+    const line = getShortChatReplyText({
+      petName: "몽치",
+      quickTalkStartedAtMs: null,
+      recentReactions: [],
+      memories,
+      careStats,
+      now: isoAtLocalHour(14),
+      locale: "ko-KR"
+    });
+
+    expect(line).toBe("우리의 작은 순간들을 다 기억하고 있어.");
   });
 
   it("does not use the walk greeting once a quick-talk reply is already in progress", () => {
@@ -460,5 +682,73 @@ describe("chat gate presentation", () => {
       total: 5,
       overflow: 0
     });
+  });
+});
+
+describe("chat conversation starters visibility", () => {
+  const baseInput = {
+    premiumChatReady: true,
+    chatStarted: true,
+    messageCount: 0,
+    hasOptimisticTurn: false,
+    hasDraftText: false,
+    isSending: false
+  };
+
+  it("shows starters for a freshly started, empty thread", () => {
+    expect(shouldShowChatConversationStarters(baseInput)).toBe(true);
+  });
+
+  it("hides starters once the thread has any persisted message, even with an empty draft", () => {
+    expect(shouldShowChatConversationStarters({ ...baseInput, messageCount: 1 })).toBe(false);
+  });
+
+  it("hides starters while an optimistic turn (in-flight or failed-retry) exists, even with no persisted messages yet", () => {
+    expect(shouldShowChatConversationStarters({ ...baseInput, hasOptimisticTurn: true })).toBe(false);
+  });
+
+  it("hides starters while the user is actively typing a draft", () => {
+    expect(shouldShowChatConversationStarters({ ...baseInput, hasDraftText: true })).toBe(false);
+  });
+
+  it("hides starters while a turn is sending", () => {
+    expect(shouldShowChatConversationStarters({ ...baseInput, isSending: true })).toBe(false);
+  });
+
+  it("hides starters before chat has started, or before premium chat is ready, regardless of thread state", () => {
+    expect(shouldShowChatConversationStarters({ ...baseInput, chatStarted: false })).toBe(false);
+    expect(shouldShowChatConversationStarters({ ...baseInput, premiumChatReady: false })).toBe(false);
+  });
+});
+
+describe("chat ambient bubble visibility", () => {
+  it("shows the ambient greeting bubble before chat has started at all", () => {
+    expect(shouldShowChatAmbientBubble({ chatStarted: false, messageCount: 0, hasOptimisticTurn: false })).toBe(true);
+  });
+
+  it("shows the ambient greeting bubble for a freshly started, still-empty thread", () => {
+    expect(shouldShowChatAmbientBubble({ chatStarted: true, messageCount: 0, hasOptimisticTurn: false })).toBe(true);
+  });
+
+  it("hides the ambient greeting bubble once the thread has any persisted message", () => {
+    expect(shouldShowChatAmbientBubble({ chatStarted: true, messageCount: 1, hasOptimisticTurn: false })).toBe(false);
+  });
+
+  it("hides the ambient greeting bubble while an optimistic turn is in flight, even with no persisted messages yet", () => {
+    expect(shouldShowChatAmbientBubble({ chatStarted: true, messageCount: 0, hasOptimisticTurn: true })).toBe(false);
+  });
+});
+
+describe("chat disclosure banner visibility", () => {
+  it("stays hidden until the persisted seen-flag has hydrated, even if it will turn out unseen", () => {
+    expect(shouldShowChatDisclosureBanner({ hasHydratedSeenFlag: false, hasSeenDisclosureBanner: false })).toBe(false);
+  });
+
+  it("shows once hydration confirms the banner has never been seen on this device", () => {
+    expect(shouldShowChatDisclosureBanner({ hasHydratedSeenFlag: true, hasSeenDisclosureBanner: false })).toBe(true);
+  });
+
+  it("stays hidden once hydration confirms the banner was already seen and dismissed", () => {
+    expect(shouldShowChatDisclosureBanner({ hasHydratedSeenFlag: true, hasSeenDisclosureBanner: true })).toBe(false);
   });
 });
