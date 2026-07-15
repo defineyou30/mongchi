@@ -27,7 +27,9 @@ const allowedPublicEnvKeys = new Set([
   "EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE",
   "EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_PRESET",
   "EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_WEATHER_CONDITION",
-  "EXPO_PUBLIC_TINY_PET_QA_SCREEN_PRESET"
+  "EXPO_PUBLIC_TINY_PET_QA_SCREEN_PRESET",
+  // 2026-07-16 채팅 공개 결정: premium chat live-chat entry point public flag.
+  "EXPO_PUBLIC_TINY_PET_LIVE_CHAT_ENABLED"
 ]);
 const explicitlyAllowedDevelopmentTokenKeys = new Set(["EXPO_PUBLIC_TINY_PET_MOCK_AUTH_TOKEN"]);
 const serverOnlyEnvPattern = /\b(?<!EXPO_PUBLIC_)TINY_PET_[A-Z0-9_]+\b/g;

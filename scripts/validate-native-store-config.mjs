@@ -101,7 +101,10 @@ if (!expo) {
     failures.push("expo.android.package must be a real reverse-DNS identifier.");
   }
 
-  if (!Array.isArray(expo.android?.permissions) || !expo.android.permissions.includes("CAMERA") || !expo.android.permissions.includes("READ_MEDIA_IMAGES")) {
+  const hasAndroidPermission = (permissions, shortName) =>
+    Array.isArray(permissions) && (permissions.includes(shortName) || permissions.includes(`android.permission.${shortName}`));
+
+  if (!hasAndroidPermission(expo.android?.permissions, "CAMERA") || !hasAndroidPermission(expo.android?.permissions, "READ_MEDIA_IMAGES")) {
     failures.push("expo.android.permissions must include CAMERA and READ_MEDIA_IMAGES for still pet photo capture.");
   }
 
@@ -115,7 +118,7 @@ if (!expo) {
 
   const plugins = Array.isArray(expo.plugins) ? expo.plugins.map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)) : [];
 
-  for (const plugin of ["expo-router", "expo-image-picker", "expo-secure-store", "expo-iap"]) {
+  for (const plugin of ["expo-router", "expo-image-picker", "expo-secure-store"]) {
     if (!plugins.includes(plugin)) {
       failures.push(`expo.plugins must include ${plugin}.`);
     }

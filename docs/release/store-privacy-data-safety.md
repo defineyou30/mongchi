@@ -6,7 +6,7 @@ This draft maps the current Mongchi iOS/Android implementation to App Store priv
 
 ## Evidence Scope
 
-- Native permissions are declared in `apps/mobile/app.json`: iOS camera/photo descriptions, Android `CAMERA` and `READ_MEDIA_IMAGES`, and Android microphone blocked through `android.permission.RECORD_AUDIO`.
+- Native permissions are declared in `apps/mobile/app.json`: iOS camera/photo descriptions, Android `android.permission.CAMERA` and `android.permission.READ_MEDIA_IMAGES`, Android `android.permission.ACCESS_COARSE_LOCATION` and `android.permission.ACCESS_FINE_LOCATION` (declared for the garden weather scene; see "Android Runtime Permission Rationale" under Google Play Data Safety for the per-permission justification), and Android microphone blocked through `android.permission.RECORD_AUDIO` in `blockedPermissions`.
 - Mobile source-photo selection lives in `apps/mobile/src/features/photoUpload/PhotoUploadScreen.tsx` and validates local JPEG, PNG, or WebP candidates before generation.
 - API-backed photo, generation, chat, purchase, restore, and privacy deletion request contracts live in `packages/shared/src/api/mobileContracts.ts` and `apps/mobile/src/shared/api/mobileApiClient.ts`.
 - API/worker provider secrets remain server-side by boundary in `docs/engineering/security-boundaries.md`; mobile code does not contain AI provider keys, storage credentials, payment verification secrets, or raw provider responses.
@@ -41,6 +41,18 @@ None required by the current repo. If production hosting, crash reporting, or an
 The current app does not request or collect location, contacts, calendars, microphone/audio, health/fitness, browsing history, search history, financial account details, payment card numbers, government IDs, or advertising identifiers.
 
 ## Google Play Data Safety
+
+### Android Runtime Permission Rationale
+
+Google Play review asks for a plain-language reason for each sensitive runtime permission declared in `apps/mobile/app.json`. Current answers:
+
+| Android permission | Rationale |
+| --- | --- |
+| `android.permission.CAMERA` | Captures a single pet source photo the user actively chooses to take, for avatar generation during onboarding or remake. |
+| `android.permission.READ_MEDIA_IMAGES` | Lets the user pick one existing pet photo from their gallery for onboarding or avatar remake. The uploaded photo is deleted from the server immediately after generation completes; the on-device copy stays under the user's own control and can be deleted by them at any time. |
+| `android.permission.RECORD_AUDIO` | Not used by the app; declared only because a dependency's manifest requests it. Blocked at build time via `expo.android.blockedPermissions`, so the installed app can never request microphone access. |
+| `android.permission.ACCESS_COARSE_LOCATION` | Used for a single approximate-location lookup to show local weather in the pet garden. Coordinates are rounded to one decimal place before use and are never stored or logged. |
+| `android.permission.ACCESS_FINE_LOCATION` | Declared automatically by the `expo-location` plugin's manifest merge, but the app's runtime request always asks for approximate accuracy only (`Location.Accuracy.Lowest`); precise location is never requested or used. Footnote: revisit whether this permission should be added to `expo.android.blockedPermissions` before the Android store submission. |
 
 ### Data Collection
 
@@ -81,5 +93,6 @@ Do not answer that data is shared for advertising, third-party marketing, or cro
 - Confirm provider processing terms for auth, storage, AI, store verification, hosting, and logging.
 - Confirm production database/object storage/log/backups encryption at rest before answering yes to Google Play encryption-at-rest wording.
 - Confirm privacy deletion workers, outbox delivery, retention purge, and alerting are deployed before public launch.
+- Revisit whether `android.permission.ACCESS_FINE_LOCATION` should be added to `expo.android.blockedPermissions` (see "Android Runtime Permission Rationale") before the Android store submission.
 - Keep the in-app Privacy screen copy aligned with the final hosted privacy policy.
 - Re-run `npm run validate:store-metadata-alignment` after changing native permissions, store listing copy, screenshot captions, purchase copy, or privacy/data-safety answers.
