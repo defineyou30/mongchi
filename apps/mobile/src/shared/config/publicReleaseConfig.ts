@@ -56,11 +56,19 @@ export const normalizeConfiguredEmail = (value: string | null | undefined): stri
   return trimmed;
 };
 
+// Production defaults for the public MongChi landing pages. These are public,
+// non-secret URLs, so baking them in is safe; EXPO_PUBLIC_TINY_PET_PRIVACY_URL /
+// EXPO_PUBLIC_TINY_PET_TERMS_URL still take priority when set.
+const DEFAULT_PRIVACY_POLICY_URL = "https://www.mongchi.app/privacy.html";
+const DEFAULT_TERMS_URL = "https://www.mongchi.app/terms.html";
+
 export const getPublicReleaseConfig = (): PublicReleaseConfig => ({
   privacyPolicyUrl: normalizeConfiguredUrl(
-    typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_PRIVACY_URL
+    (typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_PRIVACY_URL) || DEFAULT_PRIVACY_POLICY_URL
   ),
-  termsUrl: normalizeConfiguredUrl(typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_TERMS_URL),
+  termsUrl: normalizeConfiguredUrl(
+    (typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_TERMS_URL) || DEFAULT_TERMS_URL
+  ),
   supportEmail: normalizeConfiguredEmail(
     typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL
   )

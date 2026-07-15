@@ -3,6 +3,8 @@ import { router } from "expo-router";
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
+import { getActiveAppLocale } from "../../localization/config";
+import { buildLocalizedExternalUrl } from "../../shared/config/localizedExternalUrl";
 import { getPublicReleaseConfig } from "../../shared/config/publicReleaseConfig";
 import { colors, radii, spacing } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
@@ -59,7 +61,7 @@ export function PrivacyScreen() {
           disabled={!releaseConfig.privacyPolicyUrl}
           onPress={() => {
             if (releaseConfig.privacyPolicyUrl) {
-              void Linking.openURL(releaseConfig.privacyPolicyUrl);
+              void Linking.openURL(buildLocalizedExternalUrl(releaseConfig.privacyPolicyUrl, getActiveAppLocale()));
             }
           }}
         />
