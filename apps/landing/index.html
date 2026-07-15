@@ -1,26 +1,119 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-US">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
       data-i18n-content="description"
-      content="One photo becomes a tiny pixel friend in Mongchi. Care for them, share your day, and collect little memories in a cozy pocket garden."
+      content="Turn a favorite dog or cat photo into a pixel companion. Care, chat, play, and collect memories together. Chat replies are AI-generated."
     />
-    <meta property="og:title" content="Mongchi - Your pet, living in your phone" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://mongchi.app/" data-seo-canonical />
+    <link rel="alternate" hreflang="x-default" href="https://mongchi.app/" />
+    <link rel="alternate" hreflang="en-US" href="https://mongchi.app/" />
+    <link rel="alternate" hreflang="ko-KR" href="https://mongchi.app/?lang=ko-KR" />
+    <link rel="alternate" hreflang="ja-JP" href="https://mongchi.app/?lang=ja-JP" />
+    <link rel="alternate" hreflang="zh-TW" href="https://mongchi.app/?lang=zh-TW" />
+    <link rel="alternate" hreflang="de-DE" href="https://mongchi.app/?lang=de-DE" />
+    <link rel="alternate" hreflang="fr-FR" href="https://mongchi.app/?lang=fr-FR" />
+    <link rel="alternate" hreflang="pt-BR" href="https://mongchi.app/?lang=pt-BR" />
+    <link rel="alternate" hreflang="es-MX" href="https://mongchi.app/?lang=es-MX" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MongChi" />
+    <meta property="og:title" data-seo-title content="MongChi - Your Pet, Living in Your Phone" />
     <meta
       property="og:description"
-      content="Turn one favorite photo into a tiny friend who moves into a cozy pixel garden."
+      data-seo-description
+      content="Turn a favorite dog or cat photo into a pixel companion. Care, chat, play, and collect memories together. Chat replies are AI-generated."
     />
-    <meta property="og:image" content="/assets/campaign/01-your-pet-720.webp" />
+    <meta property="og:url" data-seo-url content="https://mongchi.app/" />
+    <meta property="og:image" content="https://mongchi.app/assets/social/mongchi-social-preview.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MongChi - Your pet, living in your phone" />
+    <meta property="og:locale" data-seo-locale content="en_US" />
+    <meta property="og:locale:alternate" content="ko_KR" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta property="og:locale:alternate" content="zh_TW" />
+    <meta property="og:locale:alternate" content="de_DE" />
+    <meta property="og:locale:alternate" content="fr_FR" />
+    <meta property="og:locale:alternate" content="pt_BR" />
+    <meta property="og:locale:alternate" content="es_MX" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" data-seo-title content="MongChi - Your Pet, Living in Your Phone" />
+    <meta
+      name="twitter:description"
+      data-seo-description
+      content="Turn a favorite dog or cat photo into a pixel companion. Care, chat, play, and collect memories together. Chat replies are AI-generated."
+    />
+    <meta name="twitter:image" content="https://mongchi.app/assets/social/mongchi-social-preview.png" />
+    <meta name="twitter:image:alt" content="MongChi - Your pet, living in your phone" />
     <meta name="theme-color" content="#9FDBFF" />
-    <title>Mongchi - Your pet, living in your phone</title>
+    <title>MongChi - Your Pet, Living in Your Phone</title>
+    <script>
+      (() => {
+        try {
+          const locale = (
+            new URLSearchParams(window.location.search).get("lang") ||
+            window.localStorage.getItem("mongchi.websiteLocale") ||
+            window.navigator.language ||
+            ""
+          ).toLowerCase();
+          const filename = locale.startsWith("ko")
+            ? "FusionPixel10Proportional-ko-subset.woff2"
+            : locale.startsWith("ja")
+              ? "FusionPixel10Proportional-ja-subset.woff2"
+              : locale.startsWith("zh")
+                ? "FusionPixel10Proportional-zh-TW-subset.woff2"
+                : "";
+          if (!filename) return;
+          const link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "font";
+          link.type = "font/woff2";
+          link.crossOrigin = "anonymous";
+          link.href = `/assets/fonts/${filename}`;
+          document.head.append(link);
+        } catch {
+          // The CSS fallback remains available when browser storage is unavailable.
+        }
+      })();
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://mongchi.app/#website",
+            "url": "https://mongchi.app/",
+            "name": "MongChi",
+            "alternateName": "몽치",
+            "inLanguage": ["en-US", "ko-KR", "ja-JP", "zh-TW", "de-DE", "fr-FR", "pt-BR", "es-MX"],
+            "publisher": { "@id": "https://mongchi.app/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://mongchi.app/#organization",
+            "name": "DefineYou",
+            "url": "https://mongchi.app/",
+            "email": "lucas@define-you.com",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://mongchi.app/assets/brand/app-icon.webp",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preload" href="/assets/brand/app-icon-128.webp" as="image" />
-    <link rel="preload" href="/assets/fonts/PixelifySans_700Bold.ttf" as="font" type="font/ttf" crossorigin />
-    <link rel="preload" href="/assets/fonts/Baloo2_700Bold.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/assets/fonts/PixelifySans_700Bold-subset.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/assets/fonts/Baloo2_700Bold-subset.woff2" as="font" type="font/woff2" crossorigin />
     <link
       rel="preload"
       href="/assets/backgrounds/v4-hero-garden.webp"
@@ -34,7 +127,7 @@
       href="/assets/screens/campaign-dog/home-720.webp"
       as="image"
       fetchpriority="high"
-      imagesrcset="/assets/screens/campaign-dog/home-360.webp 360w, /assets/screens/campaign-dog/home-720.webp 720w"
+      imagesrcset="/assets/screens/campaign-dog/home-360.webp 360w, /assets/screens/campaign-dog/home-540.webp 540w, /assets/screens/campaign-dog/home-720.webp 720w"
       imagesizes="(max-width: 760px) 58vw, 330px"
     />
     <link rel="stylesheet" href="/src/styles.css" />
@@ -42,10 +135,10 @@
   <body>
     <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
 
-    <header class="site-header" aria-label="Mongchi site header" data-i18n-attr="aria-label:a11y.header">
-      <a class="brand-mark" href="#home" aria-label="Mongchi home" data-i18n-attr="aria-label:a11y.home">
+    <header class="site-header" aria-label="MongChi site header" data-i18n-attr="aria-label:a11y.header">
+      <a class="brand-mark" href="#home" aria-label="MongChi home" data-i18n-attr="aria-label:a11y.home">
         <img src="/assets/brand/app-icon-128.webp" width="48" height="48" alt="" />
-        <span>Mongchi</span>
+        <span>MongChi</span>
       </a>
       <div class="header-actions">
         <nav class="site-nav" aria-label="Primary navigation" data-i18n-attr="aria-label:a11y.primaryNav">
@@ -85,24 +178,24 @@
             <p class="campaign-kicker" data-i18n="hero.kicker">One photo becomes a tiny friend.</p>
             <h1 id="hero-title" data-i18n-html="hero.title">Your pet,<br />living in your phone.</h1>
             <p class="hero-lead" data-i18n="hero.lead">
-              Turn one favorite photo into a tiny pixel companion who moves into a warm pocket garden.
+              Turn a favorite photo of your dog or cat into a tiny pixel companion to care for, chat with, and play with.
             </p>
             <div class="hero-actions">
-              <a class="pixel-button pixel-button--primary" href="#download" data-i18n="hero.primary">Join the garden</a>
+              <a class="pixel-button pixel-button--primary" href="#download" data-i18n="hero.primary">See availability</a>
               <a class="pixel-button pixel-button--cream" href="#photo" data-i18n="hero.secondary">See how it starts</a>
             </div>
             <p class="hero-release" data-i18n="hero.release">Coming soon on iOS and Android.</p>
           </div>
 
-          <div class="hero-visual" aria-label="Mongchi app preview" data-i18n-attr="aria-label:a11y.preview">
+          <div class="hero-visual" aria-label="MongChi app preview" data-i18n-attr="aria-label:a11y.preview">
             <div class="phone-chassis phone-chassis--hero">
               <img
                 src="/assets/screens/campaign-dog/home-720.webp"
-                srcset="/assets/screens/campaign-dog/home-360.webp 360w, /assets/screens/campaign-dog/home-720.webp 720w"
+                srcset="/assets/screens/campaign-dog/home-360.webp 360w, /assets/screens/campaign-dog/home-540.webp 540w, /assets/screens/campaign-dog/home-720.webp 720w"
                 sizes="(max-width: 760px) 58vw, 330px"
                 width="720"
                 height="1565"
-                alt="Mongchi home screen with golden retriever Mong in a bright garden and daily care actions"
+                alt="MongChi home screen with golden retriever Mong in a bright garden and daily care actions"
                 fetchpriority="high"
               />
             </div>
@@ -113,24 +206,24 @@
                 sizes="(max-width: 760px) 118px, 156px"
                 width="640"
                 height="640"
-                alt="Golden retriever puppy used to create the tiny friend"
+                alt="Golden retriever puppy used to create the pixel companion"
               />
-              <figcaption data-i18n="hero.photoCaption">One real photo</figcaption>
+              <figcaption data-i18n="hero.photoCaption">One cherished photo</figcaption>
             </figure>
             <span class="hero-arrow" aria-hidden="true">→</span>
           </div>
         </div>
       </section>
 
-      <div class="world-marquee" aria-label="Mongchi activities" data-i18n-attr="aria-label:a11y.activities">
-        <p data-i18n="marquee">MEET · CARE · CHAT · PLAY · REMEMBER · GROW CLOSER</p>
+      <div class="world-marquee" aria-label="MongChi activities" data-i18n-attr="aria-label:a11y.activities">
+        <p data-i18n="marquee">MEET · CARE · CHAT · PLAY · COLLECT MEMORIES · GROW CLOSER</p>
       </div>
 
       <section id="photo" class="transformation" aria-labelledby="photo-title">
         <div class="section-heading section-heading--center">
           <p class="campaign-kicker" data-i18n="photo.kicker">How it starts</p>
-          <h2 id="photo-title" data-i18n-html="photo.title">One favorite photo.<br />Their tiny self.</h2>
-          <p data-i18n="photo.lead">Pick a clear photo, meet their pixel version, then step into the garden together.</p>
+          <h2 id="photo-title" data-i18n-html="photo.title">One favorite photo.<br />One pixel companion.</h2>
+          <p data-i18n="photo.lead">Choose a clear photo, meet your new pixel companion, and start making memories together.</p>
         </div>
 
         <div class="transformation-stage">
@@ -154,18 +247,18 @@
           <div class="phone-chassis phone-chassis--reveal">
             <img
               src="/assets/screens/campaign-dog/reveal-720.webp"
-              srcset="/assets/screens/campaign-dog/reveal-360.webp 360w, /assets/screens/campaign-dog/reveal-720.webp 720w"
+              srcset="/assets/screens/campaign-dog/reveal-360.webp 360w, /assets/screens/campaign-dog/reveal-540.webp 540w, /assets/screens/campaign-dog/reveal-720.webp 720w"
               sizes="(max-width: 760px) 66vw, 286px"
               width="720"
               height="1565"
-              alt="Mongchi pet reveal screen welcoming golden retriever Mong into the garden"
+              alt="MongChi pet reveal screen welcoming golden retriever Mong into the garden"
               loading="lazy"
             />
           </div>
         </div>
 
         <p class="privacy-note">
-          <span data-i18n="photo.note">Your photo is used to create your tiny friend.</span>
+          <span data-i18n="photo.note">We use your photo to create your pixel companion.</span>
           <a href="/privacy.html" data-localized-link data-i18n="photo.policy">Read the Privacy Policy.</a>
         </p>
       </section>
@@ -174,13 +267,13 @@
         <div class="section-heading section-heading--light">
           <p class="campaign-kicker" data-i18n="care.kicker">A world that grows with you</p>
           <h2 id="care-title" data-i18n-html="care.title">Life together,<br />one tiny moment at a time.</h2>
-          <p data-i18n="care.lead">Real app screens, surrounded by the same handcrafted pixel world waiting inside.</p>
+          <p data-i18n="care.lead">Care for your companion, chat and play together, and collect memories in a cozy, handcrafted pixel world.</p>
         </div>
 
-        <div class="campaign-grid" aria-label="Mongchi feature stories" data-i18n-attr="aria-label:a11y.features">
+        <div class="campaign-grid" aria-label="MongChi feature stories" data-i18n-attr="aria-label:a11y.features">
           <figure class="campaign-card campaign-card--care">
-            <picture>
-              <source media="(max-width: 760px)" srcset="/assets/campaign/02-care-360.webp" />
+            <picture data-campaign-poster="02-care">
+              <source media="(max-width: 760px)" srcset="/assets/campaign/02-care-360.webp 360w, /assets/campaign/02-care-720.webp 720w" sizes="82vw" />
               <img
                 src="/assets/campaign/02-care-720.webp"
                 srcset="/assets/campaign/02-care-360.webp 360w, /assets/campaign/02-care-720.webp 720w"
@@ -194,8 +287,8 @@
           </figure>
 
           <figure class="campaign-card campaign-card--poses">
-            <picture>
-              <source media="(max-width: 760px)" srcset="/assets/campaign/03-poses-360.webp" />
+            <picture data-campaign-poster="03-poses">
+              <source media="(max-width: 760px)" srcset="/assets/campaign/03-poses-360.webp 360w, /assets/campaign/03-poses-720.webp 720w" sizes="82vw" />
               <img
                 src="/assets/campaign/03-poses-720.webp"
                 srcset="/assets/campaign/03-poses-360.webp 360w, /assets/campaign/03-poses-720.webp 720w"
@@ -209,8 +302,8 @@
           </figure>
 
           <figure class="campaign-card campaign-card--memory">
-            <picture>
-              <source media="(max-width: 760px)" srcset="/assets/campaign/05-memory-360.webp" />
+            <picture data-campaign-poster="05-memory">
+              <source media="(max-width: 760px)" srcset="/assets/campaign/05-memory-360.webp 360w, /assets/campaign/05-memory-720.webp 720w" sizes="82vw" />
               <img
                 src="/assets/campaign/05-memory-720.webp"
                 srcset="/assets/campaign/05-memory-360.webp 360w, /assets/campaign/05-memory-720.webp 720w"
@@ -224,8 +317,8 @@
           </figure>
 
           <figure class="campaign-card campaign-card--world">
-            <picture>
-              <source media="(max-width: 760px)" srcset="/assets/campaign/06-world-360.webp" />
+            <picture data-campaign-poster="06-world">
+              <source media="(max-width: 760px)" srcset="/assets/campaign/06-world-360.webp 360w, /assets/campaign/06-world-720.webp 720w" sizes="82vw" />
               <img
                 src="/assets/campaign/06-world-720.webp"
                 srcset="/assets/campaign/06-world-360.webp 360w, /assets/campaign/06-world-720.webp 720w"
@@ -239,32 +332,32 @@
           </figure>
         </div>
 
-        <div class="care-ribbon" role="list" aria-label="Mongchi principles" data-i18n-attr="aria-label:a11y.principles">
-          <div role="listitem"><strong data-i18n="care.gentleTitle">Gentle rhythm</strong><span data-i18n="care.gentleBody">No guilt if you miss a day.</span></div>
-          <div role="listitem"><strong data-i18n="care.chatTitle">Personality-shaped chat</strong><span data-i18n="care.chatBody">Warm AI conversations, clearly disclosed.</span></div>
-          <div role="listitem"><strong data-i18n="care.memoryTitle">Little memories</strong><span data-i18n="care.memoryBody">Walk finds, expressions, and letters over time.</span></div>
+        <div class="care-ribbon" role="list" aria-label="MongChi principles" data-i18n-attr="aria-label:a11y.principles">
+          <div role="listitem"><strong data-i18n="care.gentleTitle">Care at your pace</strong><span data-i18n="care.gentleBody">No guilt if you miss a day.</span></div>
+          <div role="listitem"><strong data-i18n="care.chatTitle">Chat with your companion</strong><span data-i18n="care.chatBody">Chat replies are generated by AI and shaped by your pet's profile.</span></div>
+          <div role="listitem"><strong data-i18n="care.memoryTitle">Little memories</strong><span data-i18n="care.memoryBody">Collect finds from walks, new expressions, and special letters over time.</span></div>
         </div>
       </section>
 
       <section id="download" class="download-world" aria-labelledby="download-title">
         <div class="download-copy">
-          <p class="campaign-kicker" data-i18n="download.kicker">The garden opens soon</p>
-          <h2 id="download-title" data-i18n="download.title">Bring their tiny world home.</h2>
-          <p data-i18n="download.lead">Built for quiet check-ins and the feeling of keeping a beloved friend close.</p>
+          <p class="campaign-kicker" data-i18n="download.kicker">MongChi is coming soon</p>
+          <h2 id="download-title" data-i18n="download.title">Keep your pixel companion close.</h2>
+          <p data-i18n="download.lead">Drop in for a little care, a chat, or playtime, and collect memories along the way.</p>
           <div class="store-actions" aria-label="Coming soon download options" data-i18n-attr="aria-label:a11y.storeOptions">
             <span class="store-button store-button--apple" aria-disabled="true">
-              <small data-i18n="download.coming">Coming soon on</small><strong>App Store</strong>
+              <small data-i18n="download.coming">Coming soon</small><strong>App Store</strong>
             </span>
             <span class="store-button store-button--play" aria-disabled="true">
-              <small data-i18n="download.coming">Coming soon on</small><strong>Google Play</strong>
+              <small data-i18n="download.coming">Coming soon</small><strong>Google Play</strong>
             </span>
           </div>
           <p class="download-meta" data-i18n="download.meta">Free to download · iOS and Android</p>
         </div>
 
         <figure class="download-poster">
-          <picture>
-            <source media="(max-width: 760px)" srcset="/assets/campaign/04-chat-360.webp" />
+          <picture data-campaign-poster="04-chat">
+            <source media="(max-width: 760px)" srcset="/assets/campaign/04-chat-360.webp 360w, /assets/campaign/04-chat-720.webp 720w" sizes="78vw" />
             <img
               src="/assets/campaign/04-chat-720.webp"
               srcset="/assets/campaign/04-chat-360.webp 360w, /assets/campaign/04-chat-720.webp 720w"
@@ -282,7 +375,7 @@
     <footer id="site-footer" class="site-footer">
       <div class="footer-main">
         <div class="footer-brand">
-          <p data-i18n="footer.tagline">Mongchi - Tiny Pet Terrarium</p>
+          <p data-i18n="footer.tagline">MongChi - Your Pet, Living in Your Phone</p>
           <a class="footer-support" href="mailto:lucas@define-you.com">
             <span data-i18n="footer.support">Support</span>: lucas@define-you.com
           </a>

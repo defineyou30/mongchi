@@ -147,6 +147,14 @@
     -webkit-text-stroke-width: 0.1875rem;
   }
 
+  html:lang(ko) .hero h1 {
+    font-size: clamp(2rem, 10vw, 3.5rem);
+  }
+
+  html:lang(ja) .hero h1 {
+    font-size: clamp(1.75rem, 9vw, 3.25rem);
+  }
+
   .hero-lead {
     max-width: 32rem;
     margin: 1.5rem auto 0;
