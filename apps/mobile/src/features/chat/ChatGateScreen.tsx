@@ -293,6 +293,13 @@ export function ChatGateScreen() {
   const allowanceChip = getChatAllowanceChipPresentation({
     hasPremiumChatEntitlement,
     dayPassActive: dayPassStillActive,
+    dayPassExpiresAt,
+    // Freshly computed on every render (not the frozen replyNow used by the
+    // greeting copy above) -- same rationale as dayPassStillActive's own
+    // Date.now() a few lines up: the remaining-time label should actually
+    // tick down across re-renders (screen re-entry, a new turn landing),
+    // not freeze at whatever it read on mount.
+    now: new Date().toISOString(),
     freeChatTickets: wallet.freeChatTickets,
     creditBalance,
     locale
@@ -1017,7 +1024,13 @@ const styles = StyleSheet.create({
   },
   allowanceChip: {
     minHeight: 36,
-    maxWidth: 122,
+    // Widened from 122 -- the shortened free-chat label still fits the old
+    // width, but the day-pass "remaining time" label (e.g. "데이 패스 · 12시간")
+    // needed a little more room to avoid the same numberOfLines=1 clipping
+    // that motivated shortening the free-chat copy in the first place.
+    // headerIdentity (the pet name) has flex:1/minWidth:0 and shrinks first,
+    // so this doesn't crowd the back/info buttons.
+    maxWidth: 140,
     borderRadius: radii.pill,
     borderWidth: 2,
     borderColor: colors.cream,

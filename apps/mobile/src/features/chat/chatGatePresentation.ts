@@ -75,6 +75,10 @@ export interface ChatAllowanceChipPresentationInput {
   readonly hasPremiumChatEntitlement: boolean;
   /** True while an active chat day pass (§ chat day pass BM decision) is covering turns for free -- outranks the ticket/credit chip the same way Plus does. */
   readonly dayPassActive?: boolean | undefined;
+  /** chat_access.day_pass_expires_at (ISO string), when known -- lets the chip show remaining time instead of a static "active" label. Missing/unparsable/already-past falls back to the static label. */
+  readonly dayPassExpiresAt?: string | null | undefined;
+  /** Injected "now" for deterministic remaining-time math -- this function never calls `new Date()` with no arguments, so callers own supplying the current time (see chatGatePresentation.test.ts's isoAtLocalHour pattern). */
+  readonly now?: string | undefined;
   readonly freeChatTickets: number;
   readonly creditBalance: number;
   readonly locale?: AppLocale | undefined;
@@ -85,9 +89,90 @@ export interface ChatAllowanceChipPresentation {
   readonly accessibilityLabel: string;
 }
 
+const dayPassAllowanceOneHourMs = 60 * 60 * 1000;
+
+/**
+ * Chat day passes are a 24h rolling window (chat_access.day_pass_expires_at,
+ * 0018_chat_day_pass.sql), so a static "Day Pass active" label loses the one
+ * thing that actually changes moment to moment: how long is left. Returns
+ * null (caller falls back to the static label) when expiresAt is missing,
+ * unparsable, or already in the past -- the same "never revive a lapsed
+ * pass" rule ChatGateScreen's dayPassStillActive already applies before this
+ * is ever reached.
+ */
+const getDayPassRemainingChipPresentation = (
+  dayPassExpiresAt: string | null,
+  now: string,
+  locale: AppLocale
+): ChatAllowanceChipPresentation | null => {
+  if (!dayPassExpiresAt) {
+    return null;
+  }
+
+  const remainingMs = new Date(dayPassExpiresAt).getTime() - new Date(now).getTime();
+
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+    return null;
+  }
+
+  if (remainingMs >= dayPassAllowanceOneHourMs) {
+    const hours = Math.floor(remainingMs / dayPassAllowanceOneHourMs);
+
+    return {
+      label: getLocalizedText(locale, {
+        "en-US": `Day Pass · ${hours}h`,
+        "ko-KR": `데이 패스 · ${hours}시간`,
+        "ja-JP": `デイパス · あと${hours}時間`,
+        "zh-TW": `日間通行證 · 剩 ${hours} 小時`,
+        "de-DE": `Day Pass · ${hours} Std.`,
+        "fr-FR": `Day Pass · ${hours} h`,
+        "pt-BR": `Day Pass · ${hours}h`,
+        "es-MX": `Day Pass · ${hours}h`
+      }),
+      accessibilityLabel: getLocalizedText(locale, {
+        "en-US": `Chat day pass is active — chat as much as you'd like today. About ${hours} hour${hours === 1 ? "" : "s"} left.`,
+        "ko-KR": `데이 패스가 활성화되어 있어요 — 오늘 하루 종일 이야기할 수 있어요. 약 ${hours}시간 남았어요.`,
+        "ja-JP": `デイパスが有効です — 今日は好きなだけおしゃべりできます。あと約${hours}時間です。`,
+        "zh-TW": `日間通行證已啟用 — 今天可以盡情聊天。還剩約 ${hours} 小時。`,
+        "de-DE": `Der Chat-Day-Pass ist aktiv — heute kannst du so viel plaudern, wie du möchtest. Noch etwa ${hours} Stunde${hours === 1 ? "" : "n"}.`,
+        "fr-FR": `Le Day Pass de discussion est actif — discutez autant que vous voulez aujourd’hui. Environ ${hours} heure${hours === 1 ? "" : "s"} restante${hours === 1 ? "" : "s"}.`,
+        "pt-BR": `O Day Pass de chat está ativo — converse à vontade hoje. Cerca de ${hours} hora${hours === 1 ? "" : "s"} restante${hours === 1 ? "" : "s"}.`,
+        "es-MX": `El Day Pass de chat está activo — platica todo lo que quieras hoy. Quedan aproximadamente ${hours} hora${hours === 1 ? "" : "s"}.`
+      })
+    };
+  }
+
+  const minutes = Math.max(1, Math.floor(remainingMs / (60 * 1000)));
+
+  return {
+    label: getLocalizedText(locale, {
+      "en-US": `Day Pass · ${minutes}m`,
+      "ko-KR": `데이 패스 · ${minutes}분`,
+      "ja-JP": `デイパス · あと${minutes}分`,
+      "zh-TW": `日間通行證 · 剩 ${minutes} 分`,
+      "de-DE": `Day Pass · ${minutes} Min.`,
+      "fr-FR": `Day Pass · ${minutes} min`,
+      "pt-BR": `Day Pass · ${minutes}min`,
+      "es-MX": `Day Pass · ${minutes}min`
+    }),
+    accessibilityLabel: getLocalizedText(locale, {
+      "en-US": `Chat day pass is active — chat as much as you'd like today. About ${minutes} minute${minutes === 1 ? "" : "s"} left.`,
+      "ko-KR": `데이 패스가 활성화되어 있어요 — 오늘 하루 종일 이야기할 수 있어요. 약 ${minutes}분 남았어요.`,
+      "ja-JP": `デイパスが有効です — 今日は好きなだけおしゃべりできます。あと約${minutes}分です。`,
+      "zh-TW": `日間通行證已啟用 — 今天可以盡情聊天。還剩約 ${minutes} 分鐘。`,
+      "de-DE": `Der Chat-Day-Pass ist aktiv — heute kannst du so viel plaudern, wie du möchtest. Noch etwa ${minutes} Minute${minutes === 1 ? "" : "n"}.`,
+      "fr-FR": `Le Day Pass de discussion est actif — discutez autant que vous voulez aujourd’hui. Environ ${minutes} minute${minutes === 1 ? "" : "s"} restante${minutes === 1 ? "" : "s"}.`,
+      "pt-BR": `O Day Pass de chat está ativo — converse à vontade hoje. Cerca de ${minutes} minuto${minutes === 1 ? "" : "s"} restante${minutes === 1 ? "" : "s"}.`,
+      "es-MX": `El Day Pass de chat está activo — platica todo lo que quieras hoy. Quedan aproximadamente ${minutes} minuto${minutes === 1 ? "" : "s"}.`
+    })
+  };
+};
+
 export const getChatAllowanceChipPresentation = ({
   hasPremiumChatEntitlement,
   dayPassActive = false,
+  dayPassExpiresAt = null,
+  now = "2026-06-24T09:00:00.000Z",
   freeChatTickets,
   creditBalance,
   locale = "en-US"
@@ -118,6 +203,12 @@ export const getChatAllowanceChipPresentation = ({
   }
 
   if (dayPassActive) {
+    const remainingChip = getDayPassRemainingChipPresentation(dayPassExpiresAt, now, locale);
+
+    if (remainingChip) {
+      return remainingChip;
+    }
+
     return {
       label: getLocalizedText(locale, {
         "en-US": "Day Pass active",
@@ -148,13 +239,13 @@ export const getChatAllowanceChipPresentation = ({
     return {
       label: getLocalizedText(locale, {
         "en-US": `${chats} chat${chats === 1 ? "" : "s"} left`,
-        "ko-KR": `무료 대화 ${chats}회 남음`,
-        "ja-JP": `無料チャット残り${chats}回`,
-        "zh-TW": `剩餘 ${chats} 次免費聊天`,
-        "de-DE": `${chats} Gratis-Chat${chats === 1 ? "" : "s"} übrig`,
-        "fr-FR": `${chats} discussion${chats === 1 ? "" : "s"} gratuite${chats === 1 ? "" : "s"} restante${chats === 1 ? "" : "s"}`,
-        "pt-BR": `${chats} conversa${chats === 1 ? "" : "s"} grátis restante${chats === 1 ? "" : "s"}`,
-        "es-MX": `${chats} charla${chats === 1 ? "" : "s"} gratis restante${chats === 1 ? "" : "s"}`
+        "ko-KR": `무료 대화 ${chats}회`,
+        "ja-JP": `無料あと${chats}回`,
+        "zh-TW": `免費聊天 ${chats} 次`,
+        "de-DE": `${chats} Gratis-Chat${chats === 1 ? "" : "s"}`,
+        "fr-FR": `${chats} discussion${chats === 1 ? "" : "s"} gratuite${chats === 1 ? "" : "s"}`,
+        "pt-BR": `${chats} conversa${chats === 1 ? "" : "s"} grátis`,
+        "es-MX": `${chats} charla${chats === 1 ? "" : "s"} gratis`
       }),
       accessibilityLabel: getLocalizedText(locale, {
         "en-US": `${chats} free chat${chats === 1 ? "" : "s"} remaining`,

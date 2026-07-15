@@ -32,7 +32,7 @@ describe("chat allowance chip", () => {
     });
   });
 
-  it("localizes the allowance summary for Korean", () => {
+  it("localizes the allowance summary for Korean with a chip-width-safe shortened label", () => {
     expect(
       getChatAllowanceChipPresentation({
         hasPremiumChatEntitlement: false,
@@ -41,7 +41,7 @@ describe("chat allowance chip", () => {
         locale: "ko-KR"
       })
     ).toEqual({
-      label: "무료 대화 2회 남음",
+      label: "무료 대화 2회",
       accessibilityLabel: "오늘 무료 대화가 2회 남았어요"
     });
   });
@@ -90,6 +90,90 @@ describe("chat allowance chip", () => {
     ).toEqual({
       label: "Plus · Included",
       accessibilityLabel: "Plus chat is included"
+    });
+  });
+
+  it("shows hours remaining on an active day pass when expiresAt is known", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        dayPassExpiresAt: "2026-06-24T14:00:00.000Z",
+        now: "2026-06-24T09:00:00.000Z",
+        freeChatTickets: 0,
+        creditBalance: 0,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      label: "데이 패스 · 5시간",
+      accessibilityLabel: "데이 패스가 활성화되어 있어요 — 오늘 하루 종일 이야기할 수 있어요. 약 5시간 남았어요."
+    });
+  });
+
+  it("shows minutes remaining once under an hour is left on an active day pass", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        dayPassExpiresAt: "2026-06-24T09:40:00.000Z",
+        now: "2026-06-24T09:00:00.000Z",
+        freeChatTickets: 0,
+        creditBalance: 0,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      label: "데이 패스 · 40분",
+      accessibilityLabel: "데이 패스가 활성화되어 있어요 — 오늘 하루 종일 이야기할 수 있어요. 약 40분 남았어요."
+    });
+  });
+
+  it("falls back to the static active label when expiresAt is missing", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        dayPassExpiresAt: null,
+        now: "2026-06-24T09:00:00.000Z",
+        freeChatTickets: 0,
+        creditBalance: 0,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      label: "데이 패스 이용 중",
+      accessibilityLabel: "데이 패스가 활성화되어 있어요 — 오늘은 마음껏 이야기할 수 있어요"
+    });
+  });
+
+  it("falls back to the static active label when expiresAt has already lapsed", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        dayPassExpiresAt: "2026-06-24T08:00:00.000Z",
+        now: "2026-06-24T09:00:00.000Z",
+        freeChatTickets: 0,
+        creditBalance: 0,
+        locale: "ko-KR"
+      })
+    ).toEqual({
+      label: "데이 패스 이용 중",
+      accessibilityLabel: "데이 패스가 활성화되어 있어요 — 오늘은 마음껏 이야기할 수 있어요"
+    });
+  });
+
+  it("shows hours remaining on an active day pass in English", () => {
+    expect(
+      getChatAllowanceChipPresentation({
+        hasPremiumChatEntitlement: false,
+        dayPassActive: true,
+        dayPassExpiresAt: "2026-06-24T14:00:00.000Z",
+        now: "2026-06-24T09:00:00.000Z",
+        freeChatTickets: 0,
+        creditBalance: 0
+      })
+    ).toEqual({
+      label: "Day Pass · 5h",
+      accessibilityLabel: "Chat day pass is active — chat as much as you'd like today. About 5 hours left."
     });
   });
 });
@@ -590,7 +674,7 @@ describe("chat gate presentation", () => {
         locale: "ja-JP"
       })
     ).toEqual({
-      label: "無料チャット残り2回",
+      label: "無料あと2回",
       accessibilityLabel: "今日の無料チャットはあと2回です"
     });
     expect(
