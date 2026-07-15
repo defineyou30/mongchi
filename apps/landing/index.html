@@ -5,249 +5,315 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Mongchi is a cozy tiny pet terrarium app where a small friend grows from one photo into your pocket garden."
+      data-i18n-content="description"
+      content="One photo becomes a tiny pixel friend in Mongchi. Care for them, share your day, and collect little memories in a cozy pocket garden."
     />
-    <meta property="og:title" content="Mongchi - Tiny Pet Terrarium" />
+    <meta property="og:title" content="Mongchi - Your pet, living in your phone" />
     <meta
       property="og:description"
-      content="Raise a tiny friend from one photo. Care, chat, and relax in your pocket garden."
+      content="Turn one favorite photo into a tiny friend who moves into a cozy pixel garden."
     />
-    <meta property="og:image" content="/assets/brand/app-logo-v1-128.webp" />
+    <meta property="og:image" content="/assets/campaign/01-your-pet-720.webp" />
     <meta name="theme-color" content="#9FDBFF" />
-    <title>Mongchi - Tiny Pet Terrarium</title>
-    <link rel="icon" href="/assets/brand/app-logo-v1-128.webp" type="image/webp" />
-    <link rel="preload" href="/assets/brand/app-logo-v1-128.webp" as="image" fetchpriority="high" />
-    <link rel="preload" href="/assets/brand/app-logo-v1.webp" as="image" fetchpriority="high" />
+    <title>Mongchi - Your pet, living in your phone</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preload" href="/assets/brand/app-icon-128.webp" as="image" />
     <link rel="preload" href="/assets/fonts/PixelifySans_700Bold.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="/assets/fonts/Baloo2_700Bold.ttf" as="font" type="font/ttf" crossorigin />
-    <link rel="preload" href="/assets/backgrounds/home-garden-premium-v2-portrait.webp" as="image" fetchpriority="high" />
+    <link
+      rel="preload"
+      href="/assets/backgrounds/v4-hero-garden.webp"
+      as="image"
+      fetchpriority="high"
+      imagesrcset="/assets/backgrounds/v4-hero-garden-836.webp 836w, /assets/backgrounds/v4-hero-garden.webp 1672w"
+      imagesizes="100vw"
+    />
+    <link
+      rel="preload"
+      href="/assets/screens/campaign-dog/home-720.webp"
+      as="image"
+      fetchpriority="high"
+      imagesrcset="/assets/screens/campaign-dog/home-360.webp 360w, /assets/screens/campaign-dog/home-720.webp 720w"
+      imagesizes="(max-width: 760px) 58vw, 330px"
+    />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <a class="skip-link" href="#main">Skip to content</a>
-    <header class="site-header" aria-label="Mongchi site header">
-      <a class="brand-mark" href="#" aria-label="Mongchi home">
-        <img src="/assets/brand/app-logo-v1-128.webp" width="48" height="48" alt="" />
+    <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+    <header class="site-header" aria-label="Mongchi site header" data-i18n-attr="aria-label:a11y.header">
+      <a class="brand-mark" href="#home" aria-label="Mongchi home" data-i18n-attr="aria-label:a11y.home">
+        <img src="/assets/brand/app-icon-128.webp" width="48" height="48" alt="" />
         <span>Mongchi</span>
       </a>
-      <nav class="site-nav" aria-label="Primary navigation">
-        <a href="#about">What is Mongchi?</a>
-        <a href="#play">How to Play</a>
-        <a href="#garden">Garden</a>
-        <a href="#download">Download</a>
-      </nav>
+      <div class="header-actions">
+        <nav class="site-nav" aria-label="Primary navigation" data-i18n-attr="aria-label:a11y.primaryNav">
+          <a href="#photo" data-i18n="nav.start">How it starts</a>
+          <a href="#care" data-i18n="nav.life">Life together</a>
+          <a href="#download" data-i18n="nav.download">Download</a>
+        </nav>
+        <details class="language-menu language-menu--header" data-language-menu>
+          <summary aria-label="Website language" data-i18n-attr="aria-label:a11y.language">
+            <span class="language-menu__icon" aria-hidden="true">A</span>
+            <span class="language-menu__current" data-language-current>English</span>
+            <span class="language-menu__current-short" data-language-current-short>EN</span>
+            <span class="language-menu__chevron" aria-hidden="true"></span>
+          </summary>
+          <div class="language-menu__panel" role="listbox" aria-label="Website language" data-language-options data-i18n-attr="aria-label:a11y.language"></div>
+        </details>
+      </div>
     </header>
 
     <main id="main">
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-copy">
-          <p class="eyebrow">Tiny Pet Terrarium</p>
-          <h1 id="hero-title">Mongchi</h1>
-          <p class="hero-subtitle">
-            Raise a tiny friend from one photo. Care, chat, and relax in your pocket garden.
-          </p>
-          <div class="store-actions" aria-label="Download options">
-            <a class="store-button store-button-primary" href="#download">
-              <span>Coming soon on</span>
-              <strong>App Store</strong>
-            </a>
-            <a class="store-button" href="#download">
-              <span>Coming soon on</span>
-              <strong>Google Play</strong>
-            </a>
-          </div>
-        </div>
-
-        <div class="hero-scene" aria-label="Mongchi garden preview">
+      <section id="home" class="hero" aria-labelledby="hero-title">
+        <picture class="hero-backdrop" aria-hidden="true">
+          <source media="(max-width: 760px)" srcset="/assets/backgrounds/v4-hero-garden-836.webp" />
           <img
-            class="hero-garden"
-            src="/assets/backgrounds/home-garden-premium-v2-portrait.webp"
-            srcset="
-              /assets/backgrounds/home-garden-premium-v2-portrait-360.webp 360w,
-              /assets/backgrounds/home-garden-premium-v2-portrait.webp 720w
-            "
-            sizes="(max-width: 620px) 263px, (max-width: 920px) 600px, 520px"
-            width="720"
-            height="960"
+            src="/assets/backgrounds/v4-hero-garden.webp"
+            srcset="/assets/backgrounds/v4-hero-garden-836.webp 836w, /assets/backgrounds/v4-hero-garden.webp 1672w"
+            sizes="100vw"
+            width="1672"
+            height="941"
             alt=""
             fetchpriority="high"
           />
-          <img class="hero-logo" src="/assets/brand/app-logo-v1.webp" width="256" height="256" alt="" fetchpriority="high" />
-          <img
-            class="hero-pet"
-            src="/assets/pets/miso-happy.webp"
-            width="256"
-            height="256"
-            alt="Miso smiling in the garden"
-            fetchpriority="high"
-          />
-          <div class="phone-frame" aria-label="Mongchi app terrarium screen">
-            <img
-              src="/assets/screens/terrarium-phone.webp"
-              srcset="/assets/screens/terrarium-phone-180.webp 180w, /assets/screens/terrarium-phone.webp 360w"
-              sizes="(max-width: 620px) 136px, 260px"
-              width="360"
-              height="783"
-              alt="Mongchi terrarium screen with Miso in a garden"
-            />
+        </picture>
+
+        <div class="hero-layout">
+          <div class="hero-copy">
+            <p class="campaign-kicker" data-i18n="hero.kicker">One photo becomes a tiny friend.</p>
+            <h1 id="hero-title" data-i18n-html="hero.title">Your pet,<br />living in your phone.</h1>
+            <p class="hero-lead" data-i18n="hero.lead">
+              Turn one favorite photo into a tiny pixel companion who moves into a warm pocket garden.
+            </p>
+            <div class="hero-actions">
+              <a class="pixel-button pixel-button--primary" href="#download" data-i18n="hero.primary">Join the garden</a>
+              <a class="pixel-button pixel-button--cream" href="#photo" data-i18n="hero.secondary">See how it starts</a>
+            </div>
+            <p class="hero-release" data-i18n="hero.release">Coming soon on iOS and Android.</p>
+          </div>
+
+          <div class="hero-visual" aria-label="Mongchi app preview" data-i18n-attr="aria-label:a11y.preview">
+            <div class="phone-chassis phone-chassis--hero">
+              <img
+                src="/assets/screens/campaign-dog/home-720.webp"
+                srcset="/assets/screens/campaign-dog/home-360.webp 360w, /assets/screens/campaign-dog/home-720.webp 720w"
+                sizes="(max-width: 760px) 58vw, 330px"
+                width="720"
+                height="1565"
+                alt="Mongchi home screen with golden retriever Mong in a bright garden and daily care actions"
+                fetchpriority="high"
+              />
+            </div>
+            <figure class="hero-photo">
+              <img
+                src="/assets/campaign/source-pet-320.webp"
+                srcset="/assets/campaign/source-pet-320.webp 320w, /assets/campaign/source-pet-640.webp 640w"
+                sizes="(max-width: 760px) 118px, 156px"
+                width="640"
+                height="640"
+                alt="Golden retriever puppy used to create the tiny friend"
+              />
+              <figcaption data-i18n="hero.photoCaption">One real photo</figcaption>
+            </figure>
+            <span class="hero-arrow" aria-hidden="true">→</span>
           </div>
         </div>
       </section>
 
-      <section id="about" class="about-section" aria-labelledby="about-title">
-        <div class="about-art">
-          <img src="/assets/pets/miso-chat-portrait.webp" width="220" height="220" alt="Miso portrait" />
-          <p>Miso saved one small hello for when you returned.</p>
+      <div class="world-marquee" aria-label="Mongchi activities" data-i18n-attr="aria-label:a11y.activities">
+        <p data-i18n="marquee">MEET · CARE · CHAT · PLAY · REMEMBER · GROW CLOSER</p>
+      </div>
+
+      <section id="photo" class="transformation" aria-labelledby="photo-title">
+        <div class="section-heading section-heading--center">
+          <p class="campaign-kicker" data-i18n="photo.kicker">How it starts</p>
+          <h2 id="photo-title" data-i18n-html="photo.title">One favorite photo.<br />Their tiny self.</h2>
+          <p data-i18n="photo.lead">Pick a clear photo, meet their pixel version, then step into the garden together.</p>
         </div>
-        <div class="section-copy">
-          <p class="eyebrow">What is Mongchi?</p>
-          <h2 id="about-title">A little pet world that waits gently in your pocket.</h2>
-          <p>
-            Add one favorite photo, meet a tiny companion, and check in whenever you need a quiet break.
-            Mongchi turns care, short chats, walks, and small garden gifts into a soft daily ritual.
-          </p>
+
+        <div class="transformation-stage">
+          <figure class="source-photo-card">
+            <img
+              src="/assets/campaign/source-pet-320.webp"
+              srcset="/assets/campaign/source-pet-320.webp 320w, /assets/campaign/source-pet-640.webp 640w"
+              sizes="(max-width: 760px) 62vw, 260px"
+              width="640"
+              height="640"
+              alt="Golden retriever puppy source photo"
+              loading="lazy"
+            />
+            <figcaption data-i18n="photo.caption">Your favorite photo</figcaption>
+          </figure>
+
+          <div class="pixel-transform" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><b>→</b>
+          </div>
+
+          <div class="phone-chassis phone-chassis--reveal">
+            <img
+              src="/assets/screens/campaign-dog/reveal-720.webp"
+              srcset="/assets/screens/campaign-dog/reveal-360.webp 360w, /assets/screens/campaign-dog/reveal-720.webp 720w"
+              sizes="(max-width: 760px) 66vw, 286px"
+              width="720"
+              height="1565"
+              alt="Mongchi pet reveal screen welcoming golden retriever Mong into the garden"
+              loading="lazy"
+            />
+          </div>
+        </div>
+
+        <p class="privacy-note">
+          <span data-i18n="photo.note">Your photo is used to create your tiny friend.</span>
+          <a href="/privacy.html" data-localized-link data-i18n="photo.policy">Read the Privacy Policy.</a>
+        </p>
+      </section>
+
+      <section id="care" class="campaign-world" aria-labelledby="care-title">
+        <div class="section-heading section-heading--light">
+          <p class="campaign-kicker" data-i18n="care.kicker">A world that grows with you</p>
+          <h2 id="care-title" data-i18n-html="care.title">Life together,<br />one tiny moment at a time.</h2>
+          <p data-i18n="care.lead">Real app screens, surrounded by the same handcrafted pixel world waiting inside.</p>
+        </div>
+
+        <div class="campaign-grid" aria-label="Mongchi feature stories" data-i18n-attr="aria-label:a11y.features">
+          <figure class="campaign-card campaign-card--care">
+            <picture>
+              <source media="(max-width: 760px)" srcset="/assets/campaign/02-care-360.webp" />
+              <img
+                src="/assets/campaign/02-care-720.webp"
+                srcset="/assets/campaign/02-care-360.webp 360w, /assets/campaign/02-care-720.webp 720w"
+                sizes="(max-width: 760px) 82vw, 31vw"
+                width="720"
+                height="1564"
+                alt="Care in little moments: feed, play, rest, and grow closer"
+                loading="lazy"
+              />
+            </picture>
+          </figure>
+
+          <figure class="campaign-card campaign-card--poses">
+            <picture>
+              <source media="(max-width: 760px)" srcset="/assets/campaign/03-poses-360.webp" />
+              <img
+                src="/assets/campaign/03-poses-720.webp"
+                srcset="/assets/campaign/03-poses-360.webp 360w, /assets/campaign/03-poses-720.webp 720w"
+                sizes="(max-width: 760px) 82vw, 31vw"
+                width="720"
+                height="1564"
+                alt="Meet every side of them: unlock expressions and share their tiny world"
+                loading="lazy"
+              />
+            </picture>
+          </figure>
+
+          <figure class="campaign-card campaign-card--memory">
+            <picture>
+              <source media="(max-width: 760px)" srcset="/assets/campaign/05-memory-360.webp" />
+              <img
+                src="/assets/campaign/05-memory-720.webp"
+                srcset="/assets/campaign/05-memory-360.webp 360w, /assets/campaign/05-memory-720.webp 720w"
+                sizes="(max-width: 760px) 82vw, 31vw"
+                width="720"
+                height="1564"
+                alt="Every day becomes a memory: shared moments and a letter worth waiting for"
+                loading="lazy"
+              />
+            </picture>
+          </figure>
+
+          <figure class="campaign-card campaign-card--world">
+            <picture>
+              <source media="(max-width: 760px)" srcset="/assets/campaign/06-world-360.webp" />
+              <img
+                src="/assets/campaign/06-world-720.webp"
+                srcset="/assets/campaign/06-world-360.webp 360w, /assets/campaign/06-world-720.webp 720w"
+                sizes="(max-width: 760px) 82vw, 46vw"
+                width="720"
+                height="1564"
+                alt="A cozy world of their own with treats, toys, soft beds, poses, and themes"
+                loading="lazy"
+              />
+            </picture>
+          </figure>
+        </div>
+
+        <div class="care-ribbon" role="list" aria-label="Mongchi principles" data-i18n-attr="aria-label:a11y.principles">
+          <div role="listitem"><strong data-i18n="care.gentleTitle">Gentle rhythm</strong><span data-i18n="care.gentleBody">No guilt if you miss a day.</span></div>
+          <div role="listitem"><strong data-i18n="care.chatTitle">Personality-shaped chat</strong><span data-i18n="care.chatBody">Warm AI conversations, clearly disclosed.</span></div>
+          <div role="listitem"><strong data-i18n="care.memoryTitle">Little memories</strong><span data-i18n="care.memoryBody">Walk finds, expressions, and letters over time.</span></div>
         </div>
       </section>
 
-      <section id="play" class="play-section" aria-labelledby="play-title">
-        <div class="section-heading">
-          <p class="eyebrow">How to Play</p>
-          <h2 id="play-title">Four tiny steps, no pressure.</h2>
-        </div>
-        <div class="play-grid">
-          <article class="play-card">
-            <img src="/assets/brand/app-logo-v1-128.webp" width="96" height="96" alt="" />
-            <h3>Add a Photo</h3>
-            <p>Start from one picture of the pet you love.</p>
-          </article>
-          <article class="play-card">
-            <img src="/assets/pets/miso-idle.webp" width="96" height="96" alt="" />
-            <h3>Meet Mongchi</h3>
-            <p>A small companion moves into the garden.</p>
-          </article>
-          <article class="play-card">
-            <img src="/assets/buttons/feed.webp" width="96" height="96" alt="" />
-            <h3>Care a Little</h3>
-            <p>Feed, play, water, walk, and say hello.</p>
-          </article>
-          <article class="play-card">
-            <img src="/assets/items/flower-pot.webp" width="96" height="96" alt="" />
-            <h3>Grow the Garden</h3>
-            <p>Collect gifts and make the pocket world yours.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="garden" class="garden-section" aria-labelledby="garden-title">
-        <div class="section-heading">
-          <p class="eyebrow">Pocket Garden</p>
-          <h2 id="garden-title">The app mood, right on the page.</h2>
-        </div>
-
-        <div class="feature-band feature-band-left">
-          <div class="feature-copy">
-            <img src="/assets/brand/app-logo-v1-128.webp" width="64" height="64" alt="" />
-            <h3>From photo to friend</h3>
-            <p>Keep the first moment visible: photo pass, hatching, reveal, and a friend entering the terrarium.</p>
+      <section id="download" class="download-world" aria-labelledby="download-title">
+        <div class="download-copy">
+          <p class="campaign-kicker" data-i18n="download.kicker">The garden opens soon</p>
+          <h2 id="download-title" data-i18n="download.title">Bring their tiny world home.</h2>
+          <p data-i18n="download.lead">Built for quiet check-ins and the feeling of keeping a beloved friend close.</p>
+          <div class="store-actions" aria-label="Coming soon download options" data-i18n-attr="aria-label:a11y.storeOptions">
+            <span class="store-button store-button--apple" aria-disabled="true">
+              <small data-i18n="download.coming">Coming soon on</small><strong>App Store</strong>
+            </span>
+            <span class="store-button store-button--play" aria-disabled="true">
+              <small data-i18n="download.coming">Coming soon on</small><strong>Google Play</strong>
+            </span>
           </div>
-          <div class="screen-pair">
+          <p class="download-meta" data-i18n="download.meta">Free to download · iOS and Android</p>
+        </div>
+
+        <figure class="download-poster">
+          <picture>
+            <source media="(max-width: 760px)" srcset="/assets/campaign/04-chat-360.webp" />
             <img
-              src="/assets/screens/photo-upload-card.webp"
-              srcset="/assets/screens/photo-upload-card-320.webp 320w, /assets/screens/photo-upload-card.webp 480w"
-              sizes="(max-width: 620px) 300px, (max-width: 920px) 346px, 300px"
-              width="480"
-              height="720"
-              alt="Mongchi photo upload screen"
-             
+              src="/assets/campaign/04-chat-720.webp"
+              srcset="/assets/campaign/04-chat-360.webp 360w, /assets/campaign/04-chat-720.webp 720w"
+              sizes="(max-width: 760px) 78vw, 390px"
+              width="720"
+              height="1564"
+              alt="Tell them about your day in a warm personality-shaped chat"
+              loading="lazy"
             />
-            <img
-              src="/assets/screens/pet-reveal-card.webp"
-              srcset="/assets/screens/pet-reveal-card-320.webp 320w, /assets/screens/pet-reveal-card.webp 480w"
-              sizes="(max-width: 920px) 346px, 300px"
-              width="480"
-              height="720"
-              alt="Mongchi pet reveal screen"
-             
-            />
-          </div>
-        </div>
-
-        <div class="feature-band feature-band-right">
-          <div class="feature-copy">
-            <img src="/assets/buttons/affection.webp" width="64" height="64" alt="" />
-            <h3>Care that feels soft</h3>
-            <p>Chunky pixel buttons and short speech make the loop feel like a handheld toy, not a task list.</p>
-          </div>
-          <div class="screen-pair">
-            <img
-              src="/assets/screens/terrarium-card.webp"
-              srcset="/assets/screens/terrarium-card-320.webp 320w, /assets/screens/terrarium-card.webp 480w"
-              sizes="(max-width: 620px) 300px, (max-width: 920px) 346px, 300px"
-              width="480"
-              height="720"
-              alt="Mongchi garden care screen"
-            />
-            <img
-              src="/assets/screens/chat-card.webp"
-              srcset="/assets/screens/chat-card-320.webp 320w, /assets/screens/chat-card.webp 480w"
-              sizes="(max-width: 920px) 346px, 300px"
-              width="480"
-              height="720"
-              alt="Mongchi chat screen"
-            />
-          </div>
-        </div>
-
-        <div class="shop-strip">
-          <img
-            src="/assets/backgrounds/shop-market-premium-v1-square.webp"
-            srcset="
-              /assets/backgrounds/shop-market-premium-v1-square-320.webp 320w,
-              /assets/backgrounds/shop-market-premium-v1-square.webp 560w
-            "
-            sizes="(max-width: 620px) 296px, 240px"
-            width="560"
-            height="560"
-            alt=""
-          />
-          <div>
-            <p class="eyebrow">Garden Shelf</p>
-            <h3>Collect treats, themes, and little reasons to come back.</h3>
-            <p>The shop stays playful and compact, like a shelf inside the garden rather than a storefront.</p>
-          </div>
-          <img src="/assets/items/gift-box.webp" width="112" height="112" alt="" />
-        </div>
-      </section>
-
-      <section id="download" class="download-section" aria-labelledby="download-title">
-        <div class="download-card">
-          <img src="/assets/brand/app-logo-v1-128.webp" width="120" height="120" alt="Mongchi app icon" />
-          <div>
-            <p class="eyebrow">Download</p>
-            <h2 id="download-title">Mongchi will open its garden soon.</h2>
-            <p>Built for quiet check-ins, tiny daily care, and the feeling of keeping a beloved friend close.</p>
-          </div>
-          <div class="store-actions">
-            <a class="store-button store-button-primary" href="#download">
-              <span>Coming soon on</span>
-              <strong>App Store</strong>
-            </a>
-            <a class="store-button" href="#download">
-              <span>Coming soon on</span>
-              <strong>Google Play</strong>
-            </a>
-          </div>
-        </div>
+          </picture>
+        </figure>
       </section>
     </main>
 
-    <footer class="site-footer">
-      <p>Mongchi - Tiny Pet Terrarium</p>
-      <nav aria-label="Footer navigation">
-        <a href="#about">About</a>
-        <a href="#play">How to Play</a>
-        <a href="#download">Download</a>
-      </nav>
+    <footer id="site-footer" class="site-footer">
+      <div class="footer-main">
+        <div class="footer-brand">
+          <p data-i18n="footer.tagline">Mongchi - Tiny Pet Terrarium</p>
+          <a class="footer-support" href="mailto:lucas@define-you.com">
+            <span data-i18n="footer.support">Support</span>: lucas@define-you.com
+          </a>
+        </div>
+
+        <div class="footer-group">
+          <p class="footer-heading" data-i18n="footer.legalTitle">Legal</p>
+          <nav aria-label="Footer navigation" data-i18n-attr="aria-label:a11y.footerNav">
+            <a href="/privacy.html" data-localized-link data-i18n="footer.privacy">Privacy Policy</a>
+            <a href="/terms.html" data-localized-link data-i18n="footer.terms">Terms of Service</a>
+            <a href="/privacy.html#data-deletion" data-localized-link data-i18n="footer.delete">Data deletion</a>
+          </nav>
+        </div>
+
+        <div class="footer-group footer-language">
+          <p class="footer-heading" data-i18n="footer.language">Language</p>
+          <details class="language-menu language-menu--footer" data-language-menu>
+            <summary aria-label="Website language" data-i18n-attr="aria-label:a11y.language">
+              <span class="language-menu__icon" aria-hidden="true">A</span>
+              <span class="language-menu__current" data-language-current>English</span>
+              <span class="language-menu__chevron" aria-hidden="true"></span>
+            </summary>
+            <div class="language-menu__panel" role="listbox" aria-label="Website language" data-language-options data-i18n-attr="aria-label:a11y.language"></div>
+          </details>
+        </div>
+      </div>
+      <p class="footer-copyright" data-i18n="footer.copyright">&copy; 2026 DefineYou. All rights reserved.</p>
     </footer>
+    <script type="module">
+      import { initI18n } from "/src/i18n.js";
+      initI18n("landing");
+    </script>
   </body>
 </html>

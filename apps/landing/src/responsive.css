@@ -1,130 +1,365 @@
-@media (max-width: 920px) {
+@media (max-width: 65rem) {
+  .hero-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.8fr);
+    gap: 2rem;
+    width: min(calc(100% - 2rem), var(--container));
+  }
+
+  .hero h1 {
+    font-size: clamp(3.75rem, 8vw, 6.25rem);
+  }
+
+  .hero-visual {
+    width: min(100%, 24rem);
+  }
+
+  .hero-photo {
+    width: 8.5rem;
+  }
+
+  .hero-arrow {
+    bottom: 9.5rem;
+    left: 7.75rem;
+  }
+
+  .campaign-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 52rem;
+  }
+
+  .campaign-card--care,
+  .campaign-card--poses,
+  .campaign-card--memory,
+  .campaign-card--world {
+    grid-column: auto;
+    margin-top: 0;
+  }
+
+  .campaign-card--poses,
+  .campaign-card--world {
+    transform: translateY(3rem);
+  }
+
+  .download-world {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
+  }
+}
+
+@media (max-width: 47.5rem) {
+  html {
+    scroll-padding-top: 1rem;
+  }
+
   .site-header {
-    align-items: flex-start;
-    flex-direction: column;
+    display: grid;
+    grid-template-areas:
+      "brand language"
+      "nav nav";
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+    width: calc(100% - 1rem);
+    min-height: auto;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.625rem 0.625rem;
+    border-radius: 0.75rem;
+  }
+
+  .brand-mark {
+    grid-area: brand;
+    justify-self: start;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+  }
+
+  .brand-mark img {
+    width: 2.5rem;
+    height: 2.5rem;
   }
 
   .site-nav {
+    display: grid;
+    grid-area: nav;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
     width: 100%;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    max-width: none;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    overflow: visible;
+    border-top: 0.125rem dashed color-mix(in srgb, var(--wood) 44%, transparent);
+    font-size: 0.8125rem;
   }
 
-  .hero,
-  .about-section,
-  .feature-band,
-  .feature-band-right,
-  .download-card {
-    grid-template-columns: 1fr;
+  .site-nav a {
+    display: flex;
+    min-height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.375rem 0.25rem 0.25rem;
   }
 
   .hero {
     min-height: auto;
-    padding-top: 28px;
+  }
+
+  .hero::after {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--sky-soft) 12%, transparent), transparent 48%),
+      linear-gradient(180deg, transparent 78%, color-mix(in srgb, var(--leaf) 28%, transparent));
+  }
+
+  .hero-backdrop img {
+    object-position: 63% bottom;
+  }
+
+  .hero-layout {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    width: calc(100% - 1.5rem);
+    padding: 9.5rem 0 3rem;
   }
 
   .hero-copy {
-    max-width: 620px;
-  }
-
-  .hero-scene {
-    min-height: 600px;
-  }
-
-  .hero-garden {
-    right: auto;
-    left: 0;
-    width: 78%;
-  }
-
-  .phone-frame {
-    width: min(38vw, 240px);
-  }
-
-  .play-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .feature-band-right .feature-copy {
-    order: 0;
-  }
-
-  .download-card {
+    margin-inline: auto;
     text-align: center;
   }
 
-  .download-card > img,
-  .download-card .store-actions {
+  .hero-copy .campaign-kicker {
+    margin-bottom: 1rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(3.25rem, 15vw, 5rem);
+    line-height: 0.84;
+    text-shadow:
+      0 0.375rem 0 var(--honey),
+      0 0.625rem 0 color-mix(in srgb, var(--wood-dark) 64%, transparent);
+    -webkit-text-stroke-width: 0.25rem;
+  }
+
+  html:lang(ko) .hero h1,
+  html:lang(ja) .hero h1,
+  html:lang(zh) .hero h1 {
+    font-size: clamp(2.5rem, 11vw, 3.75rem);
+    line-height: 0.98;
+    -webkit-text-stroke-width: 0.1875rem;
+  }
+
+  .hero-lead {
+    max-width: 32rem;
+    margin: 1.5rem auto 0;
+    font-size: 1.0625rem;
+  }
+
+  .hero-actions {
+    justify-content: center;
+    margin-top: 1.5rem;
+  }
+
+  .hero-visual {
+    width: min(100%, 22rem);
+    min-height: 34rem;
+  }
+
+  .phone-chassis--hero {
+    right: 1rem;
+    width: min(68%, 15.5rem);
+  }
+
+  .hero-photo {
+    bottom: 3rem;
+    left: 0.5rem;
+    width: 7.5rem;
+    padding: 0.5rem 0.5rem 0.625rem;
+  }
+
+  .hero-photo figcaption {
+    font-size: 0.75rem;
+  }
+
+  .hero-arrow {
+    bottom: 8.75rem;
+    left: 7.25rem;
+    font-size: 2.5rem;
+    -webkit-text-stroke-width: 0.1875rem;
+  }
+
+  .world-marquee {
+    padding-inline: 1.5rem;
+    font-size: 0.9375rem;
+    line-height: 1.35;
+  }
+
+  .transformation {
+    padding: 4.5rem 1.25rem;
+  }
+
+  .transformation-stage {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    margin-top: 3rem;
+  }
+
+  .source-photo-card,
+  .phone-chassis--reveal {
+    width: min(100%, 17rem);
     justify-self: center;
+  }
+
+  .pixel-transform {
+    width: 8rem;
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .privacy-note {
+    margin-top: 3rem;
+  }
+
+  .campaign-world {
+    padding: 4.5rem 0;
+  }
+
+  .campaign-world .section-heading {
+    padding-inline: 1.25rem;
+  }
+
+  .campaign-grid {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    gap: 1rem;
+    margin-top: 3rem;
+    padding: 0 1.25rem 1.5rem;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-padding-inline: 1.25rem;
+    scroll-snap-type: inline mandatory;
+  }
+
+  .campaign-card,
+  .campaign-card--poses,
+  .campaign-card--world {
+    width: min(82vw, 23rem);
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    transform: none;
+  }
+
+  .care-ribbon {
+    grid-template-columns: 1fr;
+    width: calc(100% - 2.5rem);
+    margin-top: 3.5rem;
+  }
+
+  .care-ribbon > div {
+    min-height: 6.5rem;
+    padding: 1.25rem;
+  }
+
+  .care-ribbon > div + div {
+    border-top: 0.1875rem dashed color-mix(in srgb, var(--cream) 42%, transparent);
+    border-left: 0;
+  }
+
+  .download-world {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    min-height: auto;
+    padding: 4.5rem 1.25rem;
+  }
+
+  .download-copy {
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .download-copy h2 {
+    font-size: clamp(3.25rem, 14vw, 5rem);
+  }
+
+  .download-copy > p:not(.campaign-kicker, .download-meta) {
+    margin-inline: auto;
+  }
+
+  .download-copy .store-actions {
+    justify-content: center;
+  }
+
+  .download-poster {
+    width: min(78vw, 20rem);
+    transform: none;
+  }
+
+  .footer-main {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .footer-brand {
+    grid-column: 1 / -1;
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 28.75rem) {
   body {
-    font-size: 16px;
+    font-size: 1rem;
   }
 
-  .brand-mark {
-    font-size: 20px;
+  h2 {
+    font-size: 2.75rem;
   }
 
   .site-nav {
-    font-size: 14px;
+    max-width: none;
+    gap: 0.5rem;
+    font-size: 0.75rem;
   }
 
-  h1 {
-    font-size: 36px;
-    line-height: 0.96;
+  .hero h1 {
+    font-size: 3.25rem;
   }
 
-  .hero-scene {
-    min-height: 440px;
+  .hero-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .hero-logo {
-    display: none;
+  .pixel-button {
+    width: 100%;
   }
 
-  .hero-pet {
-    right: 30%;
-    width: 136px;
-  }
-
-  .phone-frame {
-    min-width: 148px;
-    border-radius: 24px;
-  }
-
-  .play-grid,
-  .screen-pair,
-  .shop-strip {
+  .footer-main {
     grid-template-columns: 1fr;
   }
 
-  .play-card {
-    min-height: 228px;
+  .footer-brand {
+    grid-column: auto;
   }
 
-  .screen-pair {
-    max-width: 320px;
-    margin: 0 auto;
+  .hero-visual {
+    min-height: 31rem;
   }
 
-  .screen-pair img:nth-child(2) {
-    display: none;
-  }
-
-  .shop-strip {
-    text-align: center;
-  }
-
-  .shop-strip > img {
-    justify-self: center;
-  }
-
-  .site-footer {
-    align-items: flex-start;
+  .store-actions {
+    align-items: stretch;
     flex-direction: column;
+  }
+
+  .store-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .site-header {
+    background: var(--cream);
+  }
+
+  .hero-lead,
+  .hero-release {
+    text-shadow: 0 0.125rem 0 var(--cream), 0 0 0.25rem var(--cream);
   }
 }
 
