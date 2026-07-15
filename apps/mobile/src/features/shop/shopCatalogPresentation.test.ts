@@ -8,12 +8,12 @@ import {
   getLocalizedExpressionPackCopy,
   getExpressionPackShopPresentation,
   getLocalShopSummaryPresentation,
-  getPremiumPassShopPresentation,
   getServerShopSummaryPresentation,
+  getShopCareMomentPreviewAction,
   getThemeCardPresentation,
   isNonShoppableStarterKitItem,
   isPremiumPassProduct,
-  premiumPassFallbackProduct
+  shouldShowOwnedQuantityBadge
 } from "./shopCatalogPresentation";
 
 describe("shop catalog presentation", () => {
@@ -21,7 +21,10 @@ describe("shop catalog presentation", () => {
     const foodBowl = mockItems.find((item) => item.id === "item_food_bowl_basic");
 
     expect(foodBowl).toBeDefined();
-    expect(getLocalShopCatalogPresentation(foodBowl!, mockInventory)).toMatchObject({
+    if (!foodBowl) {
+      return;
+    }
+    expect(getLocalShopCatalogPresentation(foodBowl, mockInventory)).toMatchObject({
       locked: false,
       ownedQuantity: 1,
       statusKind: "owned",
@@ -33,8 +36,11 @@ describe("shop catalog presentation", () => {
     const treatPlate = mockItems.find((item) => item.id === "item_treat_plate_biscuit");
 
     expect(treatPlate).toBeDefined();
+    if (!treatPlate) {
+      return;
+    }
     expect(
-      getLocalShopCatalogPresentation(treatPlate!, {
+      getLocalShopCatalogPresentation(treatPlate, {
         ...mockInventory,
         items: [
           ...mockInventory.items,
@@ -67,10 +73,13 @@ describe("shop catalog presentation", () => {
     const plushToy = mockItems.find((item) => item.id === "item_plush_toy_buddy");
 
     expect(plushToy).toBeDefined();
-    expect(getLocalShopCatalogPresentation(plushToy!, mockInventory)).toMatchObject({
+    if (!plushToy) {
+      return;
+    }
+    expect(getLocalShopCatalogPresentation(plushToy, mockInventory)).toMatchObject({
       locked: true,
       ownedQuantity: 0,
-      creditCost: 3,
+      creditCost: 5,
       statusKind: "available",
       statusLabel: "Available"
     });
@@ -103,56 +112,109 @@ describe("shop catalog presentation", () => {
     expect(getLocalShopCatalogPresentation(plushToy, mockInventory, "fr-FR")).toMatchObject({ statusLabel: "Disponible" });
   });
 
-  it("localizes the Spanish premium fallback and summary state", () => {
-    const premiumPass = getPremiumPassShopPresentation([], [], "es-MX");
+  it("keeps every generated shop item priced and localized", () => {
+    const generatedItems = [
+      ["item_rope_ring_mint", "available"],
+      ["item_star_squeaker_sunny", "available"],
+      ["item_ribbon_wand_garden", "premium"],
+      ["item_clover_puzzle_mint", "premium"],
+      ["item_cloud_cushion_sky", "premium"]
+    ] as const;
 
-    expect(premiumPass).toMatchObject({ statusLabel: "Plus bloqueado" });
-    expect(getLocalShopSummaryPresentation(mockItems, mockInventory, premiumPass, "es-MX")).toMatchObject({ plusLabel: "Plus bloqueado" });
-  });
+    for (const [itemId, statusKind] of generatedItems) {
+      const item = mockItems.find((candidate) => candidate.id === itemId);
 
-  it("shows a local Plus pass fallback when no server catalog is loaded", () => {
-    expect(getPremiumPassShopPresentation([], [])).toMatchObject({
-      active: false,
-      product: premiumPassFallbackProduct,
-      source: "local_preview",
-      statusLabel: "Plus locked"
-    });
-  });
-
-  it("marks the server premium chat product active from matching entitlements", () => {
-    const product = { productId: "premium_chat_monthly", entitlementKey: "premium_chat", grantType: "subscription" } as const;
-    const presentation = getPremiumPassShopPresentation([product], [
-      {
-        id: "ent_premium_chat_active",
-        userId: "user_demo_001",
-        key: "premium_chat",
-        status: "active",
-        source: "purchase",
-        productId: "premium_chat_monthly",
-        startsAt: "2026-01-01T00:00:00.000Z",
-        ledgerEntryId: "ledger_premium_chat_active",
-        metadata: {},
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z"
+      expect(item, `${itemId} should be in the shared catalog`).toBeDefined();
+      if (!item) {
+        continue;
       }
-    ]);
 
-    expect(presentation).toMatchObject({
-      active: true,
-      product,
-      source: "server_catalog",
-      statusLabel: "Active"
+      expect(getLocalizedCatalogItemCopy(item, "ko-KR").name).not.toBe(item.name);
+      expect(getLocalShopCatalogPresentation(item, mockInventory)).toMatchObject({
+        creditCost: expect.any(Number),
+        statusKind
+      });
+    }
+  });
+
+  it("stocks twelve visible items in every care shelf", () => {
+    const visibleItems = mockItems.filter((item) => !isNonShoppableStarterKitItem(item.id));
+    const treats = visibleItems.filter(
+      (item) => item.category !== "drink" && (item.category === "food" || item.category === "treat" || item.behaviorTags.includes("treat"))
+    );
+    const drinks = visibleItems.filter((item) => item.category === "drink" || item.behaviorTags.includes("drink"));
+    const toys = visibleItems.filter((item) => item.category === "toy");
+    const rest = visibleItems.filter((item) => item.category === "bed");
+
+    expect({ treats: treats.length, drinks: drinks.length, toys: toys.length, rest: rest.length }).toEqual({
+      treats: 12,
+      drinks: 12,
+      toys: 12,
+      rest: 12
     });
-    expect(isPremiumPassProduct(product)).toBe(true);
+  });
+
+  it("keeps owned drinks repeat-purchasable", () => {
+    const drink = mockItems.find((item) => item.id === "item_milk_pup_cup");
+
+    expect(drink).toBeDefined();
+    if (!drink) {
+      return;
+    }
+
+    const inventory = {
+      ...mockInventory,
+      items: [...mockInventory.items, { itemId: drink.id, quantity: 2, acquiredAt: "2026-06-24T09:00:00.000Z", source: "purchase" as const }]
+    };
+
+    expect(getLocalShopCatalogPresentation(drink, inventory)).toMatchObject({
+      ownedQuantity: 2,
+      purchaseLabel: "Buy more",
+      repeatable: true
+    });
+  });
+
+  it("prices and localizes every expanded care item across all supported locales", () => {
+    const locales = ["en-US", "ko-KR", "ja-JP", "zh-TW", "de-DE", "fr-FR", "pt-BR", "es-MX"] as const;
+    const unknownNames = new Set([
+      "Cozy item",
+      "포근한 아이템",
+      "ほっこりアイテム",
+      "溫馨小物",
+      "Gemütlicher Fund",
+      "Petit objet douillet",
+      "Item aconchegante",
+      "Artículo acogedor"
+    ]);
+    const expandedItems = mockItems.filter(
+      (item) =>
+        !isNonShoppableStarterKitItem(item.id) &&
+        (item.category === "drink" || item.category === "toy" || item.category === "bed" || item.category === "treat" || item.behaviorTags.includes("treat"))
+    );
+
+    expect(expandedItems).toHaveLength(48);
+    for (const item of expandedItems) {
+      expect(getLocalShopCatalogPresentation(item, mockInventory).creditCost).toEqual(expect.any(Number));
+      for (const locale of locales) {
+        expect(unknownNames.has(getLocalizedCatalogItemCopy(item, locale).name), `${item.id} should be localized for ${locale}`).toBe(false);
+      }
+    }
+  });
+
+  it("keeps the local summary independent from removed chat-pass presentation", () => {
+    expect(getLocalShopSummaryPresentation(mockItems, mockInventory, "es-MX")).not.toHaveProperty("plusLabel");
+  });
+
+  it("classifies every chat-pass identity as non-shoppable", () => {
+    expect(isPremiumPassProduct({ productId: "premium_chat_monthly", entitlementKey: "premium_chat", grantType: "subscription" })).toBe(true);
+    expect(isPremiumPassProduct({ productId: "plus_monthly", entitlementKey: "subscription_plus", grantType: "subscription" })).toBe(true);
+    expect(isPremiumPassProduct({ productId: "theme_pack_starter", entitlementKey: "theme_pack", grantType: "durable" })).toBe(false);
   });
 
   it("summarizes the local shop shelf from owned and locked catalog state", () => {
-    const premiumPass = getPremiumPassShopPresentation([], []);
-
-    expect(getLocalShopSummaryPresentation(mockItems, mockInventory, premiumPass)).toEqual({
+    expect(getLocalShopSummaryPresentation(mockItems, mockInventory)).toEqual({
       lockedCount: mockItems.length - mockInventory.items.length,
       ownedQuantity: 2,
-      plusLabel: "Plus locked",
       visibleCount: mockItems.length
     });
   });
@@ -160,22 +222,6 @@ describe("shop catalog presentation", () => {
   it("summarizes server shop products from active entitlements", () => {
     const premiumProduct = { productId: "premium_chat_monthly", entitlementKey: "premium_chat", grantType: "subscription" } as const;
     const themeProduct = { productId: "theme_pack_starter", entitlementKey: "theme_pack", grantType: "durable" } as const;
-    const premiumPass = getPremiumPassShopPresentation([premiumProduct, themeProduct], [
-      {
-        id: "ent_theme_pack_active",
-        userId: "user_demo_001",
-        key: "theme_pack",
-        status: "active",
-        source: "purchase",
-        productId: "theme_pack_starter",
-        startsAt: "2026-01-01T00:00:00.000Z",
-        ledgerEntryId: "ledger_theme_pack_active",
-        metadata: {},
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z"
-      }
-    ]);
-
     expect(
       getServerShopSummaryPresentation([premiumProduct, themeProduct], [
         {
@@ -191,11 +237,10 @@ describe("shop catalog presentation", () => {
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z"
         }
-      ], premiumPass)
+      ])
     ).toEqual({
       lockedCount: 0,
       ownedQuantity: 1,
-      plusLabel: "Plus locked",
       visibleCount: 1
     });
   });
@@ -233,7 +278,7 @@ describe("expression pack shop presentation", () => {
       ownedStateCount: 0,
       totalStateCount: 3,
       canAct: true,
-      priceLabel: "12 cr",
+      priceLabel: "12",
       actionLabel: "Unlock pack"
     });
   });
@@ -326,7 +371,7 @@ describe("expression pack shop presentation", () => {
     ).toMatchObject({
       status: "failed",
       canAct: false,
-      actionLabel: "Need credits"
+      actionLabel: "Get gems"
     });
   });
 
@@ -364,9 +409,9 @@ describe("expression pack shop presentation", () => {
 
     expect(getExpressionPackShopPresentation(pack, ["idle", "happy", "sleep"], mockInventory, undefined, false, 0, "fr-FR")).toMatchObject({
       status: "locked",
-      priceLabel: "12 crédits",
+      priceLabel: "12",
       statusLabel: "Verrouillé",
-      actionLabel: "Crédits requis"
+      actionLabel: "Obtenir des gemmes"
     });
   });
 });
@@ -409,7 +454,7 @@ describe("theme card presentation (3-state Themes tab)", () => {
       owned: false,
       applied: false,
       canAct: true,
-      priceLabel: "18 cr",
+      priceLabel: "18",
       statusLabel: "Locked",
       actionLabel: "Unlock"
     });
@@ -421,7 +466,7 @@ describe("theme card presentation (3-state Themes tab)", () => {
     expect(presentation).toMatchObject({
       status: "locked_for_purchase",
       canAct: false,
-      priceLabel: "18 cr"
+      priceLabel: "18"
     });
   });
 
@@ -466,9 +511,37 @@ describe("theme card presentation (3-state Themes tab)", () => {
       actionLabel: "適用済み"
     });
     expect(getThemeCardPresentation("theme-fairy-garden", 18, mockInventory, false, 25, "es-MX")).toMatchObject({
-      priceLabel: "18 créditos",
+      priceLabel: "18",
       statusLabel: "Bloqueado",
       actionLabel: "Desbloquear"
     });
+  });
+});
+
+describe("getShopCareMomentPreviewAction", () => {
+  it("maps every care shelf to the home screen's Tier 2 care moment it previews", () => {
+    expect(getShopCareMomentPreviewAction("treats")).toBe("feed");
+    expect(getShopCareMomentPreviewAction("drinks")).toBe("water_garden");
+    expect(getShopCareMomentPreviewAction("toys")).toBe("play");
+    expect(getShopCareMomentPreviewAction("rest")).toBe("affection");
+  });
+
+  it("has no animated moment for non-care shelves, which keep their static preview", () => {
+    expect(getShopCareMomentPreviewAction("moments")).toBeNull();
+    expect(getShopCareMomentPreviewAction("themes")).toBeNull();
+  });
+});
+
+describe("shouldShowOwnedQuantityBadge", () => {
+  it("shows the x{n} badge for an owned repeatable (consumable) item", () => {
+    expect(shouldShowOwnedQuantityBadge({ repeatable: true, ownedQuantity: 3 })).toBe(true);
+  });
+
+  it("hides the badge for an owned non-repeatable item, which already states its count in the price pill", () => {
+    expect(shouldShowOwnedQuantityBadge({ repeatable: false, ownedQuantity: 1 })).toBe(false);
+  });
+
+  it("hides the badge for a repeatable item with nothing owned yet", () => {
+    expect(shouldShowOwnedQuantityBadge({ repeatable: true, ownedQuantity: 0 })).toBe(false);
   });
 });

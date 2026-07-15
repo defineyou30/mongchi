@@ -1,7 +1,9 @@
-import { DEFAULT_THEME_ID, getCreditItemPrice, isTreatInventoryItem } from "@mongchi/shared";
-import type { CommerceProduct, Entitlement, ExpressionPack, GeneratedAssetState, Inventory, Item, ItemId } from "@mongchi/shared";
+import { DEFAULT_THEME_ID, getCreditItemPrice, isConsumableCareItem } from "@mongchi/shared";
+import type { CareActionType, CommerceProduct, Entitlement, ExpressionPack, GeneratedAssetState, Inventory, Item, ItemId } from "@mongchi/shared";
 import type { AppLocale } from "../../localization/localeNormalization";
 import { getResourcesForLocale } from "../../localization/resourceCatalog";
+import { isCareShopCategory } from "./shopRouteParams";
+import type { CareShopCategoryId, ShopCategoryId } from "./shopRouteParams";
 
 export interface LocalizedCatalogItemCopy {
   readonly name: string;
@@ -9,8 +11,6 @@ export interface LocalizedCatalogItemCopy {
 }
 
 interface ComputedShopCopy {
-  readonly active: string;
-  readonly plusLocked: string;
   readonly buyMore: string;
   readonly buyAndPlace: string;
   readonly premiumPreview: string;
@@ -30,58 +30,58 @@ interface ComputedShopCopy {
 
 const computedShopCopyByLocale = {
   "en-US": {
-    active: "Active", plusLocked: "Plus locked", buyMore: "Buy more", buyAndPlace: "Buy & place", premiumPreview: "Premium preview", starter: "Starter", preview: "Preview", making: "Making", generating: "Generating", retry: "Retry", retryPack: "Retry pack", saving: "Saving", free: "Free",
+    buyMore: "Buy more", buyAndPlace: "Buy & place", premiumPreview: "Premium preview", starter: "Starter", preview: "Preview", making: "Making", generating: "Generating", retry: "Retry", retryPack: "Retry pack", saving: "Saving", free: "Free",
     ownedQuantity: (count: number) => `Owned x${count}`,
-    creditPrice: (credits: number) => `${credits} cr`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total} kept`,
     readyStates: (owned: number, total: number) => `${owned}/${total} ready`
   },
   "ko-KR": {
-    active: "이용 중", plusLocked: "Plus 잠김", buyMore: "더 구매", buyAndPlace: "구매하기", premiumPreview: "프리미엄 미리보기", starter: "기본", preview: "미리보기", making: "만드는 중", generating: "생성 중", retry: "다시 시도", retryPack: "팩 다시 시도", saving: "저장 중", free: "무료",
+    buyMore: "더 구매", buyAndPlace: "구매하기", premiumPreview: "프리미엄 미리보기", starter: "기본", preview: "미리보기", making: "만드는 중", generating: "생성 중", retry: "다시 시도", retryPack: "팩 다시 시도", saving: "저장 중", free: "무료",
     ownedQuantity: (count: number) => `보유 x${count}`,
-    creditPrice: (credits: number) => `크레딧 ${credits}개`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total}개 보관`,
     readyStates: (owned: number, total: number) => `${owned}/${total}개 준비`
   },
   "ja-JP": {
-    active: "利用中", plusLocked: "Plusはロック中", buyMore: "追加購入", buyAndPlace: "購入する", premiumPreview: "プレミアムプレビュー", starter: "スターター", preview: "プレビュー", making: "作成中", generating: "生成中", retry: "再試行", retryPack: "パックを再試行", saving: "保存中", free: "無料",
+    buyMore: "追加購入", buyAndPlace: "購入する", premiumPreview: "プレミアムプレビュー", starter: "スターター", preview: "プレビュー", making: "作成中", generating: "生成中", retry: "再試行", retryPack: "パックを再試行", saving: "保存中", free: "無料",
     ownedQuantity: (count: number) => `所持数 ×${count}`,
-    creditPrice: (credits: number) => `${credits}クレジット`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total}所持済み`,
     readyStates: (owned: number, total: number) => `${owned}/${total}準備済み`
   },
   "zh-TW": {
-    active: "使用中", plusLocked: "Plus 已鎖定", buyMore: "再買一些", buyAndPlace: "購買", premiumPreview: "進階預覽", starter: "新手", preview: "預覽", making: "製作中", generating: "生成中", retry: "重試", retryPack: "重試套組", saving: "儲存中", free: "免費",
+    buyMore: "再買一些", buyAndPlace: "購買", premiumPreview: "進階預覽", starter: "新手", preview: "預覽", making: "製作中", generating: "生成中", retry: "重試", retryPack: "重試套組", saving: "儲存中", free: "免費",
     ownedQuantity: (count: number) => `擁有 ×${count}`,
-    creditPrice: (credits: number) => `${credits} 點數`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `已收藏 ${owned}/${total}`,
     readyStates: (owned: number, total: number) => `已準備 ${owned}/${total}`
   },
   "de-DE": {
-    active: "Aktiv", plusLocked: "Plus gesperrt", buyMore: "Mehr kaufen", buyAndPlace: "Kaufen", premiumPreview: "Premium-Vorschau", starter: "Starter", preview: "Vorschau", making: "Wird erstellt", generating: "Wird generiert", retry: "Erneut versuchen", retryPack: "Pack erneut versuchen", saving: "Wird gespeichert", free: "Kostenlos",
+    buyMore: "Mehr kaufen", buyAndPlace: "Kaufen", premiumPreview: "Premium-Vorschau", starter: "Starter", preview: "Vorschau", making: "Wird erstellt", generating: "Wird generiert", retry: "Erneut versuchen", retryPack: "Pack erneut versuchen", saving: "Wird gespeichert", free: "Kostenlos",
     ownedQuantity: (count: number) => `Besitz ×${count}`,
-    creditPrice: (credits: number) => `${credits} Credits`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total} gesammelt`,
     readyStates: (owned: number, total: number) => `${owned}/${total} bereit`
   },
   "fr-FR": {
-    active: "Actif", plusLocked: "Plus verrouillé", buyMore: "En acheter plus", buyAndPlace: "Acheter", premiumPreview: "Aperçu premium", starter: "Départ", preview: "Aperçu", making: "Création", generating: "Génération", retry: "Réessayer", retryPack: "Réessayer le pack", saving: "Enregistrement", free: "Gratuit",
+    buyMore: "En acheter plus", buyAndPlace: "Acheter", premiumPreview: "Aperçu premium", starter: "Départ", preview: "Aperçu", making: "Création", generating: "Génération", retry: "Réessayer", retryPack: "Réessayer le pack", saving: "Enregistrement", free: "Gratuit",
     ownedQuantity: (count: number) => `Possédé x${count}`,
-    creditPrice: (credits: number) => `${credits} crédits`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total} conservées`,
     readyStates: (owned: number, total: number) => `${owned}/${total} prêtes`
   },
   "pt-BR": {
-    active: "Ativo", plusLocked: "Plus bloqueado", buyMore: "Comprar mais", buyAndPlace: "Comprar", premiumPreview: "Prévia premium", starter: "Inicial", preview: "Prévia", making: "Criando", generating: "Gerando", retry: "Tentar novamente", retryPack: "Tentar o pacote novamente", saving: "Salvando", free: "Grátis",
+    buyMore: "Comprar mais", buyAndPlace: "Comprar", premiumPreview: "Prévia premium", starter: "Inicial", preview: "Prévia", making: "Criando", generating: "Gerando", retry: "Tentar novamente", retryPack: "Tentar o pacote novamente", saving: "Salvando", free: "Grátis",
     ownedQuantity: (count: number) => `Possui x${count}`,
-    creditPrice: (credits: number) => `${credits} créditos`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total} guardadas`,
     readyStates: (owned: number, total: number) => `${owned}/${total} prontas`
   },
   "es-MX": {
-    active: "Activo", plusLocked: "Plus bloqueado", buyMore: "Comprar más", buyAndPlace: "Comprar", premiumPreview: "Vista previa premium", starter: "Inicial", preview: "Vista previa", making: "Creando", generating: "Generando", retry: "Reintentar", retryPack: "Reintentar paquete", saving: "Guardando", free: "Gratis",
+    buyMore: "Comprar más", buyAndPlace: "Comprar", premiumPreview: "Vista previa premium", starter: "Inicial", preview: "Vista previa", making: "Creando", generating: "Generando", retry: "Reintentar", retryPack: "Reintentar paquete", saving: "Guardando", free: "Gratis",
     ownedQuantity: (count: number) => `Tienes x${count}`,
-    creditPrice: (credits: number) => `${credits} créditos`,
+    creditPrice: (credits: number) => `${credits}`,
     keptStates: (owned: number, total: number) => `${owned}/${total} adquiridas`,
     readyStates: (owned: number, total: number) => `${owned}/${total} listas`
   }
@@ -92,6 +92,11 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "Little Food Bowl", description: "A starter bowl for gentle daily feeding." },
     item_toy_ball_mint: { name: "Mint Toy Ball", description: "A soft ball for tiny play sessions." },
     item_plush_toy_buddy: { name: "Buddy Plush Toy", description: "A cuddly shelf toy for cozy play corners." },
+    item_rope_ring_mint: { name: "Mint Rope Ring", description: "A braided ring for lively tug-and-chase play." },
+    item_star_squeaker_sunny: { name: "Sunny Star Squeaker", description: "A bright fabric star for quick playful bursts." },
+    item_ribbon_wand_garden: { name: "Garden Ribbon Wand", description: "Soft colorful ribbons for a tiny chase game." },
+    item_clover_puzzle_mint: { name: "Clover Puzzle Toy", description: "A gentle sliding puzzle for curious playtime." },
+    item_cloud_cushion_sky: { name: "Cloud Nap Cushion", description: "A soft cloud cushion for peaceful little rests." },
     item_flower_pot_sunny: { name: "Sunny Flower Pot", description: "A small pot that brightens the tiny garden." },
     item_stepping_stone_path: { name: "Stepping Stone Path", description: "Rounded stones for a tiny walk route." },
     item_treat_plate_biscuit: { name: "Treat Plate", description: "A tiny plate of biscuits for reward moments." },
@@ -112,6 +117,11 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "작은 밥그릇", description: "매일 다정하게 밥을 챙겨주는 기본 그릇이에요." },
     item_toy_ball_mint: { name: "민트 장난감 공", description: "작은 놀이 시간에 어울리는 부드러운 공이에요." },
     item_plush_toy_buddy: { name: "친구 봉제 인형", description: "포근한 놀이 시간에 꼭 안기 좋은 인형이에요." },
+    item_rope_ring_mint: { name: "민트 로프 링", description: "함께 당기고 쫓아다니며 놀기 좋은 꼬임 장난감이에요." },
+    item_star_squeaker_sunny: { name: "햇살 별 삑삑이", description: "짧고 신나는 놀이를 위한 밝은 패브릭 별이에요." },
+    item_ribbon_wand_garden: { name: "정원 리본 막대", description: "알록달록한 부드러운 리본을 따라 신나게 놀아요." },
+    item_clover_puzzle_mint: { name: "클로버 퍼즐 장난감", description: "호기심을 깨우는 부드러운 밀기 퍼즐이에요." },
+    item_cloud_cushion_sky: { name: "구름 낮잠 쿠션", description: "편안하게 쉬는 시간을 위한 포근한 구름 쿠션이에요." },
     item_flower_pot_sunny: { name: "햇살 화분", description: "작은 정원을 환하게 밝히는 화분이에요." },
     item_stepping_stone_path: { name: "디딤돌 길", description: "작은 산책길을 위한 둥근 돌이에요." },
     item_treat_plate_biscuit: { name: "간식 접시", description: "기분 좋은 보상 순간을 위한 작은 비스킷 접시예요." },
@@ -132,26 +142,36 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "小さなフードボウル", description: "毎日のやさしいごはんに使う基本のボウルです。" },
     item_toy_ball_mint: { name: "ミントのおもちゃボール", description: "ちいさな遊び時間にぴったりのやわらかなボールです。" },
     item_plush_toy_buddy: { name: "おともだちぬいぐるみ", description: "ほっこり遊ぶ場所で抱きしめたくなるぬいぐるみです。" },
+    item_rope_ring_mint: { name: "ミントロープリング", description: "引っぱりっこと追いかけ遊びにぴったりの編みリングです。" },
+    item_star_squeaker_sunny: { name: "おひさま星スクイーカー", description: "短く元気に遊べる明るい布の星です。" },
+    item_ribbon_wand_garden: { name: "ガーデンリボンワンド", description: "やわらかなカラフルリボンを追いかけて遊べます。" },
+    item_clover_puzzle_mint: { name: "クローバーパズルトイ", description: "好奇心をくすぐるやさしいスライドパズルです。" },
+    item_cloud_cushion_sky: { name: "雲のおひるねクッション", description: "穏やかに休めるふわふわの雲クッションです。" },
     item_flower_pot_sunny: { name: "おひさま植木鉢", description: "小さな庭を明るくしてくれる植木鉢です。" },
     item_stepping_stone_path: { name: "飛び石の小道", description: "小さなお散歩コースに並べる丸い石です。" },
     item_treat_plate_biscuit: { name: "おやつプレート", description: "ごほうびの時間にうれしい小さなビスケット皿です。" },
-    item_bone_biscuit: { name: "骨型ビスケット", description: "ほっこりしたごほうび時間のやわらかなビスケットです。" },
-    item_salmon_bites: { name: "サーモンひとくち", description: "気分をそっと明るくするやわらかなサーモンキューブです。" },
-    item_chicken_jerky: { name: "チキンジャーキー", description: "もう少しかまってほしい時のかみごたえあるおやつです。" },
-    item_pumpkin_cookie: { name: "かぼちゃクッキー", description: "気分をやさしく整えるほっこりかぼちゃクッキーです。" },
-    item_berry_yogurt: { name: "ベリーヨーグルト", description: "明るいリアクションを引き出すひんやりベリーカップです。" },
-    item_sweet_potato_chew: { name: "さつまいもチュー", description: "落ち着いたおやつ時間に合うやわらかなチューです。" },
-    item_tuna_crunch: { name: "ツナクランチ", description: "好奇心いっぱいのお友だち向けの小さな魚型おやつです。" },
-    item_duck_biscuit: { name: "あひるビスケット", description: "特別な練習時間にぴったりの黄金色のビスケットです。" },
-    item_cheese_puff: { name: "チーズパフ", description: "遊びたい気分にうれしい小さなチーズおやつです。" },
-    item_apple_biscuit: { name: "りんごビスケット", description: "毎日のお世話に合うさくさくのりんご型ビスケットです。" },
-    item_milk_pup_cup: { name: "ミルクパップカップ", description: "特別でほっこりしたリアクションのためのクリーミーなカップです。" },
+    item_bone_biscuit: { name: "骨型 ビスケット", description: "ほっこりしたごほうび時間のやわらかなビスケットです。" },
+    item_salmon_bites: { name: "サーモン ひとくち", description: "気分をそっと明るくするやわらかなサーモンキューブです。" },
+    item_chicken_jerky: { name: "チキン ジャーキー", description: "もう少しかまってほしい時のかみごたえあるおやつです。" },
+    item_pumpkin_cookie: { name: "かぼちゃ クッキー", description: "気分をやさしく整えるほっこりかぼちゃクッキーです。" },
+    item_berry_yogurt: { name: "ベリー ヨーグルト", description: "明るいリアクションを引き出すひんやりベリーカップです。" },
+    item_sweet_potato_chew: { name: "さつまいも チュー", description: "落ち着いたおやつ時間に合うやわらかなチューです。" },
+    item_tuna_crunch: { name: "ツナ クランチ", description: "好奇心いっぱいのお友だち向けの小さな魚型おやつです。" },
+    item_duck_biscuit: { name: "あひる ビスケット", description: "特別な練習時間にぴったりの黄金色のビスケットです。" },
+    item_cheese_puff: { name: "チーズ パフ", description: "遊びたい気分にうれしい小さなチーズおやつです。" },
+    item_apple_biscuit: { name: "りんご ビスケット", description: "毎日のお世話に合うさくさくのりんご型ビスケットです。" },
+    item_milk_pup_cup: { name: "ミルク パップカップ", description: "特別でほっこりしたリアクションのためのクリーミーなカップです。" },
     item_cushion_rose: { name: "ローズお昼寝クッション", description: "眠たい午後のおうち時間にぴったりのやわらかなクッションです。" }
   },
   "zh-TW": {
     item_food_bowl_basic: { name: "小食盆", description: "每天溫柔餵食時使用的基本食盆。" },
     item_toy_ball_mint: { name: "薄荷玩具球", description: "適合短短玩耍時光的柔軟小球。" },
     item_plush_toy_buddy: { name: "好朋友絨毛玩具", description: "在溫馨遊戲角落裡很適合抱抱的玩偶。" },
+    item_rope_ring_mint: { name: "薄荷編織拉環", description: "適合開心拉扯與追逐遊戲的編織玩具。" },
+    item_star_squeaker_sunny: { name: "陽光星星啾啾玩具", description: "適合短暫活力玩耍的明亮布星。" },
+    item_ribbon_wand_garden: { name: "花園彩帶棒", description: "追著柔軟彩帶玩一場小小追逐遊戲。" },
+    item_clover_puzzle_mint: { name: "幸運草益智玩具", description: "為好奇玩耍準備的溫和滑動益智玩具。" },
+    item_cloud_cushion_sky: { name: "雲朵午睡墊", description: "讓小夥伴安靜休息的柔軟雲朵坐墊。" },
     item_flower_pot_sunny: { name: "陽光花盆", description: "讓小花園亮起來的小花盆。" },
     item_stepping_stone_path: { name: "踏石小徑", description: "為小小散步路線準備的圓潤石頭。" },
     item_treat_plate_biscuit: { name: "點心盤", description: "獎勵時刻享用的一小盤餅乾。" },
@@ -172,6 +192,11 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "Kleiner Futternapf", description: "Ein einfacher Napf für liebevolle tägliche Mahlzeiten." },
     item_toy_ball_mint: { name: "Mintfarbener Spielball", description: "Ein weicher Ball für kleine Spielrunden." },
     item_plush_toy_buddy: { name: "Kuschelfreund", description: "Ein kuscheliges Spielzeug für gemütliche Spielecken." },
+    item_rope_ring_mint: { name: "Mintfarbener Seilring", description: "Ein geflochtener Ring für lebhafte Zerr- und Fangspiele." },
+    item_star_squeaker_sunny: { name: "Sonnenstern-Quietscher", description: "Ein heller Stoffstern für kurze, fröhliche Spielrunden." },
+    item_ribbon_wand_garden: { name: "Garten-Bänderstab", description: "Weiche bunte Bänder für ein kleines Fangspiel." },
+    item_clover_puzzle_mint: { name: "Kleeblatt-Puzzlespielzeug", description: "Ein sanftes Schiebepuzzle für neugierige Spielzeit." },
+    item_cloud_cushion_sky: { name: "Wolken-Schlafkissen", description: "Ein weiches Wolkenkissen für friedliche kleine Pausen." },
     item_flower_pot_sunny: { name: "Sonniger Blumentopf", description: "Ein kleiner Topf, der den winzigen Garten aufhellt." },
     item_stepping_stone_path: { name: "Trittsteinpfad", description: "Runde Steine für einen kleinen Spazierweg." },
     item_treat_plate_biscuit: { name: "Leckerli-Teller", description: "Ein kleiner Teller mit Keksen für Belohnungsmomente." },
@@ -192,6 +217,11 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "Petite gamelle", description: "Une gamelle de départ pour de doux repas quotidiens." },
     item_toy_ball_mint: { name: "Balle menthe", description: "Une balle douce pour de petites séances de jeu." },
     item_plush_toy_buddy: { name: "Peluche compagnon", description: "Une peluche à câliner dans un coin de jeu douillet." },
+    item_rope_ring_mint: { name: "Anneau corde menthe", description: "Un anneau tressé pour tirer et courir joyeusement." },
+    item_star_squeaker_sunny: { name: "Étoile couineuse soleil", description: "Une étoile en tissu vive pour de courtes parties de jeu." },
+    item_ribbon_wand_garden: { name: "Baguette à rubans du jardin", description: "Des rubans doux et colorés pour une petite course-poursuite." },
+    item_clover_puzzle_mint: { name: "Jouet puzzle trèfle", description: "Un puzzle coulissant tout doux pour les moments curieux." },
+    item_cloud_cushion_sky: { name: "Coussin sieste nuage", description: "Un coussin nuage moelleux pour de petites pauses paisibles." },
     item_flower_pot_sunny: { name: "Pot de fleurs ensoleillé", description: "Un petit pot qui illumine le jardin miniature." },
     item_stepping_stone_path: { name: "Chemin de pas japonais", description: "Des pierres rondes pour un petit parcours de promenade." },
     item_treat_plate_biscuit: { name: "Assiette de friandises", description: "Une petite assiette de biscuits pour les moments de récompense." },
@@ -212,6 +242,11 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "Tigela pequena", description: "Uma tigela inicial para refeições diárias cheias de carinho." },
     item_toy_ball_mint: { name: "Bolinha de menta", description: "Uma bola macia para pequenas brincadeiras." },
     item_plush_toy_buddy: { name: "Pelúcia companheira", description: "Uma pelúcia gostosa de abraçar em cantinhos de brincadeira." },
+    item_rope_ring_mint: { name: "Argola de corda menta", description: "Uma argola trançada para puxar e correr com alegria." },
+    item_star_squeaker_sunny: { name: "Estrela sonora ensolarada", description: "Uma estrela de tecido brilhante para brincadeiras rápidas." },
+    item_ribbon_wand_garden: { name: "Varinha de fitas do jardim", description: "Fitas macias e coloridas para uma pequena perseguição." },
+    item_clover_puzzle_mint: { name: "Brinquedo-puzzle de trevo", description: "Um puzzle deslizante suave para momentos curiosos." },
+    item_cloud_cushion_sky: { name: "Almofada nuvem", description: "Uma almofada macia para descansos tranquilos." },
     item_flower_pot_sunny: { name: "Vaso ensolarado", description: "Um vasinho que ilumina o pequeno jardim." },
     item_stepping_stone_path: { name: "Caminho de pedras", description: "Pedras redondas para uma pequena rota de passeio." },
     item_treat_plate_biscuit: { name: "Prato de petiscos", description: "Um pratinho de biscoitos para momentos de recompensa." },
@@ -232,6 +267,11 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
     item_food_bowl_basic: { name: "Plato pequeño", description: "Un plato inicial para alimentar con cariño cada día." },
     item_toy_ball_mint: { name: "Pelota de menta", description: "Una pelota suave para pequeños ratos de juego." },
     item_plush_toy_buddy: { name: "Peluche compañero", description: "Un peluche abrazable para rincones de juego acogedores." },
+    item_rope_ring_mint: { name: "Aro de cuerda menta", description: "Un aro trenzado para tirar y perseguir con alegría." },
+    item_star_squeaker_sunny: { name: "Estrella chillona soleada", description: "Una estrella de tela brillante para juegos rápidos." },
+    item_ribbon_wand_garden: { name: "Varita de cintas del jardín", description: "Cintas suaves y coloridas para una pequeña persecución." },
+    item_clover_puzzle_mint: { name: "Juguete rompecabezas de trébol", description: "Un rompecabezas deslizante suave para ratos curiosos." },
+    item_cloud_cushion_sky: { name: "Cojín siesta de nube", description: "Un cojín suave para pequeños descansos tranquilos." },
     item_flower_pot_sunny: { name: "Maceta soleada", description: "Una maceta pequeña que ilumina el jardín diminuto." },
     item_stepping_stone_path: { name: "Camino de piedras", description: "Piedras redondas para una pequeña ruta de paseo." },
     item_treat_plate_biscuit: { name: "Plato de premios", description: "Un platito de galletas para los momentos de recompensa." },
@@ -250,6 +290,118 @@ const catalogCopyByLocale: Readonly<Record<AppLocale, Readonly<Record<string, Lo
   }
 };
 
+type ExpandedCareCopyKind = "treat" | "drink" | "toy" | "rest";
+type NonEnglishAppLocale = Exclude<AppLocale, "en-US">;
+
+const expandedCareCopySeeds = [
+  { id: "item_honey_paw_wafer", kind: "treat" },
+  { id: "item_dewdrop_water", kind: "drink" },
+  { id: "item_apple_sip", kind: "drink" },
+  { id: "item_berry_milk", kind: "drink" },
+  { id: "item_pumpkin_cream", kind: "drink" },
+  { id: "item_blueberry_smoothie", kind: "drink" },
+  { id: "item_carrot_cooler", kind: "drink" },
+  { id: "item_sweet_potato_shake", kind: "drink" },
+  { id: "item_salmon_broth", kind: "drink" },
+  { id: "item_tuna_broth", kind: "drink" },
+  { id: "item_coconut_splash", kind: "drink" },
+  { id: "item_pear_nectar", kind: "drink" },
+  { id: "item_moon_frisbee", kind: "toy" },
+  { id: "item_bell_roller", kind: "toy" },
+  { id: "item_feather_teaser", kind: "toy" },
+  { id: "item_snuffle_mat", kind: "toy" },
+  { id: "item_wobble_treat_ball", kind: "toy" },
+  { id: "item_crinkle_leaf", kind: "toy" },
+  { id: "item_sunbeam_spinner", kind: "toy" },
+  { id: "item_clover_nap_mat", kind: "rest" },
+  { id: "item_moon_pillow", kind: "rest" },
+  { id: "item_star_blanket", kind: "rest" },
+  { id: "item_cozy_basket", kind: "rest" },
+  { id: "item_window_perch", kind: "rest" },
+  { id: "item_patchwork_rug", kind: "rest" },
+  { id: "item_sleep_tent", kind: "rest" },
+  { id: "item_donut_bed", kind: "rest" },
+  { id: "item_garden_hammock", kind: "rest" },
+  { id: "item_lantern_nest", kind: "rest" }
+] as const satisfies readonly { id: ItemId; kind: ExpandedCareCopyKind }[];
+
+const expandedCareNamesByLocale = {
+  "ko-KR": [
+    "꿀 발바닥 웨이퍼", "이슬 물", "사과 한 모금", "베리 우유", "호박 크림", "블루베리 스무디", "당근 쿨러", "고구마 셰이크", "연어 수프", "참치 수프", "코코넛 스플래시", "배 넥타",
+    "달 프리스비", "방울 롤러", "깃털 장난감", "노즈워크 매트", "오뚝이 간식 공", "바스락 잎", "햇살 스피너",
+    "클로버 낮잠 매트", "달 베개", "별 담요", "포근한 바구니", "창가 쿠션", "조각보 러그", "동화 수면 텐트", "도넛 침대", "정원 해먹", "랜턴 둥지"
+  ],
+  "ja-JP": [
+    "はちみつ肉球ウエハース", "しずくの水", "りんごドリンク", "ベリーミルク", "かぼちゃクリーム", "ブルーベリースムージー", "にんじんクーラー", "さつまいもシェイク", "サーモンスープ", "ツナスープ", "ココナッツスプラッシュ", "洋なしネクター",
+    "お月さまフリスビー", "鈴のローラー", "羽根じゃらし", "ノーズワークマット", "ゆらゆらおやつボール", "カサカサリーフ", "おひさまスピナー",
+    "クローバーお昼寝マット", "お月さままくら", "星のブランケット", "ふかふかバスケット", "窓辺クッション", "パッチワークラグ", "絵本のねむりテント", "ドーナツベッド", "お庭のハンモック", "ランタンの巣"
+  ],
+  "zh-TW": [
+    "蜂蜜肉球威化餅", "露珠清水", "蘋果小飲", "莓果牛奶", "南瓜奶霜", "藍莓冰沙", "胡蘿蔔涼飲", "地瓜奶昔", "鮭魚湯", "鮪魚湯", "椰香沁飲", "西洋梨果露",
+    "月亮飛盤", "鈴鐺滾輪", "羽毛逗趣棒", "嗅聞墊", "搖搖零食球", "沙沙葉片", "陽光旋轉盤",
+    "幸運草午睡墊", "月亮枕", "星星毯", "暖暖提籃", "窗邊軟墊", "拼布地毯", "童話睡眠帳篷", "甜甜圈床", "花園吊床", "提燈小窩"
+  ],
+  "de-DE": [
+    "Honig-Pfotenwaffel", "Tautropfenwasser", "Apfelschluck", "Beerenmilch", "Kürbiscreme", "Blaubeer-Smoothie", "Karottenkühler", "Süßkartoffel-Shake", "Lachsbrühe", "Thunfischbrühe", "Kokos-Spritz", "Birnennektar",
+    "Mond-Frisbee", "Glöckchenroller", "Federwedel", "Schnüffelmatte", "Wackel-Leckerliball", "Knisterblatt", "Sonnenstrahl-Kreisel",
+    "Kleeblatt-Schlafmatte", "Mondkissen", "Sternendecke", "Kuscheliger Korb", "Fensterkissen", "Patchwork-Teppich", "Märchen-Schlafzelt", "Donutbett", "Gartenhängematte", "Laternennest"
+  ],
+  "fr-FR": [
+    "Gaufrette patte au miel", "Eau de rosée", "Gorgée de pomme", "Lait aux baies", "Crème de citrouille", "Smoothie myrtille", "Boisson carotte", "Shake patate douce", "Bouillon de saumon", "Bouillon de thon", "Éclat de coco", "Nectar de poire",
+    "Frisbee lune", "Rouleau à grelots", "Plumeau de jeu", "Tapis de fouille", "Balle à friandises", "Feuille bruissante", "Toupie rayon de soleil",
+    "Tapis sieste trèfle", "Coussin lune", "Couverture étoile", "Panier douillet", "Coussin de fenêtre", "Tapis patchwork", "Tente de sommeil", "Lit donut", "Hamac de jardin", "Nid lanterne"
+  ],
+  "pt-BR": [
+    "Wafer de patinha com mel", "Água de orvalho", "Gole de maçã", "Leite de frutas vermelhas", "Creme de abóbora", "Smoothie de mirtilo", "Refresco de cenoura", "Shake de batata-doce", "Caldo de salmão", "Caldo de atum", "Refresco de coco", "Néctar de pera",
+    "Frisbee de lua", "Rolinhos com sinos", "Varinha de penas", "Tapete de farejar", "Bola de petisco", "Folha crocante", "Giro de sol",
+    "Tapete soneca de trevo", "Almofada de lua", "Cobertor de estrela", "Cesto aconchegante", "Almofada de janela", "Tapete de retalhos", "Tenda de dormir", "Cama de rosquinha", "Rede de jardim", "Ninho de lanterna"
+  ],
+  "es-MX": [
+    "Oblea de patita con miel", "Agua de rocío", "Sorbo de manzana", "Leche de frutos rojos", "Crema de calabaza", "Licuado de arándanos", "Refresco de zanahoria", "Batido de camote", "Caldo de salmón", "Caldo de atún", "Refresco de coco", "Néctar de pera",
+    "Frisbee lunar", "Rodillo con cascabeles", "Plumero de juego", "Tapete olfativo", "Pelota de premios", "Hoja crujiente", "Giro de sol",
+    "Tapete siesta de trébol", "Almohada lunar", "Manta de estrellas", "Canasta acogedora", "Cojín de ventana", "Tapete de retazos", "Tienda para dormir", "Cama dona", "Hamaca de jardín", "Nido de linterna"
+  ]
+} as const satisfies Record<NonEnglishAppLocale, readonly string[]>;
+
+const expandedCareDescriptionsByLocale = {
+  "en-US": {
+    treat: "A sweet little reward for a cozy care moment.",
+    drink: "A refreshing little drink for daily care.",
+    toy: "A playful little find for curious moments.",
+    rest: "A cozy place for a peaceful little rest."
+  },
+  "ko-KR": { treat: "포근한 돌봄 시간에 건네는 달콤한 보상이에요.", drink: "매일의 돌봄을 위한 상쾌한 음료예요.", toy: "호기심 가득한 놀이 시간을 위한 장난감이에요.", rest: "작은 친구가 편안히 쉬는 포근한 자리예요." },
+  "ja-JP": { treat: "ほっこりお世話時間のための甘いごほうびです。", drink: "毎日のお世話にぴったりの爽やかな飲みものです。", toy: "好奇心いっぱいの遊び時間にぴったりです。", rest: "お友だちが静かに休めるほっこりした場所です。" },
+  "zh-TW": { treat: "適合溫馨照顧時光的甜蜜獎勵。", drink: "為每日照顧準備的清爽飲品。", toy: "陪伴好奇玩耍時光的趣味小物。", rest: "讓小夥伴安心休息的舒適角落。" },
+  "de-DE": { treat: "Eine süße Belohnung für einen gemütlichen Pflegemoment.", drink: "Ein erfrischendes Getränk für die tägliche Fürsorge.", toy: "Ein verspielter Fund für neugierige Momente.", rest: "Ein gemütlicher Platz für eine friedliche kleine Pause." },
+  "fr-FR": { treat: "Une douce récompense pour un moment de soin.", drink: "Une boisson rafraîchissante pour les soins quotidiens.", toy: "Une jolie trouvaille pour les moments de jeu curieux.", rest: "Un endroit douillet pour une petite pause paisible." },
+  "pt-BR": { treat: "Uma recompensa doce para um momento de carinho.", drink: "Uma bebida refrescante para o cuidado diário.", toy: "Um achado divertido para momentos curiosos.", rest: "Um cantinho aconchegante para um descanso tranquilo." },
+  "es-MX": { treat: "Una dulce recompensa para un momento de cariño.", drink: "Una bebida refrescante para el cuidado diario.", toy: "Un hallazgo divertido para momentos curiosos.", rest: "Un rincón acogedor para un descanso tranquilo." }
+} as const satisfies Record<AppLocale, Record<ExpandedCareCopyKind, string>>;
+
+const getExpandedCareCatalogCopy = (
+  item: Pick<Item, "id" | "name" | "description">,
+  locale: AppLocale
+): LocalizedCatalogItemCopy | null => {
+  const itemIndex = expandedCareCopySeeds.findIndex((seed) => seed.id === item.id);
+
+  if (itemIndex < 0) {
+    return null;
+  }
+
+  const seed = expandedCareCopySeeds[itemIndex];
+  if (!seed) {
+    return null;
+  }
+
+  if (locale === "en-US") {
+    return { name: item.name, description: item.description };
+  }
+
+  const name = expandedCareNamesByLocale[locale][itemIndex];
+  return name ? { name, description: expandedCareDescriptionsByLocale[locale][seed.kind] } : null;
+};
+
 const unknownCatalogCopyByLocale = {
   "en-US": { name: "Cozy item", description: "A cozy little find for your companion." },
   "ko-KR": { name: "포근한 아이템", description: "작은 친구를 위한 포근한 선물이에요." },
@@ -262,7 +414,7 @@ const unknownCatalogCopyByLocale = {
 } as const satisfies Record<AppLocale, LocalizedCatalogItemCopy>;
 
 export const getLocalizedCatalogItemCopy = (item: Pick<Item, "id" | "name" | "description">, locale: AppLocale = "en-US"): LocalizedCatalogItemCopy =>
-  catalogCopyByLocale[locale][item.id] ?? unknownCatalogCopyByLocale[locale];
+  catalogCopyByLocale[locale][item.id] ?? getExpandedCareCatalogCopy(item, locale) ?? unknownCatalogCopyByLocale[locale];
 
 export interface LocalizedExpressionPoseCopy {
   readonly name: string;
@@ -448,19 +600,9 @@ export interface LocalShopCatalogPresentation {
   statusLabel: string;
 }
 
-export type PremiumPassShopSource = "server_catalog" | "local_preview";
-
-export interface PremiumPassShopPresentation {
-  active: boolean;
-  product: CommerceProduct;
-  source: PremiumPassShopSource;
-  statusLabel: string;
-}
-
 export interface ShopSummaryPresentation {
   lockedCount: number;
   ownedQuantity: number;
-  plusLabel: string;
   visibleCount: number;
 }
 
@@ -481,14 +623,10 @@ interface ExpressionPackPurchaseStatusLike {
   readonly failureMessageSafe?: string;
 }
 
-export const premiumPassFallbackProduct: CommerceProduct = {
-  productId: "premium_chat_monthly",
-  entitlementKey: "premium_chat",
-  grantType: "subscription"
-};
-
 export const isPremiumPassProduct = (product: CommerceProduct) =>
-  product.productId === premiumPassFallbackProduct.productId || product.entitlementKey === premiumPassFallbackProduct.entitlementKey;
+  product.productId === "premium_chat_monthly" ||
+  product.entitlementKey === "premium_chat" ||
+  product.entitlementKey === "subscription_plus";
 
 export const hasActiveProductEntitlement = (product: CommerceProduct, entitlements: Entitlement[]) =>
   entitlements.some(
@@ -497,31 +635,12 @@ export const hasActiveProductEntitlement = (product: CommerceProduct, entitlemen
       (entitlement.productId === product.productId || entitlement.key === product.entitlementKey)
   );
 
-export const getPremiumPassShopPresentation = (
-  commerceProducts: CommerceProduct[],
-  entitlements: Entitlement[],
-  locale: AppLocale = "en-US"
-): PremiumPassShopPresentation => {
-  const copy = computedShopCopyByLocale[locale];
-  const resources = getResourcesForLocale(locale);
-  const premiumProduct = commerceProducts.find(isPremiumPassProduct);
-  const product = premiumProduct ?? premiumPassFallbackProduct;
-  const active = hasActiveProductEntitlement(product, entitlements);
-
-  return {
-    active,
-    product,
-    source: premiumProduct ? "server_catalog" : "local_preview",
-    statusLabel: active ? copy.active : premiumProduct ? resources.shop.grants[product.grantType] : copy.plusLocked
-  };
-};
-
 export const getLocalShopCatalogPresentation = (item: Item, inventory: Inventory, locale: AppLocale = "en-US"): LocalShopCatalogPresentation => {
   const copy = computedShopCopyByLocale[locale];
   const resources = getResourcesForLocale(locale);
   const ownedEntry = inventory.items.find((entry) => entry.itemId === item.id);
   const creditCost = getCreditItemPrice(item.id)?.creditCost ?? null;
-  const repeatable = isTreatInventoryItem(item);
+  const repeatable = isConsumableCareItem(item);
 
   if (ownedEntry) {
     return {
@@ -573,16 +692,13 @@ export const getLocalShopCatalogPresentation = (item: Item, inventory: Inventory
 export const getLocalShopSummaryPresentation = (
   items: Item[],
   inventory: Inventory,
-  premiumPass: PremiumPassShopPresentation,
   locale: AppLocale = "en-US"
 ): ShopSummaryPresentation => {
-  const copy = computedShopCopyByLocale[locale];
   const itemPresentations = items.map((item) => getLocalShopCatalogPresentation(item, inventory, locale));
 
   return {
     lockedCount: itemPresentations.filter((presentation) => presentation.locked).length,
     ownedQuantity: inventory.items.reduce((total, item) => total + item.quantity, 0),
-    plusLabel: premiumPass.active ? copy.active : copy.plusLocked,
     visibleCount: items.length
   };
 };
@@ -742,17 +858,47 @@ export const getThemeCardPresentation = (
 
 export const getServerShopSummaryPresentation = (
   products: CommerceProduct[],
-  entitlements: Entitlement[],
-  premiumPass: PremiumPassShopPresentation,
-  locale: AppLocale = "en-US"
+  entitlements: Entitlement[]
 ): ShopSummaryPresentation => {
-  const copy = computedShopCopyByLocale[locale];
   const visibleProducts = products.filter((product) => !isPremiumPassProduct(product));
 
   return {
     lockedCount: visibleProducts.filter((product) => !hasActiveProductEntitlement(product, entitlements)).length,
     ownedQuantity: entitlements.filter((entitlement) => entitlement.status === "active").length,
-    plusLabel: premiumPass.active ? copy.active : copy.plusLocked,
     visibleCount: visibleProducts.length
   };
 };
+
+/**
+ * Which home care action's Tier 2 "care moment" (see CareMomentLayer /
+ * getCareMomentStaging) a shop care category previews with in
+ * ShopPreviewScreen's item preview panel, so selecting a care item plays the
+ * same bowl/ball/heart-burst choreography the home screen plays when that
+ * item is actually used, instead of a static icon. Rest reuses "affection"
+ * because bed-category items are the ones `isCareItemEligibleForAction`
+ * (packages/shared/src/domain/inventory.ts) already treats as
+ * affection-eligible -- there is no dedicated "rest" moment on the home
+ * screen. Returns null for non-care categories (moments/themes), which keep
+ * their existing static preview.
+ */
+const careMomentActionByCareShopCategory: Readonly<Record<CareShopCategoryId, CareActionType>> = {
+  treats: "feed",
+  drinks: "water_garden",
+  toys: "play",
+  rest: "affection"
+};
+
+export const getShopCareMomentPreviewAction = (category: ShopCategoryId): CareActionType | null =>
+  isCareShopCategory(category) ? careMomentActionByCareShopCategory[category] : null;
+
+/**
+ * Whether a shop grid card should render its small "x{n}" owned-quantity
+ * badge. Repeatable (consumable) items keep showing their buy-more credit
+ * price in the card's price pill once owned (see ShopEntry's "repeatable"
+ * doc comment in ShopPreviewScreen.tsx), so the quantity would otherwise
+ * never surface on the card itself -- the badge fills that gap. Non-repeatable
+ * owned items already show "Owned x{n}" in the price pill, so no extra badge
+ * text is needed for those.
+ */
+export const shouldShowOwnedQuantityBadge = (entry: { repeatable?: boolean; ownedQuantity: number }): boolean =>
+  Boolean(entry.repeatable) && entry.ownedQuantity > 0;
