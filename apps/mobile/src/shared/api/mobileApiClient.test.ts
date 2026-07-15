@@ -83,6 +83,19 @@ describe("mobile API client", () => {
     expect(calls[0]?.init.headers).not.toHaveProperty("Authorization");
   });
 
+  it("bounds requests that never settle", async () => {
+    const client = createMobileApiClient({
+      baseUrl: "https://api.example.com",
+      requestTimeoutMs: 5,
+      fetchImpl: async () => new Promise<never>(() => undefined)
+    });
+
+    await expect(client.getCurrentUser()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "network_timeout", retryable: true }
+    });
+  });
+
   it("routes pet list, update, and delete requests through typed endpoint methods", async () => {
     const calls: Array<{ url: string; init: MobileApiRequestInit }> = [];
     const fetchImpl: MobileApiFetch = async (url, init) => {

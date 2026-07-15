@@ -17,6 +17,7 @@ export const colors = {
   leaf: "#54A85C",
   apple: "#8FCB43",
   coral: "#FF7F7B",
+  coralDeep: "#9D3F3A",
   rose: "#FF9DC4",
   yellow: "#FFD36A",
   honey: "#F6B84F",
@@ -31,7 +32,8 @@ export const colors = {
   line: "#E8CFA9",
   lavender: "#A789E9",
   violet: "#7D61C8",
-  white: "#FFFFFF"
+  white: "#FFFFFF",
+  overlay: "rgba(37,29,26,0.62)"
 };
 
 export const profileSurfaces = {
@@ -141,9 +143,9 @@ export type Typography = Record<TypographyRole, Required<TypographyRoleBase> & {
 export const getFontFamilyForLocale = (locale: AppLocale, brandedFontFamily: string): string =>
   getLocalizedText(locale, {
     "en-US": brandedFontFamily,
-    "ko-KR": "System",
-    "ja-JP": "System",
-    "zh-TW": "System",
+    "ko-KR": "FusionPixel10Proportional_ko",
+    "ja-JP": "FusionPixel10Proportional_ja",
+    "zh-TW": "FusionPixel10Proportional_zhTW",
     "de-DE": brandedFontFamily,
     "fr-FR": brandedFontFamily,
     "pt-BR": brandedFontFamily,

@@ -12,7 +12,7 @@ Current scope:
 - Optional API-backed first-session generation runtime for integration builds: configured API builds create pet profiles, issue signed upload metadata, upload source-photo bytes for HTTP(S) signed URLs, complete upload metadata, create/poll generation jobs, and accept generated assets through the API boundary.
 - API-backed generated-pet rendering resolves app-private signed read URLs and renders HTTP(S) asset URLs for accepted generated states, falling back to bundled first-pass sample PNGs for local mock URLs.
 - API-backed catalog and entitlement presentation uses server-owned state only; local mock catalog and mock entitlements are used only in local mode.
-- Real private storage, AI generation provider calls, store product configuration, and production auth provider/session refresh are not connected in the runtime session yet.
+- The active direct-Supabase runtime uses anonymous Supabase auth, private `pet-media` storage, the deployed `generate-avatar`, `chat-turn`, `delete-account`, and RevenueCat credit-webhook boundaries, plus OpenAI provider calls from server-side functions. The 20/60/150 credit catalog, one-time 12-credit starter grant, credit store UI, and idempotent grant/refund webhook foundation are implemented. RevenueCat SDK identity mapping, App Store product configuration, remote crash reporting, and final public legal/support release values remain release work. The optional `services/api` integration path below is a separate prototype boundary, not the current production generation path.
 
 Run from the repository root:
 

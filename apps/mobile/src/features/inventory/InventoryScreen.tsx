@@ -58,7 +58,9 @@ export function InventoryScreen() {
                     accessibilityLabel={t("inventory.giveAccessibilityLabel", { name: copy.name })}
                     accessibilityRole="button"
                     style={({ pressed }) => [styles.itemCard, pressed ? styles.itemCardPressed : null]}
-                    onPress={() => router.push(dockAction ? `/terrarium?openTray=${dockAction}` : "/terrarium")}
+                    onPress={() =>
+                      router.push(dockAction ? `/terrarium?openTray=${dockAction}&openItem=${encodeURIComponent(item.id)}` : "/terrarium")
+                    }
                   >
                     <View style={styles.itemIconFrame}>
                       <GameItemImage

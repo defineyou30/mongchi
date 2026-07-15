@@ -69,10 +69,10 @@ describe("getFontFamilies", () => {
 });
 
 describe("getFontFamilyForLocale", () => {
-  it("uses the system font for CJK locales", () => {
-    expect(getFontFamilyForLocale("ko-KR", "BrandBody")).toBe("System");
-    expect(getFontFamilyForLocale("ja-JP", "BrandBody")).toBe("System");
-    expect(getFontFamilyForLocale("zh-TW", "BrandBody")).toBe("System");
+  it("uses complete pixel fonts for CJK locales", () => {
+    expect(getFontFamilyForLocale("ko-KR", "BrandBody")).toBe("FusionPixel10Proportional_ko");
+    expect(getFontFamilyForLocale("ja-JP", "BrandBody")).toBe("FusionPixel10Proportional_ja");
+    expect(getFontFamilyForLocale("zh-TW", "BrandBody")).toBe("FusionPixel10Proportional_zhTW");
   });
 
   it("keeps the branded font for supported Latin-script locales", () => {

@@ -48,6 +48,8 @@ import type {
   WeatherLookupResponse
 } from "@mongchi/shared";
 
+import { RequestTimeoutError, withRequestTimeout } from "./requestTimeout";
+
 export interface MobileApiError {
   status: number;
   code: string;
@@ -70,6 +72,7 @@ export interface MobileApiRequestInit {
   method: "GET" | "POST" | "PATCH" | "DELETE";
   headers?: Record<string, string>;
   body?: string;
+  signal?: AbortSignal;
 }
 
 export interface MobileApiResponse {
@@ -86,6 +89,7 @@ export interface MobileApiClientOptions {
   localeProvider?: () => string;
   timezoneProvider?: () => string;
   fetchImpl?: MobileApiFetch;
+  requestTimeoutMs?: number;
 }
 
 export type BaseUrlResolution =
@@ -99,6 +103,7 @@ export type BaseUrlResolution =
     };
 
 const defaultFetch: MobileApiFetch = async (url, init) => fetch(url, init);
+const defaultRequestTimeoutMs = 30_000;
 
 const configError = (messageSafe: string): BaseUrlResolution => ({
   ok: false,
@@ -178,6 +183,7 @@ const coerceApiError = (status: number, payload: unknown): MobileApiError => {
 export function createMobileApiClient(options: MobileApiClientOptions) {
   const resolvedBaseUrl = resolveMobileApiBaseUrl(options.baseUrl);
   const fetchImpl = options.fetchImpl ?? defaultFetch;
+  const requestTimeoutMs = options.requestTimeoutMs ?? defaultRequestTimeoutMs;
 
   const request = async <T>(
     method: MobileApiRequestInit["method"],
@@ -215,10 +221,15 @@ export function createMobileApiClient(options: MobileApiClientOptions) {
     }
 
     try {
-      const response = await fetchImpl(`${resolvedBaseUrl.baseUrl}${path}`, {
+      const abortController = new AbortController();
+      const response = await withRequestTimeout(fetchImpl(`${resolvedBaseUrl.baseUrl}${path}`, {
         method,
         headers,
+        signal: abortController.signal,
         ...(body !== undefined ? { body: JSON.stringify(body) } : {})
+      }), requestTimeoutMs).catch((cause: unknown) => {
+        abortController.abort();
+        throw cause;
       });
       const payload = parseJsonBody(await response.text());
 
@@ -234,7 +245,19 @@ export function createMobileApiClient(options: MobileApiClientOptions) {
         status: response.status,
         data: payload as T
       };
-    } catch {
+    } catch (cause) {
+      if (cause instanceof RequestTimeoutError) {
+        return {
+          ok: false,
+          error: {
+            status: 408,
+            code: "network_timeout",
+            messageSafe: "The request took too long. Please try again.",
+            retryable: true
+          }
+        };
+      }
+
       return {
         ok: false,
         error: {

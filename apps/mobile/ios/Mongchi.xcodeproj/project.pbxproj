@@ -281,24 +281,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXVariantGroup section */
-		71A63E0030F1000000000004 /* InfoPlist.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				71A63E0030F1000000000002 /* en */,
-				71A63E0030F1000000000003 /* ko */,
-				71A63E0030F1000000000005 /* ja */,
-				71A63E0030F1000000000006 /* zh-Hant */,
-				71A63E0030F1000000000007 /* de */,
-				71A63E0030F1000000000008 /* fr */,
-				71A63E0030F1000000000009 /* pt-BR */,
-				71A63E0030F1000000000010 /* es-MX */,
-			);
-			name = InfoPlist.strings;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
-
 /* Begin PBXShellScriptBuildPhase section */
 		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -493,6 +475,24 @@
 		};
 /* End PBXTargetDependency section */
 
+/* Begin PBXVariantGroup section */
+		71A63E0030F1000000000004 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				71A63E0030F1000000000002 /* en */,
+				71A63E0030F1000000000003 /* ko */,
+				71A63E0030F1000000000005 /* ja */,
+				71A63E0030F1000000000006 /* zh-Hant */,
+				71A63E0030F1000000000007 /* de */,
+				71A63E0030F1000000000008 /* fr */,
+				71A63E0030F1000000000009 /* pt-BR */,
+				71A63E0030F1000000000010 /* es-MX */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -625,7 +625,7 @@
 					"$(inherited)",
 					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/react-native";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/.pnpm/react-native@0.85.3_@babel+core@7.29.7_react@19.2.3/node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
@@ -688,7 +688,7 @@
 					"$(inherited)",
 					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/react-native";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/.pnpm/react-native@0.85.3_@babel+core@7.29.7_react@19.2.3/node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
