@@ -39,6 +39,7 @@ import {
   syncAppLocale
 } from "../src/localization/config";
 import { normalizeAppLocale } from "../src/localization/localeNormalization";
+import { getDaysTogether } from "../src/features/friend/friendProfilePresentation";
 import { TerrariumSessionProvider, useTerrariumSession } from "../src/features/session/TerrariumSessionProvider";
 import { RewardClaimOverlay } from "../src/features/rewards/RewardClaimOverlay";
 import { AppDialogProvider } from "../src/shared/ui/AppDialog";
@@ -88,13 +89,19 @@ function NotificationSync() {
 // inside that provider, as a sibling to <Stack/> rather than inside any one
 // screen, so a reward earned on Chat/Friend/Home alike can surface here.
 function RewardClaimSurface() {
-  const { pendingRewardClaim, claimPendingReward, dismissPendingReward } = useTerrariumSession();
+  const { activePet, pendingRewardClaim, claimPendingReward, dismissPendingReward } = useTerrariumSession();
   const reduceMotion = useReducedMotionPreference();
   const { i18n: activeI18n } = useTranslation();
   const locale = normalizeAppLocale(activeI18n.resolvedLanguage);
+  // Threaded down for the App Store review prompt's gate (see
+  // RewardClaimOverlay's daysTogether prop doc comment) -- computed here
+  // rather than inside the overlay itself, since this is the one place that
+  // already has session access to activePet.createdAt.
+  const daysTogether = getDaysTogether(activePet.createdAt, new Date().toISOString());
 
   return (
     <RewardClaimOverlay
+      daysTogether={daysTogether}
       item={pendingRewardClaim}
       locale={locale}
       reduceMotion={reduceMotion}

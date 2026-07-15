@@ -22,6 +22,7 @@ import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
 import { duckBgmForMs, playSfx, playSuccessHaptic } from "../../shared/audio";
 import { colors, profileSurfaces, radii, shadows, spacing, useFontFamilies, useTypography } from "../../shared/design/tokens";
+import { maybeRequestAppReview } from "../../shared/review/appReviewPrompt";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
@@ -515,6 +516,14 @@ export function FriendProfileScreen() {
     // is needed here the way settle_first_chat_hello/settle_first_photo need
     // one.
     enqueueCreditRewardClaim(getLetterMonthRewardKey(Math.floor(daysTogether / MONTHLY_LETTER_THRESHOLD_DAYS)), "letter");
+
+    // App Store review prompt: finishing the 30-day letter is one of this
+    // app's biggest emotional payoffs (see MonthlyLetterCardBody's doc
+    // comment), so it's the other of the two spots that can surface the
+    // native review sheet -- see appReviewPrompt.ts's own gate for the
+    // actual budget/spacing rules. Fire-and-forget: never blocks the
+    // unfold animation or the reward claim above.
+    void maybeRequestAppReview("monthly_letter_opened", { daysTogether });
   };
 
   const handleShare = () => {

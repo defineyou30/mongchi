@@ -7,6 +7,7 @@ import type { RewardClaimQueueItem } from "@mongchi/shared";
 import type { AppLocale } from "../../localization/localeNormalization";
 import { playSfx } from "../../shared/audio";
 import { colors, radii, shadows, spacing, useTypography } from "../../shared/design/tokens";
+import { maybeRequestAppReview } from "../../shared/review/appReviewPrompt";
 import { GameItemImage, gameItemAssetByCatalogId } from "../../shared/ui/GameIllustrations";
 import {
   getRewardClaimArt,
@@ -20,6 +21,15 @@ export interface RewardClaimOverlayProps {
   item: RewardClaimQueueItem | null;
   locale: AppLocale;
   reduceMotion: boolean;
+  /**
+   * Days since the active pet moved in, for the App Store review prompt's
+   * own gate (see appReviewPrompt.ts) -- this overlay has no session access
+   * of its own, so the mount site is responsible for computing this and for
+   * omitting it (leaving the review prompt a no-op) wherever that isn't
+   * available yet. Only read for a "streak" reward's completion; every other
+   * reward kind ignores it entirely.
+   */
+  daysTogether?: number;
   /** Performs the actual claim (RPC for credit rewards, local grant for the daily treat). Resolves { ok: false } on a retryable failure -- the card stays up with a retry line instead of advancing. */
   onClaim: (item: RewardClaimQueueItem) => Promise<{ ok: boolean }>;
   /** Called once the success animation finishes, so the caller can pop the queue and show the next item (if any). */
@@ -38,7 +48,7 @@ const SUCCESS_LINGER_MS = 700;
  * claim queue for how `item` is produced and sequenced. Mount once near the
  * app root (see app/_layout.tsx) so it can appear over any screen.
  */
-export function RewardClaimOverlay({ item, locale, reduceMotion, onClaim, onDone }: RewardClaimOverlayProps) {
+export function RewardClaimOverlay({ item, locale, reduceMotion, daysTogether, onClaim, onDone }: RewardClaimOverlayProps) {
   const typography = useTypography();
   const cardScale = useRef(new Animated.Value(reduceMotion ? 1 : 0.7)).current;
   const cardOpacity = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
@@ -102,6 +112,18 @@ export function RewardClaimOverlay({ item, locale, reduceMotion, onClaim, onDone
 
     setSucceeded(true);
     playSfx(item.kind === "credit" ? "jingle_discovery" : "sfx_treat");
+
+    // App Store review prompt: a care-streak milestone (streak_3 and up --
+    // see creditRewards.ts's CARE_STREAK_REWARD_LENGTHS, all >= 3 days) is
+    // one of this app's few unambiguously positive moments, so it's one of
+    // two spots that can surface the native review sheet (see
+    // appReviewPrompt.ts's own gate for the actual budget/spacing rules).
+    // Fire-and-forget: never blocks the claim animation or the queue
+    // advancing to the next reward. daysTogether is only ever undefined if
+    // the mount site couldn't supply it yet, in which case this is a no-op.
+    if (item.copyCategory === "streak" && daysTogether !== undefined) {
+      void maybeRequestAppReview("streak_reward_claimed", { daysTogether });
+    }
 
     if (reduceMotion) {
       setTimeout(() => onDone(item), SUCCESS_LINGER_MS);
