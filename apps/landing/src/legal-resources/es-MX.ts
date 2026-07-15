@@ -30,7 +30,7 @@ export const esMX = {
           "Puedes eliminar la foto original por separado. Para borrar todo, elige Eliminar datos de la mascota en Configuración. Esto borra los datos locales y solicita a nuestros servidores que eliminen la foto, los avatares generados, la cuenta anónima y los registros relacionados. Si no se puede contactar al servidor, los datos locales se borran de inmediato y la aplicación te pide reintentar más tarde el paso del servidor.",
         childrenTitle: "Menores",
         childrenBody:
-          "MongChi no está dirigido a menores de 13 años. Si crees que un menor proporcionó información mediante una foto o un chat, comunícate con el equipo de ayuda y la eliminaremos."
+          "Mongchi no está dirigido a menores de 13 años. Si crees que un menor proporcionó información mediante una foto o un chat, comunícate con el equipo de ayuda y la eliminaremos."
       },
       policyLink: "Enlace a la política",
       policyFallback: "Aquí aparecerá un enlace seguro a la política de privacidad cuando esté disponible.",
@@ -87,7 +87,7 @@ export const esMX = {
       updated: "Última actualización: 7 de julio de 2026 · v1.0",
       items: {
         first:
-          "MongChi es entretenimiento generado por IA; tu compañero y el chat no son la conciencia ni la memoria de tu mascota real, ni ofrecen asesoría médica.",
+          "Mongchi es entretenimiento generado por IA; tu compañero y el chat no son la conciencia ni la memoria de tu mascota real, ni ofrecen asesoría médica.",
         second: "El proceso de la primera mascota mantiene la foto seleccionada bajo tu control y te permite eliminarla por separado.",
         third: "Las generaciones defectuosas, las fallas del sistema y las revisiones de calidad no deberían consumir beneficios pagados.",
         fourth: "Los cuidados básicos siguen siendo gratis. Los artículos de pago añaden expresión y no sustituyen los cuidados cotidianos.",
@@ -100,10 +100,10 @@ export const esMX = {
           "No subas fotos que contengan personas, contenido explícito o gráfico, ni nada ilegal. No evadas los límites de generación o las revisiones de seguridad, ni intentes vulnerar el chat.",
         portabilityTitle: "Sin portabilidad de cuenta",
         portabilityBody:
-          "MongChi no usa cuentas tradicionales. Los datos de la sesión y del juego local viven en tu dispositivo, así que desinstalar la aplicación o cambiar de dispositivo sin un respaldo puede causar la pérdida permanente del progreso local, los recuerdos y los créditos.",
+          "Mongchi no usa cuentas tradicionales. Los datos de la sesión y del juego local viven en tu dispositivo, así que desinstalar la aplicación o cambiar de dispositivo sin un respaldo puede causar la pérdida permanente del progreso local, los recuerdos y los créditos.",
         disclaimerTitle: "Descargo de responsabilidad",
         disclaimerBody:
-          "MongChi se proporciona tal cual. El contenido generado por IA puede ser inexacto o fallar de vez en cuando, incluso con revisiones de seguridad y calidad. Consulta los términos completos para conocer todas las limitaciones."
+          "Mongchi se proporciona tal cual. El contenido generado por IA puede ser inexacto o fallar de vez en cuando, incluso con revisiones de seguridad y calidad. Consulta los términos completos para conocer todas las limitaciones."
       },
       linkTitle: "Enlace a los términos",
       linkFallback: "Aquí aparecerá un enlace seguro a los términos cuando esté disponible.",

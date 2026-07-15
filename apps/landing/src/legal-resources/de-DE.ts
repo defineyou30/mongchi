@@ -29,7 +29,7 @@ export const deDE = {
           "Du kannst das Originalfoto separat löschen. Wähle für eine vollständige Löschung in den Einstellungen „Tierdaten löschen“. Dadurch werden lokale Daten gelöscht und unsere Server aufgefordert, das Foto, erstellte Avatare, das anonyme Konto und zugehörige Einträge zu entfernen. Wenn der Server nicht erreichbar ist, werden lokale Daten sofort gelöscht und die App bittet dich, den Serverschritt später erneut zu versuchen.",
         childrenTitle: "Kinder",
         childrenBody:
-          "MongChi richtet sich nicht an Kinder unter 13 Jahren. Wenn du glaubst, dass ein Kind über ein Foto oder einen Chat Informationen bereitgestellt hat, wende dich an den Support. Wir löschen diese Daten."
+          "Mongchi richtet sich nicht an Kinder unter 13 Jahren. Wenn du glaubst, dass ein Kind über ein Foto oder einen Chat Informationen bereitgestellt hat, wende dich an den Support. Wir löschen diese Daten."
       },
       policyLink: "Link zur Datenschutzerklärung",
       policyFallback: "Sobald verfügbar, erscheint hier ein sicherer Link zur Datenschutzerklärung.",
@@ -86,7 +86,7 @@ export const deDE = {
       updated: "Zuletzt aktualisiert am 7. Juli 2026 · v1.0",
       items: {
         first:
-          "MongChi ist KI-generierte Unterhaltung. Dein Gefährte und der Chat sind weder das Bewusstsein oder die Erinnerung deines echten Tieres noch eine medizinische Beratung.",
+          "Mongchi ist KI-generierte Unterhaltung. Dein Gefährte und der Chat sind weder das Bewusstsein oder die Erinnerung deines echten Tieres noch eine medizinische Beratung.",
         second: "Beim Erstellen des ersten Lieblings behältst du die Kontrolle über dein ausgewähltes Foto und kannst es separat löschen.",
         third: "Fehlerhafte Erstellungen, Systemfehler und fehlgeschlagene Qualitätsprüfungen sollten keine bezahlten Werte verbrauchen.",
         fourth: "Die grundlegende Pflege bleibt kostenlos. Bezahlte Gegenstände sorgen für mehr Ausdruck, nicht für Erholung nach Vernachlässigung.",
@@ -99,10 +99,10 @@ export const deDE = {
           "Lade keine Fotos hoch, die Personen, explizite oder drastische Inhalte oder rechtswidrige Inhalte zeigen. Umgehe keine Erstellungslimits oder Sicherheitsprüfungen und versuche nicht, den Chat zu manipulieren.",
         portabilityTitle: "Keine Kontoübertragbarkeit",
         portabilityBody:
-          "MongChi verwendet keine klassischen Konten. Sitzungsdaten und lokale Spieldaten liegen auf deinem Gerät. Wenn du die App ohne Sicherung deinstallierst oder das Gerät wechselst, können lokaler Fortschritt, Erinnerungen und Credits dauerhaft verloren gehen.",
+          "Mongchi verwendet keine klassischen Konten. Sitzungsdaten und lokale Spieldaten liegen auf deinem Gerät. Wenn du die App ohne Sicherung deinstallierst oder das Gerät wechselst, können lokaler Fortschritt, Erinnerungen und Credits dauerhaft verloren gehen.",
         disclaimerTitle: "Haftungsausschluss",
         disclaimerBody:
-          "MongChi wird im aktuellen Zustand bereitgestellt. KI-generierte Inhalte können trotz Sicherheits- und Qualitätsprüfungen gelegentlich ungenau sein oder nicht erstellt werden. Die vollständigen Einschränkungen findest du in den vollständigen Bedingungen."
+          "Mongchi wird im aktuellen Zustand bereitgestellt. KI-generierte Inhalte können trotz Sicherheits- und Qualitätsprüfungen gelegentlich ungenau sein oder nicht erstellt werden. Die vollständigen Einschränkungen findest du in den vollständigen Bedingungen."
       },
       linkTitle: "Link zu den Bedingungen",
       linkFallback: "Sobald verfügbar, erscheint hier ein sicherer Link zu den Bedingungen.",

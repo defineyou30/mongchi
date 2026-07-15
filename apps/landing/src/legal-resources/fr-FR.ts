@@ -30,7 +30,7 @@ export const frFR = {
           "Vous pouvez supprimer séparément la photo originale. Pour tout supprimer, choisissez Supprimer les données du compagnon dans Réglages. Cette action efface les données locales et demande à nos serveurs de supprimer la photo, les avatars générés, le compte anonyme et les données associées. Si le serveur est inaccessible, les données locales sont immédiatement effacées et l’application vous invite à relancer ultérieurement l’étape sur le serveur.",
         childrenTitle: "Enfants",
         childrenBody:
-          "MongChi ne s’adresse pas aux enfants de moins de 13 ans. Si vous pensez qu’un enfant a fourni des informations par le biais d’une photo ou d’une discussion, contactez l’assistance et nous les supprimerons."
+          "Mongchi ne s’adresse pas aux enfants de moins de 13 ans. Si vous pensez qu’un enfant a fourni des informations par le biais d’une photo ou d’une discussion, contactez l’assistance et nous les supprimerons."
       },
       policyLink: "Lien vers la politique",
       policyFallback: "Un lien sécurisé vers la politique de confidentialité apparaîtra ici lorsqu’il sera disponible.",
@@ -87,7 +87,7 @@ export const frFR = {
       updated: "Dernière mise à jour le 7 juillet 2026 · v1.0",
       items: {
         first:
-          "MongChi est un divertissement généré par une IA : votre compagnon et ses discussions ne représentent ni la conscience ni les souvenirs de votre véritable animal et ne constituent pas un avis médical.",
+          "Mongchi est un divertissement généré par une IA : votre compagnon et ses discussions ne représentent ni la conscience ni les souvenirs de votre véritable animal et ne constituent pas un avis médical.",
         second: "Lors de la création du premier compagnon, vous gardez le contrôle de la photo sélectionnée et pouvez la supprimer séparément.",
         third: "Les générations incorrectes, les défaillances du système et les échecs des contrôles de qualité ne devraient pas consommer de valeur payante.",
         fourth: "Les soins de base restent gratuits. Les objets payants ajoutent de l’expression, sans servir à réparer un manque de soins.",
@@ -100,10 +100,10 @@ export const frFR = {
           "N’importez pas de photos contenant des personnes, du contenu explicite ou choquant, ni quoi que ce soit d’illégal. Ne contournez pas les limites de génération ou les contrôles de sécurité et ne tentez pas de débrider la discussion.",
         portabilityTitle: "Aucune portabilité de compte",
         portabilityBody:
-          "MongChi n’utilise pas de comptes traditionnels. La session et les données locales du jeu restent sur votre appareil. Sans sauvegarde, désinstaller l’application ou changer d’appareil peut donc entraîner la perte définitive de la progression locale, des souvenirs et des crédits.",
+          "Mongchi n’utilise pas de comptes traditionnels. La session et les données locales du jeu restent sur votre appareil. Sans sauvegarde, désinstaller l’application ou changer d’appareil peut donc entraîner la perte définitive de la progression locale, des souvenirs et des crédits.",
         disclaimerTitle: "Clause de non-responsabilité",
         disclaimerBody:
-          "MongChi est fourni en l’état. Le contenu généré par une IA peut parfois être inexact ou échouer malgré les contrôles de sécurité et de qualité. Consultez l’intégralité des conditions pour connaître toutes les limites."
+          "Mongchi est fourni en l’état. Le contenu généré par une IA peut parfois être inexact ou échouer malgré les contrôles de sécurité et de qualité. Consultez l’intégralité des conditions pour connaître toutes les limites."
       },
       linkTitle: "Lien vers les conditions",
       linkFallback: "Un lien sécurisé vers les conditions apparaîtra ici lorsqu’il sera disponible.",

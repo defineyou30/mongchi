@@ -27,7 +27,7 @@ export const enUS = {
           "You can delete the original photo separately. For full deletion, choose Delete pet data in Settings. This clears local data and asks our servers to remove the photo, generated avatars, anonymous account, and associated records. If the server cannot be reached, local data clears immediately and the app asks you to retry the server step later.",
         childrenTitle: "Children",
         childrenBody:
-          "MongChi is not directed at children under 13. If you believe a child provided information through a photo or chat, contact support and we will delete it."
+          "Mongchi is not directed at children under 13. If you believe a child provided information through a photo or chat, contact support and we will delete it."
       },
       policyLink: "Policy link",
       policyFallback: "A secure privacy policy link will appear here when available.",
@@ -81,7 +81,7 @@ export const enUS = {
       title: "Fair use and paid value",
       updated: "Last updated July 7, 2026 · v1.0",
       items: {
-        first: "MongChi is AI-generated entertainment — your companion and chat are not your real pet's consciousness, memory, or medical advice.",
+        first: "Mongchi is AI-generated entertainment — your companion and chat are not your real pet's consciousness, memory, or medical advice.",
         second: "The first pet flow keeps your selected photo under your control and lets you delete it separately.",
         third: "Bad generations, system failures, and quality checks should not consume paid value.",
         fourth: "Basic care remains free. Paid items add expression, not recovery from neglect.",
@@ -94,10 +94,10 @@ export const enUS = {
           "Do not upload photos containing people, explicit or graphic content, or anything illegal. Do not bypass generation limits or safety checks or attempt to jailbreak chat.",
         portabilityTitle: "No account portability",
         portabilityBody:
-          "MongChi does not use traditional accounts. Session and local game data live on your device, so uninstalling or switching devices without a backup may permanently lose local progress, memories, and credits.",
+          "Mongchi does not use traditional accounts. Session and local game data live on your device, so uninstalling or switching devices without a backup may permanently lose local progress, memories, and credits.",
         disclaimerTitle: "Disclaimer",
         disclaimerBody:
-          "MongChi is provided as-is. AI-generated content may occasionally be inaccurate or fail despite safety and quality checks. See the full terms for complete limits."
+          "Mongchi is provided as-is. AI-generated content may occasionally be inaccurate or fail despite safety and quality checks. See the full terms for complete limits."
       },
       linkTitle: "Terms link",
       linkFallback: "A secure terms link will appear here when available.",

@@ -28,7 +28,7 @@ export const ptBR = {
           "Você pode excluir a foto original separadamente. Para excluir tudo, escolha Excluir dados do bichinho nos Ajustes. Isso apaga os dados locais e solicita aos nossos servidores a remoção da foto, dos avatares gerados, da conta anônima e dos registros relacionados. Se não for possível acessar o servidor, os dados locais serão apagados na hora e o app pedirá que você tente novamente a etapa do servidor mais tarde.",
         childrenTitle: "Crianças",
         childrenBody:
-          "O MongChi não é destinado a crianças menores de 13 anos. Se você acredita que uma criança forneceu informações por foto ou conversa, fale com o suporte e nós as excluiremos."
+          "O Mongchi não é destinado a crianças menores de 13 anos. Se você acredita que uma criança forneceu informações por foto ou conversa, fale com o suporte e nós as excluiremos."
       },
       policyLink: "Link da política",
       policyFallback: "Um link seguro para a política de privacidade aparecerá aqui quando estiver disponível.",
@@ -85,7 +85,7 @@ export const ptBR = {
       updated: "Última atualização em 7 de julho de 2026 · v1.0",
       items: {
         first:
-          "MongChi é entretenimento gerado por IA — seu companheiro e a conversa não são a consciência, a memória ou uma orientação médica do seu bichinho real.",
+          "Mongchi é entretenimento gerado por IA — seu companheiro e a conversa não são a consciência, a memória ou uma orientação médica do seu bichinho real.",
         second: "No primeiro fluxo do bichinho, a foto selecionada fica sob seu controle e pode ser excluída separadamente.",
         third: "Gerações ruins, falhas do sistema e reprovações de qualidade não devem consumir valores pagos.",
         fourth: "Os cuidados básicos continuam gratuitos. Itens pagos acrescentam expressividade, não aceleram a recuperação dos medidores de cuidado.",
@@ -98,10 +98,10 @@ export const ptBR = {
           "Não envie fotos com pessoas, conteúdo explícito ou violento nem qualquer conteúdo ilegal. Não burle os limites de geração ou as verificações de segurança e não tente contornar as proteções da conversa.",
         portabilityTitle: "Sem portabilidade de conta",
         portabilityBody:
-          "MongChi não usa contas tradicionais. Os dados da sessão e do jogo ficam no seu dispositivo. Por isso, desinstalar o app ou trocar de dispositivo sem uma cópia de segurança pode apagar para sempre o progresso local, as lembranças e os créditos.",
+          "Mongchi não usa contas tradicionais. Os dados da sessão e do jogo ficam no seu dispositivo. Por isso, desinstalar o app ou trocar de dispositivo sem uma cópia de segurança pode apagar para sempre o progresso local, as lembranças e os créditos.",
         disclaimerTitle: "Isenção de responsabilidade",
         disclaimerBody:
-          "MongChi é fornecido no estado em que se encontra. O conteúdo gerado por IA pode ocasionalmente ser impreciso ou falhar, mesmo com verificações de segurança e qualidade. Consulte os termos completos para conhecer todos os limites."
+          "Mongchi é fornecido no estado em que se encontra. O conteúdo gerado por IA pode ocasionalmente ser impreciso ou falhar, mesmo com verificações de segurança e qualidade. Consulte os termos completos para conhecer todos os limites."
       },
       linkTitle: "Link dos termos",
       linkFallback: "Um link seguro para os termos aparecerá aqui quando estiver disponível.",
