@@ -120,6 +120,7 @@ export interface SynchronizeWalkReturnNotificationInput {
   petName: string;
   returnAt: string;
   now?: string;
+  preferences?: Pick<NotificationPreferences, "walkReturns">;
 }
 
 let synchronizationQueue: Promise<void> = Promise.resolve();
@@ -127,12 +128,13 @@ let synchronizationQueue: Promise<void> = Promise.resolve();
 const performWalkReturnNotificationSynchronization = async ({
   petName,
   returnAt,
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  preferences = DEFAULT_NOTIFICATION_PREFERENCES
 }: SynchronizeWalkReturnNotificationInput): Promise<ScheduleWalkReturnNotificationResult> => {
   await cancelPersistedWalkReturnNotification();
 
   const returnInSeconds = Math.max(1, Math.ceil((new Date(returnAt).getTime() - new Date(now).getTime()) / 1000));
-  const result = await scheduleWalkReturnNotification({ petName, returnInSeconds });
+  const result = await scheduleWalkReturnNotification({ petName, returnInSeconds, preferences });
 
   if (result.notificationId) {
     await AsyncStorage.setItem(WALK_RETURN_NOTIFICATION_ID_KEY, result.notificationId);

@@ -6,8 +6,10 @@ import type { PetPushNotificationInput, PetPushNotificationKey } from "@mongchi/
 
 import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+import { synchronizeMonthlyLetterNotification } from "./monthlyLetterNotification";
 import { parseNotificationPayload } from "./notificationContracts";
 import { configureGardenNotificationChannel } from "./notificationPermission";
+import { getActiveNotificationPreferences, subscribeToNotificationPreferences } from "./notificationPreferencesStore";
 import {
   syncScheduledPetNotifications,
   type SyncScheduledPetNotificationsResult
@@ -61,9 +63,19 @@ export const useNotificationSync = (): void => {
   const loadHistoryPromiseRef = useRef<Promise<void> | null>(null);
   const deliveryWriteChainRef = useRef(Promise.resolve());
   const coordinatorRef = useRef<LatestNotificationSyncCoordinator<PetPushNotificationInput, SyncScheduledPetNotificationsResult> | null>(null);
+  // Latest "resync" closures from the two effects below, refreshed on every
+  // run of those effects -- lets the preference-change subscription effect
+  // further down trigger an immediate resync without needing useCallback
+  // (this file's unit test mocks react down to just useEffect/useRef).
+  const runLocalizedNativeStateSyncRef = useRef<(() => Promise<void>) | null>(null);
+  const runScheduledNotificationSyncRef = useRef<(() => Promise<void>) | null>(null);
 
   if (!coordinatorRef.current) {
-    coordinatorRef.current = createLatestNotificationSyncCoordinator(syncScheduledPetNotifications);
+    // Reads preferences fresh at call time (not just at coordinator-creation
+    // time) so a toggle flip is honored on the very next sync, whenever it runs.
+    coordinatorRef.current = createLatestNotificationSyncCoordinator((input: PetPushNotificationInput) =>
+      syncScheduledPetNotifications(input, getActiveNotificationPreferences())
+    );
   }
 
   useEffect(() => {
@@ -102,16 +114,25 @@ export const useNotificationSync = (): void => {
     const synchronizeLocalizedNativeState = async (): Promise<void> => {
       await configureGardenNotificationChannel();
 
+      await synchronizeMonthlyLetterNotification({
+        petName: petProfile.name,
+        movedInAt: petProfile.createdAt,
+        preferences: { gardenCare: getActiveNotificationPreferences().gardenCare }
+      });
+
       if (activeWalk?.status === "walking") {
         await synchronizeWalkReturnNotification({
           petName: petProfile.name,
-          returnAt: activeWalk.returnAt
+          returnAt: activeWalk.returnAt,
+          preferences: { walkReturns: getActiveNotificationPreferences().walkReturns }
         });
         return;
       }
 
       await cancelPersistedWalkReturnNotification();
     };
+
+    runLocalizedNativeStateSyncRef.current = synchronizeLocalizedNativeState;
 
     void synchronizeLocalizedNativeState().catch((error: unknown) => {
       console.warn("Failed to synchronize localized notification metadata.", error);
@@ -166,6 +187,8 @@ export const useNotificationSync = (): void => {
       await coordinatorRef.current?.request(input);
     };
 
+    runScheduledNotificationSyncRef.current = sync;
+
     void sync().catch((error: unknown) => {
       console.warn("Failed to synchronize scheduled notifications.", error);
     });
@@ -190,4 +213,23 @@ export const useNotificationSync = (): void => {
     weatherState.context,
     locale
   ]);
+
+  // Toggling a preference in SettingsScreen updates the module-level store
+  // (see notificationPreferencesStore.ts) rather than this component's props,
+  // so without this subscription the two effects above would only pick up
+  // the change on their next naturally-triggered resync (e.g. the next care
+  // action). Subscribing here re-runs both immediately, so turning a
+  // reminder off cancels its existing schedule right away.
+  useEffect(() => {
+    const unsubscribe = subscribeToNotificationPreferences(() => {
+      void runLocalizedNativeStateSyncRef.current?.().catch((error: unknown) => {
+        console.warn("Failed to resynchronize localized notification metadata after a preference change.", error);
+      });
+      void runScheduledNotificationSyncRef.current?.().catch((error: unknown) => {
+        console.warn("Failed to resynchronize scheduled notifications after a preference change.", error);
+      });
+    });
+
+    return unsubscribe;
+  }, []);
 };

@@ -153,6 +153,22 @@ describe("synchronizeWalkReturnNotification", () => {
     expect(result.notificationId).toBe("new-walk-id");
   });
 
+  it("passes preferences through so a disabled walkReturns skips scheduling but still clears any stale reminder", async () => {
+    getItem.mockResolvedValue("old-walk-id");
+
+    const result = await synchronizeWalkReturnNotification({
+      petName: "Mong",
+      returnAt: "2026-07-12T03:02:00.000Z",
+      now: "2026-07-12T03:00:00.000Z",
+      preferences: { walkReturns: false }
+    });
+
+    expect(cancelScheduledNotificationAsync).toHaveBeenCalledWith("old-walk-id");
+    expect(getPermissionsAsync).not.toHaveBeenCalled();
+    expect(scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(result).toEqual({ notificationId: null, skippedReason: "disabled" });
+  });
+
   it("serializes overlapping refreshes so only the newest reminder remains scheduled", async () => {
     let storedId: string | null = null;
     let sequence = 0;

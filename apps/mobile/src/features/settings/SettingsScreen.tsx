@@ -1,15 +1,17 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Linking, Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { syncAmbienceWithSettings, syncBgmWithSettings, useAudioSettings } from "../../shared/audio";
+import { useNotificationPreferences } from "../notifications/useNotificationPreferences";
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { fontPairLabels, useFontPair } from "../../shared/design/fontPair";
 import type { FontPairId } from "../../shared/design/fontPair";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { useAppDialog } from "../../shared/ui/AppDialog";
 import { MongchiIcon } from "../../shared/ui/MongchiIcon";
+import { LanguageSelectorSheet } from "../../shared/ui/LanguageSelectorSheet";
 import { ScreenHeaderRow } from "../../shared/ui/ScreenHeaderRow";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
@@ -19,6 +21,9 @@ import type { WeatherCondition } from "@mongchi/shared";
 
 import { getLocalizedText, normalizeAppLocale } from "../../localization/locale";
 import type { AppLocale } from "../../localization/locale";
+import { getNativeLanguageName } from "../../localization/languageOptions";
+import { deviceLanguagePreference } from "../../localization/languagePreference";
+import { useAppLanguagePreference } from "../../localization/useAppLanguagePreference";
 
 const getSafeServerMessage = (locale: AppLocale, englishMessage: string, localizedFallback: string): string =>
   getLocalizedText(locale, {
@@ -37,8 +42,10 @@ export function SettingsScreen() {
   const { i18n, t } = useTranslation();
   const locale = normalizeAppLocale(i18n.resolvedLanguage);
   const fontFamilies = useFontFamilies();
+  const [languagePreference] = useAppLanguagePreference();
   const [fontPairId, setFontPairId] = useFontPair();
   const [audioSettings, setAudioSettings] = useAudioSettings();
+  const [notificationPreferences, setNotificationPreferences] = useNotificationPreferences();
   const {
     activePet,
     apiErrorMessage,
@@ -62,22 +69,16 @@ export function SettingsScreen() {
   const privacyActionInProgress = apiSyncStatus === "syncing";
   const privacyActionError = apiSyncStatus === "error" ? apiErrorMessage : null;
   const [restoreModalVisible, setRestoreModalVisible] = useState(false);
+  const [languageSelectorVisible, setLanguageSelectorVisible] = useState(false);
   const [restoreInputText, setRestoreInputText] = useState("");
   const [restoreInFlight, setRestoreInFlight] = useState(false);
   const weatherLocationInProgress = weatherLocationStatus === "requesting";
   const localizedWeatherLocationMessage = weatherLocationStatus === "idle"
     ? weatherLocationMessage
     : t(`settings.weather.locationMessages.${weatherLocationStatus}`);
-  const activeLanguageName = getLocalizedText(locale, {
-    "en-US": "English",
-    "ko-KR": "한국어",
-    "ja-JP": "日本語",
-    "zh-TW": "繁體中文",
-    "de-DE": "Deutsch",
-    "fr-FR": "Français",
-    "pt-BR": "Português (Brasil)",
-    "es-MX": "Español (México)"
-  });
+  const activeLanguageName = languagePreference === deviceLanguagePreference
+    ? `${t("languageSelector.automatic")} · ${getNativeLanguageName(locale)}`
+    : getNativeLanguageName(locale);
   const fallbackWeatherPreview = { condition: "clear" as const, label: t("settings.weather.options.clear.label"), detail: t("settings.weather.options.clear.detail") };
   const weatherPreviewOptions: Array<{ condition: WeatherCondition; label: string; detail: string }> = [
     fallbackWeatherPreview,
@@ -98,6 +99,21 @@ export function SettingsScreen() {
     setAudioSettings({ ...audioSettings, musicEnabled: !audioSettings.musicEnabled });
     syncBgmWithSettings();
     syncAmbienceWithSettings();
+  };
+
+  // "Care reminders" bundles gardenCare + returnReminders behind a single
+  // toggle -- useNotificationSync.ts reads both from the same preferences
+  // object, but the UI doesn't need to expose that internal split.
+  const careRemindersEnabled = notificationPreferences.gardenCare;
+  const toggleCareReminders = () => {
+    setNotificationPreferences({
+      ...notificationPreferences,
+      gardenCare: !careRemindersEnabled,
+      returnReminders: !careRemindersEnabled
+    });
+  };
+  const toggleWalkUpdates = () => {
+    setNotificationPreferences({ ...notificationPreferences, walkReturns: !notificationPreferences.walkReturns });
   };
 
   // Diagnostics (__DEV__ only, see docs/readiness-diagnosis.md item 5): a
@@ -326,12 +342,12 @@ export function SettingsScreen() {
             variant="secondary"
             size="compact"
             style={styles.compactAction}
-            onPress={() => {
-              void Linking.openSettings();
-            }}
+            onPress={() => setLanguageSelectorVisible(true)}
           />
         </View>
       </View>
+
+      <LanguageSelectorSheet visible={languageSelectorVisible} onClose={() => setLanguageSelectorVisible(false)} />
 
       {privacyActionInProgress || privacyActionError ? (
         <View style={[styles.statusNotice, privacyActionError ? styles.statusNoticeError : null]}>
@@ -353,6 +369,44 @@ export function SettingsScreen() {
           <MongchiIcon id="rain" size={22} />
           <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.sections.reminders")}</Text>
         </View>
+
+        <View style={styles.compactRow}>
+          <View style={styles.compactIconFrame}>
+            <MongchiIcon id="paw" size={22} style={!careRemindersEnabled ? styles.mutedIcon : undefined} />
+          </View>
+          <View style={styles.compactCopy}>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.notifications.careReminders")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.notifications.careRemindersDetail")}</Text>
+          </View>
+          <ActionButton
+            label={careRemindersEnabled ? t("common.actions.turnOff") : t("common.actions.enable")}
+            variant="secondary"
+            size="compact"
+            style={styles.compactAction}
+            onPress={toggleCareReminders}
+          />
+        </View>
+
+        <View style={styles.rowDivider} />
+
+        <View style={styles.compactRow}>
+          <View style={styles.compactIconFrame}>
+            <MongchiIcon id="walk" size={22} style={!notificationPreferences.walkReturns ? styles.mutedIcon : undefined} />
+          </View>
+          <View style={styles.compactCopy}>
+            <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.notifications.walkUpdates")}</Text>
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.notifications.walkUpdatesDetail")}</Text>
+          </View>
+          <ActionButton
+            label={notificationPreferences.walkReturns ? t("common.actions.turnOff") : t("common.actions.enable")}
+            variant="secondary"
+            size="compact"
+            style={styles.compactAction}
+            onPress={toggleWalkUpdates}
+          />
+        </View>
+
+        <View style={styles.rowDivider} />
 
         <View style={styles.compactRow}>
           <View style={styles.compactIconFrame}>
@@ -385,9 +439,9 @@ export function SettingsScreen() {
           </View>
           <View style={styles.compactCopy}>
             <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.weather.useLocation")}</Text>
-            {localizedWeatherLocationMessage ? (
-              <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{localizedWeatherLocationMessage}</Text>
-            ) : null}
+            <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>
+              {localizedWeatherLocationMessage ?? t("settings.weather.useLocationDetail")}
+            </Text>
           </View>
           <ActionButton
             label={weatherLocationInProgress ? t("common.actions.checking", { defaultValue: "Checking" }) : t("common.actions.enable")}

@@ -9,6 +9,7 @@ import {
 import {
   createNotificationPayload,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  parseNotificationPayload,
   type MongchiNotificationAction,
   type MongchiNotificationKey,
   type MongchiNotificationOwner,
@@ -110,13 +111,36 @@ export const buildReturnReminderPlansFromCandidates = (
     }
   }));
 
+/**
+ * This handler only ever runs while the app is foregrounded -- Expo/the OS
+ * present a backgrounded or killed app's notifications natively, without
+ * calling back into JS. So suppressing the banner here specifically means
+ * "never show a banner for these while the player already has the app open."
+ *
+ * Daily garden care reminders and the walk-return ping both already have
+ * their own in-app moment when that happens while foregrounded (the garden
+ * reaction engine reacts to care state directly; TerrariumHomeScreen's
+ * speech bubble and walk-discovery toast reappear the instant a walk
+ * resolves to "returned") -- a banner on top of that reads as a jarring,
+ * redundant duplicate. Win-back (+1/+3 day) reminders and the monthly
+ * letter ping are effectively never seen in foreground in practice --
+ * opening the app resyncs and cancels/reschedules them almost immediately --
+ * so they keep the default banner for the rare case one does fire while open.
+ */
+const shouldSuppressForegroundBanner = (owner: MongchiNotificationOwner | undefined): boolean =>
+  owner === "garden" || owner === "walk";
+
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false
-  })
+  handleNotification: async (notification) => {
+    const payload = parseNotificationPayload(notification.request.content.data);
+
+    return {
+      shouldShowBanner: !shouldSuppressForegroundBanner(payload?.owner),
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false
+    };
+  }
 });
 
 export interface SyncScheduledPetNotificationsResult {

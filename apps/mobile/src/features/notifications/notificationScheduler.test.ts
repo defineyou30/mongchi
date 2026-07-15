@@ -49,12 +49,23 @@ vi.mock("@mongchi/shared", async () => {
   };
 });
 
+import { createNotificationPayload } from "./notificationContracts";
 import {
   buildNotificationPlansFromCandidates,
   buildReturnReminderPlansFromCandidates,
   MAX_DAILY_NOTIFICATIONS,
   syncScheduledPetNotifications
 } from "./notificationScheduler";
+
+const makeNotification = (data: unknown) => ({ request: { content: { data } } });
+
+// Captured immediately after import -- notificationScheduler.ts registers its
+// handler once, as a module-load side effect, and beforeEach's
+// vi.clearAllMocks() below would otherwise wipe that one recorded call before
+// the "foreground notification handler" tests get a chance to read it.
+const registeredHandleNotification = setNotificationHandler.mock.calls[0]?.[0]?.handleNotification as
+  | ((notification: unknown) => Promise<{ shouldShowBanner: boolean; shouldShowList: boolean; shouldPlaySound: boolean; shouldSetBadge: boolean }>)
+  | undefined;
 
 const makeCandidate = (overrides: Partial<PetPushNotificationCandidate> = {}): PetPushNotificationCandidate => ({
   key: "meal_due",
@@ -526,5 +537,80 @@ describe("syncScheduledPetNotifications", () => {
     // Never a threat/loss framing, even in the streak-protective branch.
     const combined = `${streakProtectiveContent.content.title} ${streakProtectiveContent.content.body}`.toLowerCase();
     expect(combined).not.toMatch(/will be lost|will lose|expire|last chance/);
+  });
+});
+
+describe("foreground notification handler", () => {
+  const getHandler = (): ((notification: unknown) => Promise<{
+    shouldShowBanner: boolean;
+    shouldShowList: boolean;
+    shouldPlaySound: boolean;
+    shouldSetBadge: boolean;
+  }>) => {
+    if (!registeredHandleNotification) {
+      throw new Error("setNotificationHandler was never called");
+    }
+
+    return registeredHandleNotification;
+  };
+
+  it("suppresses the banner for a garden due-now reminder (daily care reminders already have an in-app reaction)", async () => {
+    const handleNotification = getHandler();
+    const data = createNotificationPayload({ owner: "garden", key: "meal_due", action: "feed" });
+
+    const result = await handleNotification(makeNotification(data));
+
+    expect(result).toEqual({
+      shouldShowBanner: false,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false
+    });
+  });
+
+  it("suppresses the banner for the walk-return ping (the home screen already shows an in-app return moment)", async () => {
+    const handleNotification = getHandler();
+    const data = createNotificationPayload({ owner: "walk", key: "walk_return", action: "walk" });
+
+    const result = await handleNotification(makeNotification(data));
+
+    expect(result.shouldShowBanner).toBe(false);
+  });
+
+  it("keeps the banner for a +1/+3 day win-back reminder", async () => {
+    const handleNotification = getHandler();
+    const data = createNotificationPayload({ owner: "return", key: "return_after_1_day", action: "open_app" });
+
+    const result = await handleNotification(makeNotification(data));
+
+    expect(result.shouldShowBanner).toBe(true);
+  });
+
+  it("keeps the banner for the monthly letter ping", async () => {
+    const handleNotification = getHandler();
+    const data = createNotificationPayload({ owner: "letter", key: "monthly_letter", action: "open_app" });
+
+    const result = await handleNotification(makeNotification(data));
+
+    expect(result.shouldShowBanner).toBe(true);
+  });
+
+  it("fails open (keeps the banner) for an unparseable or legacy payload", async () => {
+    const handleNotification = getHandler();
+
+    const result = await handleNotification(makeNotification({ source: "legacy" }));
+
+    expect(result.shouldShowBanner).toBe(true);
+  });
+
+  it("never plays a sound or sets a badge, and always lists the notification, regardless of owner", async () => {
+    const handleNotification = getHandler();
+    const data = createNotificationPayload({ owner: "garden", key: "meal_due", action: "feed" });
+
+    const result = await handleNotification(makeNotification(data));
+
+    expect(result.shouldShowList).toBe(true);
+    expect(result.shouldPlaySound).toBe(false);
+    expect(result.shouldSetBadge).toBe(false);
   });
 });

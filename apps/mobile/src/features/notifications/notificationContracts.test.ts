@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createNotificationPayload,
+  getNotificationRoute,
   parseNotificationPayload,
   parseNotificationResponseRoute
 } from "./notificationContracts";
@@ -15,6 +16,25 @@ describe("notification contracts", () => {
     expect(parseNotificationPayload(data)).toEqual({ owner: "garden", key: "meal_due", action: "feed" });
     expect(parseNotificationResponseRoute(coldResponse)).toEqual({ destination: "home", tray: "feed" });
     expect(parseNotificationResponseRoute(warmResponse)).toEqual({ destination: "home", tray: "feed" });
+  });
+
+  it("maps a valid monthly-letter payload to the home route, on its own owner track", () => {
+    const data = createNotificationPayload({ owner: "letter", key: "monthly_letter", action: "open_app" });
+
+    expect(parseNotificationPayload(data)).toEqual({ owner: "letter", key: "monthly_letter", action: "open_app" });
+    expect(getNotificationRoute({ owner: "letter", key: "monthly_letter", action: "open_app" })).toEqual({ destination: "home" });
+  });
+
+  it("rejects a monthly-letter key paired with a mismatched owner or action", () => {
+    expect(
+      parseNotificationPayload(createNotificationPayload({ owner: "garden", key: "monthly_letter", action: "open_app" }))
+    ).toBeNull();
+    expect(
+      parseNotificationPayload({
+        ...createNotificationPayload({ owner: "letter", key: "monthly_letter", action: "open_app" }),
+        mongchiNotificationAction: "feed"
+      })
+    ).toBeNull();
   });
 
   it.each([

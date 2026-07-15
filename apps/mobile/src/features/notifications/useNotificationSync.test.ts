@@ -5,11 +5,13 @@ const {
   effectDependencies,
   getItem,
   setItem,
+  removeItem,
   syncScheduledPetNotifications,
   addNotificationReceivedListener,
   configureGardenNotificationChannel,
   cancelPersistedWalkReturnNotification,
   synchronizeWalkReturnNotification,
+  synchronizeMonthlyLetterNotification,
   walk,
   language
 } = vi.hoisted(() => ({
@@ -17,11 +19,13 @@ const {
   effectDependencies: [] as Array<readonly unknown[] | undefined>,
   getItem: vi.fn(),
   setItem: vi.fn(),
+  removeItem: vi.fn(),
   syncScheduledPetNotifications: vi.fn(),
   addNotificationReceivedListener: vi.fn(),
   configureGardenNotificationChannel: vi.fn(),
   cancelPersistedWalkReturnNotification: vi.fn(),
   synchronizeWalkReturnNotification: vi.fn(),
+  synchronizeMonthlyLetterNotification: vi.fn(),
   walk: { current: null as null | { id: string; status: string; returnAt: string } },
   language: { current: "en-US" }
 }));
@@ -43,7 +47,8 @@ vi.mock("react-i18next", () => ({
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
     getItem: (...args: unknown[]) => getItem(...args),
-    setItem: (...args: unknown[]) => setItem(...args)
+    setItem: (...args: unknown[]) => setItem(...args),
+    removeItem: (...args: unknown[]) => removeItem(...args)
   }
 }));
 
@@ -54,7 +59,7 @@ vi.mock("expo-notifications", () => ({
 vi.mock("../session/TerrariumSessionProvider", () => ({
   useTerrariumSession: () => ({
     isHydrated: true,
-    petProfile: { name: "Miso" },
+    petProfile: { name: "Miso", createdAt: "2026-06-01T00:00:00.000Z" },
     careState: {
       satiety: 50,
       happiness: 50,
@@ -86,6 +91,12 @@ vi.mock("./walkReturnNotification", () => ({
   synchronizeWalkReturnNotification: (...args: unknown[]) => synchronizeWalkReturnNotification(...args)
 }));
 
+vi.mock("./monthlyLetterNotification", () => ({
+  synchronizeMonthlyLetterNotification: (...args: unknown[]) => synchronizeMonthlyLetterNotification(...args)
+}));
+
+import { DEFAULT_NOTIFICATION_PREFERENCES } from "./notificationContracts";
+import { resetNotificationPreferencesListenersForTests, setActiveNotificationPreferences } from "./notificationPreferencesStore";
 import { useNotificationSync } from "./useNotificationSync";
 
 const flush = async (): Promise<void> => {
@@ -100,12 +111,20 @@ beforeEach(() => {
   effectDependencies.length = 0;
   language.current = "en-US";
   walk.current = null;
+  // The preferences store is a real, unmocked module-level singleton -- reset
+  // it to the opt-out defaults, and drop any subscribers a previous test
+  // left behind (e.g. via the "run every effect" loop below, which also
+  // invokes the preference-subscription effect), before every test.
+  resetNotificationPreferencesListenersForTests();
+  setActiveNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
   getItem.mockResolvedValue(null);
   setItem.mockResolvedValue(undefined);
+  removeItem.mockResolvedValue(undefined);
   addNotificationReceivedListener.mockReturnValue({ remove: vi.fn() });
   configureGardenNotificationChannel.mockResolvedValue(undefined);
   cancelPersistedWalkReturnNotification.mockResolvedValue(undefined);
   synchronizeWalkReturnNotification.mockResolvedValue({ notificationId: "walk-id" });
+  synchronizeMonthlyLetterNotification.mockResolvedValue({ notificationId: null, skippedReason: "not_arrived_yet" });
   syncScheduledPetNotifications.mockResolvedValue({
     scheduledCount: 1,
     scheduledKeys: ["meal_due"],
@@ -138,7 +157,8 @@ describe("useNotificationSync delivery history", () => {
     expect(configureGardenNotificationChannel).toHaveBeenCalledTimes(1);
     expect(synchronizeWalkReturnNotification).toHaveBeenCalledWith({
       petName: "Miso",
-      returnAt: "2026-07-12T04:03:00.000Z"
+      returnAt: "2026-07-12T04:03:00.000Z",
+      preferences: { walkReturns: true }
     });
   });
 
@@ -208,5 +228,79 @@ describe("useNotificationSync delivery history", () => {
     await flush();
 
     expect(setItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("useNotificationSync notification preferences", () => {
+  it("synchronizes the monthly letter notification with the pet's move-in date and the gardenCare preference", async () => {
+    useNotificationSync();
+    effects[1]?.();
+    await flush();
+
+    expect(synchronizeMonthlyLetterNotification).toHaveBeenCalledWith({
+      petName: "Miso",
+      movedInAt: "2026-06-01T00:00:00.000Z",
+      preferences: { gardenCare: true }
+    });
+  });
+
+  it("passes the active notification preferences through to the daily/return-ladder scheduler", async () => {
+    useNotificationSync();
+
+    for (const effect of effects) {
+      effect();
+    }
+    await flush();
+
+    expect(syncScheduledPetNotifications).toHaveBeenCalledWith(expect.any(Object), DEFAULT_NOTIFICATION_PREFERENCES);
+  });
+
+  it("does not schedule a walk reminder or honor gardenCare once those preferences are turned off", async () => {
+    setActiveNotificationPreferences({ gardenCare: false, returnReminders: true, walkReturns: false });
+    walk.current = { id: "walk-1", status: "walking", returnAt: "2026-07-12T04:03:00.000Z" };
+
+    useNotificationSync();
+    effects[1]?.();
+    await flush();
+
+    expect(synchronizeMonthlyLetterNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ preferences: { gardenCare: false } })
+    );
+    expect(synchronizeWalkReturnNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ preferences: { walkReturns: false } })
+    );
+  });
+
+  it("resyncs the walk/letter and daily/return schedules immediately when a preference toggles, without waiting for a care-state change", async () => {
+    useNotificationSync();
+    // Simulate the app having already hydrated once, populating the "latest sync" refs.
+    effects[1]?.();
+    effects[2]?.();
+    await flush();
+    vi.clearAllMocks();
+
+    effects[3]?.();
+    setActiveNotificationPreferences({ gardenCare: false, returnReminders: true, walkReturns: true });
+    await flush();
+
+    expect(synchronizeMonthlyLetterNotification).toHaveBeenCalledTimes(1);
+    expect(syncScheduledPetNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops resyncing after the preference-subscription effect's cleanup runs", async () => {
+    useNotificationSync();
+    effects[1]?.();
+    effects[2]?.();
+    await flush();
+
+    const cleanup = effects[3]?.();
+    cleanup?.();
+    vi.clearAllMocks();
+
+    setActiveNotificationPreferences({ gardenCare: false, returnReminders: true, walkReturns: true });
+    await flush();
+
+    expect(synchronizeMonthlyLetterNotification).not.toHaveBeenCalled();
+    expect(syncScheduledPetNotifications).not.toHaveBeenCalled();
   });
 });

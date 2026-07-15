@@ -12,8 +12,8 @@ export {
   MAX_NOTIFICATION_PAYLOAD_BYTES
 } from "./notificationPayloadBoundary";
 
-export type MongchiNotificationOwner = "garden" | "return" | "walk";
-export type MongchiNotificationKey = PetPushNotificationKey | "walk_return";
+export type MongchiNotificationOwner = "garden" | "return" | "walk" | "letter";
+export type MongchiNotificationKey = PetPushNotificationKey | "walk_return" | "monthly_letter";
 export type MongchiNotificationAction = CareActionType | "open_app";
 
 export interface NotificationPreferences {
@@ -46,7 +46,7 @@ export type NotificationRouteResult =
   | { destination: "home" }
   | { destination: "home"; tray: NotificationHomeTray };
 
-const owners = new Set<MongchiNotificationOwner>(["garden", "return", "walk"]);
+const owners = new Set<MongchiNotificationOwner>(["garden", "return", "walk", "letter"]);
 const keys = new Set<MongchiNotificationKey>([
   "meal_due",
   "meal_urgent",
@@ -59,7 +59,8 @@ const keys = new Set<MongchiNotificationKey>([
   "rainy_cozy_check",
   "return_after_1_day",
   "return_after_3_days",
-  "walk_return"
+  "walk_return",
+  "monthly_letter"
 ]);
 const actions = new Set<MongchiNotificationAction>([
   "feed",
@@ -85,7 +86,8 @@ const expectedActionByKey: Record<MongchiNotificationKey, MongchiNotificationAct
   rainy_cozy_check: "talk",
   return_after_1_day: "open_app",
   return_after_3_days: "open_app",
-  walk_return: "walk"
+  walk_return: "walk",
+  monthly_letter: "open_app"
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -118,12 +120,13 @@ export const parseNotificationPayload = (value: unknown): MongchiNotificationPay
     return null;
   }
 
-  const isGardenPayload = owner === "garden" && !key.startsWith("return_after_") && key !== "walk_return" && action !== "open_app";
+  const isGardenPayload = owner === "garden" && !key.startsWith("return_after_") && key !== "walk_return" && key !== "monthly_letter" && action !== "open_app";
   const isReturnPayload = owner === "return" && key.startsWith("return_after_") && action === "open_app";
   const isWalkPayload = owner === "walk" && key === "walk_return" && action === "walk";
+  const isLetterPayload = owner === "letter" && key === "monthly_letter" && action === "open_app";
   const hasExpectedAction = expectedActionByKey[key as MongchiNotificationKey] === action;
 
-  if ((!isGardenPayload && !isReturnPayload && !isWalkPayload) || !hasExpectedAction) {
+  if ((!isGardenPayload && !isReturnPayload && !isWalkPayload && !isLetterPayload) || !hasExpectedAction) {
     return null;
   }
 
