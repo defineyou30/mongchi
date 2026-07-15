@@ -101,9 +101,6 @@ const flowContracts = [
       'label={t("reveal.enter")}',
       "acceptGeneratedPet",
       'router.replace("/terrarium")',
-      't("common.actions.tryAgain")',
-      "retryMockGeneration",
-      'router.push("/generation")',
       't("common.actions.reportIssue")',
       'router.push("/support")'
     ]
@@ -131,8 +128,9 @@ const flowContracts = [
       "getPremiumChatAccessPresentation",
       "premiumChatAccess.ctaLabel",
       "premiumGate",
+      "isLiveChatEnabled",
+      't("chat.unavailableTitle")',
       't("chat.inputAccessibilityLabel")',
-      'router.push("/shop")',
       't("chat.back")',
       'router.replace("/terrarium")'
     ]
@@ -172,9 +170,19 @@ const flowContracts = [
       "shopShelf",
       "productCard",
       "commerceProducts",
-      "getPremiumPassShopPresentation",
-      "shopSummary.plusLabel"
+      "isPremiumPassProduct(product)",
+      'router.push("/credits")',
+      'edges={["top", "right", "bottom", "left"]}',
+      'resizeMode="cover"',
+      "minimumFontScale={0.72}",
+      'selectedTab === "customize"',
+      "ExpressionPackShelf"
     ]
+  },
+  {
+    label: "shop two-tab route contract",
+    path: "apps/mobile/src/features/shop/shopRouteParams.ts",
+    fragments: ['export type ShopTabId = "care" | "customize";']
   },
   {
     label: "settings legal support paths",
@@ -275,6 +283,12 @@ const flowContracts = [
   }
 ];
 
+assertExcludes(
+  "apps/mobile/src/features/shop/ShopPreviewScreen.tsx",
+  ["getPremiumPassShopPresentation", "shopSummary.plusLabel"],
+  "shop chat-pass exclusion"
+);
+
 for (const contract of flowContracts) {
   assertIncludes(contract.path, contract.fragments, contract.label);
 }
@@ -283,6 +297,12 @@ assertExcludes(
   "apps/mobile/src/features/generation/GenerationScreen.tsx",
   ['label="Preview failure state"', "failMockGeneration"],
   "hatching production UI"
+);
+
+assertExcludes(
+  "apps/mobile/src/features/petReveal/PetRevealScreen.tsx",
+  ['t("common.actions.tryAgain")', "retryMockGeneration", 'router.push("/generation")'],
+  "accepted pet reveal must not offer an unfunded remake"
 );
 
 if (failures.length > 0) {

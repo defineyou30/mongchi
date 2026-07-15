@@ -1,8 +1,31 @@
 # Security And Provider Boundaries
 
-> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+> 최신 대조: 2026-07-12. 현재 출시 판정은
+> `docs/current/backend-release-audit-2026-07-12.md`를 우선한다.
 
-This scaffold intentionally does not connect production services.
+The active runtime connects Supabase Auth, Postgres, private Storage, and
+three Edge Functions (`generate-avatar`, `chat-turn`, `delete-account`). The
+older Node API and worker implementation remains a tested contract/reference
+path, but it is not the mobile app's current production runtime.
+
+## Current Chat Boundary
+
+The repository now gives `chat-turn` the same server-owned cost boundary as
+generation. Migration `0014_chat_turn_guardrails.sql` reserves each request
+before OpenAI, selects free/Plus/credit access on the server, applies a
+user-global rate bucket, replays completed request ids, and restores reserved
+value on failure. The mobile request contract cannot select `charge`.
+
+This is fail-closed at both layers: `CHAT_LIVE_ENABLED` must enable the Edge
+Function and `EXPO_PUBLIC_TINY_PET_LIVE_CHAT_ENABLED` must expose the mobile
+entry point. Production validation additionally requires
+`TINY_PET_CHAT_SAFETY_REVIEWED=true`. Until `0014`, the current function, and
+the external safety review are verified remotely, both live-chat flags remain
+off.
+
+Migration `0015_chat_message_reports.sql` adds an authenticated, ownership-
+checked report path for AI messages. Reports store the message reference and a
+bounded reason, never a client-supplied copy of conversation text.
 
 ## Mobile App Must Not Contain
 
@@ -22,7 +45,7 @@ This scaffold intentionally does not connect production services.
 - Production worker config must provide production Postgres, S3-compatible worker storage, generation provider, provider API key, provider model/safety-model settings, an explicit worker max-jobs batch cap, calibrated quality threshold env vars, and a safe quality calibration id; release validation fails closed when those worker settings are missing or unsafe, rejects threshold env vars outside the 0..1 score range, and requires calibration traceability before production generation can be enabled.
 - Signed upload URLs. Initial private URL issuance, metadata validation, mock-storage disable option, server-only `PrivateStorageSigner` injection point, S3-compatible signing adapter, runtime-config construction, internal `s3://` storage URI persistence, and Postgres-backed source-photo metadata persistence exist; production bucket policies and deployment secrets still need to be supplied.
 - Generation job lifecycle. Initial creation preconditions, worker-safe Postgres job claiming/status transitions, Postgres-backed mock poll progression for development, production runtime-config blocking for mock poll auto-completion, durable completion/failure/retry persistence, generated asset metadata writes, private worker completion payload validation, generated-asset id/state/dimensions/MIME/version/hash/internal-storage URI normalization before persistence, a tested async worker execution runtime, tested OpenAI image edit/source-photo safety/generation quality adapter composition, runtime-configurable quality thresholds, a scheduler-friendly worker process runner, a tested OpenAI/Postgres runtime-env deployment composer, `npm run start:generation-worker`, and a tested S3-compatible worker storage adapter exist; calibrated threshold values, deployed provider/storage credentials and policies, and production scheduler infrastructure still need to be connected.
-- Generated asset signed read URLs. Initial app-private read URL issuance exists with ownership checks, mock-storage disable option, server-only `PrivateStorageSigner` injection point, S3-compatible signing adapter, runtime-config construction, and Postgres-backed generated asset ownership reads; mobile only renders HTTP(S) signed URLs, and production bucket policies plus deployment secrets still need to be supplied.
+- Generated asset signed read URLs. App-private read URL issuance has ownership checks; the direct Supabase mobile runtime requests one-hour signed URLs and bounds storage calls at 20 seconds. Mobile only renders HTTP(S) signed URLs. Production bucket policies and foreground/expiry refresh QA still need verification.
 - Care state consistency across devices. The Postgres-backed request service now wires care state, inventory placement, item catalog, active versioned reaction catalog, walks, rewards, and recent reaction history through the request-scoped daily-loop repository; production deployment still needs the database-backed HTTP runtime mounted behind real auth and multi-instance operational controls.
 - Weather lookup. Mobile can request foreground location only after a user opt-in action, then sends rounded approximate coordinates through `/v1/weather/current`. The API resolves weather from a server-side cache keyed by rounded region only, returns a `WeatherContext`, and never exposes provider keys to mobile. The current mock/Postgres services use deterministic local weather and in-memory cache; production still needs an external provider adapter and shared multi-instance cache if deployed across workers.
 - Premium chat entitlement enforcement. Initial tested API gate requires active entitlement and disclosure before conversation/message handling, and the Postgres-backed request service now covers conversation/message persistence, chat-history deletion, server-only provider injection, retention-filtered capped provider context, configurable server-side turn rate and retention-window policy, tested OpenAI Responses structured output, refusal handling, safe provider-unavailable errors, provider-output moderation, localized crisis/professional-advice fallback copy before pet replies are stored, safe no-text provider monitor events through the operational logger adapter, and bounded long-term message retention purging through a scheduler-friendly worker deployment runnable with `npm run start:chat-retention-worker`. Production log/alert sinks and scheduler infrastructure still need to be connected.

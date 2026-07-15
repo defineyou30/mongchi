@@ -121,3 +121,42 @@
 3. **본드 레벨 보상 테이블** — 이미 쌓이는 XP에 의미 부여, 저비용 고효율.
 4. **소켓 배치 + 그림자/틴트 통합** — 페인포인트 해소.
 5. **테마 번들 1종 파일럿** — 봄 정원 세트로 검증.
+
+## 6-2. 크레딧 보상 파우셋 확정 (2026-07-15)
+
+**문제:** 산책 도감 완성(+20)·본드 L5/L10 보상이 클라 로컬 지갑(`bonusCredits`)에만 쌓여, 서버 `credit_wallets.balance`로 결제하는 라이브 상점(0021)에서는 보이지도 쓰이지도 않는 드리프트 버그였다. `claim_credit_reward` RPC(`supabase/migrations/0023_credit_reward_claims.sql`)를 신설해 보상 크레딧을 서버 원장으로 이전한다.
+
+**원칙 — "데일리=간식, 크레딧=기념일":** 매일 반복되는 오늘의 돌봄(밥+놀이+인사 3종 완료)은 크레딧이 아니라 커먼 간식 아이템 1개(로컬 지급, 서버 불필요)로 보상한다. 크레딧은 정착·스트릭·편지·도감·본드처럼 **자주 반복되지 않는 기념비적 순간**에만 지급해, 매일 크레딧을 파밍하는 루프가 생기지 않게 한다.
+
+**확정 보상 표 (서버 하드코딩 화이트리스트, `claim_credit_reward`가 유일한 진실 소스):**
+
+| 보상 키 | 금액 | 조건 | 비고 |
+|---|---|---|---|
+| `settle_first_feed` | +1 | 첫 밥 주기 | 1회성 |
+| `settle_first_play` | +1 | 첫 놀이 | 1회성 |
+| `settle_first_chat_hello` | +1 | 채팅(무료 인사) 화면 첫 방문 | 1회성 |
+| `settle_first_walk` | +1 | 첫 산책 클레임 | 1회성 |
+| `settle_first_photo` | +1 | 공유 카드 첫 열람 | 1회성 |
+| `streak_3` | +2 | 케어 스트릭 3일 | 1회성(마일스톤) |
+| `streak_7` | +3 | 케어 스트릭 7일 | 1회성(마일스톤) |
+| `streak_14` | +5 | 케어 스트릭 14일 | 1회성(마일스톤) |
+| `streak_30` | +8 | 케어 스트릭 30일 | 1회성(마일스톤) |
+| `letter_month_{N}` | +5 | N개월차 편지 개봉 | 월 1회, N으로 멱등 |
+| `collection_complete` | +10 | 산책 도감 완성 | 기존 로컬 +20 대체·하향(서버 클레임 시에만 10; 오프라인 폴백은 20 유지) |
+| `bond_5` | +5 | 본드 레벨 5 | 기존 로컬 지급과 동일 금액, 서버 원장으로 이전 |
+| `bond_10` | +10 | 본드 레벨 10 | 기존 로컬 지급과 동일 금액, 서버 원장으로 이전 |
+
+조건 판정(첫 밥/스트릭 일수/도감 완성 등)은 전부 클라 로컬 도메인(싱글플레이 진행도)이 기준이라 서버가 검증할 수 없다 — 서버는 금액과 "유저당 키 1회"만 강제한다(`claim_credit_reward`의 `(user, reason, ref_type, ref_id=reward_key)` 유니크 인덱스). 클라가 조작해도 실제 키를 정확히 1회, 정해진 금액만큼만 받을 수 있어 리스크가 낮다.
+
+**클레임 경험(RewardClaimOverlay):** 위 표의 모든 보상(+오늘의 돌봄 간식)이 조용한 토스트가 아니라 하나의 재사용 큐 기반 오버레이(`apps/mobile/src/features/rewards/RewardClaimOverlay.tsx`)를 통과한다 — 딤 배경 위 카드가 바운스 인 → "받기" 탭 → (크레딧이면 그 순간 `claim_credit_reward` 호출, 간식이면 이미 로컬 지급된 것의 확인) → 스파클/펄스 연출 → 다음 큐 아이템. reduce-motion 존중, 복수 보상은 순차 표시.
+
+**이벤트 → 아트 매핑:**
+
+| copyCategory | 트리거 | 아트 | 사운드 |
+|---|---|---|---|
+| `settlement` | settle_first_* 5종 | 젬 아이콘(`GameItemImage item="gem"`) | jingle_discovery |
+| `streak` | streak_3/7/14/30 | 젬 아이콘 | jingle_discovery |
+| `letter` | letter_month_{N} | 젬 아이콘 | jingle_discovery |
+| `collection` | collection_complete | 젬 아이콘 | jingle_discovery |
+| `bond` | bond_5/bond_10 | 젬 아이콘 | jingle_discovery |
+| `daily_treat` | 오늘의 돌봄 3종 완료 | 지급된 간식 아이템 아트(`gameItemAssetByCatalogId`) | sfx_treat |

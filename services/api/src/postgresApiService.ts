@@ -14,9 +14,9 @@ import {
   grantCreditWalletValue,
   getCreditItemPrice,
   grantRelationshipBondXp,
+  isCareItemEligibleForAction,
   isPlantGrowthEnabledItemId,
   getCareDaysAway,
-  isTreatInventoryItem,
   placeInventoryItemInFixedSlot,
   mockCareState,
   mockCreditWallet,
@@ -1075,6 +1075,13 @@ export const createPostgresApiService = ({
     return items.sort(compareItems);
   };
 
+  const getItemCatalogSnapshot = async (): Promise<Item[]> => {
+    const existingItems = await repositories.dailyLoop.listItems();
+    const existingIds = new Set(existingItems.map((item) => item.id));
+
+    return [...existingItems, ...mockItems.filter((item) => !existingIds.has(item.id))].sort(compareItems);
+  };
+
   const ensureCareState = async (pet: PetProfile, timestamp: ISODateTime = now()): Promise<CareState> => {
     const existing = await repositories.dailyLoop.findCareState(pet.id);
 
@@ -1116,6 +1123,9 @@ export const createPostgresApiService = ({
 
     return repositories.dailyLoop.upsertInventory(createStarterInventory(userId, timestamp));
   };
+
+  const getInventorySnapshot = async (userId: UserId, timestamp: ISODateTime = now()): Promise<Inventory> =>
+    (await repositories.dailyLoop.findInventory(userId)) ?? createStarterInventory(userId, timestamp);
 
   const ensureStarterReactionCatalog = async (
     locale: Locale,
@@ -1500,8 +1510,8 @@ export const createPostgresApiService = ({
     let consumedInventory: Inventory | null = null;
 
     if (request.action === "treat") {
-      const inventory = await ensureInventory(auth.data.userId, request.occurredAt);
-      const itemCatalog = await ensureStarterItemCatalog();
+      const inventory = await getInventorySnapshot(auth.data.userId, request.occurredAt);
+      const itemCatalog = await getItemCatalogSnapshot();
       const treatItemId = request.itemId ?? getAvailableTreatItemId(inventory, itemCatalog);
       const treatItem = treatItemId ? itemCatalog.find((item) => item.id === treatItemId) : null;
 
@@ -1511,7 +1521,7 @@ export const createPostgresApiService = ({
           : fail(404, "treat_item_not_found", "Add a treat before using this action.");
       }
 
-      if (!isTreatInventoryItem(treatItem)) {
+      if (!isCareItemEligibleForAction(treatItem, request.action)) {
         return fail(422, "invalid_treat_item", "Choose a treat item for this action.");
       }
 
@@ -1522,8 +1532,39 @@ export const createPostgresApiService = ({
       }
 
       consumedInventory = consumed.inventory;
+    } else if (request.action === "water_garden" && request.itemId) {
+      const inventory = await getInventorySnapshot(auth.data.userId, request.occurredAt);
+      const itemCatalog = await getItemCatalogSnapshot();
+      const drinkItem = itemCatalog.find((item) => item.id === request.itemId);
+
+      if (!drinkItem) {
+        return fail(404, "inventory_item_not_found", "Inventory item not found.");
+      }
+
+      if (!isCareItemEligibleForAction(drinkItem, request.action)) {
+        return fail(422, "invalid_drink_item", "Choose a drink item for this action.");
+      }
+
+      const consumed = consumeInventoryItem(inventory, request.itemId, request.occurredAt);
+
+      if (!consumed.ok) {
+        return fail(404, "inventory_item_not_found", "Inventory item not found.");
+      }
+
+      consumedInventory = consumed.inventory;
     } else if (request.itemId) {
-      const inventory = await ensureInventory(auth.data.userId, request.occurredAt);
+      const itemCatalog = await getItemCatalogSnapshot();
+      const careItem = itemCatalog.find((item) => item.id === request.itemId);
+
+      if (!careItem) {
+        return fail(404, "inventory_item_not_found", "Inventory item not found.");
+      }
+
+      if (!isCareItemEligibleForAction(careItem, request.action)) {
+        return fail(422, "invalid_care_item", "Choose an item made for this care action.");
+      }
+
+      const inventory = await getInventorySnapshot(auth.data.userId, request.occurredAt);
       const ownedItem = inventory.items.find((entry) => entry.itemId === request.itemId && entry.quantity > 0);
 
       if (!ownedItem) {
@@ -1550,7 +1591,11 @@ export const createPostgresApiService = ({
     const result = applyLocalCareAction(await ensureCareState(pet.data, request.occurredAt), request);
     const wateredGarden =
       request.action === "water_garden"
-        ? waterGardenInventory(await ensureInventory(auth.data.userId, request.occurredAt), await ensureStarterItemCatalog(), request.occurredAt)
+        ? waterGardenInventory(
+            consumedInventory ?? (await ensureInventory(auth.data.userId, request.occurredAt)),
+            await ensureStarterItemCatalog(),
+            request.occurredAt
+          )
         : null;
     const bloomRewardSummary = summarizePlantBloomRewards(wateredGarden?.bloomRewards ?? []);
     const baseRelationshipState = applyRelationshipCareAction(

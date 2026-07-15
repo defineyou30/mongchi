@@ -1,8 +1,8 @@
 # Native MVP Slice Status
 
-> **최종 갱신일: 2026-07-08.**
+> **최종 갱신일: 2026-07-12.**
 >
-> **현재 상태 요약 (2026-07-08).** 아래 본문은 2026-07-03 mock MVP 슬라이스 시점의 상세 로그로, 당시 `services/api`·`workers/ai` 서버 프로토타입 계약을 서술한다(과정 보존). 그 이후 실제 백엔드는 **Supabase**로 정착했다(`supabase/functions/generate-avatar`·`delete-account`, `supabase/migrations` 0001–0005). 코어 온보딩·케어·리빌·산책 루프는 로컬 프로토타입 모드로 완결되어 있고, 다음이 추가로 랜드됐다:
+> **현재 상태 요약 (2026-07-12).** 아래 본문은 2026-07-03 mock MVP 슬라이스 시점의 상세 로그로, 당시 `services/api`·`workers/ai` 서버 프로토타입 계약을 서술한다(과정 보존). 그 이후 실제 백엔드는 **Supabase**로 정착했다(`supabase/functions/generate-avatar`·`delete-account`·`chat-turn`, 로컬 마이그레이션 0001–0013). 현재 출시 상태와 원격 확인 한계는 `docs/current/backend-release-audit-2026-07-12.md`를 우선한다. 코어 온보딩·케어·리빌·산책 루프는 로컬 프로토타입 모드로 완결되어 있고, 다음이 추가로 랜드됐다:
 >
 > - **버전관리**: 2026-07-07 git init + 원격 push(그 전엔 VCS 0 — 최상위 리스크였음). 이후 20+ 커밋, vitest 1252 그린.
 > - **세션 스키마 v7**: 멀티펫 `pets[petId]` 번들화(W1) + 서버 펫 네임스페이스(W2, `generation_jobs`/`assets` pet_id·`pet_slots`·슬롯 RPC 3종). 멀티펫 표면(구매·2번째 펫)은 출시 후 v1.1로 연기.
@@ -85,7 +85,7 @@ Implemented from the current scaffold using the guide docs as source of truth:
 - Generated mobile assets are covered by a static manifest gate that verifies PNG dimensions/format, runtime registry coverage, and rejects stale unregistered generated PNGs.
 - Generated mobile visual assets are also covered by a static quality gate for color richness, alpha/cutout structure, coverage, and centering so future placeholder regressions fail preflight.
 - Mobile visual direction is guarded by `npm run validate:mobile-visual-direction`, checking the premium cozy casual game UI contract, raster-backed scene frame, tactile HUD/buttons, reveal/home/hatching scene modes, and stale dome-first copy regressions.
-- Generated mobile art now has a review contact sheet at `docs/qa-screenshots/mobile-generated-assets-contact-sheet.png`, with freshness guarded by `npm run validate:mobile-asset-contact-sheet`.
+- A generated mobile-art contact sheet existed during the 2026-07-03 MVP pass, but that artifact is not present in the current checkout. Regenerate it before treating the historical visual review as current evidence.
 - Home, premium chat, shared screen framing, inventory, settings, legal/support, and shop pages now use the imagegen-derived `pixel-garden-premium-v1.png` raster scene instead of flat CSS scenery.
 - Shop shelf art uses `shop-room-square-premium-v1.png` only as an in-page collectible shelf illustration, while stale `shop-garden-v2.png` and `shop-shelf-v3.png` assets live under `dummy/stale-generated-assets`.
 - Terrarium/reveal art now uses the shared premium garden scene and layered game UI instead of the older dome-first placeholder direction, while still avoiding reference/mockup screen crops.
@@ -105,23 +105,11 @@ Implemented from the current scaffold using the guide docs as source of truth:
 - Premium chat access copy now distinguishes ready long chat, local long-chat preview with saved tickets/credits, and locked Plus chat so free authored hellos are not confused with spendable chat balance.
 - First-session and terrarium hub flow is covered by a static route/CTA gate for Welcome, Photo upload, Pet setup, Hatching, Reveal, Terrarium, Chat, Shop, and Walk reward paths.
 - User-visible mobile copy is covered by `npm run validate:mobile-copy` to keep implementation, build, configuration, and release-process terminology out of screen strings.
-- Large iOS simulator terrarium, chat, and shop design screenshots are captured under `docs/qa-screenshots`.
-- iOS simulator reveal screenshot confirms the generated cozy garden scene background renders in-app:
-  - `docs/qa-screenshots/ios-iphone-16-pro-store-pet-reveal.png`
-- iOS simulator pet setup screenshot confirms the profile summary ribbon renders in-app:
-  - `docs/qa-screenshots/ios-iphone-16-pro-pet-setup-profile-ribbon.png`
-- iOS simulator first-session screenshots confirm the progress HUD renders on Photo, Hatching, and Reveal without hiding primary CTAs:
-  - `docs/qa-screenshots/ios-iphone-16-pro-photo-first-session-progress.png`
-  - `docs/qa-screenshots/ios-iphone-16-pro-hatching-first-session-progress.png`
-  - `docs/qa-screenshots/ios-iphone-16-pro-reveal-first-session-progress.png`
-- iOS simulator photo-upload screenshot confirms the visual layout is unchanged after decorative scene image accessibility cleanup:
-  - `docs/qa-screenshots/ios-iphone-16-pro-photo-decorative-a11y.png`
-- iOS simulator chat screenshot confirms refined premium bond art renders in-app:
-  - `docs/qa-screenshots/ios-iphone-16-pro-chat-premium-bond-art.png`
-- iOS simulator shop screenshot confirms the compact summary HUD renders without text overflow:
-  - `docs/qa-screenshots/ios-iphone-16-pro-shop-summary-hud.png`
-- iOS simulator terrarium screenshot confirms the claimed walk reward summary renders before the care controls:
-  - `docs/qa-screenshots/ios-iphone-16-pro-walk-reward-claimed-summary.png`
+- The 2026-07-03 pass recorded iOS simulator evidence for reveal, pet setup,
+  first-session progress, photo accessibility, premium chat, shop, and walk
+  reward states. Those named PNG artifacts are not present in the current
+  checkout, so these bullets are historical implementation notes rather than
+  current visual-QA evidence.
 - Large iOS simulator inventory screenshot confirms item rows render separate bundled v2 item PNG assets instead of placeholder blocks.
 - Booted iOS simulator and connected Android emulator/device screenshots can now be captured into `docs/qa-screenshots` with `npm run qa:mobile-screenshots`.
 - Store screenshot preset states are unit-tested for route mapping and local session contents, giving the final iOS/Android screenshot pass stable screen setup points.
@@ -131,8 +119,9 @@ Implemented from the current scaffold using the guide docs as source of truth:
 - Expo native store config is covered by `npm run validate:native-store-config`, guarding app identity, native permissions, generated native assets, and EAS build profile shape for iOS/Android without running Android builds mid-pass.
 - Store screenshot preset/route/caption mapping is covered by `npm run validate:store-screenshots`; intermediate iOS screenshot coverage can be enforced with `npm run validate:ios-store-screenshots`, and final iOS/Android PNG coverage can be enforced with `TINY_PET_REQUIRE_STORE_SCREENSHOTS=true`.
 - iPhone 16 Pro development-client store screenshot PNGs are captured for Welcome, Photo upload, Pet setup, Hatching, Pet reveal, Main terrarium, AI chat / premium bond, Walk reward, and Shop through `TINY_PET_IOS_STORE_SCREENSHOT_CLIENT=development-client npm run capture:ios-store-screenshots`, with iOS-only strict coverage passing through `npm run validate:ios-store-screenshots`.
-- A generated iOS store contact sheet at `docs/qa-screenshots/ios-iphone-16-pro-store-contact-sheet.png` summarizes the nine preset screenshots and is guarded by `npm run validate:ios-store-contact-sheet`.
-- iPhone 16e large-text development-client evidence is captured for all nine deterministic presets with `large-text-*` labels and summarized at `docs/qa-screenshots/ios-iphone-16e-large-text-store-contact-sheet.png`; `npm run validate:ios-large-text-evidence` guards the PNG set and contact sheet.
+- The earlier iPhone 16 Pro store contact sheet and iPhone 16e large-text
+  contact sheet are not present in the current checkout. Recapture all required
+  presets before relying on the screenshot coverage validators for release.
 - iPhone 16 Pro Reduce Motion evidence is captured for hatching, pet reveal, terrarium, chat, and shop through `npm run capture:ios-reduce-motion-hatching` plus `npm run capture:ios-reduce-motion-core-evidence`; `npm run validate:ios-reduce-motion-evidence` guards the PNG set.
 - iOS development-client readiness is guarded by `npm run validate:ios-dev-client-readiness`, with `expo-dev-client` installed, generated iOS workspace and Pod lock present, the EAS development profile configured for iOS simulator builds, and the iOS store capture script able to open the development-client URL while suppressing dev menu overlays.
 - The iOS development-client build/install path has succeeded through `npm run ios:dev-client:build` on the booted iPhone 16 Pro simulator; screenshot validators now reject iOS `Open in app` confirmation prompts and development-client tools overlays.

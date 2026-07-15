@@ -112,7 +112,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_idempotency_idx
 | 크레딧 잔액 | `credit_wallets` | 표정 팩/재생성/풀셋/슬롯 전부 여기서 차감 |
 | 감사 로그 | `credit_ledger` | 모든 delta append |
 
-즉 **생성권 = 크레딧 잔액에서 파생**(별도 버킷 아님). 재생성 8cr, 풀셋 30cr, 표정 팩 12cr, 슬롯 50cr 전부 `consume_credits(user, cost, reason)` 한 경로. 무료 1회만 `generation_quota` 잔존. 이 분리로 "무료 1회는 유저별 리셋 불가한 특수 자원"과 "돈 주고 산 소모성 크레딧"이 명확히 갈린다.
+즉 **생성권 = 크레딧 잔액에서 파생**(별도 버킷 아님). 사진 재생성 12cr, 풀셋 30cr, 표정 팩 12cr, 슬롯 50cr 전부 `consume_credits(user, cost, reason)` 한 경로를 사용한다. 무료 1회만 `generation_quota`에 남는다. 사진 재생성은 현재 판매하지 않으며, 새 사진 업로드·선차감·실패 환불·기존 캐릭터 보존을 하나의 서버 트랜잭션 계약으로 구현한 뒤 연다.
 
 ### 2.3 RLS
 
@@ -316,7 +316,7 @@ $$;
 | 소비처 | reason | ref_type / ref_id | 부르는 위치 | cost |
 |---|---|---|---|---|
 | 표정 팩 | `consume_expression_pack` | `generation_job` / **잡 생성 전에는 잡 id가 없음** → §3.6 순서 참조 | Edge Function `generate-avatar` | 12 |
-| 재생성(3종) | `consume_regeneration` | `generation_job` / job_id | Edge Function | 8 |
+| 사진 재생성(3종, 구현 보류) | `consume_regeneration` | `generation_job` / job_id | Edge Function | 12 |
 | 풀셋(16종) | `consume_full_set` | `generation_job` / job_id | Edge Function | 30 |
 | 슬롯 번들 생성 | `consume_pet_slot` | `pet_slot` / slot_id | Edge Function(슬롯 온보딩 생성) 또는 슬롯 구매 Edge | 50 |
 | 테마 번들 | `consume_theme_bundle` | null | (선택) 서버 이관 시. Phase 1은 로컬 유지 가능 | 18 |

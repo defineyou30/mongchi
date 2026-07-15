@@ -5,10 +5,10 @@
   This document was drafted by an engineering assistant from the app's actual
   code paths (see apps/mobile/src/features/legal/PrivacyScreen.tsx and
   supabase/functions/generate-avatar/index.ts for the flows this describes).
-  It is NOT legal advice. Before publishing this to a public URL and
-  submitting to app stores, have a lawyer review it for your jurisdiction(s),
-  confirm GDPR/CCPA applicability to your actual user base, and fill in the
-  [JURISDICTION] and contact placeholders below.
+  It is NOT legal advice. The jurisdiction and contact placeholders below have
+  been filled in (Republic of Korea / lucas@define-you.com), but this text
+  has NOT been reviewed by a lawyer — have counsel review it before relying
+  on it for GDPR/CCPA applicability to your actual user base.
 
   This file must stay in sync with apps/mobile/src/features/legal/PrivacyScreen.tsx.
   If you change one, change the other.
@@ -16,7 +16,7 @@
 
 # Mongchi Privacy Policy
 
-**Last updated:** July 8, 2026
+**Last updated:** July 12, 2026
 **Version:** 1.1
 
 Mongchi ("the app", "we", "us") is a pet-care healing app that turns a photo
@@ -43,7 +43,8 @@ account-recovery flow because there is no account to recover.
 | A photo of your pet (source photo) | To generate your pixel companion's avatar art | Uploaded temporarily to our private storage bucket, then **automatically deleted the moment generation finishes** (see §3) |
 | Generated avatar images | Your companion's in-app appearance | Private storage bucket, accessible only via short-lived signed URLs |
 | Pet profile (species, name, personality tags, talking style) | To personalize the avatar and any AI chat | Sent to our generation and chat services as needed |
-| Game state (care stats, memories, garden progress, credits) | To run the game | **Stored locally on your device only** (AsyncStorage), not on our servers |
+| Game state (care stats, memories, garden progress) | To run the companion experience | Stored locally on your device (AsyncStorage) |
+| AI-generation credit balance and purchase ledger | To grant starter credits, unlock generated pose packs, and prevent duplicate or fraudulent grants | Stored in Supabase under your anonymous session identifier; App Store purchase verification is handled through RevenueCat |
 | Approximate location (optional) | To show weather-matched garden scenes | Read from your device's location permission at low accuracy; used for a one-time weather lookup and not stored on our servers |
 | Anonymous session identifier | To let the anonymous auth session work at all | Stored locally on your device; sent to our API with each request |
 | Basic technical/analytics events (e.g. "generation issue reported") | To fix bugs and understand feature usage | Sent to our analytics pipeline; deliberately excludes raw photos, raw chat text, and payment details (see §6) |
@@ -162,7 +163,7 @@ To exercise any of these rights, use the contact details in §9.
 For privacy questions, deletion requests, or concerns, contact us at the
 support email listed in the app's Support screen, or at:
 
-**[SUPPORT_EMAIL — see EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL]**
+**lucas@define-you.com**
 
 ## 10. Changes to this policy
 
@@ -173,5 +174,4 @@ effect.
 
 ## 11. Governing law
 
-This policy is governed by the laws of **[JURISDICTION]**. This placeholder
-must be filled in (with legal counsel) before publishing.
+This policy is governed by the laws of **the Republic of Korea**.

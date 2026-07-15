@@ -912,6 +912,9 @@ describe("mock API service commerce entitlement ledger", () => {
       "premium_chat_monthly",
       "extra_pet_slot_1",
       "regeneration_credit_1",
+      "credit_pack_20",
+      "credit_pack_60",
+      "credit_pack_150",
       "theme_pack_starter"
     ]);
     expect(entitlements.entitlements).toHaveLength(1);
@@ -975,7 +978,7 @@ describe("mock API service commerce entitlement ledger", () => {
       receiptHash: validHash
     };
 
-    expect(unwrap(service.listCommerceProducts(userContext)).products).toHaveLength(4);
+    expect(unwrap(service.listCommerceProducts(userContext)).products).toHaveLength(7);
     expectApiError(service.verifyPurchase(userContext, request), 503, "purchase_verification_unavailable");
     expectApiError(
       service.restorePurchases(userContext, {
@@ -1269,6 +1272,24 @@ describe("mock API service commerce entitlement ledger", () => {
     expect(service.inspectState().entitlements).toHaveLength(1);
     expect(service.inspectState().purchaseLedger).toHaveLength(1);
   });
+
+  it("grants a configured credit pack exactly once", () => {
+    const service = createMockApiService({ seed: { wallets: [emptyCreditWallet] } });
+    const request = {
+      platform: "ios" as const,
+      productId: "credit_pack_60",
+      transactionId: "ios_credit_pack_60_once_001",
+      receiptHash: validHash
+    };
+
+    const first = unwrap(service.verifyPurchase(userContext, request));
+    const second = unwrap(service.verifyPurchase(userContext, request));
+
+    expect(first.wallet?.credits).toBe(60);
+    expect(second.wallet?.credits).toBe(60);
+    expect(service.inspectState().wallets[0]?.credits).toBe(60);
+    expect(service.inspectState().purchaseLedger).toHaveLength(1);
+  });
 });
 
 describe("mock API service daily loop boundary", () => {
@@ -1430,6 +1451,50 @@ describe("mock API service daily loop boundary", () => {
     });
   });
 
+  it("rejects mismatched and unowned item-backed care actions before applying care effects", () => {
+    const service = createMockApiService();
+    const initialCareStates = service.inspectState().careStates;
+    const initialInventories = service.inspectState().inventories;
+
+    expectApiError(
+      service.performCareAction(userContext, mockPetProfile.id, {
+        action: "play",
+        itemId: "item_food_bowl_basic",
+        occurredAt: "2026-06-24T09:05:00.000Z"
+      }),
+      422,
+      "invalid_care_item"
+    );
+    expectApiError(
+      service.performCareAction(userContext, mockPetProfile.id, {
+        action: "affection",
+        itemId: "item_lantern_nest",
+        occurredAt: "2026-06-24T09:06:00.000Z"
+      }),
+      404,
+      "inventory_item_not_found"
+    );
+
+    expect(service.inspectState().careStates).toEqual(initialCareStates);
+    expect(service.inspectState().inventories).toEqual(initialInventories);
+  });
+
+  it("does not initialize inventory when a fresh account submits an invalid item-backed action", () => {
+    const service = createMockApiService({ seed: { inventories: [] } });
+
+    expectApiError(
+      service.performCareAction(userContext, mockPetProfile.id, {
+        action: "play",
+        itemId: "item_food_bowl_basic",
+        occurredAt: "2026-06-24T09:05:00.000Z"
+      }),
+      422,
+      "invalid_care_item"
+    );
+
+    expect(service.inspectState().inventories).toEqual([]);
+  });
+
   it("grants bonus wallet value and bond xp when a garden plant blooms", () => {
     const bloomingInventory: Inventory = {
       ...mockInventory,
@@ -1548,6 +1613,41 @@ describe("mock API service daily loop boundary", () => {
 
     expect(second.inventory?.items.some((item) => item.itemId === "item_treat_plate_biscuit")).toBe(false);
     expect(second.inventory?.placedItems.some((item) => item.itemId === "item_treat_plate_biscuit")).toBe(false);
+  });
+
+  it("consumes owned drinks and rejects non-drinks for item-backed water actions", () => {
+    const drinkInventory: Inventory = {
+      ...mockInventory,
+      items: [
+        ...mockInventory.items,
+        {
+          itemId: "item_milk_pup_cup",
+          quantity: 1,
+          acquiredAt: "2026-06-24T09:00:00.000Z",
+          source: "purchase"
+        }
+      ],
+      updatedAt: "2026-06-24T09:00:00.000Z"
+    };
+    const service = createMockApiService({ seed: { inventories: [drinkInventory] } });
+    const result = unwrap(
+      service.performCareAction(userContext, mockPetProfile.id, {
+        action: "water_garden",
+        itemId: "item_milk_pup_cup",
+        occurredAt: "2026-06-24T09:05:00.000Z"
+      })
+    );
+
+    expect(result.inventory?.items.some((item) => item.itemId === "item_milk_pup_cup")).toBe(false);
+    expectApiError(
+      service.performCareAction(userContext, mockPetProfile.id, {
+        action: "water_garden",
+        itemId: "item_toy_ball_mint",
+        occurredAt: "2026-06-24T09:06:00.000Z"
+      }),
+      422,
+      "invalid_drink_item"
+    );
   });
 
   it("places and removes owned inventory items through the API boundary", () => {

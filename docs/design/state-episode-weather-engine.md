@@ -44,7 +44,7 @@ It should not become:
 - `docs/design/plant-growth-object-guide.md`
 - `docs/design/care-economy-bm-guide.md`
 - `docs/design/commerce-credit-wallet-flow.md`
-- `new-concepts/mongchi-reaction-catalog.md`
+- `docs/archive/legacy/new-concepts/mongchi-reaction-catalog.md`
 
 ## Engine Layers
 

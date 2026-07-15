@@ -76,6 +76,9 @@ const developmentAuthFallback = normalizeBoolean(process.env.EXPO_PUBLIC_TINY_PE
 const devUnlockStore = normalizeBoolean(process.env.EXPO_PUBLIC_TINY_PET_DEV_UNLOCK_STORE);
 const nativeCheckoutEnabledRaw = process.env.EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT?.trim() ?? "";
 const nativeCheckoutEnabled = nativeCheckoutEnabledRaw ? normalizeBoolean(nativeCheckoutEnabledRaw) : false;
+const liveChatEnabledRaw = process.env.EXPO_PUBLIC_TINY_PET_LIVE_CHAT_ENABLED?.trim() ?? "";
+const liveChatEnabled = liveChatEnabledRaw ? normalizeBoolean(liveChatEnabledRaw) : false;
+const chatSafetyReviewed = normalizeBoolean(process.env.TINY_PET_CHAT_SAFETY_REVIEWED);
 const apiBaseUrl = normalizeUrl(process.env.EXPO_PUBLIC_TINY_PET_API_BASE_URL);
 const mockAuthToken = process.env.EXPO_PUBLIC_TINY_PET_MOCK_AUTH_TOKEN?.trim() ?? "";
 const storeScreenshotPreset = process.env.EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_PRESET?.trim() ?? "";
@@ -528,6 +531,14 @@ if (production) {
 
   if (nativeCheckoutEnabledRaw && nativeCheckoutEnabled === null) {
     failures.push("EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT must be a boolean value when set.");
+  }
+
+  if (liveChatEnabledRaw && liveChatEnabled === null) {
+    failures.push("EXPO_PUBLIC_TINY_PET_LIVE_CHAT_ENABLED must be a boolean value when set.");
+  }
+
+  if (liveChatEnabled === true && chatSafetyReviewed !== true) {
+    failures.push("Production live chat requires documented expert safety review via TINY_PET_CHAT_SAFETY_REVIEWED=true.");
   }
 
   if (!apiBaseUrl) {

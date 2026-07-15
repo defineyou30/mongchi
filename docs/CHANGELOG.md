@@ -1,9 +1,23 @@
-# Mongchi 개발 여정 — 2026-07-07 ~ 07-08
+# Mongchi 개발 여정 — 2026-07-07 ~ 07-12
 
-> 최종 갱신: 2026-07-08
+> 최종 갱신: 2026-07-12
 > 이 문서 하나만 읽어도 이 기간의 개발 여정을 이해할 수 있도록 정리한 변경 이력이다.
 > 기준 로드맵은 [`launch-plan.md`](./launch-plan.md), 원인 분석 스냅샷은
 > [`retention-gap-analysis.md`](./retention-gap-analysis.md)와 [`readiness-diagnosis.md`](./readiness-diagnosis.md)를 참고.
+
+## 2026-07-12 현재 상태 정정
+
+- Supabase 마이그레이션 파일은 `0001`-`0015`까지 확장됐고, `0014`는 채팅 선예약·서버 과금·전역 제한, `0015`는 AI 응답 신고를 추가했다.
+  `generate-avatar` v24, `chat-turn` v3, `delete-account` v3가 링크된
+  프로젝트에서 활성 상태다.
+- 라이브 채팅은 구현됐지만 클라이언트 free 주장, 대화 단위 제한,
+  provider 전 멱등 예약 부재, 위기 카피 전문가 검수 미완으로 출시 차단이다.
+- 법률 플레이스홀더는 로컬 문서에서 치환됐지만 공개 URL과 앱 지원 이메일
+  환경변수는 아직 설정되지 않았다.
+- 현재 백엔드/출시 판정은
+  [`current/backend-release-audit-2026-07-12.md`](./current/backend-release-audit-2026-07-12.md)를 우선한다.
+- 고양이는 도메인/백엔드/에셋 기반이 이미 있고 UI 진입만 닫혀 있다. 구현
+  순서는 [`product/cat-expansion.md`](./product/cat-expansion.md)에 정리했다.
 
 ## 1. 개요 (무엇을·왜)
 

@@ -27,7 +27,7 @@
     {
       "preset": "hatching",
       "route": "/generation",
-      "caption": "Watch the tiny companion hatch into the world.",
+      "caption": "Watch the tiny companion arrive in the world.",
       "captureLabel": "store-hatching"
     },
     {
@@ -39,20 +39,198 @@
     {
       "preset": "terrarium",
       "route": "/terrarium",
-      "caption": "Care, decorate, react, and keep the garden alive.",
+      "caption": "Care, react, and keep the garden alive.",
       "captureLabel": "store-terrarium"
     },
     {
       "preset": "chat",
       "route": "/chat",
-      "caption": "Say a quick hello or view the Plus AI chat disclosure.",
+      "caption": "Say a quick hello or view the AI chat disclosure.",
       "captureLabel": "store-chat"
     },
     {
       "preset": "shop",
       "route": "/shop",
-      "caption": "Preview Plus pass and garden extras without mobile secrets.",
+      "caption": "Preview chat credits and garden themes without mobile secrets.",
       "captureLabel": "store-shop"
     }
-  ]
+  ],
+  "notes": [
+    "This top-level `screenshots` array is the deterministic per-route QA capture set consumed by scripts/capture-ios-store-screenshots.mjs, scripts/capture-android-store-screenshots.mjs, and their validators (validate-store-screenshots.mjs, validate-final-screenshot-freshness.mjs, validate-ios-dev-client-readiness.mjs, validate-store-metadata-alignment.mjs), plus docs/product-direction.md and the Screenshot Captions table below in docs/store-listing-draft.md. It still describes the raw native route flow, including the internal 'hatching' preset name (maps to the /generation route) and 'terrarium' captures — these are QA/tooling identifiers, not user-facing copy, and are exempt from the moving-in worldview's hatch-language ban. Only caption prose was cleaned up on 2026-07-14 to drop stray 'hatch'/'decorate'/'Plus pass' wording; the preset/route/captureLabel keys were left untouched because changing them requires matching edits across the scripts above (outside this docs-only pass).",
+    "Known pre-existing drift (not introduced or fixed in this pass): apps/mobile/src/features/session/storeScreenshotSession.ts now defines 10 presets (it added 'terrarium-walk' and 'terrarium-walk-empty' after this manifest was last synced), so `npm run validate:store-screenshots` currently fails with 'Store screenshot manifest presets must match storeScreenshotPresets order.' regardless of the marketing set below. Fixing that needs someone to decide what those two extra QA states should capture and add matching route/caption/captureLabel entries plus a listing-draft table row.",
+    "The `marketingScreenshotSet` below is a separate, additive definition for the actual App Store / Google Play marketing screenshot set (the 8-page moving-in-worldview story). It is copy + required-app-state source of truth only — a different in-progress workflow renders the PNGs into `marketingScreenshotSet.outputDirectory`. It intentionally does not reuse the `screenshots` key name above so it never collides with the QA-capture scripts' `manifest.screenshots` lookups."
+  ],
+  "marketingScreenshotSet": {
+    "version": 1,
+    "lastReviewed": "2026-07-14",
+    "concept": "8-page App Store / Google Play marketing screenshot story for the current moving-in worldview: a pet photo becomes a tiny companion who lives in a phone-sized garden, cared for daily, chatted with, sent on walks, and dressed up seasonally. Replaces the retired 'Hatch a tiny pet world' / decorate-with-props / Plus-pass framing.",
+    "worldviewGuardrails": [
+      "No hatch/hatching/adoption/avatar/Pass-badge wording in any locale's headline or subline copy (matches the onboarding moving-in concept decision; internal QA identifiers such as the 'hatching' preset above are exempt).",
+      "Garden themes are background-swap only — never describe placing decor or props back into the garden.",
+      "Chat and shop copy reflects the credit + chat day pass economy (no subscription framing).",
+      "No step counts, percentages, or bond-level numbers rendered into the marketing art itself.",
+      "Korean headline/subline copy specifically avoids \"이사\" and \"함께\" (2026-07-14 copy review decision), even though those words are used naturally elsewhere in in-app UI strings."
+    ],
+    "outputDirectory": "docs/store-screenshots-v2",
+    "filenamePattern": "docs/store-screenshots-v2/{locale}/{fileNamePrefix}-{locale}.png",
+    "canvas": {
+      "width": 1290,
+      "height": 2796,
+      "colorSpace": "sRGB",
+      "orientation": "portrait"
+    },
+    "designRules": [
+      "Background is the actual in-app theme art for the required app state listed per screen below — no placeholder gradients or mockup chrome.",
+      "Headline/subline typography renders as clean modern marketing type, not an in-game pixel dialog-box; the pixel-art aesthetic stays inside the captured scene, not the text treatment.",
+      "Latin locales (en-US, de-DE, fr-FR, pt-BR, es-MX): PixelifySans display over Baloo 2 body, per DESIGN.md's current Typography/Font Stack section.",
+      "ko-KR, ja-JP, zh-TW: Fusion Pixel 10px Proportional KO/JA/ZH-HANT, per DESIGN.md's current font stack (this supersedes an earlier 'Galmuri' placeholder note from a prior font-decision memory; DESIGN.md checked into the repo is the current source of truth)."
+    ],
+    "locales": ["en-US", "ko-KR", "ja-JP", "zh-TW", "de-DE", "fr-FR", "pt-BR", "es-MX"],
+    "screens": [
+      {
+        "order": 1,
+        "id": "hero",
+        "fileNamePrefix": "01-hero",
+        "primaryRoute": "/terrarium",
+        "requiredAppState": "Main terrarium (garden home) screen, default Cozy Garden theme, calm afternoon weather, all care meters comfortably high, pet in an idle/happy pose.",
+        "contentDescription": "Wide, atmospheric establishing shot of the whole garden world with the pet front and center — sets up the phone-as-tiny-home promise before the rest of the set explains individual features.",
+        "copy": {
+          "en-US": { "headline": "Your Pet, Living in Your Phone", "subline": "One photo becomes a tiny companion who waits for you in a cozy garden." },
+          "ko-KR": { "headline": "내 폰 속에서 살아가는 반려동물", "subline": "사진 한 장이 포근한 정원에서 기다리는 작은 친구가 돼요." },
+          "ja-JP": { "headline": "あなたのスマホの中で暮らすペット", "subline": "一枚の写真が、庭で待つ小さなお友だちになります。" },
+          "zh-TW": { "headline": "住在你手機裡的寵物", "subline": "一張照片，就能變成在溫馨花園等你的小小朋友。" },
+          "de-DE": { "headline": "Dein Haustier lebt in deinem Handy", "subline": "Ein Foto verwandelt sich in einen kleinen Begleiter, der in einem gemütlichen Garten auf dich wartet." },
+          "fr-FR": { "headline": "Votre compagnon, bien vivant dans votre téléphone", "subline": "Une photo se transforme en un petit compagnon qui vous attend dans un jardin douillet." },
+          "pt-BR": { "headline": "Seu bichinho, vivendo no seu celular", "subline": "Uma foto se transforma em um amiguinho que espera por você em um jardim aconchegante." },
+          "es-MX": { "headline": "Tu mascota, viviendo en tu celular", "subline": "Una foto se convierte en un pequeño amigo que te espera en un jardín acogedor." }
+        }
+      },
+      {
+        "order": 2,
+        "id": "transform",
+        "fileNamePrefix": "02-transform",
+        "primaryRoute": "/pet-reveal",
+        "requiredAppState": "Pet reveal screen (or a composed before/after pairing) showing the user's original source photo alongside the freshly generated in-app companion art.",
+        "contentDescription": "Before/after pairing: the real pet photo on one side, the pixel-soft in-app companion on the other, showing the one-photo-in transformation.",
+        "copy": {
+          "en-US": { "headline": "One Photo Becomes Your Tiny Friend", "subline": "Just one clear photo, and your pet turns into a soft pixel companion made only for you." },
+          "ko-KR": { "headline": "사진 한 장이 작은 친구가 되는 순간", "subline": "선명한 사진 한 장이면 충분해요. 나만을 위한 포근한 픽셀 친구가 완성돼요." },
+          "ja-JP": { "headline": "一枚の写真が、小さなお友だちに", "subline": "はっきり写った写真一枚だけで、あなただけの優しいピクセルの友だちが生まれます。" },
+          "zh-TW": { "headline": "一張照片，變成你的小小朋友", "subline": "只要一張清晰的照片，就能誕生專屬於你的柔和像素夥伴。" },
+          "de-DE": { "headline": "Ein Foto wird zu deinem kleinen Freund", "subline": "Nur ein klares Foto genügt, und dein Tier wird zu einem sanften Pixel-Begleiter, der nur für dich gemacht ist." },
+          "fr-FR": { "headline": "Une photo devient votre petit compagnon", "subline": "Une seule photo nette suffit pour transformer votre animal en un doux compagnon en pixels, rien que pour vous." },
+          "pt-BR": { "headline": "Uma foto vira o seu amiguinho", "subline": "Basta uma foto nítida para o seu bichinho se transformar em um companheiro de pixels, feito só para você." },
+          "es-MX": { "headline": "Una foto se convierte en tu pequeño amigo", "subline": "Basta una foto clara para que tu mascota se transforme en un compañero de píxeles, hecho solo para ti." }
+        }
+      },
+      {
+        "order": 3,
+        "id": "garden",
+        "fileNamePrefix": "03-garden",
+        "primaryRoute": "/terrarium",
+        "requiredAppState": "Main terrarium screen mid-care-action (e.g. feeding or watering), HUD meters and care tray visible, default or seasonal theme background.",
+        "contentDescription": "Everyday care loop in motion: HUD, care tray, and the pet reacting, showing the daily return-and-tend rhythm.",
+        "copy": {
+          "en-US": { "headline": "A Little Garden That Waits for You", "subline": "Feed, water, and play — small daily moments keep your companion's garden cozy." },
+          "ko-KR": { "headline": "당신을 기다리는 작은 정원", "subline": "밥을 주고, 물을 주고, 놀아주세요. 작은 하루하루가 정원을 포근하게 채워요." },
+          "ja-JP": { "headline": "あなたを待つ小さな庭", "subline": "ごはんや水やり、遊びの時間が、小さな庭をずっと心地よくしてくれます。" },
+          "zh-TW": { "headline": "一直等著你的小花園", "subline": "餵食、澆水、玩耍——每天的小小時光，讓花園保持溫馨。" },
+          "de-DE": { "headline": "Ein kleiner Garten, der auf dich wartet", "subline": "Füttern, Wasser geben, spielen — kleine tägliche Momente halten den Garten deines Begleiters gemütlich." },
+          "fr-FR": { "headline": "Un petit jardin qui vous attend", "subline": "Nourrir, arroser, jouer — de petits gestes quotidiens gardent le jardin de votre compagnon bien douillet." },
+          "pt-BR": { "headline": "Um pequeno jardim que espera por você", "subline": "Alimente, dê água e brinque — pequenos momentos do dia a dia mantêm o jardim do seu companheiro aconchegante." },
+          "es-MX": { "headline": "Un pequeño jardín que te espera", "subline": "Dale de comer, agua y juega con él: pequeños momentos del día mantienen acogedor el jardín de tu compañero." }
+        }
+      },
+      {
+        "order": 4,
+        "id": "poses",
+        "fileNamePrefix": "04-poses",
+        "primaryRoute": "/friend",
+        "requiredAppState": "Friend page pose carousel or the shop's pose-pack screen, showing at least the three core poses (everyday, happy, sleepy) side by side.",
+        "contentDescription": "Grid or carousel of multiple companion poses/expressions, all generated from the same source photo, showing personality range.",
+        "copy": {
+          "en-US": { "headline": "Every Mood, Drawn from Your Photo", "subline": "Unlock new poses and expressions, each one made from your companion's own look." },
+          "ko-KR": { "headline": "사진에서 피어나는 모든 표정", "subline": "포즈와 표정을 하나씩 열어보세요. 전부 반려동물의 모습 그대로 만들어져요." },
+          "ja-JP": { "headline": "写真から生まれる、いろんな表情", "subline": "新しいポーズや表情を見つけましょう。どれもお友だちそのままの姿から生まれます。" },
+          "zh-TW": { "headline": "從照片綻放的每種表情", "subline": "解鎖新的姿勢與表情，每一個都由小夥伴原本的模樣創造而成。" },
+          "de-DE": { "headline": "Jede Stimmung, gezeichnet nach deinem Foto", "subline": "Schalte neue Posen und Ausdrücke frei — jede einzelne entsteht aus dem echten Look deines Begleiters." },
+          "fr-FR": { "headline": "Chaque humeur, dessinée à partir de votre photo", "subline": "Débloquez de nouvelles poses et expressions, toutes créées à partir de l’apparence réelle de votre compagnon." },
+          "pt-BR": { "headline": "Cada expressão, desenhada a partir da sua foto", "subline": "Desbloqueie novas poses e expressões, cada uma criada a partir do visual real do seu companheiro." },
+          "es-MX": { "headline": "Cada estado de ánimo, dibujado desde tu foto", "subline": "Desbloquea nuevas poses y expresiones, todas creadas a partir del aspecto real de tu compañero." }
+        }
+      },
+      {
+        "order": 5,
+        "id": "chat",
+        "fileNamePrefix": "05-chat",
+        "primaryRoute": "/chat",
+        "requiredAppState": "Chat screen mid-conversation with a couple of exchanged messages already in the thread (not the empty state), pet speech bubble visible.",
+        "contentDescription": "Warm back-and-forth chat thread showing the companion responding with a remembered detail, illustrating the memory-aware conversation.",
+        "copy": {
+          "en-US": { "headline": "Talk — They Remember", "subline": "Say hello, share your day, and watch your companion remember what matters to you." },
+          "ko-KR": { "headline": "대화해요, 기억하고 있어요", "subline": "인사를 건네고 하루를 나누면, 작은 친구가 소중한 순간을 기억해요." },
+          "ja-JP": { "headline": "おしゃべりしよう — ちゃんと覚えてる", "subline": "挨拶をして、今日の出来事を話せば、小さなお友だちが大切な瞬間を覚えていてくれます。" },
+          "zh-TW": { "headline": "聊聊天——牠都記得", "subline": "打聲招呼、分享今天的心情，小夥伴會記住對你來說重要的時刻。" },
+          "de-DE": { "headline": "Sprich mit ihm — er erinnert sich", "subline": "Sag Hallo, erzähl von deinem Tag, und erlebe, wie sich dein Begleiter an das erinnert, was dir wichtig ist." },
+          "fr-FR": { "headline": "Discutez — il se souvient de tout", "subline": "Dites bonjour, racontez votre journée, et voyez votre compagnon se souvenir de ce qui compte pour vous." },
+          "pt-BR": { "headline": "Converse — ele guarda tudo na memória", "subline": "Diga oi, conte como foi seu dia, e veja seu companheiro lembrar do que importa para você." },
+          "es-MX": { "headline": "Charla con él: lo recuerda todo", "subline": "Saluda, cuéntale tu día y descubre cómo tu compañero recuerda lo que es importante para ti." }
+        }
+      },
+      {
+        "order": 6,
+        "id": "walks",
+        "fileNamePrefix": "06-walks",
+        "primaryRoute": "/terrarium",
+        "requiredAppState": "Terrarium walk-returned state (greet & claim gift moment) or the friend page's walk-finds grid with several treasures already discovered.",
+        "contentDescription": "Walk commentary and the little treasures/finds a companion brings home, paired with the walk-finds collection grid.",
+        "copy": {
+          "en-US": { "headline": "Walks, Treasures, Tiny Stories", "subline": "Send your companion on a walk and see what little treasures they bring home." },
+          "ko-KR": { "headline": "산책, 보물, 작은 이야기", "subline": "산책을 보내면 작은 친구가 소소한 보물과 이야기를 안고 돌아와요." },
+          "ja-JP": { "headline": "お散歩、宝物、小さな物語", "subline": "お散歩に送り出すと、小さなお友だちが可愛い宝物を持って帰ってきます。" },
+          "zh-TW": { "headline": "散步、寶物、小小故事", "subline": "讓小夥伴去散步，看看牠會帶著什麼可愛的寶物回家。" },
+          "de-DE": { "headline": "Spaziergänge, Schätze, kleine Geschichten", "subline": "Schick deinen Begleiter auf einen Spaziergang und entdecke, welche kleinen Schätze er mit nach Hause bringt." },
+          "fr-FR": { "headline": "Promenades, trésors, petites histoires", "subline": "Envoyez votre compagnon se promener et découvrez les petits trésors qu’il rapporte à la maison." },
+          "pt-BR": { "headline": "Passeios, tesouros, pequenas histórias", "subline": "Mande seu companheiro passear e veja quais tesourinhos ele traz para casa." },
+          "es-MX": { "headline": "Paseos, tesoros, pequeñas historias", "subline": "Envía a tu compañero de paseo y descubre qué pequeños tesoros trae de vuelta a casa." }
+        }
+      },
+      {
+        "order": 7,
+        "id": "letter",
+        "fileNamePrefix": "07-letter",
+        "primaryRoute": "/friend",
+        "requiredAppState": "Friend page letter section showing the wrapped one-month letter ready to open (or the opened letter text), after enough days together to unlock it.",
+        "contentDescription": "The gift-wrapped monthly letter moment, emphasizing the slow-burn, time-based reward rather than a transactional unlock.",
+        "copy": {
+          "en-US": { "headline": "Thirty Days, One Letter", "subline": "After a month together, open a letter written just for you and your companion." },
+          "ko-KR": { "headline": "30일의 기다림, 편지 한 통", "subline": "한 달이 지나면, 당신만을 위한 편지가 도착해요." },
+          "ja-JP": { "headline": "30日間、そして一通の手紙", "subline": "一か月を過ごした後、あなたとお友だちのためだけの手紙が届きます。" },
+          "zh-TW": { "headline": "三十天，一封信", "subline": "相處一個月後，一封專屬於你和小夥伴的信就會送達。" },
+          "de-DE": { "headline": "Dreißig Tage, ein Brief", "subline": "Nach einem gemeinsamen Monat wartet ein Brief, der nur für dich und deinen Begleiter geschrieben wurde." },
+          "fr-FR": { "headline": "Trente jours, une lettre", "subline": "Après un mois passé ensemble, une lettre écrite rien que pour vous et votre compagnon vous attend." },
+          "pt-BR": { "headline": "Trinta dias, uma carta", "subline": "Depois de um mês juntos, uma carta escrita só para você e seu companheiro está esperando." },
+          "es-MX": { "headline": "Treinta días, una carta", "subline": "Después de un mes juntos, te espera una carta escrita solo para ti y tu compañero." }
+        }
+      },
+      {
+        "order": 8,
+        "id": "themes",
+        "fileNamePrefix": "08-themes",
+        "primaryRoute": "/shop",
+        "requiredAppState": "Shop's Poses & Themes tab, Garden Themes section, showing the theme gallery (Cozy Garden, Fairy Garden, Seaside Cove, Autumn Woods, Winter Lights) with large background previews.",
+        "contentDescription": "Theme gallery showcasing full background swaps for the garden home across seasons and moods.",
+        "copy": {
+          "en-US": { "headline": "Dress the Garden for the Season", "subline": "Change the whole mood of your companion's home with a new backdrop." },
+          "ko-KR": { "headline": "계절마다 옷을 갈아입는 정원", "subline": "배경 하나로 작은 친구의 집 분위기가 완전히 달라져요." },
+          "ja-JP": { "headline": "季節ごとに衣替えする庭", "subline": "背景をひとつ変えるだけで、お友だちの家の雰囲気がまるごと変わります。" },
+          "zh-TW": { "headline": "隨季節換裝的花園", "subline": "換一個背景，就能讓小夥伴的家整個氣氛煥然一新。" },
+          "de-DE": { "headline": "Kleide den Garten für die Jahreszeit", "subline": "Ein neuer Hintergrund verändert die ganze Stimmung im Zuhause deines Begleiters." },
+          "fr-FR": { "headline": "Habillez le jardin au fil des saisons", "subline": "Un nouveau décor change complètement l’ambiance de la maison de votre compagnon." },
+          "pt-BR": { "headline": "Vista o jardim para cada estação", "subline": "Um novo cenário muda todo o clima da casa do seu companheiro." },
+          "es-MX": { "headline": "Viste el jardín según la temporada", "subline": "Un nuevo fondo cambia por completo el ambiente del hogar de tu compañero." }
+        }
+      }
+    ]
+  }
 }

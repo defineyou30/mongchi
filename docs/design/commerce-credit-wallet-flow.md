@@ -10,7 +10,8 @@ Store purchases must not only create an entitlement audit record. Consumable cre
 
 - `premium_chat_monthly` grants a subscription entitlement.
 - `extra_pet_slot_1` and `theme_pack_starter` grant durable entitlements.
-- `regeneration_credit_1` is a consumable store product that grants `1` paid wallet credit.
+- `regeneration_credit_1` is a legacy prototype SKU and is hidden from the mobile shop. It does not authorize a photo remake.
+- A future photo-remake product will cost 12 wallet credits and must atomically create the remake job, preserve the accepted pet until success, and refund failures.
 - Purchase verification returns the granted entitlements and, when a wallet value changed or is relevant to a consumable restore, the latest `wallet`.
 - Mobile syncs the returned wallet into the active session after verify or restore.
 

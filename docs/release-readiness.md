@@ -1,8 +1,18 @@
 # Release Readiness
 
-> **최종 갱신일: 2026-07-08.**
+> **2026-07-12 current gate:** use
+> `docs/current/backend-release-audit-2026-07-12.md` for the current Supabase
+> runtime and launch verdict. Server-owned chat access, global throttling,
+> pre-provider reservation, replay/refund, and response reporting are complete
+> in local code (`0014`-`0015`), but paid live chat remains blocked until those
+> migrations/function are deployed and mental-health expert review is complete. Legal text has
+> been filled in locally, but production Privacy/Terms URLs and support email
+> are still unset. EAS is not initialized, the app version remains `0.1.0`,
+> and the dirty worktree must be reconciled before a release candidate is cut.
+
+> **최종 갱신일: 2026-07-12.**
 >
-> **현재 상태 요약 (2026-07-08).** 아래 본문(“Implemented In This Pass” 이하)은 2026-07-03 mock 서버 프로토타입(`services/api`·`workers/ai`) 시점의 상세 준비 로그로, 과정 보존을 위해 그대로 둔다. 그 이후 실제 백엔드는 **Supabase**로 정착했다(`supabase/functions`·`supabase/migrations` 0001–0005 배포). 아래 프로토타입 계약의 상당수는 Supabase 배선으로 대체되었으므로, 실제 출시 게이팅은 이 상단 섹션과 문서 하단 "출시 전 남은 체크리스트"를 기준으로 판단한다.
+> **현재 상태 요약 (2026-07-12).** 아래 본문(“Implemented In This Pass” 이하)은 2026-07-03 mock 서버 프로토타입(`services/api`·`workers/ai`) 시점의 상세 준비 로그로, 과정 보존을 위해 그대로 둔다. 실제 모바일 백엔드는 **Supabase**로 정착했고 로컬 마이그레이션은 `0001`–`0015`, 활성 함수는 `generate-avatar`·`chat-turn`·`delete-account`다. 원격 DB는 운영자가 `0013`까지 확인했으며 `0014`–`0015`와 현재 `chat-turn`은 배포 검증 대기다. 실제 출시 게이팅은 이 상단 섹션과 `docs/current/backend-release-audit-2026-07-12.md`를 기준으로 판단한다.
 >
 > **출시 전까지 해결된 것**(2026-07-04 retention-gap·2026-07-07 readiness 분석 이후):
 > - 버전관리(최상위 리스크) → git 도입 + 원격 push(2026-07-07). vitest 1252 그린.
@@ -10,6 +20,9 @@
 > - 법적 → 실제 Privacy/Terms/Support 내용 + `docs/legal`.
 > - 데이터 백업 → 세션 내보내기/가져오기.
 > - 보안 → 표정팩 rate-limit 봉합, 크레딧 서버 원장(`credit_wallets`/`credit_ledger` 0004) + 표정팩 서버 선차감(로컬 변조 무한 무료생성 봉합).
+> - 채팅 비용 방어 → 서버 과금 판정, 유저 전역 제한, provider 전 선예약, replay/실패 복구(`0014`)와 AI 응답 신고(`0015`) 로컬 구현. 기본 OFF 유지.
+> - 모바일 네트워크 → REST AbortController 30초, Supabase 경계별 timeout, 생성 에셋 signed URL 1시간.
+> - 종 확장 → Pet setup Dog/Cat 선택과 8개 언어의 첫 실행 반려동물 중립 카피.
 > - 알림 파이프라인 데드코드 → 복구(첫 케어 후 퍼미션 + 복귀 사다리 + 산책 귀가 알림).
 > - 게임필/사운드 → Tier 2·3·4 + 사운드 Phase 1·2.
 > - 산책 도감 날씨 시드 고정 버그 → 수정(무과금 축 복구).

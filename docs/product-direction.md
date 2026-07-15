@@ -1,8 +1,12 @@
 # Product Direction
 
-> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+> 최신 대조: 2026-07-12. 런타임/배포 출시 게이트는
+> `docs/current/backend-release-audit-2026-07-12.md`를 우선한다.
 
-Guide source of truth: `new-concepts/mongchi-guide/README.md`.
+The implemented app and `DESIGN.md` are the source of truth. The superseded
+concept guide remains available at
+`docs/archive/legacy/new-concepts/mongchi-guide/README.md` for historical
+context only.
 
 Mongchi is an iOS/Android cozy pet-life game plus healing companion. The first emotional promise is simple: a user's real dog or cat becomes a tiny avatar living in a cozy miniature pet world.
 
@@ -13,7 +17,18 @@ The app now targets a native pre-release path:
 - First-session flow: Welcome -> Photo upload -> Pet setup -> Hatching -> Pet reveal -> Main terrarium -> AI chat / premium bond -> Shop.
 - Local prototype mode remains the default for fast simulator work and offline QA.
 - API-backed local/integration mode can route pet profiles, source-photo upload metadata, generation jobs, generated assets, care state, inventory, walk rewards, premium chat, restore, and purchase verification through the tested backend boundaries when a public API base URL and server-owned credentials are configured; production release-config validation requires that public API base URL.
-- Production still requires real auth/JWKS, Postgres, S3, store verification, provider keys, legal URLs, monitoring, and scheduler infrastructure.
+- The active Supabase path already provides anonymous auth, Postgres, private Storage, and server-side OpenAI calls for generation/chat. Production still requires deployment verification for local chat billing/idempotency/global throttling/reporting migrations `0014`-`0015`, expert-reviewed crisis copy, store verification and products, public legal/support release values, remote monitoring, and final release QA.
+
+## Dog And Cat Scope
+
+- The shared domain, API schemas, Supabase generation prompt, quality checks,
+  chat context, and fallback asset registry already support dogs and cats.
+- Pet setup now exposes a visible Dog/Cat choice and all eight first-run locale
+  resources use pet-neutral copy. The selected species already flows into the
+  existing generation snapshot; no database migration is required.
+- Neutral onboarding art, cat-authored reactions, and real-photo generation QA
+  still need completion before advertising full species parity.
+- Current implementation order: `docs/product/cat-expansion.md`.
 
 ## Art Direction
 

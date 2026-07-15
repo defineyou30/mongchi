@@ -4,10 +4,10 @@
   IMPORTANT (read before publishing):
   This document was drafted by an engineering assistant from the app's actual
   code paths (see apps/mobile/src/features/legal/TermsScreen.tsx). It is NOT
-  legal advice. Before publishing this to a public URL and submitting to app
-  stores, have a lawyer review it, confirm it fits your business entity and
-  jurisdiction, and fill in the [JURISDICTION], [COMPANY_NAME], and contact
-  placeholders below.
+  legal advice. The company, jurisdiction, and contact placeholders below have
+  been filled in (DefineYou / Republic of Korea / lucas@define-you.com), but
+  this text has NOT been reviewed by a lawyer — have counsel confirm it fits
+  your business entity and jurisdiction before relying on it.
 
   This file must stay in sync with apps/mobile/src/features/legal/TermsScreen.tsx.
   If you change one, change the other.
@@ -15,11 +15,11 @@
 
 # Mongchi Terms of Service
 
-**Last updated:** July 7, 2026
+**Last updated:** July 12, 2026
 **Version:** 1.0
 
 These terms govern your use of Mongchi (the "app"), operated by
-**[COMPANY_NAME]** ("we", "us"). By using the app, you agree to these terms.
+**DefineYou** ("we", "us"). By using the app, you agree to these terms.
 
 ## 1. What Mongchi is
 
@@ -125,7 +125,7 @@ applicable law.
 Questions about these terms can be sent to the support email listed in the
 app's Support screen, or to:
 
-**[SUPPORT_EMAIL — see EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL]**
+**lucas@define-you.com**
 
 ## 9. Changes to these terms
 
@@ -136,6 +136,5 @@ means you accept the updated terms.
 
 ## 10. Governing law
 
-These terms are governed by the laws of **[JURISDICTION]**, without regard
-to conflict-of-law principles. This placeholder must be filled in (with
-legal counsel) before publishing.
+These terms are governed by the laws of **the Republic of Korea**, without
+regard to conflict-of-law principles.

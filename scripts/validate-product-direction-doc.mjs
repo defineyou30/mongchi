@@ -30,7 +30,7 @@ requireText(
   "Product direction must keep production secrets out of mobile."
 );
 requireText(
-  "Production still requires real auth/JWKS, Postgres, S3, store verification, provider keys, legal URLs, monitoring, and scheduler infrastructure.",
+  "Production still requires deployment verification for local chat billing/idempotency/global throttling/reporting migrations `0014`-`0015`, expert-reviewed crisis copy, store verification and products, public legal/support release values, remote monitoring, and final release QA.",
   "Product direction must state remaining production external dependencies."
 );
 requireText(

@@ -12,8 +12,8 @@ import {
   grantCreditWalletValue,
   getCreditItemPrice,
   grantRelationshipBondXp,
+  isCareItemEligibleForAction,
   isPlantGrowthEnabledItemId,
-  isTreatInventoryItem,
   placeInventoryItemInFixedSlot,
   mockCareState,
   mockCreditWallet,
@@ -427,17 +427,23 @@ export const commerceProducts: CommerceProduct[] = [
   { productId: "premium_chat_monthly", entitlementKey: "premium_chat", grantType: "subscription" },
   { productId: "extra_pet_slot_1", entitlementKey: "extra_pet_slot", grantType: "durable" },
   { productId: "regeneration_credit_1", entitlementKey: "regeneration_credit", grantType: "consumable" },
+  { productId: "credit_pack_20", entitlementKey: "regeneration_credit", grantType: "consumable" },
+  { productId: "credit_pack_60", entitlementKey: "regeneration_credit", grantType: "consumable" },
+  { productId: "credit_pack_150", entitlementKey: "regeneration_credit", grantType: "consumable" },
   { productId: "theme_pack_starter", entitlementKey: "theme_pack", grantType: "durable" }
 ];
 
 const commerceProductById = new Map(commerceProducts.map((product) => [product.productId, product]));
 
-const consumableWalletGrants: Partial<Record<EntitlementKey, CreditWalletGrant>> = {
-  regeneration_credit: { credits: 1 }
+const consumableWalletGrantByProductId: Readonly<Record<string, CreditWalletGrant>> = {
+  regeneration_credit_1: { credits: 1 },
+  credit_pack_20: { credits: 20 },
+  credit_pack_60: { credits: 60 },
+  credit_pack_150: { credits: 150 }
 };
 
 const getConsumableWalletGrant = (product: CommerceProduct): CreditWalletGrant | null =>
-  product.grantType === "consumable" ? consumableWalletGrants[product.entitlementKey] ?? null : null;
+  product.grantType === "consumable" ? consumableWalletGrantByProductId[product.productId] ?? null : null;
 
 const cloneCommerceProduct = (product: CommerceProduct): CommerceProduct => ({ ...product });
 
@@ -658,7 +664,7 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
     return cloneCreditWallet(wallet);
   };
 
-  const ensureInventory = (userId: UserId, timestamp: ISODateTime = now()): Inventory => {
+  const getInventorySnapshot = (userId: UserId, timestamp: ISODateTime = now()): Inventory => {
     const existing = inventories.get(userId);
 
     if (existing) {
@@ -674,6 +680,17 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
       updatedAt: timestamp
     };
 
+    return cloneInventory(inventory);
+  };
+
+  const ensureInventory = (userId: UserId, timestamp: ISODateTime = now()): Inventory => {
+    const existing = inventories.get(userId);
+
+    if (existing) {
+      return cloneInventory(existing);
+    }
+
+    const inventory = getInventorySnapshot(userId, timestamp);
     inventories.set(userId, inventory);
 
     return cloneInventory(inventory);
@@ -1371,7 +1388,7 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
     let consumedInventory: Inventory | null = null;
 
     if (request.action === "treat") {
-      const inventory = ensureInventory(auth.data.userId, request.occurredAt);
+      const inventory = getInventorySnapshot(auth.data.userId, request.occurredAt);
       const treatItemId = request.itemId ?? getAvailableTreatItemId(inventory, itemCatalog);
       const treatItem = treatItemId ? itemCatalog.find((item) => item.id === treatItemId) : null;
 
@@ -1381,7 +1398,7 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
           : fail(404, "treat_item_not_found", "Add a treat before using this action.");
       }
 
-      if (!isTreatInventoryItem(treatItem)) {
+      if (!isCareItemEligibleForAction(treatItem, request.action)) {
         return fail(422, "invalid_treat_item", "Choose a treat item for this action.");
       }
 
@@ -1392,8 +1409,37 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
       }
 
       consumedInventory = consumed.inventory;
+    } else if (request.action === "water_garden" && request.itemId) {
+      const inventory = getInventorySnapshot(auth.data.userId, request.occurredAt);
+      const drinkItem = itemCatalog.find((item) => item.id === request.itemId);
+
+      if (!drinkItem) {
+        return fail(404, "inventory_item_not_found", "Inventory item not found.");
+      }
+
+      if (!isCareItemEligibleForAction(drinkItem, request.action)) {
+        return fail(422, "invalid_drink_item", "Choose a drink item for this action.");
+      }
+
+      const consumed = consumeInventoryItem(inventory, request.itemId, request.occurredAt);
+
+      if (!consumed.ok) {
+        return fail(404, "inventory_item_not_found", "Inventory item not found.");
+      }
+
+      consumedInventory = consumed.inventory;
     } else if (request.itemId) {
-      const inventory = ensureInventory(auth.data.userId, request.occurredAt);
+      const careItem = itemCatalog.find((item) => item.id === request.itemId);
+
+      if (!careItem) {
+        return fail(404, "inventory_item_not_found", "Inventory item not found.");
+      }
+
+      if (!isCareItemEligibleForAction(careItem, request.action)) {
+        return fail(422, "invalid_care_item", "Choose an item made for this care action.");
+      }
+
+      const inventory = getInventorySnapshot(auth.data.userId, request.occurredAt);
       const ownedItem = inventory.items.find((entry) => entry.itemId === request.itemId && entry.quantity > 0);
 
       if (!ownedItem) {
@@ -1429,7 +1475,9 @@ export function createMockApiService(options: MockApiServiceOptions = {}) {
 
     const result = applyLocalCareAction(ensureCareState(pet.data, request.occurredAt), request);
     const wateredGarden =
-      request.action === "water_garden" ? waterGardenInventory(ensureInventory(auth.data.userId, request.occurredAt), request.occurredAt) : null;
+      request.action === "water_garden"
+        ? waterGardenInventory(consumedInventory ?? ensureInventory(auth.data.userId, request.occurredAt), request.occurredAt)
+        : null;
     const bloomRewardSummary = summarizePlantBloomRewards(wateredGarden?.bloomRewards ?? []);
     const relationshipState =
       bloomRewardSummary.bondXp > 0

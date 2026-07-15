@@ -1,5 +1,15 @@
 # 채팅 라이브 이식 + 대화 기억(B안: 요약 압축 하이브리드) 정밀 구현 설계서
 
+> **현재 상태: 2026-07-12 로컬 교정 완료, 원격 배포·전문가 검수 대기.**
+> `0014_chat_turn_guardrails.sql`이 서버 과금 판정, 유저 전역 제한,
+> provider 호출 전 request 예약, replay, 실패 복구를 담당하고 클라이언트의
+> `charge` 필드는 제거됐다. `0015_chat_message_reports.sql`과 모바일 신고
+> 다이얼로그도 추가됐다. `CHAT_LIVE_ENABLED`와 모바일 공개 플래그는 기본
+> OFF다. 아래 본문은 초기 설계 이력이라 `charge`를 클라이언트가 정한다는
+> 구절이 남아 있으며 구현 정본이 아니다. 현재 판정은
+> `docs/current/backend-release-audit-2026-07-12.md`와
+> `docs/current/supabase-runtime-2026-07-12.md`를 우선한다.
+
 작성: 2026-07-08 · 대상: 후속 구현 에이전트가 그대로 실행할 수 있는 설계서 · 성격: 읽기 전용 분석의 산출물(코드 미수정)
 
 이 문서는 "services/api(휴면·폐기 경로)에만 존재하는 LLM 프리미엄 채팅"을 라이브 Supabase-only

@@ -152,8 +152,14 @@ requireIncludes(
 
 requireIncludes(
   "apps/mobile/src/features/generation/GenerationScreen.tsx",
-  ["scene=\"hatching\"", "progressBlock", "recapCard", "stepList", "failureBlock", "shadows.gamePanel"],
+  ["scene=\"hatching\"", "warmRow", "progressBlock", "progressHeader", "recapCard", "failureBlock", "shadows.gamePanel"],
   "Hatching HUD"
+);
+
+requireExcludes(
+  "apps/mobile/src/features/generation/GenerationScreen.tsx",
+  ["stepList"],
+  "Hatching HUD must keep the retired along-the-way list removed"
 );
 
 requireIncludes(

@@ -1809,6 +1809,43 @@ describe("Postgres API service", () => {
     expect(purchaseClient.queries.some((query) => query.sql.includes("INSERT INTO public.inventory_items"))).toBe(true);
   });
 
+  it("rejects a mismatched care item before initializing Postgres inventory", async () => {
+    const client = new QueueDatabaseClient([
+      [apiUserRow],
+      [activePetRow],
+      mockItems.map(itemRow)
+    ]);
+    const router = createApiHttpRouter({
+      allowMockAuth: false,
+      service: createPostgresApiService({
+        repositories: createPostgresRepositoryBundle(client),
+        now: () => "2026-06-24T09:00:00.000Z"
+      }),
+      sessionVerifier
+    });
+
+    const response = await router.handleAsync({
+      method: "POST",
+      path: "/v1/pets/pet_db_001/care-actions",
+      headers: {
+        authorization: "Bearer provider-token"
+      },
+      body: {
+        action: "play",
+        itemId: "item_food_bowl_basic",
+        occurredAt: "2026-06-24T09:05:00.000Z"
+      }
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({
+      error: {
+        code: "invalid_care_item"
+      }
+    });
+    expect(client.queries.some((query) => query.sql.includes("INSERT INTO public.inventories"))).toBe(false);
+  });
+
   it("localizes persisted walk discovery copy for Brazilian Portuguese", async () => {
     const client = new QueueDatabaseClient([
       [apiUserRow],

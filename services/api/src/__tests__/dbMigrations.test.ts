@@ -60,7 +60,8 @@ describe("API database migrations", () => {
       "0004_reaction_catalog_versions",
       "0005_api_rate_limits",
       "0006_relationship_wallet_plant_growth",
-      "0007_inventory_items_dedupe_pk"
+      "0007_inventory_items_dedupe_pk",
+      "0008_care_shop_drinks"
     ]);
     expect(migrations[0]?.sql).toContain("CREATE TABLE IF NOT EXISTS public.pets");
     expect(migrations[0]?.sql).toContain("CREATE TABLE IF NOT EXISTS public.purchase_ledger");
@@ -71,6 +72,8 @@ describe("API database migrations", () => {
     expect(migrations[5]?.sql).toContain("CREATE TABLE IF NOT EXISTS public.relationship_states");
     expect(migrations[5]?.sql).toContain("CREATE TABLE IF NOT EXISTS public.credit_wallets");
     expect(migrations[6]?.sql).toContain("ADD PRIMARY KEY (user_id, item_id)");
+    expect(migrations[7]?.sql).toContain("item_milk_pup_cup");
+    expect(migrations[7]?.sql).toContain("category = 'drink'");
   });
 
   it("applies only pending migrations and records them", async () => {

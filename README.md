@@ -1,10 +1,13 @@
 # Mongchi
 
-Mongchi is a new standalone cross-platform iOS/Android pet-life game. Users upload a real dog or cat photo, create a tiny digital avatar, and care for that avatar inside a cozy glass-dome terrarium.
+Mongchi is a standalone cross-platform iOS/Android pet-life game. Users upload a real dog or cat photo, create a tiny digital avatar, and care for that avatar inside a cozy miniature garden.
 
-The source of truth for product, UX, design, backend, AI, content, security, commerce, and QA decisions is:
+The current source of truth for product, UX, design, backend, AI, content,
+security, commerce, and QA decisions is:
 
-- [Mongchi Guide](new-concepts/mongchi-guide/README.md)
+- [Mongchi Docs](docs/README.md)
+- [Mongchi Design System](DESIGN.md)
+- [Current Backend And Release Audit](docs/current/backend-release-audit-2026-07-12.md)
 
 ## Product Direction
 
@@ -14,26 +17,30 @@ North star:
 My pet has a tiny world in my phone, and it knows me.
 ```
 
-This first scaffold targets the prototype stage from the guide:
+The repository currently includes:
 
 - React Native + Expo + TypeScript mobile app shell.
 - Shared TypeScript domain contracts for iOS, Android, API, and workers.
-- Mock first-session flow for onboarding, pet setup, photo upload, hatching, pet reveal, and terrarium.
+- Native first-session flow for onboarding, photo upload, pet setup, generation, pet reveal, and the home garden.
 - Persistent local session/care/inventory/walk state for the native MVP slice.
 - Local authored reaction engine for unlimited free pet reactions without AI calls.
 - Bundled sample generated-pet PNG assets rendered through a mobile asset-id registry.
-- Shared mobile API mapper contracts for future signed photo upload, generation, and care integration.
-- Backend/API and AI worker placeholders with no real providers, payments, production services, or migrations connected.
+- A live Supabase path with anonymous auth, private pet storage, migrations
+  `0001`-`0013`, OpenAI-backed avatar generation, premium chat, account
+  deletion, server credit ledger, expression packs, and generation durability.
+- A separate Node API/worker path retained as a tested architecture and
+  deployment reference.
 
 ## Repository Layout
 
 ```text
 apps/mobile/        Expo app shell and mobile feature modules.
 packages/shared/   Shared domain types, API mappers, mock data, and local reaction/care logic.
-services/api/      Backend/API placeholder and typed endpoint contract notes.
-workers/ai/        AI generation worker placeholder with mock-only pipeline notes.
+services/api/      Tested Node API/reference runtime and deployment boundaries.
+workers/ai/        Tested AI worker/reference pipeline.
+supabase/          Active Edge Functions, migrations, and database tests.
 docs/              Product direction, implementation plan, and security boundaries.
-new-concepts/      Original guide and concept documents.
+docs/archive/      Superseded goal, concept, and planning references.
 ```
 
 ## Scripts
@@ -58,9 +65,11 @@ npm run validate:ios
 npm run validate:android
 ```
 
-## Non-Goals In This Pass
+## Release Status
 
-- No real AI provider calls.
-- No real payments or purchase verification.
-- No production database, storage bucket, migrations, or service credentials.
-- No provider keys or service role secrets in the mobile app.
+- Real OpenAI avatar generation is active through Supabase Edge Functions.
+- Provider and service-role secrets remain server-side and are not bundled in
+  the mobile app.
+- Public live chat is not release-safe yet; see the current backend audit.
+- Store products, production legal/support URLs, EAS project linkage,
+  monitoring, and final release configuration remain launch work.

@@ -4,13 +4,14 @@
 
 This contract defines the iOS Home screen interaction model.
 
-Android is paused for this pass. Use the current iOS baseline screenshots in `docs/qa-screenshots/` when reviewing Home UI changes.
+Android is paused for this pass. Capture a fresh iOS simulator baseline when
+reviewing Home UI changes; disposable QA screenshots are not retained in Git.
 
 Related system docs:
 
 - `docs/design/state-episode-weather-engine.md`
 - `docs/design/plant-growth-object-guide.md`
-- `new-concepts/mongchi-reaction-catalog.md`
+- `docs/archive/legacy/new-concepts/mongchi-reaction-catalog.md`
 
 ## Product Role
 
@@ -27,12 +28,8 @@ The core Home promise is:
 
 ## Current Visual Baseline
 
-Review against:
-
-- `docs/qa-screenshots/ios-iphone-16-pro-store-terrarium.png`
-- `docs/qa-screenshots/ios-iphone-16-pro-store-walk-reward.png`
-- `docs/qa-screenshots/ios-iphone-16-pro-store-chat.png`
-- `docs/qa-screenshots/ios-iphone-16-pro-store-contact-sheet.png`
+Generate a fresh simulator capture with the commands in
+`docs/mobile-native-runbook.md` before visual review.
 
 The visual north star remains:
 
