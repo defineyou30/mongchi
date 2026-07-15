@@ -10,10 +10,10 @@ const readJson = (relativePath) => JSON.parse(readText(relativePath));
 const appConfig = readJson("apps/mobile/app.json");
 const packageJson = readJson("package.json");
 const manifest = readJson("docs/store-screenshot-manifest.json");
-const listing = readText("docs/store-listing-draft.md");
-const privacy = readText("docs/store-privacy-data-safety.md");
-const productDirection = readText("docs/product-direction.md");
-const runbook = readText("docs/mobile-native-runbook.md");
+const listing = readText("docs/release/store-listing-draft.md");
+const privacy = readText("docs/release/store-privacy-data-safety.md");
+const productDirection = readText("docs/product/product-direction.md");
+const runbook = readText("docs/engineering/mobile-native-runbook.md");
 
 const expo = appConfig.expo ?? {};
 

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
-const provenancePath = resolve(repositoryRoot, "docs/legal/audio-asset-provenance.json");
+const provenancePath = resolve(repositoryRoot, "docs/release/legal/audio-asset-provenance.json");
 const argumentsSet = new Set(process.argv.slice(2));
 const outputIndex = process.argv.indexOf("--output");
 const outputPath = outputIndex >= 0 ? process.argv[outputIndex + 1] : undefined;

@@ -26,13 +26,12 @@ const postgresApiService = readText("services/api/src/postgresApiService.ts");
 const postgresNodeServer = readText("services/api/src/postgresNodeServer.ts");
 const postgresRateLimitStore = readText("services/api/src/postgresRateLimitStore.ts");
 const workerRuntimeConfig = readText("workers/ai/src/workerRuntimeConfig.ts");
-const releaseReadiness = readText("docs/release-readiness.md");
-const workerQualityCalibration = readText("docs/worker-quality-calibration.md");
-const nativeRunbook = readText("docs/mobile-native-runbook.md");
-const mvpStatus = readText("docs/mvp-slice-status.md");
-const iosManualQa = readText("docs/ios-manual-qa-checklist.md");
-const qaDeviceChecks = readText("docs/qa-device-checks.md");
-const storePrivacy = readText("docs/store-privacy-data-safety.md");
+const releaseReadiness = readText("docs/release/release-readiness.md");
+const workerQualityCalibration = readText("docs/engineering/worker-quality-calibration.md");
+const nativeRunbook = readText("docs/engineering/mobile-native-runbook.md");
+const iosManualQa = readText("docs/release/ios-manual-qa-checklist.md");
+const qaDeviceChecks = readText("docs/release/qa-device-checks.md");
+const storePrivacy = readText("docs/release/store-privacy-data-safety.md");
 
 const requireIncludes = (content, text, label) => {
   if (!content.includes(text)) {
@@ -147,13 +146,6 @@ requireIncludes(iosPreflight, "validate:final-release-plan", "iOS preflight");
 });
 
 [
-  "TINY_PET_FINAL_RELEASE_ALLOW_ANDROID=true npm run validate:final-release",
-  "npm run validate:final-screenshot-freshness",
-  "npm run capture:android-store-screenshots",
-  "validate:final-release-runbook"
-].forEach((text) => requireIncludes(mvpStatus, text, "MVP slice status"));
-
-[
   "intermediate iOS loop",
   "final Android pass",
   "VoiceOver",
@@ -237,8 +229,6 @@ requireIncludes(releaseReadiness, "validate:mobile-secret-boundaries", "Release 
 requireIncludes(releaseReadiness, "validate:privacy-sdk-boundaries", "Release readiness privacy SDK boundary coverage");
 requireIncludes(releaseReadiness, "validate:mobile-visual-direction", "Release readiness mobile visual direction coverage");
 requireIncludes(nativeRunbook, "validate:privacy-sdk-boundaries", "Mobile native runbook privacy SDK boundary coverage");
-requireIncludes(mvpStatus, "validate:privacy-sdk-boundaries", "MVP slice privacy SDK boundary coverage");
-requireIncludes(mvpStatus, "validate:mobile-visual-direction", "MVP slice mobile visual direction coverage");
 requireIncludes(qaDeviceChecks, "validate:mobile-visual-direction", "QA device checks visual direction coverage");
 
 [

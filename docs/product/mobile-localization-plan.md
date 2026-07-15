@@ -193,7 +193,7 @@ Acceptance:
 
 - Freeze the eight-locale product glossary.
 - Translate App Store title, subtitle, promotional text, keywords, description, privacy/support copy, and release notes.
-- Produce `docs/design/app-store/outputs/ko-KR/` with the same six-slide story as the English set.
+- Produce `docs/release/store-assets/v4-pixel/final/ko-KR/` with the same six-slide story as the English set.
 - Run screenshot, large-text, VoiceOver, reduce-motion, offline, error, and AI-language QA.
 
 Acceptance:

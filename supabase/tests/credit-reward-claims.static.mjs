@@ -17,7 +17,7 @@ assert.match(migration, /REVOKE EXECUTE[\s\S]*FROM PUBLIC, anon/);
 assert.match(migration, /GRANT EXECUTE[\s\S]*TO authenticated/);
 
 // Every settlement mission, streak milestone, collection, and bond reward
-// key from the 2026-07-15 faucet budget (docs/game-economy-bm-proposal.md)
+// key from the 2026-07-15 faucet budget (docs/product/economy.md)
 // must be present in the server whitelist, at its budgeted amount.
 assert.match(migration, /'settle_first_feed'/);
 assert.match(migration, /'settle_first_play'/);

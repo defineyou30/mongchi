@@ -1,6 +1,6 @@
 # Local generation and compositing workspace. Final exports and references are tracked.
+# v2/v3 outputs were removed in the 2026-07-15 docs reorganization (superseded by v4-pixel,
+# which now lives under docs/release/store-assets/v4-pixel/). /outputs/v1/ is kept in case a
+# future local compositing pass reuses this workspace layout.
 /work/
 /outputs/v1/
-/outputs/v2/*-thumb*.png
-/outputs/v2/contact-sheet-two.png
-/outputs/v2/gap.png

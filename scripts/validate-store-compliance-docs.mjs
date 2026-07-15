@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const docPath = resolve(ROOT, "docs/store-privacy-data-safety.md");
+const docPath = resolve(ROOT, "docs/release/store-privacy-data-safety.md");
 const content = readFileSync(docPath, "utf8");
 const failures = [];
 
@@ -38,7 +38,7 @@ const requirePattern = (pattern, description) => {
   "apps/mobile/src/shared/api/mobileApiClient.ts",
   "packages/shared/src/analytics/safeAnalytics.ts",
   "services/api/src/operationalLogger.ts",
-  "docs/security-boundaries.md",
+  "docs/engineering/security-boundaries.md",
   "scripts/validate-privacy-sdk-boundaries.mjs"
 ].forEach((evidence) => requireText(evidence, `evidence link ${evidence}`));
 

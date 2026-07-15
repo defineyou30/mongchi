@@ -5,8 +5,8 @@ import { PNG } from "pngjs";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const screenshotDir = resolve(ROOT, "docs/qa-screenshots");
-const qaDeviceChecksPath = resolve(ROOT, "docs/qa-device-checks.md");
-const manualChecklistPath = resolve(ROOT, "docs/ios-manual-qa-checklist.md");
+const qaDeviceChecksPath = resolve(ROOT, "docs/release/qa-device-checks.md");
+const manualChecklistPath = resolve(ROOT, "docs/release/ios-manual-qa-checklist.md");
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const expectedLabels = [
   "reduce-motion-hatching",
@@ -95,16 +95,16 @@ if (!existsSync(screenshotDir)) {
 
   for (const label of expectedLabels) {
     if (!qaDeviceChecks.includes(label)) {
-      failures.push(`docs/qa-device-checks.md must mention the iOS ${label} screenshot evidence.`);
+      failures.push(`docs/release/qa-device-checks.md must mention the iOS ${label} screenshot evidence.`);
     }
   }
 
   if (!checklist.includes("capture:ios-reduce-motion-hatching")) {
-    failures.push("docs/ios-manual-qa-checklist.md must document the iOS reduced-motion hatching capture command.");
+    failures.push("docs/release/ios-manual-qa-checklist.md must document the iOS reduced-motion hatching capture command.");
   }
 
   if (!checklist.includes("capture:ios-reduce-motion-core-evidence")) {
-    failures.push("docs/ios-manual-qa-checklist.md must document the iOS reduced-motion core evidence capture command.");
+    failures.push("docs/release/ios-manual-qa-checklist.md must document the iOS reduced-motion core evidence capture command.");
   }
 }
 

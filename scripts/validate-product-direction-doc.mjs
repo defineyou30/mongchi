@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const rootDir = path.resolve(new URL("..", import.meta.url).pathname);
-const productDirectionPath = path.join(rootDir, "docs/product-direction.md");
+const productDirectionPath = path.join(rootDir, "docs/product/product-direction.md");
 const manifestPath = path.join(rootDir, "docs/store-screenshot-manifest.json");
 
 const content = fs.readFileSync(productDirectionPath, "utf8");

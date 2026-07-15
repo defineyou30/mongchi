@@ -107,7 +107,7 @@ for (const [itemId, expectedStages] of expectedStageManifest.entries()) {
 }
 
 requireIncludes(
-  "docs/product-direction.md",
+  "docs/product/product-direction.md",
   [
     "Plant and garden objects use fixed placement presets plus lightweight growth stages",
     "Water is a cozy garden-care action, not a hard survival requirement"

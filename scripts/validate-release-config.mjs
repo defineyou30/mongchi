@@ -940,7 +940,7 @@ if (production) {
   // Edge Function secrets, not TINY_PET_*/mobile build env -- this script
   // cannot see the deployed function's env (separate deploy target/secret
   // store). This only catches the case where they leak into the local/CI
-  // process env that triggers a production build (see docs/launch-plan.md
+  // process env that triggers a production build (see docs/product/launch-plan.md
   // §6 for the required manual Supabase dashboard check).
   if (process.env.GENERATION_TEST_STATES) {
     failures.push("GENERATION_TEST_STATES must not be set when producing a production build (generate-avatar test-only override).");

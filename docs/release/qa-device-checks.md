@@ -1,0 +1,242 @@
+# Device QA Checks
+
+> 최신 대조: 2026-07-08 (커밋 8e8fd0c 기준)
+
+This file tracks visual QA evidence gathered while moving the app toward closed-test readiness.
+
+## Captured
+
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: terrarium home with bundled generated-pet PNG asset.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-terrarium-generated-asset.png`
+  - Result: no obvious text overlap, blank visual asset state, or missing bundled generated-pet asset in the captured viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: refreshed terrarium home using decomposed RN scene art plus item/pet PNG assets.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-terrarium-design-ref.png`
+  - Result: reference direction is represented without full-screen mockup/crop assets.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: refreshed premium chat gate using separate pet/gift art and native text/CTA panels.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-chat-design-ref.png`
+  - Result: no obvious text overlap in the captured viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: premium chat locked state after Plus pass shop CTA pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-chat-plus-shop-cta.png`
+  - Result: Plus pass CTA is visible in the first viewport without Expo Tools overlay, and tapping it routes to the shop preview.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: premium chat locked state after premium bond art refinement.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-chat-premium-bond-art.png`
+  - Result: decomposed garden, pet, gift, doghouse, toy, and bond-meter assets render without visible text or control overlap in the captured viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: refreshed shop preview using bundled item PNG assets in a native shelf layout.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-shop-design-ref.png`
+  - Result: background and item images render from bundled app assets, not from a full-screen mockup crop.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: shop preview after expanded catalog-item pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-shop-expanded-catalog.png`
+  - Result: local preview rows render actual shared catalog items with matching bundled item PNG icons.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: shop preview after owned-item state pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-shop-owned-catalog.png`
+  - Result: inventory-owned starter items show owned state and checkmarks, while unowned reward/shop items remain locked in local preview.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: shop preview after Plus pass destination pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-shop-plus-pass-destination.png`
+  - Result: Plus pass card is visible in the first viewport, local checkout remains locked, and item catalog rows continue below it.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: shop preview after summary HUD pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-shop-summary-hud.png`
+  - Result: owned, locked, and Plus pass summary chips render above the Plus pass card with no visible text wrapping or overlap in the captured viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: terrarium home after walk reward claimed summary pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-walk-reward-claimed-summary.png`
+  - Result: claimed reward art, owned quantity, Inventory CTA, and Shop CTA render in the first viewport without visible overlap.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: inventory list after v2 decomposed item assets.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-inventory-v2-assets.png`
+  - Result: inventory rows render separate bundled item PNGs instead of placeholder shape blocks.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: inventory list after local placement action pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-inventory-placement-actions.png`
+  - Result: owned item rows render separate PNG icons, quantities, and API-backed/local Remove controls for items currently placed in the tiny home layout.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: photo upload with bundled generated-pet PNG sample art.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-photo-upload-pet-asset.png`
+  - Result: upload guide art and sample-selection card render bundled generated-pet PNG assets instead of shape-only placeholder portraits.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: photo upload after refined generated-pet sprite pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-photo-upload-refined-pet.png`
+  - Result: sample card and upload guide use the refined bundled puppy PNG asset in native UI, not a full-screen mockup crop.
+- Static generated art review.
+  - Command: `npm run validate:mobile-asset-contact-sheet`
+  - Evidence: `docs/qa-screenshots/mobile-generated-assets-contact-sheet.png`
+  - Result: app icon, adaptive icon, splash, background, item, and dog/cat pet-state PNGs are combined into a single current contact sheet for visual review.
+- Static mobile visual-direction gate.
+  - Command: `npm run validate:mobile-visual-direction`
+  - Result: verifies the current iOS-focused implementation keeps raster-backed scene framing, tactile game HUD/buttons, reveal/home/hatching scene modes, and stale dome-first copy out of key screens before Android final validation.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: photo upload after first-session progress HUD pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-photo-first-session-progress.png`
+  - Result: Welcome, Photo, Setup, Hatch, and Reveal progress state renders above the photo screen while keeping the Continue CTA visible in the first viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: photo upload after decorative accessibility cleanup.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-photo-decorative-a11y.png`
+  - Result: visual layout is unchanged after hiding decorative scene image fragments from screen-reader traversal.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: hatching after production-facing CTA cleanup.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-generation-no-dev-failure-cta.png`
+  - Result: hatching shows progress, reveal, and photo-change actions without the old developer-only failure preview CTA.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: hatching after first-session progress HUD pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-hatching-first-session-progress.png`
+  - Result: hatching progress state renders above the scene, and the Reveal pet CTA remains visible in the first viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: pet reveal after retry action pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-reveal-retry-action.png`
+  - Result: reveal screen keeps Enter terrarium and Try again actions visible; static flow validation verifies Try again calls generation retry before routing back to hatching.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: pet reveal after first-session progress HUD pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-reveal-first-session-progress.png`
+  - Result: reveal progress state renders above the scene, and Enter terrarium, Try again, and Report issue CTAs remain visible.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: terrarium home after refined generated-pet sprite pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-terrarium-refined-pet.png`
+  - Result: refined pet PNG renders inside the decomposed terrarium scene with no obvious text or control overlap in the captured viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: pet setup after species-aware generated-pet preview pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-pet-setup-species-preview.png`
+  - Result: setup portrait preview renders a bundled generated-pet PNG in the native setup panel instead of a shape-only silhouette.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: pet setup after profile summary ribbon pass.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-pet-setup-profile-ribbon.png`
+  - Result: setup art shows the current pet name, species, trait count, and talking style without visible text overflow in the captured viewport.
+- iOS large device: iPhone 16 Pro simulator, iOS 18.6.
+  - Screen: current terrarium home captured through the automated mobile QA screenshot script.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-terrarium-current.png`
+  - Result: script verified a non-empty 1206x2622 PNG; visual check shows bundled pet/background/item assets rendering in the captured viewport.
+- iOS small device: iPhone 16e simulator, iOS 18.6.
+  - Screen: development-client welcome store preset.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16e-store-welcome.png`
+  - Result: script verified a non-empty 1170x2532 PNG; visual check shows decomposed terrarium art, copy, and the primary CTA visible in the first viewport without Expo Go or development-client tools overlays.
+- iOS large-text evidence: iPhone 16e simulator, iOS 18.6.
+  - Command: `npm run capture:ios-large-text-evidence`
+  - Evidence: `docs/qa-screenshots/ios-iphone-16e-large-text-store-contact-sheet.png`
+  - Result: captures the nine deterministic store presets with `large-text-*` labels after setting iOS content size above default, then restores the previous simulator content size. `npm run validate:ios-large-text-evidence` guards the PNG set and contact sheet.
+- Android large device: sdk_gphone64_arm64 emulator, Android 16, 1080x2400.
+  - Screen: onboarding welcome screen in Expo Go after disabling the Expo tools overlay.
+  - Evidence: `docs/qa-screenshots/android-sdk-gphone64-arm64-onboarding-large-final.png`
+  - Result: script verified a non-empty 1080x2400 PNG; visual check shows the decomposed terrarium art, text, and CTA rendering without overlap.
+- Android small viewport: sdk_gphone64_arm64 emulator resized to 720x1280 at density 320.
+  - Screen: onboarding welcome screen after compact layout adjustment.
+  - Evidence: `docs/qa-screenshots/android-sdk-gphone64-arm64-onboarding-small-compact.png`
+  - Result: script verified a non-empty 720x1280 PNG; visual check shows the primary CTA remains visible in the first viewport.
+- Static mobile accessibility gate.
+  - Command: `npm run validate:mobile-accessibility`
+  - Result: Pressable, TextInput, Image, ImageBackground, progressbar, checkbox, hidden decorative image usage, and primary screen title headers now have a release-gate check for roles, labels, state values, Android hidden-image handling, invert-colors handling, and VoiceOver header navigation readiness.
+- Reduced-motion hatching policy gate.
+  - Command: `npm test`
+  - Result: `generationMotionPolicy.test.ts` verifies that active hatching schedules automatic polling only when reduce motion is off, switches to a manual continue control when reduce motion is on, and suppresses both controls for terminal generation states.
+- iOS reduced-motion hatching evidence.
+  - Command: `npm run capture:ios-reduce-motion-hatching`
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-reduce-motion-hatching.png`
+  - Result: automation enabled iOS Reduce Motion on the booted iPhone 16 Pro simulator, opened the deterministic hatching preset, captured the manual `Continue hatching` control in the first viewport, and restored the previous simulator Reduce Motion setting. `npm run validate:ios-reduce-motion-evidence` guards the PNG evidence and documentation reference.
+- iOS reduced-motion core screen evidence.
+  - Command: `npm run capture:ios-reduce-motion-core-evidence`
+  - Evidence:
+    - `docs/qa-screenshots/ios-iphone-16-pro-reduce-motion-pet-reveal.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-reduce-motion-terrarium.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-reduce-motion-chat.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-reduce-motion-shop.png`
+  - Result: automation enabled iOS Reduce Motion for each deterministic core preset, captured the primary viewport without Android validation, and restored the previous simulator Reduce Motion setting after each capture. `npm run validate:ios-reduce-motion-evidence` guards the PNG evidence and documentation reference.
+- iOS settings privacy status evidence.
+  - Command: `npm run capture:ios-settings-privacy-evidence`
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-settings-privacy-status.png`
+  - Result: automation opens the QA-only `settings-privacy-error` preset on iOS, captures the Settings privacy status notice for API-backed deletion failure copy, and `npm run validate:ios-settings-privacy-evidence` guards the PNG evidence and documentation reference.
+- iOS settings privacy progress evidence.
+  - Command: `npm run capture:ios-settings-privacy-progress-evidence`
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-settings-privacy-progress.png`
+  - Result: automation opens the QA-only `settings-privacy-progress` preset on iOS, captures the Settings privacy in-progress notice and disabled destructive controls, and `npm run validate:ios-settings-privacy-evidence` guards the PNG evidence and documentation reference.
+- Automated mobile QA screenshot capture.
+  - Command: `npm run qa:mobile-screenshots`
+  - Result: captures booted iOS simulators and connected Android emulator/device screens into `docs/qa-screenshots`, validates PNG output, and can require `ios`, `android`, or `all` through `TINY_PET_QA_PLATFORM`.
+- Store screenshot preset states.
+  - Env: `EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_PRESET`
+  - Result: Welcome, Photo upload, Pet setup, Hatching, Pet reveal, Terrarium, Chat, Shop, and Walk reward can now boot into deterministic local QA states for repeatable iOS/Android store capture without overwriting the existing AsyncStorage session; production release-config validation rejects the preset env.
+- Store privacy/data safety draft gate.
+  - Command: `npm run validate:store-compliance`
+  - Result: App Store privacy label and Google Play Data safety draft now has a static gate for evidence links, core collected/not-collected data categories, sharing guardrails, encryption caveats, deletion paths, and final release config fields.
+- Store listing draft gate.
+  - Command: `npm run validate:store-listing`
+  - Result: App Store and Google Play listing copy now has a static gate for required fields, short-field character limits, first native flow positioning, review notes, release notes, and screenshot caption coverage.
+- Store screenshot manifest gate.
+  - Command: `npm run validate:store-screenshots`
+  - Result: Store screenshot preset, route, capture label, and caption mappings are now validated against the native preset source and listing draft. Intermediate iOS screenshot coverage can be enforced with `npm run validate:ios-store-screenshots`; final submission can require captured iOS/Android PNGs with `TINY_PET_REQUIRE_STORE_SCREENSHOTS=true`.
+- iOS store screenshot capture automation.
+  - Command: `TINY_PET_IOS_STORE_SCREENSHOT_CLIENT=development-client npm run capture:ios-store-screenshots`
+  - Result: boots each deterministic store preset through Expo Metro on an iOS simulator development client, captures the matching `store-*` label with `TINY_PET_QA_PLATFORM=ios`, rejects React Native red error screens, iOS open-link prompts, development-client tools overlays, and stale visually duplicated preset captures, and leaves Android capture to the final Android pass.
+- Android store screenshot final-pass automation.
+  - Command: `npm run capture:android-store-screenshots`
+  - Result: final-pass script exists for connected Android emulator/device capture. It opens each deterministic store preset through `adb`, captures the matching `store-*` label with `TINY_PET_QA_PLATFORM=android`, targets a specific serial with `TINY_PET_ANDROID_STORE_SCREENSHOT_SERIAL`, runs `npm run validate:android-store-screenshots`, and generates `android-<device>-store-contact-sheet.png` after a full manifest capture. Current Android store preset PNGs exist under `docs/qa-screenshots/android-sdk-gphone64-arm64-store-*.png` and pass the Android store screenshot validator.
+- Android store screenshot contact sheet final-pass gate.
+  - Commands: `npm run generate:android-store-contact-sheet`, `npm run validate:android-store-contact-sheet`
+  - Result: final-pass scripts combine a complete Android `store-*` screenshot set into a review contact sheet and validate that it is current with the source screenshots. The current `docs/qa-screenshots/android-sdk-gphone64-arm64-store-contact-sheet.png` passes validation and should be regenerated after any final UI/art/build/device change.
+- iOS store screenshot coverage.
+  - Command: `TINY_PET_IOS_STORE_SCREENSHOT_CLIENT=development-client npm run capture:ios-store-screenshots`
+  - Result: captured iPhone 16 Pro PNGs for every store preset from the installed development client without Expo Go or development-client tools overlays, then passed `npm run validate:ios-store-screenshots`.
+  - Evidence:
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-welcome.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-pet-setup.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-photo-upload.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-hatching.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-pet-reveal.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-terrarium.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-chat.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-walk-reward.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-shop.png`
+- iOS store screenshot contact sheet.
+  - Command: `npm run generate:ios-store-contact-sheet`
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-store-contact-sheet.png`
+  - Result: contact sheet renders the nine iOS store presets in manifest order and is guarded by `npm run validate:ios-store-contact-sheet` so stale sheets fail preflight.
+- iOS development-client readiness gate.
+  - Command: `npm run validate:ios-dev-client-readiness`
+  - Result: EAS `development` profile is configured for an iOS simulator development client, `expo-dev-client` is installed in the mobile app, the generated iOS workspace and `Podfile.lock` are present, the app scheme is present for dev-client deep links, the iOS store capture script supports `TINY_PET_IOS_STORE_SCREENSHOT_CLIENT=development-client`, suppresses the dev menu onboarding/tools overlays, and the store screenshot manifest still requires final capture from a development-client or production build without Expo Go overlays.
+- iOS development-client local build/install.
+  - Commands: `npx expo prebuild --platform ios --npm`, `npm run ios:pods`, and `npm run ios:dev-client:build`
+  - Result: iOS native project and CocoaPods workspace were generated, 111 pods installed, `xcodebuild` succeeded, and `Mongchi.app` installed on the booted iPhone 16 Pro simulator through `xcrun simctl install`. The repo script avoids Expo CLI's Simulator activation AppleScript path and verifies the installed `app.mongchi.mobile` app container.
+- iOS development-client screenshot overlay guards.
+  - Command: `TINY_PET_IOS_STORE_SCREENSHOT_CLIENT=development-client TINY_PET_IOS_STORE_SCREENSHOT_PRESETS=welcome npm run capture:ios-store-screenshots`
+  - Result: the capture path primes `EXDevMenuIsOnboardingFinished=true` and `EXDevMenuShowFloatingActionButton=false`, while `npm run validate:ios-store-screenshots` rejects screenshots containing iOS `Open in app` prompts or development-client tools overlays.
+- iOS pet setup store screenshot CTA pass.
+  - Screen: Pet setup store preset on iPhone 16 Pro.
+  - Evidence: `docs/qa-screenshots/ios-iphone-16-pro-store-pet-setup.png`
+  - Result: Continue CTA is visible in the first viewport after the required name/species controls, without a fixed footer overlay covering optional Personality controls.
+- iOS store screenshot language consistency pass.
+  - Screens: Pet reveal, Main terrarium, and Walk reward store presets on iPhone 16 Pro.
+  - Evidence:
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-pet-reveal.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-terrarium.png`
+    - `docs/qa-screenshots/ios-iphone-16-pro-store-walk-reward.png`
+  - Result: local prototype and reveal copy now use English for the English store listing screenshots, while Korean reaction catalog entries remain available in shared data for locale-specific paths.
+- iOS manual QA checklist gate.
+  - Command: `npm run validate:ios-manual-qa`
+  - Result: intermediate VoiceOver, iOS Reduce Motion, text/layout, photo consent, privacy, first-session, terrarium, chat, walk reward, shop, and store screenshot evidence requirements are documented without requiring Android validation during the implementation loop. The hatching Reduce Motion path also has automated iOS simulator evidence.
+
+## Attempted
+
+- Android AVD: `Tester`.
+  - Date: 2026-06-25.
+  - Attempt: cold boot with `-no-snapshot-load -no-audio -no-boot-anim`, then retry with `-wipe-data -gpu swiftshader_indirect`.
+  - Result: `adb` never reported `sys.boot_completed=1`; no Android screenshot was captured for the hatching/reveal cleanup pass.
+- Android AVD: `Tester`.
+  - Date: 2026-06-25.
+  - Attempt: GUI cold boot with `-no-snapshot-load`, then detached headless boot with `-no-window -no-audio -no-snapshot-load`.
+  - Result: GUI boot reached emulator `Boot completed`, but detached/headless runs did not remain attached to `adb`; no new Android screenshot was captured in this pass.
+- Android AVD: `Tester`.
+  - Date: 2026-06-25.
+  - Attempt: `emulator @Tester -no-snapshot-load -no-audio -no-boot-anim`, then read-only retry with `-read-only -no-snapshot -gpu swiftshader_indirect -no-window`.
+  - Result: both emulator processes exited immediately with `Broken pipe` / `no client check-in`; `adb devices` stayed empty, so no new Android screenshot was captured in this pass.
+
+## Still Needed
+
+- Manual VoiceOver pass on first session, terrarium, settings, and photo consent using `./ios-manual-qa-checklist.md`.
+- Manual iOS Reduce Motion judgment remains useful for deep scrolling and edge cases, but hatching, pet reveal, terrarium, chat, and shop now have automated iOS simulator evidence under `docs/qa-screenshots/ios-iphone-16-pro-reduce-motion-*.png`.
+- Android store screenshots, Android contact sheet validation, and Android export validation now have local evidence; TalkBack and Android Reduce Motion remain final Android manual completion checks, and screenshots should be recaptured if UI/art/build/device inputs change.

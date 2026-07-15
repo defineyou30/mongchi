@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const docPath = resolve(ROOT, "docs/store-listing-draft.md");
+const docPath = resolve(ROOT, "docs/release/store-listing-draft.md");
 const content = readFileSync(docPath, "utf8");
 const failures = [];
 

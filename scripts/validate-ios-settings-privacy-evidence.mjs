@@ -5,8 +5,8 @@ import { PNG } from "pngjs";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const screenshotDir = resolve(ROOT, "docs/qa-screenshots");
-const qaDeviceChecksPath = resolve(ROOT, "docs/qa-device-checks.md");
-const manualChecklistPath = resolve(ROOT, "docs/ios-manual-qa-checklist.md");
+const qaDeviceChecksPath = resolve(ROOT, "docs/release/qa-device-checks.md");
+const manualChecklistPath = resolve(ROOT, "docs/release/ios-manual-qa-checklist.md");
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const expectedEvidence = [
   {
@@ -222,12 +222,12 @@ if (!existsSync(screenshotDir)) {
 
   for (const expected of expectedEvidence) {
     if (!qaDeviceChecks.includes(expected.label)) {
-      failures.push(`docs/qa-device-checks.md must mention the iOS ${expected.label} screenshot evidence.`);
+      failures.push(`docs/release/qa-device-checks.md must mention the iOS ${expected.label} screenshot evidence.`);
     }
   }
 
   if (!checklist.includes("capture:ios-settings-privacy-evidence")) {
-    failures.push("docs/ios-manual-qa-checklist.md must document the iOS settings privacy evidence capture command.");
+    failures.push("docs/release/ios-manual-qa-checklist.md must document the iOS settings privacy evidence capture command.");
   }
 }
 

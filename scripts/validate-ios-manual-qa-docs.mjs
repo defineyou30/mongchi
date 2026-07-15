@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const docPath = resolve(ROOT, "docs/ios-manual-qa-checklist.md");
+const docPath = resolve(ROOT, "docs/release/ios-manual-qa-checklist.md");
 const preflightPath = resolve(ROOT, "scripts/validate-ios-preflight.mjs");
 const content = readFileSync(docPath, "utf8");
 const preflightContent = readFileSync(preflightPath, "utf8");

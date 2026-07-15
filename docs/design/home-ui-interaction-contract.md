@@ -29,7 +29,7 @@ The core Home promise is:
 ## Current Visual Baseline
 
 Generate a fresh simulator capture with the commands in
-`docs/mobile-native-runbook.md` before visual review.
+`docs/engineering/mobile-native-runbook.md` before visual review.
 
 The visual north star remains:
 

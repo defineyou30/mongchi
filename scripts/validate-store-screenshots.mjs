@@ -5,7 +5,7 @@ import { PNG } from "pngjs";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const manifestPath = resolve(ROOT, "docs/store-screenshot-manifest.json");
-const listingPath = resolve(ROOT, "docs/store-listing-draft.md");
+const listingPath = resolve(ROOT, "docs/release/store-listing-draft.md");
 const presetSourcePath = resolve(ROOT, "apps/mobile/src/features/session/storeScreenshotSession.ts");
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const screenshotRequirement = (process.env.TINY_PET_REQUIRE_STORE_SCREENSHOTS ?? "").trim().toLowerCase();
@@ -367,7 +367,7 @@ for (const entry of screenshots) {
   }
 
   if (!listing.includes(`| ${preset} | ${caption} |`)) {
-    failures.push(`${preset} caption must match docs/store-listing-draft.md.`);
+    failures.push(`${preset} caption must match docs/release/store-listing-draft.md.`);
   }
 
   const fileRegex = new RegExp(`^(ios|android)-(.+)-${slugPattern(captureLabel)}\\.png$`);

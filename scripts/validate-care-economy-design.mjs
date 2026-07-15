@@ -54,7 +54,7 @@ requireIncludes(
 );
 
 requireIncludes(
-  "docs/product-direction.md",
+  "docs/product/product-direction.md",
   [
     "Care, relationship, and monetization stay separate",
     "short local reactions remain free/authored"

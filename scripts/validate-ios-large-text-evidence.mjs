@@ -5,8 +5,8 @@ import { PNG } from "pngjs";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const manifest = JSON.parse(readFileSync(resolve(ROOT, "docs/store-screenshot-manifest.json"), "utf8"));
-const qaDeviceChecksPath = resolve(ROOT, "docs/qa-device-checks.md");
-const manualChecklistPath = resolve(ROOT, "docs/ios-manual-qa-checklist.md");
+const qaDeviceChecksPath = resolve(ROOT, "docs/release/qa-device-checks.md");
+const manualChecklistPath = resolve(ROOT, "docs/release/ios-manual-qa-checklist.md");
 const outputDirectory = resolve(ROOT, manifest.outputDirectory ?? "docs/qa-screenshots");
 const screenshots = Array.isArray(manifest.screenshots) ? manifest.screenshots : [];
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -205,11 +205,11 @@ const qaDeviceChecks = existsSync(qaDeviceChecksPath) ? readFileSync(qaDeviceChe
 const manualChecklist = existsSync(manualChecklistPath) ? readFileSync(manualChecklistPath, "utf8") : "";
 
 if (!qaDeviceChecks.includes("large-text")) {
-  failures.push("docs/qa-device-checks.md must reference the iOS large-text evidence.");
+  failures.push("docs/release/qa-device-checks.md must reference the iOS large-text evidence.");
 }
 
 if (!manualChecklist.includes("capture:ios-large-text-evidence")) {
-  failures.push("docs/ios-manual-qa-checklist.md must document the iOS large-text capture command.");
+  failures.push("docs/release/ios-manual-qa-checklist.md must document the iOS large-text capture command.");
 }
 
 if (failures.length > 0) {
