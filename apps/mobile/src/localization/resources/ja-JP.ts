@@ -39,6 +39,16 @@ export const jaJP = {
       viewHome: "ホームを見る"
     }
   },
+  languageSelector: {
+    openAccessibilityLabel: "アプリの言語を選択",
+    title: "言語を選択",
+    subtitle: "端末の言語に合わせるか、好きな言語に固定できます。",
+    automatic: "自動",
+    automaticDetail: "端末の言語を使用 · {{language}}",
+    selected: "選択中",
+    saveError: "言語を保存できませんでした。もう一度お試しください。",
+    closeAccessibilityLabel: "言語選択を閉じる"
+  },
   splash: {
     accessibilityLabel: "小さなペットのおうちの読み込み画面",
     logoAccessibilityLabel: "Mongchiアプリのロゴ",
@@ -54,29 +64,29 @@ export const jaJP = {
     slides: {
       first: {
         step: "ステップ1",
-        title: "大好きな愛犬を、毎日そばに",
-        body: "お気に入りの愛犬の写真一枚から、庭で待つ小さなお友だちが生まれます。"
+        title: "大切なペットを、\n毎日そばに",
+        body: "お気に入りのペット写真一枚から、庭で待つ小さなお友だちが生まれます。"
       },
       second: {
         step: "ステップ2",
         title: "写真は一枚だけで大丈夫",
-        body: "愛犬がはっきり写った写真を選び、名前とちょっとした性格を教えてください。"
+        body: "ペットがはっきり写った写真を選び、名前とちょっとした性格を教えてください。"
       },
       third: {
         step: "ステップ3",
         title: "毎日の絆を育てよう",
-        body: "ごはんや遊び、おしゃべりを楽しみながら、毎日愛犬の心地よい庭へ帰りましょう。"
+        body: "ごはんや遊び、おしゃべりを楽しみながら、毎日ペットの心地よい庭へ帰りましょう。"
       }
     }
   },
   photoIntro: {
     accessibilityLabel: "小さなペットの写真案内",
-    artAccessibilityLabel: "一枚の愛犬写真から小さな庭のおうちが開く様子",
-    title: "大切な愛犬を、手のひらで育てよう",
-    body: "愛犬がはっきり写った写真一枚に名前と性格を添えて、庭で待つ小さなお友だちに会いましょう。",
+    artAccessibilityLabel: "一枚のペット写真から小さな庭のおうちが開く様子",
+    title: "大切なペットを、いつもそばに",
+    body: "ペットがはっきり写った写真一枚に名前と性格を添えて、庭で待つ小さなお友だちに会いましょう。",
     quest: { photo: "写真", name: "名前", moveIn: "お引っ越し" },
-    privacy: "愛犬の写真は、小さなお友だちを作るためだけに使います。お引っ越し後はいつでも元の写真を削除できます。",
-    choosePhoto: "愛犬の写真を選ぶ"
+    privacy: "ペットの写真は、小さなお友だちを作るためだけに使います。お引っ越し後はいつでも元の写真を削除できます。",
+    choosePhoto: "ペットの写真を選ぶ"
   },
   photoUpload: {
     accessibilityLabel: "ペット写真のアップロード",
@@ -112,9 +122,10 @@ export const jaJP = {
     eyebrow: "お引っ越しの書類",
     title: "小さなお友だちに名前をつけよう",
     summary: "{{species}} / {{voice}} · お引っ越しの準備中",
+    speciesQuestion: "誰がお引っ越しする？",
     petName: "ペットの名前",
     nameHint: "毎日、玄関であなたを迎えてくれる名前です。",
-    personalityQuestion: "今日のお友だちはどんな気分？",
+    personalityQuestion: "この子はどんな性格？",
     voiceQuestion: "小さな声はどんな感じ？",
     favoriteQuestion: "もう好きなものはある？",
     favoriteThing: "小さなお気に入り",
@@ -123,8 +134,20 @@ export const jaJP = {
     firstMemoryPlaceholder: "お友だちとの小さな思い出…",
     continueHint: "名前、気分、声を選ぶと続けられます。",
     species: { dog: "犬", cat: "猫" },
-    personality: { playful: "遊び好き", calm: "穏やか", shy: "恥ずかしがり", curious: "好奇心旺盛", sleepy: "ねむねむ", affectionate: "甘えんぼう" },
-    voice: { cute: "かわいい", gentle: "やさしい", cheerful: "明るい", comforting: "ほっとする" }
+    personality: {
+      playful: "遊び好き",
+      calm: "穏やか",
+      shy: "恥ずかしがり",
+      curious: "好奇心旺盛",
+      sleepy: "ねむねむ",
+      affectionate: "甘えんぼう"
+    },
+    voice: {
+      cute: "かわいい",
+      gentle: "やさしい",
+      cheerful: "明るい",
+      comforting: "ほっとする"
+    }
   },
   generation: {
     accessibilityLabel: "{{petName}}のお引っ越しの流れ",
@@ -141,7 +164,6 @@ export const jaJP = {
     failureTitle: "お引っ越しはひと休み中",
     quotaFailure: "小さなお友だちはもうすぐお引っ越しできます。少し時間をおいて、また見にきてください。",
     retryFailure: "小さな扉が引っかかったようです。{{petName}}をもう一度作ってみましょう。",
-    stepsTitle: "お引っ越しまでの道のり",
     reveal: "ペットに会う",
     steps: {
       preparing: "写真を準備中",
@@ -213,7 +235,13 @@ export const jaJP = {
     localeAccessibilityLabel: "遊べる{{petName}}の小さな庭のおうち",
     hud: {
       accessibilityLabel: "小さな庭のゲーム状況",
-      labels: { fullness: "満腹", thirst: "水分", mood: "気分", energy: "元気", cleanliness: "清潔" },
+      labels: {
+        fullness: "満腹",
+        thirst: "水分",
+        mood: "気分",
+        energy: "元気",
+        cleanliness: "清潔"
+      },
       meterAccessibilityLabel: "{{label}}の状態。タップして詳細を見る。",
       artAccessibilityLabel: "{{label}}の状態を表す画像"
     },
@@ -237,7 +265,17 @@ export const jaJP = {
     },
     butterflyAccessibilityLabel: "小さなちょうちょが遊びに来ています。タップしてあいさつする。",
     care: {
-      actions: { feed: "ごはん", talk: "おしゃべり", walk: "お散歩", play: "遊ぶ", rest: "休む", affection: "なでる", water_garden: "お水", clean: "きれいにする", treat: "おやつ" },
+      actions: {
+        feed: "ごはん",
+        talk: "おしゃべり",
+        walk: "お散歩",
+        play: "遊ぶ",
+        rest: "休む",
+        affection: "なでる",
+        water_garden: "お水",
+        clean: "きれいにする",
+        treat: "おやつ"
+      },
       iconAccessibilityLabel: "{{label}}のお世話アイコン",
       itemAccessibilityLabel: "{{label}}のお世話アイテム",
       feedCooldown: "ごはんメニュー。毎日の食事はあと{{cooldown}}。おやつは使えることがあります。",
@@ -247,7 +285,13 @@ export const jaJP = {
       recommended: "おすすめ：{{petName}}に{{label}}。{{hint}}",
       actionAccessibilityLabel: "{{petName}}に{{label}}",
       tray: {
-        titles: { affection: "絆を深める", feed: "ごはんとおやつ", play: "遊びを選ぶ", walk: "道を選ぶ", water_garden: "お水" },
+        titles: {
+          affection: "絆を深める",
+          feed: "ごはんとおやつ",
+          play: "遊びを選ぶ",
+          walk: "道を選ぶ",
+          water_garden: "お水"
+        },
         optionsAccessibilityLabel: "{{title}}の選択肢",
         shopOption: "{{title}}をショップで見る。",
         cooldownOption: "{{title}}はあと{{cooldown}}で使えます。",
@@ -255,8 +299,23 @@ export const jaJP = {
         openShop: "お世話アイテムのショップを開く。",
         shop: "ショップ"
       },
-      options: { pet: "なでる", meal: "ごはん", ball: "ボール", path: "道", water: "お水", bath: "お風呂", treat: "おやつ" },
-      meta: { bond: "+絆", fullness: "+満腹", mood: "+気分", thirst: "+水分", fresh: "+さっぱり", shop: "ショップ" }
+      options: {
+        pet: "なでる",
+        meal: "ごはん",
+        ball: "ボール",
+        path: "道",
+        water: "お水",
+        bath: "お風呂",
+        treat: "おやつ"
+      },
+      meta: {
+        bond: "+絆",
+        fullness: "+満腹",
+        mood: "+気分",
+        thirst: "+水分",
+        fresh: "+さっぱり",
+        shop: "ショップ"
+      }
     },
     walk: {
       activeTitle: "{{petName}}はお散歩中 · あと{{time}}で帰宅",
@@ -264,8 +323,15 @@ export const jaJP = {
       bringHomeAccessibilityLabel: "{{cost}}クレジットを使って{{petName}}を今すぐ家に呼び戻す",
       cannotBringHomeAccessibilityLabel: "{{petName}}を今すぐ家に呼び戻すためのクレジットが足りません",
       coinAccessibilityLabel: "コイン通貨",
-      commentary: { early: "{{petName}}はとても大切なにおいを追っています...", mid: "{{petName}}は葉っぱにあいさつするため立ち止まりました。", late: "{{petName}}が何かを見つけて、家へ持ち帰っています！" },
+      openCreditStoreAccessibilityLabel: "ジェムショップを開く",
+      commentary: {
+        early: "{{petName}}はとても大切なにおいを追っています...",
+        mid: "{{petName}}は葉っぱにあいさつするため立ち止まりました。",
+        late: "{{petName}}が何かを見つけて、家へ持ち帰っています！"
+      },
       bringHome: "今すぐ帰宅 · {{cost}}",
+      openCreditStore: "ジェムを補充",
+      insufficientHint: "ジェムを補充するか、{{petName}}の帰りを待ちましょう。",
       waiting: "{{petName}}はもうすぐ戻ります。のんびり待っていてね。",
       returned: "{{petName}}が小さなおみやげを持って帰ってきました！",
       claimAccessibilityLabel: "{{petName}}を迎えて、お散歩のおみやげを受け取る",
@@ -297,6 +363,9 @@ export const jaJP = {
     petSays: "{{petName}}の発言：{{text}}",
     finishMessageHint: "タップするとメッセージをすぐ最後まで表示します",
     opening: "ほっとするおしゃべりを開いています...",
+    unavailableTitle: "長いおしゃべりはお休み中",
+    unavailableDetail: "安全確認が終わるまで、短いおしゃべりとお世話の反応はいつも通り楽しめます。",
+    unavailableInput: "長いおしゃべりは準備中です",
     networkError: "今はチャットにつながりません。もう一度試してください。",
     startersAccessibilityLabel: "会話のきっかけ",
     starterAccessibilityLabel: "会話のきっかけを使う：{{starter}}",
@@ -304,6 +373,33 @@ export const jaJP = {
     inputPlaceholder: "{{petName}}にメッセージ",
     sendAccessibilityLabel: "プレミアムチャットのメッセージを送信",
     disclosure: "これはペットのプロフィールをもとにAIが生成した会話です。実際のペットの意識ではありません。",
+    disclosureBanner: {
+      dismissAccessibilityLabel: "AI表示のお知らせを閉じる"
+    },
+    info: {
+      button: "このチャットについて",
+      title: "このチャットについて",
+      aiTitle: "AIが生成した会話",
+      billingTitle: "チャット回数とクレジット",
+      billingBody: "送信した瞬間に、含まれるチャットとクレジットが安全に確認されます。今日の無料チャットを使い切ったら、デイパスやクレジットでおしゃべりを続けられます。",
+      close: "わかった"
+    },
+    report: {
+      button: "このAI応答を報告",
+      reported: "このAI応答は報告済みです",
+      title: "この応答を報告",
+      detail: "最も近い理由を選んでください。確認用にメッセージ参照と理由のみ保存します。",
+      reasons: {
+        harmful: "有害または危険",
+        inappropriate: "不適切",
+        inaccurate: "不正確または誤解を招く",
+        other: "その他"
+      },
+      cancel: "報告を閉じる",
+      sending: "報告を送信中...",
+      success: "ありがとうございます。この応答を確認に送りました。",
+      error: "報告を送信できませんでした。もう一度お試しください。"
+    },
     history: {
       accessibilityLabel: "{{petName}}との会話履歴",
       user: "あなた",
@@ -329,9 +425,23 @@ export const jaJP = {
     accessibilityLabel: "{{petName}}のお友だちページ",
     back: "ホームに戻る",
     share: "{{petName}}を共有",
-    movedIn: { today: "今日お引っ越ししました", daysAgo: "{{count}}日前にお引っ越ししました" },
-    stats: { bond: "絆", streak: "連続記録", together: "一緒の日々", bondAccessibilityLabel: "レベル{{level}}までの絆の進み具合：{{label}}" },
-    sections: { lately: "最近の{{petName}}...", walkFinds: "お散歩の発見", moments: "小さな思い出", letter: "{{petName}}からのお手紙", memoryNote: "思い出メモ" },
+    movedIn: {
+      today: "今日お引っ越ししました",
+      daysAgo: "{{count}}日前にお引っ越ししました"
+    },
+    stats: {
+      bond: "絆",
+      streak: "連続記録",
+      together: "一緒の日々",
+      bondAccessibilityLabel: "レベル{{level}}までの絆の進み具合：{{label}}"
+    },
+    sections: {
+      lately: "最近の{{petName}}...",
+      walkFinds: "お散歩の発見",
+      moments: "小さな思い出",
+      letter: "{{petName}}からのお手紙",
+      memoryNote: "思い出メモ"
+    },
     walkFindAccessibilityLabel: "{{name}}、{{count}}回見つけました",
     undiscoveredWalkFind: "まだ見つけていないお散歩の発見",
     letter: {
@@ -351,6 +461,18 @@ export const jaJP = {
     shareMessages: {
       days: "{{petName}}は{{count}}日間、私の小さな庭のお友だちです。Mongchiで作りました。",
       fallback: "小さな庭のお友だち、{{petName}}です。Mongchiで作りました。"
+    },
+    shareCard: {
+      title: "カードをカスタマイズ",
+      subtitle: "お友だちに見せたいポーズと背景を選んでください。",
+      poseSectionTitle: "ポーズ",
+      themeSectionTitle: "背景",
+      poseOptionAccessibilityLabel: "{{pose}}のポーズ",
+      themeOptionAccessibilityLabel: "{{theme}}の背景",
+      selected: "選択中",
+      previewAccessibilityLabel: "{{petName}}のシェアカードのプレビュー",
+      closeAccessibilityLabel: "カードのカスタマイズを閉じる",
+      shareAccessibilityLabel: "{{petName}}のカードをシェア"
     }
   },
   shop: {
@@ -359,7 +481,30 @@ export const jaJP = {
     back: "ホームに戻る",
     walletAccessibilityLabel: "ショップのお財布、{{credits}}クレジット、所持キットアイテム{{owned}}個",
     creditGemAccessibilityLabel: "ショップのクレジットジェムアイコン",
-    categories: { treats: "おやつ", toysAndRest: "おもちゃ", moments: "思い出", themes: "テーマ" },
+    openCreditStore: "ジェムストアを開く",
+    categories: {
+      all: "すべて",
+      treats: "おやつ",
+      drinks: "飲みもの",
+      toys: "おもちゃ",
+      rest: "休む",
+      moments: "思い出",
+      themes: "テーマ"
+    },
+    tabs: {
+      care: "おやつ・おもちゃ",
+      customize: "ポーズ・テーマ"
+    },
+    sections: {
+      careItems: "食べもの・飲みもの・おもちゃ",
+      careItemsDescription: "ごほうび、おもちゃ、休息アイテムを選べます。",
+      posePacks: "ポーズパック",
+      posePacksDescription: "各パックでおそろいの表情とポーズを3つ開放できます。",
+      themes: "ガーデンテーマ",
+      themesDescription: "小さなおうちの雰囲気をまるごと変えられます。"
+    },
+    careFiltersAccessibilityLabel: "お世話アイテムのフィルター",
+    customizeFiltersAccessibilityLabel: "カスタマイズフィルター",
     categoryAccessibilityLabel: "{{label}}、{{count}}アイテム",
     emptyPreview: "この棚に商品が並ぶと、新しいほっこりアイテムがここに表示されます。",
     emptyShelf: "この棚はただいま準備中です。",
@@ -378,16 +523,46 @@ export const jaJP = {
     walletGemAccessibilityLabel: "お財布のクレジットジェム",
     coinAccessibilityLabel: "コイン通貨",
     gemPriceAccessibilityLabel: "ジェム価格",
-    actions: { unlockTheme: "テーマをアンロック", applyTheme: "テーマを適用", getItem: "アイテムを入手", unlockPack: "パックをアンロック" },
-    grants: { consumable: "クレジット", durable: "買い切り", subscription: "サブスクリプション" },
+    actions: {
+      unlockTheme: "テーマをアンロック",
+      applyTheme: "テーマを適用",
+      getItem: "購入する",
+      unlockPack: "パックをアンロック"
+    },
+    grants: {
+      consumable: "クレジット",
+      durable: "買い切り",
+      subscription: "サブスクリプション"
+    },
     products: {
-      premiumChat: { name: "Plus月額チャット", description: "Plusパスの有効期間中は、もっと長くあたたかな会話を楽しめます。" },
-      extraPetSlot: { name: "追加ペット枠", description: "小さなペットのプロフィールをもう一つ作れます。" },
-      regenerationCredit: { name: "再生成クレジット", description: "新しい見た目にしたいとき、アバターを一度作り直せます。" },
-      starterTheme: { name: "スターターテーマパック", description: "小さなおうちを新しい背景に着せ替えます。" },
-      itemPack: { name: "アイテムパック", description: "おやつとおもちゃを選りすぐったセットです。" },
-      treatPack: { name: "おやつパック", description: "かわいいリアクションを楽しめる特別なおやつです。" },
-      plusPass: { name: "Plusパス", description: "長いチャットや今後のPlus機能で絆を深められるプレミアム特典です。" }
+      premiumChat: {
+        name: "Plus月額チャット",
+        description: "Plusパスの有効期間中は、もっと長くあたたかな会話を楽しめます。"
+      },
+      extraPetSlot: {
+        name: "追加ペット枠",
+        description: "小さなペットのプロフィールをもう一つ作れます。"
+      },
+      regenerationCredit: {
+        name: "再生成クレジット",
+        description: "新しい見た目にしたいとき、アバターを一度作り直せます。"
+      },
+      starterTheme: {
+        name: "スターターテーマパック",
+        description: "小さなおうちを新しい背景に着せ替えます。"
+      },
+      itemPack: {
+        name: "アイテムパック",
+        description: "おやつとおもちゃを選りすぐったセットです。"
+      },
+      treatPack: {
+        name: "おやつパック",
+        description: "かわいいリアクションを楽しめる特別なおやつです。"
+      },
+      plusPass: {
+        name: "Plusパス",
+        description: "長いチャットや今後のPlus機能で絆を深められるプレミアム特典です。"
+      }
     },
     actionAccessibility: {
       unlockTheme: "{{price}}で{{name}}をアンロック",
@@ -397,7 +572,7 @@ export const jaJP = {
       buy: "{{name}}を購入"
     },
     summary: {
-      accessibilityLabel: "所持キットアイテム{{owned}}個、ロック中のショップアイテム{{locked}}個、{{plus}}",
+      accessibilityLabel: "所持キットアイテム{{owned}}個、ロック中のショップアイテム{{locked}}個",
       owned: "キット所持済み",
       locked: "ロック中のショップアイテム{{count}}個"
     },
@@ -420,14 +595,20 @@ export const jaJP = {
     },
     expressionPacks: {
       title: "ポーズパック",
-      description: "1パックで、今のお友だちの見た目から新しいポーズを3つ作ります。",
+      description: "今の姿から新しい3ポーズを作ります。",
       poseCount: "3ポーズ",
       boardAccessibilityLabel: "{{name}}、3ポーズパック、{{price}}。{{status}}",
       creditGemAccessibilityLabel: "クレジットジェム",
       allOwned: "3つすべて所持済み",
-      allPrice: "3つすべて · {{credits}}クレジット",
+      allPrice: "3つすべて · {{credits}}",
       actionAccessibilityLabel: "{{name}}で{{action}}",
-      actions: { generate: "3つすべて生成", retry: "3つすべて再試行", needCredits: "クレジットが必要", making: "ポーズを作成中...", owned: "プロフィールで所持済み" }
+      actions: {
+        generate: "3つすべて生成",
+        retry: "3つすべて再試行",
+        needCredits: "ジェムを追加",
+        making: "ポーズを作成中...",
+        owned: "プロフィールで所持済み"
+      }
     },
     themes: {
       defaultName: "ほっこりガーデン",
@@ -440,6 +621,38 @@ export const jaJP = {
       autumnDescription: "季節のお世話を彩る、あたたかな落ち葉とやわらかな金色の光。",
       winterName: "冬のきらめき",
       winterDescription: "やさしい祝祭の光が灯る、雪の夜の背景です。"
+    }
+  },
+  creditsStore: {
+    accessibilityLabel: "ジェムストア",
+    title: "ジェムストア",
+    back: "ガーデンショップに戻る",
+    balanceAccessibilityLabel: "現在のジェムは{{credits}}個",
+    heroTitle: "もっと小さな瞬間に出会おう",
+    heroBody: "ジェムはポーズパック、テーマ、特別なお世話に使えます。",
+    starterTitle: "最初の友だちギフト・{{credits}}個",
+    starterBody: "最初の友だちの入居完了後に一度だけ追加されます。",
+    choosePack: "ジェムパックを選ぶ",
+    popular: "人気",
+    packAmount: "ジェム{{credits}}個",
+    storePrice: "App Store価格",
+    purchaseAccessibilityLabel: "ジェム{{credits}}個を購入",
+    packs: {
+      small: "まずは1パック試す",
+      popular: "ポーズとテーマにちょうどいい",
+      large: "長く集めて飾る"
+    },
+    actions: {
+      buy: "購入する",
+      purchasing: "確認中...",
+      preparing: "ストア準備中"
+    },
+    storeNotice: "決済はApp Storeで処理され、確認済みのジェムだけが残高に追加されます。",
+    dialogs: {
+      failedTitle: "購入を完了できませんでした",
+      failedBody: "接続を確認してもう一度お試しください。",
+      successTitle: "ジェムが届きました",
+      successBody: "確認済みのジェムが残高に追加されました。"
     }
   },
   inventory: {
@@ -457,7 +670,13 @@ export const jaJP = {
     title: "設定",
     back: "ホームに戻る",
     hero: "天気、リマインダー、プライバシー、サポートを、心地よいこの場所にまとめました。",
-    language: { title: "アプリの言語", english: "英語", korean: "韓国語", detail: "Mongchiでは端末の言語を使います。", action: "変更" },
+    language: {
+      title: "アプリの言語",
+      english: "英語",
+      korean: "韓国語",
+      detail: "アプリで選ぶか、端末の言語に合わせます。",
+      action: "変更"
+    },
     status: {
       needsCheck: "確認が必要",
       syncing: "同期中",
@@ -466,13 +685,30 @@ export const jaJP = {
       errorDetail: "変更を安全に完了できませんでした。通信を確認して、もう一度試してください。",
       keepOpen: "変更が終わるまでアプリを開いたままにしてください。"
     },
-    sections: { reminders: "小さなリマインダー", sound: "音と感触", privacy: "プライバシーとケア", support: "サポートと法的情報" },
+    sections: {
+      reminders: "小さなリマインダー",
+      sound: "音と感触",
+      privacy: "プライバシーとケア",
+      support: "サポートと法的情報"
+    },
+    notifications: {
+      careReminders: "お世話の通知",
+      careRemindersDetail: "ごはんやお水、ちょっとしたごあいさつ、お手紙のお知らせをやさしく届けます。",
+      walkUpdates: "お散歩の通知",
+      walkUpdatesDetail: "お散歩が終わったら、お友だちが帰ってきたことをそっとお知らせします。"
+    },
     weather: {
       scenes: "天気の風景",
       useLocation: "現在地を使う",
+      useLocationDetail: "おおよその位置情報を一度だけ送って、庭のための実際の現地の天気を調べます — 保存も共有もしません。",
       preview: "天気をプレビュー",
       next: "次：{{weather}}",
-      locationMessages: { requesting: "おおよその現在地の天気を確認しています。", ready: "現在地の天気を準備できました。", denied: "位置情報の許可がありません。手動で天気をプレビューできます。", error: "現在地の天気を取得できません。代わりに手動プレビューを試してください。" },
+      locationMessages: {
+        requesting: "今日の実際の現地の天気を庭に反映しています。",
+        ready: "現在地の天気を準備できました。",
+        denied: "位置情報の許可がありません。手動で天気をプレビューできます。",
+        error: "現在地の天気を取得できません。代わりに手動プレビューを試してください。"
+      },
       options: {
         clear: { label: "晴れ", detail: "いつもの晴れた庭。" },
         rain: { label: "雨", detail: "雨の演出とほっとする天気のことば。" },
@@ -501,7 +737,11 @@ export const jaJP = {
       restoreDetail: "保存したバックアップを貼り付けて、庭を元に戻します。"
     },
     links: { privacy: "プライバシー", terms: "利用規約", support: "サポート" },
-    reset: { title: "リセット", detail: "この端末のペット設定を削除し、最初の案内からやり直します。", action: "ペットデータを削除" },
+    reset: {
+      title: "リセット",
+      detail: "この端末のペット設定を削除し、最初の案内からやり直します。",
+      action: "ペットデータを削除"
+    },
     dialogs: {
       errorLog: "エラーログ",
       noErrors: "この端末に最近のエラー記録はありません。",
@@ -520,7 +760,8 @@ export const jaJP = {
       restoredTitle: "おかえりなさい！",
       restoredMessage: "バックアップから庭を復元しました。",
       deleteAllTitle: "すべてのデータを削除しますか？",
-      deleteAllMessage: "この端末のペット設定、生成したペット、お世話の状態、持ちものを削除し、サーバーにも写真、生成したアバター、アカウントデータの削除を依頼します。元に戻すことはできません。",
+      deleteAllMessage:
+        "この端末のペット設定、生成したペット、お世話の状態、持ちものを削除し、サーバーにも写真、生成したアバター、アカウントデータの削除を依頼します。元に戻すことはできません。",
       serverRetry: "サーバーの削除を再試行してください",
       serverRetryMessage: "端末のデータは消去されました。アプリを開いたまま、あとでもう一度試すとサーバー上のコピーも削除できます。"
     },
@@ -541,25 +782,69 @@ export const jaJP = {
     }
   },
   notifications: {
-    channel: { name: "庭からのお知らせ", description: "庭の様子をやさしくお知らせします" },
+    channel: {
+      name: "庭からのお知らせ",
+      description: "庭の様子をやさしくお知らせします"
+    },
     walkReturn: {
       fallbackPetName: "ペット",
       title: "{{petName}}がお散歩から帰ってきました！",
       body: "{{petName}}が何を見つけたか、見にきてね。"
     },
     garden: {
-      meal_due: { title: "{{petName}}はごはんのことを考えています", body: "小さなごはんで、満腹度が心地よいところまで戻りそうです。" },
-      meal_urgent: { title: "今日は{{petName}}のお皿に少し余裕があります", body: "今なら、いつものごはんが{{petName}}にうれしいごほうびになりそうです。" },
-      thirst_due: { title: "{{petName}}の水入れに少し足してあげよう", body: "さっとお水をあげると、気分も少し明るくなりそうです。" },
-      thirst_hot_weather: { title: "{{petName}}は冷たいひと口がほしいみたい", body: "今日は空気があたたかめ。まず新鮮なお水を用意してあげましょう。" },
-      bored_play: { title: "{{petName}}がおもちゃを見つけました", body: "今なら少し遊ぶのが楽しそうです。" },
-      attention_return: { title: "{{petName}}が小さなごあいさつを用意しています", body: "庭を開いて、なでたり話したり、ちょっと様子を見てみましょう。" },
-      walk_window: { title: "小さなお散歩の時間", body: "今日は{{petName}}と穏やかなお散歩を楽しめそうです。" },
-      rest_needed: { title: "{{petName}}はねむねむモード", body: "今夜は休ませて、やさしいリズムを保ちましょう。" },
-      rainy_cozy_check: { title: "雨の日の小さなごあいさつ", body: "{{petName}}はぬくぬく過ごしています。こんな日は、ひと声かけるのもよさそうです。" },
-      return_after_1_day: { title: "ドアのそばに小さな足あとがつきました", body: "{{petName}}は、いつ帰ってくるかなと楽しみにしています。" },
-      return_after_1_day_streak: { title: "{{petName}}がいつもの時間をあたためています", body: "連続記録はまだぽかぽか。今日少し会いに行くと、その輝きが続きます。" },
-      return_after_3_days: { title: "庭があなたの場所を空けて待っています", body: "少し日が空きました。準備ができたら、{{petName}}にひと声かけてあげてね。" }
+      meal_due: {
+        title: "{{petName}}はごはんのことを考えています",
+        body: "小さなごはんで、満腹度が心地よいところまで戻りそうです。"
+      },
+      meal_urgent: {
+        title: "今日は{{petName}}のお皿に少し余裕があります",
+        body: "今なら、いつものごはんが{{petName}}にうれしいごほうびになりそうです。"
+      },
+      thirst_due: {
+        title: "{{petName}}の水入れに少し足してあげよう",
+        body: "さっとお水をあげると、気分も少し明るくなりそうです。"
+      },
+      thirst_hot_weather: {
+        title: "{{petName}}は冷たいひと口がほしいみたい",
+        body: "今日は空気があたたかめ。まず新鮮なお水を用意してあげましょう。"
+      },
+      bored_play: {
+        title: "{{petName}}がおもちゃを見つけました",
+        body: "今なら少し遊ぶのが楽しそうです。"
+      },
+      attention_return: {
+        title: "{{petName}}が小さなごあいさつを用意しています",
+        body: "庭を開いて、なでたり話したり、ちょっと様子を見てみましょう。"
+      },
+      walk_window: {
+        title: "小さなお散歩の時間",
+        body: "今日は{{petName}}と穏やかなお散歩を楽しめそうです。"
+      },
+      rest_needed: {
+        title: "{{petName}}はねむねむモード",
+        body: "今夜は休ませて、やさしいリズムを保ちましょう。"
+      },
+      rainy_cozy_check: {
+        title: "雨の日の小さなごあいさつ",
+        body: "{{petName}}はぬくぬく過ごしています。こんな日は、ひと声かけるのもよさそうです。"
+      },
+      return_after_1_day: {
+        title: "ドアのそばに小さな足あとがつきました",
+        body: "{{petName}}は、いつ帰ってくるかなと楽しみにしています。"
+      },
+      return_after_1_day_streak: {
+        title: "{{petName}}がいつもの時間をあたためています",
+        body: "連続記録はまだぽかぽか。今日少し会いに行くと、その輝きが続きます。"
+      },
+      return_after_3_days: {
+        title: "庭があなたの場所を空けて待っています",
+        body: "少し日が空きました。準備ができたら、{{petName}}にひと声かけてあげてね。"
+      }
+    },
+    monthlyLetter: {
+      fallbackPetName: "ペット",
+      title: "お手紙が届きました",
+      body: "{{petName}}からのお手紙が庭で待っています。"
     }
   },
   errorBoundary: {
@@ -581,17 +866,20 @@ export const jaJP = {
         third: "あとで表情を増やすときは、元の写真ではなく、生成済みのアバター画像を再利用します。その時点で元の写真はサーバーに残っていません。",
         fourth: "生成されたアバターは非公開ストレージに保存され、公開URLではなく、有効期限の短い署名付きリンクだけで表示されます。",
         fifth: "お世話の記録、思い出、庭の進み具合は端末内に保存されるため、アプリを削除すると完全に失われます。",
-        sixth: "許可した場合、おおよその位置情報は一度だけ天気の確認に使い、サーバーには保存しません。",
+        sixth: "許可すると、おおよその位置情報を丸めて一度だけ送信し、庭のための実際の現地の天気を調べます。保存されることはなく、もし取得できなかった場合は端末が似た天気の雰囲気を自分で作ります。",
         seventh: "プレミアムチャットにはAI生成であることを表示し、メッセージの表示前に内容を確認します。",
         eighth: "広告や追跡用SDKは使いません。分析にも元の写真、未加工のチャット本文、決済情報は含めません。"
       },
       sections: {
         sharingTitle: "データを共有する第三者",
-        sharingBody: "OpenAIは、安全確認とアバター生成のためにペットの元の写真を処理し、プレミアムチャットではペットのプロフィールと最近の会話内容を処理します。Supabaseは、データベース、非公開ストレージ、匿名認証を提供します。アプリ内決済はAppleまたはGoogleが直接処理し、当社が受け取るのはレシートだけで、カード情報を受け取ることはありません。",
+        sharingBody:
+          "OpenAIは、安全確認とアバター生成のためにペットの元の写真を処理し、プレミアムチャットではペットのプロフィールと最近の会話内容を処理します。Supabaseは、データベース、非公開ストレージ、匿名認証を提供します。アプリ内決済はAppleまたはGoogleが直接処理し、当社が受け取るのはレシートだけで、カード情報を受け取ることはありません。",
         rightsTitle: "あなたの権利",
-        rightsBody: "元の写真は個別に削除できます。すべて削除するには、設定で「ペットデータを削除」を選んでください。端末内のデータを消去し、サーバーにも写真、生成したアバター、匿名アカウント、関連記録の削除を依頼します。サーバーに接続できない場合も端末内のデータはすぐに消去され、サーバー側の削除はあとで再試行するよう案内します。",
+        rightsBody:
+          "元の写真は個別に削除できます。すべて削除するには、設定で「ペットデータを削除」を選んでください。端末内のデータを消去し、サーバーにも写真、生成したアバター、匿名アカウント、関連記録の削除を依頼します。サーバーに接続できない場合も端末内のデータはすぐに消去され、サーバー側の削除はあとで再試行するよう案内します。",
         childrenTitle: "お子さまについて",
-        childrenBody: "Mongchiは13歳未満のお子さまを対象としていません。お子さまが写真やチャットを通じて情報を提供したと思われる場合は、サポートへご連絡ください。該当情報を削除します。"
+        childrenBody:
+          "Mongchiは13歳未満のお子さまを対象としていません。お子さまが写真やチャットを通じて情報を提供したと思われる場合は、サポートへご連絡ください。該当情報を削除します。"
       },
       policyLink: "ポリシーへのリンク",
       policyFallback: "安全なプライバシーポリシーへのリンクは、準備ができ次第ここに表示されます。",
@@ -619,9 +907,18 @@ export const jaJP = {
       reportTitle: "生成の問題を報告",
       reportDetail: "問題の報告には安全な分類だけを使い、分析に元の写真は送信しません。",
       options: {
-        wrong: { label: "見た目が違う", description: "種類、模様、顔つきに違和感があります。" },
-        unsafe: { label: "不安になる見た目", description: "不快または怖く感じるところがあります。" },
-        quality: { label: "ぼやけた結果", description: "ペットを見分けにくい状態です。" }
+        wrong: {
+          label: "見た目が違う",
+          description: "種類、模様、顔つきに違和感があります。"
+        },
+        unsafe: {
+          label: "不安になる見た目",
+          description: "不快または怖く感じるところがあります。"
+        },
+        quality: {
+          label: "ぼやけた結果",
+          description: "ペットを見分けにくい状態です。"
+        }
       },
       report: "報告",
       saved: "保存済み",
@@ -644,11 +941,14 @@ export const jaJP = {
       },
       sections: {
         useTitle: "利用上のルール",
-        useBody: "人物、露骨または残酷な内容、違法な内容を含む写真をアップロードしないでください。生成制限や安全確認を回避したり、チャットの制限解除を試みたりしないでください。",
+        useBody:
+          "人物、露骨または残酷な内容、違法な内容を含む写真をアップロードしないでください。生成制限や安全確認を回避したり、チャットの制限解除を試みたりしないでください。",
         portabilityTitle: "アカウントの移行不可",
-        portabilityBody: "Mongchiは一般的なアカウントを使いません。セッションと端末内のゲームデータは端末に保存されるため、バックアップせずにアプリを削除したり端末を変更したりすると、進み具合、思い出、クレジットが完全に失われることがあります。",
+        portabilityBody:
+          "Mongchiは一般的なアカウントを使いません。セッションと端末内のゲームデータは端末に保存されるため、バックアップせずにアプリを削除したり端末を変更したりすると、進み具合、思い出、クレジットが完全に失われることがあります。",
         disclaimerTitle: "免責事項",
-        disclaimerBody: "Mongchiは現状有姿で提供されます。AI生成コンテンツは、安全確認と品質確認を行っても不正確になったり、生成に失敗したりすることがあります。詳しい制限は利用規約全文をご確認ください。"
+        disclaimerBody:
+          "Mongchiは現状有姿で提供されます。AI生成コンテンツは、安全確認と品質確認を行っても不正確になったり、生成に失敗したりすることがあります。詳しい制限は利用規約全文をご確認ください。"
       },
       linkTitle: "利用規約へのリンク",
       linkFallback: "安全な利用規約へのリンクは、準備ができ次第ここに表示されます。",

@@ -39,6 +39,16 @@ export const zhTW = {
       viewHome: "查看家園"
     }
   },
+  languageSelector: {
+    openAccessibilityLabel: "選擇應用程式語言",
+    title: "選擇語言",
+    subtitle: "可跟隨裝置語言，或固定使用你喜歡的語言。",
+    automatic: "自動",
+    automaticDetail: "跟隨此裝置 · {{language}}",
+    selected: "已選擇",
+    saveError: "無法儲存語言，請再試一次。",
+    closeAccessibilityLabel: "關閉語言選擇"
+  },
   splash: {
     accessibilityLabel: "迷你寵物回家載入畫面",
     logoAccessibilityLabel: "Mongchi 應用程式標誌",
@@ -54,29 +64,29 @@ export const zhTW = {
     slides: {
       first: {
         step: "第 1 步",
-        title: "每天都有你的狗狗相伴",
-        body: "把一張最喜歡的狗狗照片，變成在花園等你的小小朋友。"
+        title: "每天都有你的毛孩相伴",
+        body: "把一張最喜歡的寵物照片，\n變成在花園等你的小小朋友。"
       },
       second: {
         step: "第 2 步",
         title: "一張照片就夠了",
-        body: "選一張清楚的狗狗照片，再填上名字和可愛個性。"
+        body: "選一張清楚的寵物照片，再填上名字和可愛個性。"
       },
       third: {
         step: "第 3 步",
         title: "讓每天的陪伴更深",
-        body: "餵食、玩耍、聊天，每天回到狗狗的溫馨花園。"
+        body: "餵食、玩耍、聊天，每天回到毛孩的溫馨花園。"
       }
     }
   },
   photoIntro: {
     accessibilityLabel: "迷你寵物照片介紹",
-    artAccessibilityLabel: "一張狗狗照片展開成迷你花園家園",
-    title: "把最愛的狗狗捧在手心照顧",
-    body: "從一張清楚的狗狗照片開始，加上名字和個性，就能遇見在花園等你的小小朋友。",
+    artAccessibilityLabel: "一張寵物照片展開成迷你花園家園",
+    title: "把最愛的毛孩留在身邊",
+    body: "從一張清楚的寵物照片開始，加上名字和個性，就能遇見在花園等你的小小朋友。",
     quest: { photo: "照片", name: "名字", moveIn: "搬進來" },
-    privacy: "狗狗的照片只會用來創造你的小小朋友。牠搬進來後，隨時都能刪除原始照片。",
-    choosePhoto: "選擇狗狗照片"
+    privacy: "寵物的照片只會用來創造你的小小朋友。牠搬進來後，隨時都能刪除原始照片。",
+    choosePhoto: "選擇寵物照片"
   },
   photoUpload: {
     accessibilityLabel: "上傳寵物照片",
@@ -112,9 +122,10 @@ export const zhTW = {
     eyebrow: "入住資料",
     title: "為你的小小朋友取個名字",
     summary: "{{species}} / {{voice}} · 正準備搬進來",
+    speciesQuestion: "誰要搬進來？",
     petName: "寵物名字",
     nameHint: "每天在門口迎接你時，牠就會用這個名字。",
-    personalityQuestion: "你的小夥伴今天是什麼心情？",
+    personalityQuestion: "你的小夥伴是什麼個性？",
     voiceQuestion: "牠的小小聲音聽起來如何？",
     favoriteQuestion: "牠已經喜歡上什麼了？",
     favoriteThing: "最喜歡的小東西",
@@ -123,8 +134,20 @@ export const zhTW = {
     firstMemoryPlaceholder: "和小夥伴的一段小回憶…",
     continueHint: "選好名字、心情和聲音，就能繼續。",
     species: { dog: "狗狗", cat: "貓咪" },
-    personality: { playful: "愛玩", calm: "沉穩", shy: "害羞", curious: "好奇", sleepy: "愛睏", affectionate: "黏人" },
-    voice: { cute: "可愛", gentle: "溫柔", cheerful: "開朗", comforting: "療癒" }
+    personality: {
+      playful: "愛玩",
+      calm: "沉穩",
+      shy: "害羞",
+      curious: "好奇",
+      sleepy: "愛睏",
+      affectionate: "黏人"
+    },
+    voice: {
+      cute: "可愛",
+      gentle: "溫柔",
+      cheerful: "開朗",
+      comforting: "療癒"
+    }
   },
   generation: {
     accessibilityLabel: "{{petName}} 的入住流程",
@@ -141,9 +164,14 @@ export const zhTW = {
     failureTitle: "入住暫停了",
     quotaFailure: "你的小小朋友很快就能準備好。請稍後再回來看看。",
     retryFailure: "小門卡住了。讓我們再試一次，創造 {{petName}}。",
-    stepsTitle: "一路上的準備",
     reveal: "揭曉寵物",
-    steps: { preparing: "準備照片", details: "尋找小細節", creating: "創造小夥伴", polishing: "妝點迷你世界", movingIn: "搬進來" },
+    steps: {
+      preparing: "準備照片",
+      details: "尋找小細節",
+      creating: "創造小夥伴",
+      polishing: "妝點迷你世界",
+      movingIn: "搬進來"
+    },
     observations: {
       first: "正在研究照片裡的毛色...",
       second: "正仔細描繪 {{petName}} 的耳朵形狀...",
@@ -207,7 +235,13 @@ export const zhTW = {
     localeAccessibilityLabel: "{{petName}} 可互動的迷你花園家園",
     hud: {
       accessibilityLabel: "迷你花園遊戲狀態",
-      labels: { fullness: "飽足", thirst: "水分", mood: "心情", energy: "活力", cleanliness: "乾淨" },
+      labels: {
+        fullness: "飽足",
+        thirst: "水分",
+        mood: "心情",
+        energy: "活力",
+        cleanliness: "乾淨"
+      },
       meterAccessibilityLabel: "{{label}}狀態。點一下查看詳情。",
       artAccessibilityLabel: "{{label}}狀態圖示"
     },
@@ -231,7 +265,17 @@ export const zhTW = {
     },
     butterflyAccessibilityLabel: "一隻小蝴蝶來作客了。點一下和牠打招呼。",
     care: {
-      actions: { feed: "餵食", talk: "聊天", walk: "散步", play: "玩耍", rest: "休息", affection: "摸摸", water_garden: "喝水", clean: "清潔", treat: "點心" },
+      actions: {
+        feed: "餵食",
+        talk: "聊天",
+        walk: "散步",
+        play: "玩耍",
+        rest: "休息",
+        affection: "摸摸",
+        water_garden: "喝水",
+        clean: "清潔",
+        treat: "點心"
+      },
       iconAccessibilityLabel: "{{label}}照顧圖示",
       itemAccessibilityLabel: "{{label}}照顧用品",
       feedCooldown: "餵食選單。每日正餐冷卻時間 {{cooldown}}。點心可能仍可使用。",
@@ -241,7 +285,13 @@ export const zhTW = {
       recommended: "推薦：為 {{petName}}{{label}}。{{hint}}",
       actionAccessibilityLabel: "為 {{petName}}{{label}}",
       tray: {
-        titles: { affection: "增進感情", feed: "食物與點心", play: "玩耍選擇", walk: "散步路線", water_garden: "喝水" },
+        titles: {
+          affection: "增進感情",
+          feed: "食物與點心",
+          play: "玩耍選擇",
+          walk: "散步路線",
+          water_garden: "喝水"
+        },
         optionsAccessibilityLabel: "{{title}}選項",
         shopOption: "開啟商店查看{{title}}。",
         cooldownOption: "{{title}}還需冷卻 {{cooldown}}。",
@@ -249,8 +299,23 @@ export const zhTW = {
         openShop: "開啟商店查看照顧用品。",
         shop: "商店"
       },
-      options: { pet: "摸摸", meal: "正餐", ball: "球球", path: "小徑", water: "喝水", bath: "洗澡", treat: "點心" },
-      meta: { bond: "+感情", fullness: "+飽足", mood: "+心情", thirst: "+水分", fresh: "+清爽", shop: "商店" }
+      options: {
+        pet: "摸摸",
+        meal: "正餐",
+        ball: "球球",
+        path: "小徑",
+        water: "喝水",
+        bath: "洗澡",
+        treat: "點心"
+      },
+      meta: {
+        bond: "+感情",
+        fullness: "+飽足",
+        mood: "+心情",
+        thirst: "+水分",
+        fresh: "+清爽",
+        shop: "商店"
+      }
     },
     walk: {
       activeTitle: "{{petName}} 正在小徑上 · {{time}} 後回來",
@@ -258,8 +323,15 @@ export const zhTW = {
       bringHomeAccessibilityLabel: "花費 {{cost}} 點數，立即帶 {{petName}} 回家",
       cannotBringHomeAccessibilityLabel: "點數不足，現在無法帶 {{petName}} 回家",
       coinAccessibilityLabel: "金幣",
-      commentary: { early: "{{petName}} 正追著一個非常重要的氣味...", mid: "{{petName}} 停下來和一片葉子打招呼。", late: "{{petName}} 找到東西，正帶回家！" },
+      openCreditStoreAccessibilityLabel: "開啟寶石商店",
+      commentary: {
+        early: "{{petName}} 正追著一個非常重要的氣味...",
+        mid: "{{petName}} 停下來和一片葉子打招呼。",
+        late: "{{petName}} 找到東西，正帶回家！"
+      },
       bringHome: "立即帶回家 · {{cost}}",
+      openCreditStore: "補充寶石",
+      insufficientHint: "補充寶石，或等待 {{petName}} 回家。",
       waiting: "{{petName}} 很快就回來，再等一下喔。",
       returned: "{{petName}} 帶著一份小禮物回來了！",
       claimAccessibilityLabel: "迎接 {{petName}} 並領取散步禮物",
@@ -291,6 +363,9 @@ export const zhTW = {
     petSays: "{{petName}} 說：{{text}}",
     finishMessageHint: "點一下立即顯示完整訊息",
     opening: "正在打開溫馨話題...",
+    unavailableTitle: "長篇聊天暫時休息中",
+    unavailableDetail: "安全審查完成前，簡短對話與所有照顧反應仍可正常使用。",
+    unavailableInput: "長篇聊天目前準備中",
     networkError: "目前無法連上聊天。請再試一次。",
     startersAccessibilityLabel: "聊天開場話題",
     starterAccessibilityLabel: "使用開場話題：{{starter}}",
@@ -298,6 +373,33 @@ export const zhTW = {
     inputPlaceholder: "傳訊息給 {{petName}}",
     sendAccessibilityLabel: "傳送進階聊天訊息",
     disclosure: "這是依照寵物檔案由 AI 生成的對話，並不是你真實寵物的意識。",
+    disclosureBanner: {
+      dismissAccessibilityLabel: "關閉 AI 提示訊息"
+    },
+    info: {
+      button: "關於此聊天",
+      title: "關於此聊天",
+      aiTitle: "AI 生成的對話",
+      billingTitle: "聊天次數與點數",
+      billingBody: "傳送訊息的當下，會安全確認已包含的聊天次數與點數。今天的免費聊天用完後，可以用日間通行證或點數繼續聊天。",
+      close: "知道了"
+    },
+    report: {
+      button: "檢舉這則 AI 回覆",
+      reported: "這則 AI 回覆已檢舉",
+      title: "檢舉這則回覆",
+      detail: "請選擇最接近的原因。我們只會儲存訊息參照與原因供審查。",
+      reasons: {
+        harmful: "有害或不安全",
+        inappropriate: "不適當",
+        inaccurate: "不正確或具誤導性",
+        other: "其他問題"
+      },
+      cancel: "關閉檢舉",
+      sending: "正在送出檢舉...",
+      success: "謝謝。這則回覆已送交審查。",
+      error: "無法送出檢舉。請再試一次。"
+    },
     history: {
       accessibilityLabel: "與 {{petName}} 的聊天記錄",
       user: "你",
@@ -324,8 +426,19 @@ export const zhTW = {
     back: "回到主畫面",
     share: "分享 {{petName}}",
     movedIn: { today: "今天搬進來", daysAgo: "{{count}} 天前搬進來" },
-    stats: { bond: "感情", streak: "連續紀錄", together: "相伴日子", bondAccessibilityLabel: "前往第 {{level}} 級的感情進度：{{label}}" },
-    sections: { lately: "最近的 {{petName}}...", walkFinds: "散步發現", moments: "我們的小時光", letter: "{{petName}} 的信", memoryNote: "回憶小箋" },
+    stats: {
+      bond: "感情",
+      streak: "連續紀錄",
+      together: "相伴日子",
+      bondAccessibilityLabel: "前往第 {{level}} 級的感情進度：{{label}}"
+    },
+    sections: {
+      lately: "最近的 {{petName}}...",
+      walkFinds: "散步發現",
+      moments: "我們的小時光",
+      letter: "{{petName}} 的信",
+      memoryNote: "回憶小箋"
+    },
     walkFindAccessibilityLabel: "{{name}}，已找到 {{count}} 次",
     undiscoveredWalkFind: "尚未發現的散步物品",
     letter: {
@@ -345,6 +458,18 @@ export const zhTW = {
     shareMessages: {
       days: "{{petName}} 已經當我的迷你花園朋友 {{count}} 天了。由 Mongchi 創造。",
       fallback: "來認識 {{petName}}，我的迷你花園朋友。由 Mongchi 創造。"
+    },
+    shareCard: {
+      title: "自訂並分享",
+      subtitle: "挑選朋友會喜歡的姿勢和背景。",
+      poseSectionTitle: "姿勢",
+      themeSectionTitle: "背景",
+      poseOptionAccessibilityLabel: "{{pose}} 姿勢",
+      themeOptionAccessibilityLabel: "{{theme}} 背景",
+      selected: "已選擇",
+      previewAccessibilityLabel: "{{petName}} 的分享卡預覽",
+      closeAccessibilityLabel: "關閉卡片自訂",
+      shareAccessibilityLabel: "分享 {{petName}} 的卡片"
     }
   },
   shop: {
@@ -353,7 +478,30 @@ export const zhTW = {
     back: "回到主畫面",
     walletAccessibilityLabel: "商店錢包，有 {{credits}} 點數和 {{owned}} 件已擁有的套組物品",
     creditGemAccessibilityLabel: "商店點數寶石圖示",
-    categories: { treats: "點心", toysAndRest: "玩具", moments: "回憶", themes: "主題" },
+    openCreditStore: "開啟寶石商店",
+    categories: {
+      all: "全部",
+      treats: "點心",
+      drinks: "飲品",
+      toys: "玩具",
+      rest: "休息",
+      moments: "回憶",
+      themes: "主題"
+    },
+    tabs: {
+      care: "點心・玩具",
+      customize: "姿勢・主題"
+    },
+    sections: {
+      careItems: "食物・飲品・玩具",
+      careItemsDescription: "挑選小獎勵、好玩的玩具和舒適的休息用品。",
+      posePacks: "姿勢包",
+      posePacksDescription: "每個套組可一起解鎖3個相配的表情與姿勢。",
+      themes: "花園主題",
+      themesDescription: "一次改變夥伴小屋的整體氣氛。"
+    },
+    careFiltersAccessibilityLabel: "照顧物品篩選",
+    customizeFiltersAccessibilityLabel: "自訂篩選",
     categoryAccessibilityLabel: "{{label}}，{{count}} 件物品",
     emptyPreview: "貨架補滿後，新的溫馨物品就會出現在這裡。",
     emptyShelf: "正在補充這個貨架。",
@@ -372,16 +520,39 @@ export const zhTW = {
     walletGemAccessibilityLabel: "錢包點數寶石",
     coinAccessibilityLabel: "金幣",
     gemPriceAccessibilityLabel: "寶石價格",
-    actions: { unlockTheme: "解鎖主題", applyTheme: "套用主題", getItem: "取得物品", unlockPack: "解鎖套組" },
+    actions: {
+      unlockTheme: "解鎖主題",
+      applyTheme: "套用主題",
+      getItem: "購買",
+      unlockPack: "解鎖套組"
+    },
     grants: { consumable: "點數", durable: "永久擁有", subscription: "訂閱" },
     products: {
-      premiumChat: { name: "Plus 每月聊天", description: "Plus 通行證有效期間，隨時享受更長、更溫暖的聊天。" },
-      extraPetSlot: { name: "額外寵物欄位", description: "為另一個迷你寵物檔案騰出位置。" },
-      regenerationCredit: { name: "重新生成點數", description: "想換個新模樣時，可重試一次頭像。" },
-      starterTheme: { name: "入門主題套組", description: "為迷你家園換上清新的背景。" },
+      premiumChat: {
+        name: "Plus 每月聊天",
+        description: "Plus 通行證有效期間，隨時享受更長、更溫暖的聊天。"
+      },
+      extraPetSlot: {
+        name: "額外寵物欄位",
+        description: "為另一個迷你寵物檔案騰出位置。"
+      },
+      regenerationCredit: {
+        name: "重新生成點數",
+        description: "想換個新模樣時，可重試一次頭像。"
+      },
+      starterTheme: {
+        name: "入門主題套組",
+        description: "為迷你家園換上清新的背景。"
+      },
       itemPack: { name: "物品套組", description: "精選的點心和玩具組合。" },
-      treatPack: { name: "點心套組", description: "帶來可愛反應時刻的特別零食。" },
-      plusPass: { name: "Plus 通行證", description: "享有更長聊天與未來 Plus 功能的進階感情福利。" }
+      treatPack: {
+        name: "點心套組",
+        description: "帶來可愛反應時刻的特別零食。"
+      },
+      plusPass: {
+        name: "Plus 通行證",
+        description: "享有更長聊天與未來 Plus 功能的進階感情福利。"
+      }
     },
     actionAccessibility: {
       unlockTheme: "以 {{price}} 解鎖 {{name}}",
@@ -391,7 +562,7 @@ export const zhTW = {
       buy: "購買 {{name}}"
     },
     summary: {
-      accessibilityLabel: "已擁有 {{owned}} 件套組物品、{{locked}} 件鎖定的商店物品，{{plus}}",
+      accessibilityLabel: "已擁有 {{owned}} 件套組物品、{{locked}} 件鎖定的商店物品",
       owned: "已擁有套組",
       locked: "{{count}} 件鎖定的商店物品"
     },
@@ -414,14 +585,20 @@ export const zhTW = {
     },
     expressionPacks: {
       title: "姿勢套組",
-      description: "一個套組會依照小夥伴目前的模樣，創造三個新姿勢。",
+      description: "依照目前模樣創造3個新姿勢。",
       poseCount: "3 個姿勢",
       boardAccessibilityLabel: "{{name}}，三姿勢套組，{{price}}。{{status}}",
       creditGemAccessibilityLabel: "點數寶石",
       allOwned: "3 個全都擁有",
-      allPrice: "全部 3 個 · {{credits}} 點數",
+      allPrice: "全部 3 個 · {{credits}}",
       actionAccessibilityLabel: "在 {{name}} 執行{{action}}",
-      actions: { generate: "生成全部 3 個", retry: "重試全部 3 個", needCredits: "需要點數", making: "正在製作姿勢...", owned: "檔案中已擁有" }
+      actions: {
+        generate: "生成全部 3 個",
+        retry: "重試全部 3 個",
+        needCredits: "補充寶石",
+        making: "正在製作姿勢...",
+        owned: "檔案中已擁有"
+      }
     },
     themes: {
       defaultName: "溫馨花園",
@@ -434,6 +611,34 @@ export const zhTW = {
       autumnDescription: "以溫暖落葉和柔和金光，陪伴季節照顧時光。",
       winterName: "冬日燈火",
       winterDescription: "雪夜背景帶著柔和的節慶光芒。"
+    }
+  },
+  creditsStore: {
+    accessibilityLabel: "寶石商店",
+    title: "寶石商店",
+    back: "返回花園商店",
+    balanceAccessibilityLabel: "目前有 {{credits}} 顆寶石",
+    heroTitle: "遇見更多小小時刻",
+    heroBody: "寶石可用於姿勢套組、主題和特別照顧時刻。",
+    starterTitle: "第一位夥伴禮物 · {{credits}} 顆",
+    starterBody: "第一位夥伴完成入住後，只會發放一次。",
+    choosePack: "選擇寶石包",
+    popular: "熱門",
+    packAmount: "{{credits}} 顆寶石",
+    storePrice: "App Store 價格",
+    purchaseAccessibilityLabel: "購買 {{credits}} 顆寶石",
+    packs: {
+      small: "先試著開一個套組",
+      popular: "適合姿勢套組與主題",
+      large: "長期收集與裝飾"
+    },
+    actions: { buy: "購買", purchasing: "確認中...", preparing: "商店準備中" },
+    storeNotice: "付款由 App Store 處理，只有完成驗證的寶石會加入餘額。",
+    dialogs: {
+      failedTitle: "未能完成購買",
+      failedBody: "請檢查連線後再試一次。",
+      successTitle: "寶石已送達",
+      successBody: "已驗證的寶石已加入餘額。"
     }
   },
   inventory: {
@@ -451,7 +656,13 @@ export const zhTW = {
     title: "設定",
     back: "回到主畫面",
     hero: "天氣、提醒、隱私與支援，都收在這個溫馨角落。",
-    language: { title: "應用程式語言", english: "英文", korean: "韓文", detail: "Mongchi 會使用裝置的語言。", action: "變更" },
+    language: {
+      title: "應用程式語言",
+      english: "英文",
+      korean: "韓文",
+      detail: "可在應用程式中選擇或跟隨裝置。",
+      action: "變更"
+    },
     status: {
       needsCheck: "需要檢查",
       syncing: "同步中",
@@ -460,14 +671,26 @@ export const zhTW = {
       errorDetail: "無法安全完成變更。請檢查網路連線後再試一次。",
       keepOpen: "變更完成前，請保持應用程式開啟。"
     },
-    sections: { reminders: "貼心小提醒", sound: "聲音與觸感", privacy: "隱私與照顧", support: "支援與法律資訊" },
+    sections: {
+      reminders: "貼心小提醒",
+      sound: "聲音與觸感",
+      privacy: "隱私與照顧",
+      support: "支援與法律資訊"
+    },
+    notifications: {
+      careReminders: "照顧提醒",
+      careRemindersDetail: "溫柔提醒餵食、喝水、小小問候，還有信件到來的消息。",
+      walkUpdates: "散步通知",
+      walkUpdatesDetail: "散步結束時，輕輕提醒你朋友已經回家了。"
+    },
     weather: {
       scenes: "天氣場景",
       useLocation: "使用我的位置",
+      useLocationDetail: "你的大致位置只會傳送一次，用來查詢花園的真實當地天氣 — 不會被儲存，也不會分享。",
       preview: "預覽天氣",
       next: "下一個：{{weather}}",
       locationMessages: {
-        requesting: "正在查詢當地大致天氣。",
+        requesting: "正在查詢今天的真實當地天氣，反映到花園裡。",
         ready: "當地天氣已準備好。",
         denied: "未取得位置權限。你仍可手動預覽天氣。",
         error: "目前無法取得當地天氣。請改用手動預覽。"
@@ -500,7 +723,11 @@ export const zhTW = {
       restoreDetail: "貼上已儲存的備份，帶回你的花園。"
     },
     links: { privacy: "隱私權", terms: "條款", support: "支援" },
-    reset: { title: "重設", detail: "刪除此裝置上的本機寵物設定，並重新開始新手導覽。", action: "刪除寵物資料" },
+    reset: {
+      title: "重設",
+      detail: "刪除此裝置上的本機寵物設定，並重新開始新手導覽。",
+      action: "刪除寵物資料"
+    },
     dialogs: {
       errorLog: "錯誤記錄",
       noErrors: "此裝置最近沒有錯誤記錄。",
@@ -547,18 +774,59 @@ export const zhTW = {
       body: "快來看看 {{petName}} 在外面發現了什麼。"
     },
     garden: {
-      meal_due: { title: "{{petName}} 正想著碗裡的事", body: "來一份小餐點，就能讓飽足感回到舒服的範圍。" },
-      meal_urgent: { title: "{{petName}} 的碗今天還有些空間", body: "現在來一份基本餐點，會是給 {{petName}} 的暖心享受。" },
-      thirst_due: { title: "{{petName}} 的水碗可以加點水了", body: "很快地補點水，就能讓小心情亮起來。" },
-      thirst_hot_weather: { title: "{{petName}} 想喝口涼水", body: "今天空氣暖暖的。先換一碗清水，是最棒的照顧。" },
-      bored_play: { title: "{{petName}} 又找到玩具了", body: "現在一起玩一下，好像會很開心。" },
-      attention_return: { title: "{{petName}} 準備了一聲小小招呼", body: "打開花園，摸摸牠、聊聊天，或來看看牠吧。" },
-      walk_window: { title: "迷你散步時間", body: "{{petName}} 今天也許會喜歡一段悠閒散步。" },
-      rest_needed: { title: "{{petName}} 開啟想睡模式了", body: "讓牠休息一下，今晚的步調會更溫柔。" },
-      rainy_cozy_check: { title: "雨天的小小問候", body: "{{petName}} 正舒舒服服地待著。這種天氣很適合來打聲招呼。" },
-      return_after_1_day: { title: "門邊出現了一個小腳印", body: "{{petName}} 一直想著你什麼時候會再走進來。" },
-      return_after_1_day_streak: { title: "{{petName}} 正守著你們溫馨的小日常", body: "連續紀錄還暖暖的。今天來看看，就能讓它繼續發光。" },
-      return_after_3_days: { title: "花園一直為你留著位置", body: "過了幾天。等你準備好時，{{petName}} 會很開心聽見你的招呼。" }
+      meal_due: {
+        title: "{{petName}} 正想著碗裡的事",
+        body: "來一份小餐點，就能讓飽足感回到舒服的範圍。"
+      },
+      meal_urgent: {
+        title: "{{petName}} 的碗今天還有些空間",
+        body: "現在來一份基本餐點，會是給 {{petName}} 的暖心享受。"
+      },
+      thirst_due: {
+        title: "{{petName}} 的水碗可以加點水了",
+        body: "很快地補點水，就能讓小心情亮起來。"
+      },
+      thirst_hot_weather: {
+        title: "{{petName}} 想喝口涼水",
+        body: "今天空氣暖暖的。先換一碗清水，是最棒的照顧。"
+      },
+      bored_play: {
+        title: "{{petName}} 又找到玩具了",
+        body: "現在一起玩一下，好像會很開心。"
+      },
+      attention_return: {
+        title: "{{petName}} 準備了一聲小小招呼",
+        body: "打開花園，摸摸牠、聊聊天，或來看看牠吧。"
+      },
+      walk_window: {
+        title: "迷你散步時間",
+        body: "{{petName}} 今天也許會喜歡一段悠閒散步。"
+      },
+      rest_needed: {
+        title: "{{petName}} 開啟想睡模式了",
+        body: "讓牠休息一下，今晚的步調會更溫柔。"
+      },
+      rainy_cozy_check: {
+        title: "雨天的小小問候",
+        body: "{{petName}} 正舒舒服服地待著。這種天氣很適合來打聲招呼。"
+      },
+      return_after_1_day: {
+        title: "門邊出現了一個小腳印",
+        body: "{{petName}} 一直想著你什麼時候會再走進來。"
+      },
+      return_after_1_day_streak: {
+        title: "{{petName}} 正守著你們溫馨的小日常",
+        body: "連續紀錄還暖暖的。今天來看看，就能讓它繼續發光。"
+      },
+      return_after_3_days: {
+        title: "花園一直為你留著位置",
+        body: "過了幾天。等你準備好時，{{petName}} 會很開心聽見你的招呼。"
+      }
+    },
+    monthlyLetter: {
+      fallbackPetName: "你的寵物",
+      title: "有一封信在等你",
+      body: "{{petName}} 的信正在花園裡等著你。"
     }
   },
   errorBoundary: {
@@ -580,15 +848,17 @@ export const zhTW = {
         third: "日後解鎖更多表情時，會重複使用已生成的頭像圖，不會使用原始照片——屆時原始照片早已不在伺服器上。",
         fourth: "生成的頭像存放在私密儲存空間，只會透過短效簽署連結顯示，絕不使用公開網址。",
         fifth: "照顧狀態、回憶和花園進度會儲存在你的裝置上，因此解除安裝應用程式會永久移除這些資料。",
-        sixth: "若你允許，大致位置只會用於一次天氣查詢，不會儲存在我們的伺服器上。",
+        sixth: "如果你允許，你的大致位置會四捨五入後只傳送一次，用來查詢花園的真實當地天氣。不會被儲存；如果查詢失敗，裝置會自行產生相近的天氣氛圍。",
         seventh: "進階聊天會標示為 AI 生成，訊息顯示前也會經過內容審核。",
         eighth: "不使用廣告或追蹤 SDK，分析資料也不包含原始照片、原始聊天文字或付款資訊。"
       },
       sections: {
         sharingTitle: "我們與哪些第三方分享資料",
-        sharingBody: "OpenAI 會處理寵物原始照片，以進行安全檢查和生成頭像；進階聊天時，也會處理寵物檔案和近期對話脈絡。Supabase 提供資料庫、私密儲存空間和匿名驗證。應用程式內付款由 Apple 或 Google 直接處理；我們只會收到收據，絕不會收到你的信用卡資料。",
+        sharingBody:
+          "OpenAI 會處理寵物原始照片，以進行安全檢查和生成頭像；進階聊天時，也會處理寵物檔案和近期對話脈絡。Supabase 提供資料庫、私密儲存空間和匿名驗證。應用程式內付款由 Apple 或 Google 直接處理；我們只會收到收據，絕不會收到你的信用卡資料。",
         rightsTitle: "你的權利",
-        rightsBody: "你可以單獨刪除原始照片。若要完整刪除，請在「設定」中選擇「刪除寵物資料」。這會清除本機資料，並要求伺服器移除照片、生成頭像、匿名帳號及相關記錄。若無法連上伺服器，本機資料仍會立即清除，應用程式會請你稍後重試伺服器步驟。",
+        rightsBody:
+          "你可以單獨刪除原始照片。若要完整刪除，請在「設定」中選擇「刪除寵物資料」。這會清除本機資料，並要求伺服器移除照片、生成頭像、匿名帳號及相關記錄。若無法連上伺服器，本機資料仍會立即清除，應用程式會請你稍後重試伺服器步驟。",
         childrenTitle: "兒童",
         childrenBody: "Mongchi 並非以 13 歲以下兒童為對象。若你認為有兒童透過照片或聊天提供資訊，請聯絡支援團隊，我們會將其刪除。"
       },
@@ -618,8 +888,14 @@ export const zhTW = {
       reportTitle: "回報生成問題",
       reportDetail: "問題回報只會使用安全分類，分析資料不會傳送原始照片。",
       options: {
-        wrong: { label: "模樣不對", description: "種類、花紋或臉看起來不太像。" },
-        unsafe: { label: "模樣不舒服", description: "有些地方讓人感到不舒服或害怕。" },
+        wrong: {
+          label: "模樣不對",
+          description: "種類、花紋或臉看起來不太像。"
+        },
+        unsafe: {
+          label: "模樣不舒服",
+          description: "有些地方讓人感到不舒服或害怕。"
+        },
         quality: { label: "結果模糊", description: "很難認出這隻寵物。" }
       },
       report: "回報",
@@ -645,7 +921,8 @@ export const zhTW = {
         useTitle: "可接受的使用方式",
         useBody: "請勿上傳包含人物、露骨或血腥內容，或任何非法內容的照片。請勿規避生成限制或安全檢查，也不要嘗試破解聊天限制。",
         portabilityTitle: "不支援帳號移轉",
-        portabilityBody: "Mongchi 不使用傳統帳號。工作階段與本機遊戲資料都保存在你的裝置上，因此若未備份就解除安裝或更換裝置，可能會永久失去本機進度、回憶和點數。",
+        portabilityBody:
+          "Mongchi 不使用傳統帳號。工作階段與本機遊戲資料都保存在你的裝置上，因此若未備份就解除安裝或更換裝置，可能會永久失去本機進度、回憶和點數。",
         disclaimerTitle: "免責聲明",
         disclaimerBody: "Mongchi 依現況提供。即使經過安全和品質檢查，AI 生成內容仍可能偶爾不準確或生成失敗。完整限制請參閱完整條款。"
       },

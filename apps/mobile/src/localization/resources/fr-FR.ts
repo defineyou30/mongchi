@@ -39,6 +39,16 @@ export const frFR = {
       viewHome: "Voir l’accueil"
     }
   },
+  languageSelector: {
+    openAccessibilityLabel: "Choisir la langue de l’application",
+    title: "Langue",
+    subtitle: "Suivez la langue de l’appareil ou gardez une langue fixe.",
+    automatic: "Automatique",
+    automaticDetail: "Suivre cet appareil · {{language}}",
+    selected: "Sélectionné",
+    saveError: "Impossible d’enregistrer la langue. Réessayez.",
+    closeAccessibilityLabel: "Fermer le choix de langue"
+  },
   splash: {
     accessibilityLabel: "Écran de chargement de la petite maison du compagnon",
     logoAccessibilityLabel: "Logo de l’application Mongchi",
@@ -54,33 +64,33 @@ export const frFR = {
     slides: {
       first: {
         step: "Étape 1",
-        title: "Votre chien, près de vous chaque jour",
-        body: "Transformez votre photo préférée de votre chien en un petit compagnon qui vous attend dans son jardin."
+        title: "Votre compagnon, près de vous chaque jour",
+        body: "Transformez votre photo préférée de votre animal en un petit compagnon qui vous attend dans son jardin."
       },
       second: {
         step: "Étape 2",
         title: "Une seule photo suffit",
-        body: "Choisissez une photo nette de votre chien, puis ajoutez son nom et sa petite personnalité."
+        body: "Choisissez une photo nette de votre animal, puis ajoutez son nom et sa petite personnalité."
       },
       third: {
         step: "Étape 3",
         title: "Renforcez votre lien chaque jour",
-        body: "Donnez-lui à manger, jouez, discutez et retrouvez chaque jour le jardin douillet de votre chien."
+        body: "Donnez-lui à manger, jouez, discutez et retrouvez chaque jour le jardin douillet de votre compagnon."
       }
     }
   },
   photoIntro: {
     accessibilityLabel: "Présentation de la photo du petit compagnon",
-    artAccessibilityLabel: "Une photo de chien s’ouvre sur une petite maison dans un jardin",
-    title: "Prenez soin de votre chien adoré au creux de la main",
-    body: "Commencez par une photo nette de votre chien, ajoutez son nom et sa personnalité, puis rencontrez le petit compagnon qui vous attend dans son jardin.",
+    artAccessibilityLabel: "Une photo d’animal s’ouvre sur une petite maison dans un jardin",
+    title: "Gardez votre compagnon adoré tout près",
+    body: "Commencez par une photo nette de votre animal, ajoutez son nom et sa personnalité, puis rencontrez le petit compagnon qui vous attend dans son jardin.",
     quest: {
       photo: "Photo",
       name: "Nom",
       moveIn: "Emménagement"
     },
-    privacy: "La photo de votre chien sert uniquement à créer votre petit compagnon. Vous pourrez supprimer l’original à tout moment après son emménagement.",
-    choosePhoto: "Choisir une photo du chien"
+    privacy: "La photo de votre animal sert uniquement à créer votre petit compagnon. Vous pourrez supprimer l’original à tout moment après son emménagement.",
+    choosePhoto: "Choisir une photo de l’animal"
   },
   photoUpload: {
     accessibilityLabel: "Importation de la photo du compagnon",
@@ -116,9 +126,10 @@ export const frFR = {
     eyebrow: "Papiers d’emménagement",
     title: "Donnez un nom à votre petit compagnon",
     summary: "{{species}} / {{voice}} · bientôt prêt à emménager",
+    speciesQuestion: "Qui emménage ?",
     petName: "Nom du compagnon",
     nameHint: "C’est le nom qui vous accueillera chaque jour à la porte.",
-    personalityQuestion: "Comment se sent votre compagnon aujourd’hui ?",
+    personalityQuestion: "Quel est le caractère de votre compagnon ?",
     voiceQuestion: "À quoi ressemble sa petite voix ?",
     favoriteQuestion: "Qu’est-ce qu’il aime déjà ?",
     favoriteThing: "Petit plaisir préféré",
@@ -157,7 +168,6 @@ export const frFR = {
     failureTitle: "Emménagement en pause",
     quotaFailure: "Votre petit compagnon pourra bientôt emménager. Revenez dans un petit moment.",
     retryFailure: "La petite porte est coincée. Essayons de recréer {{petName}}.",
-    stepsTitle: "Sur le chemin",
     reveal: "Découvrir le compagnon",
     steps: {
       preparing: "Préparation de la photo",
@@ -229,7 +239,13 @@ export const frFR = {
     localeAccessibilityLabel: "Petite maison-jardin interactive de {{petName}}",
     hud: {
       accessibilityLabel: "État du jeu du petit jardin",
-      labels: { fullness: "Rassasié", thirst: "Eau", mood: "Humeur", energy: "Énergie", cleanliness: "Propre" },
+      labels: {
+        fullness: "Rassasié",
+        thirst: "Eau",
+        mood: "Humeur",
+        energy: "Énergie",
+        cleanliness: "Propre"
+      },
       meterAccessibilityLabel: "État {{label}}. Touchez pour plus de détails.",
       artAccessibilityLabel: "Illustration de l’état {{label}}"
     },
@@ -253,7 +269,17 @@ export const frFR = {
     },
     butterflyAccessibilityLabel: "Un petit papillon est venu vous voir. Touchez-le pour lui dire bonjour.",
     care: {
-      actions: { feed: "Nourrir", talk: "Parler", walk: "Promener", play: "Jouer", rest: "Repos", affection: "Caresser", water_garden: "Arroser", clean: "Laver", treat: "Friandise" },
+      actions: {
+        feed: "Nourrir",
+        talk: "Parler",
+        walk: "Promener",
+        play: "Jouer",
+        rest: "Repos",
+        affection: "Caresser",
+        water_garden: "Arroser",
+        clean: "Laver",
+        treat: "Friandise"
+      },
       iconAccessibilityLabel: "Icône de soin {{label}}",
       itemAccessibilityLabel: "Objet de soin {{label}}",
       feedCooldown: "Menu Repas. Prochain repas quotidien dans {{cooldown}}. Des friandises peuvent rester disponibles.",
@@ -263,7 +289,13 @@ export const frFR = {
       recommended: "Conseil : {{label}} {{petName}}. {{hint}}",
       actionAccessibilityLabel: "{{label}} {{petName}}",
       tray: {
-        titles: { affection: "Petits gestes complices", feed: "Repas et friandises", play: "Jeux au choix", walk: "Chemins au choix", water_garden: "Eau" },
+        titles: {
+          affection: "Petits gestes complices",
+          feed: "Repas et friandises",
+          play: "Jeux au choix",
+          walk: "Chemins au choix",
+          water_garden: "Eau"
+        },
         optionsAccessibilityLabel: "Options pour {{title}}",
         shopOption: "Ouvrir la boutique pour {{title}}.",
         cooldownOption: "{{title}} sera à nouveau disponible dans {{cooldown}}.",
@@ -271,8 +303,23 @@ export const frFR = {
         openShop: "Ouvrir la boutique d’objets de soin.",
         shop: "Boutique"
       },
-      options: { pet: "Caresse", meal: "Repas", ball: "Balle", path: "Chemin", water: "Eau", bath: "Bain", treat: "Friandise" },
-      meta: { bond: "+Lien", fullness: "+Satiété", mood: "+Humeur", thirst: "+Hydratation", fresh: "+Propreté", shop: "Boutique" }
+      options: {
+        pet: "Caresse",
+        meal: "Repas",
+        ball: "Balle",
+        path: "Chemin",
+        water: "Eau",
+        bath: "Bain",
+        treat: "Friandise"
+      },
+      meta: {
+        bond: "+Lien",
+        fullness: "+Satiété",
+        mood: "+Humeur",
+        thirst: "+Hydratation",
+        fresh: "+Propreté",
+        shop: "Boutique"
+      }
     },
     walk: {
       activeTitle: "{{petName}} se promène · retour dans {{time}}",
@@ -280,8 +327,15 @@ export const frFR = {
       bringHomeAccessibilityLabel: "Dépenser {{cost}} crédit pour faire revenir {{petName}} maintenant",
       cannotBringHomeAccessibilityLabel: "Pas assez de crédits pour faire revenir {{petName}} maintenant",
       coinAccessibilityLabel: "Monnaie en pièces",
-      commentary: { early: "{{petName}} suit une odeur très importante...", mid: "{{petName}} s’est arrêté pour saluer une feuille.", late: "{{petName}} a trouvé quelque chose et le rapporte à la maison !" },
+      openCreditStoreAccessibilityLabel: "Ouvrir la boutique de gemmes",
+      commentary: {
+        early: "{{petName}} suit une odeur très importante...",
+        mid: "{{petName}} s’est arrêté pour saluer une feuille.",
+        late: "{{petName}} a trouvé quelque chose et le rapporte à la maison !"
+      },
       bringHome: "Faire revenir · {{cost}}",
+      openCreditStore: "Obtenir des gemmes",
+      insufficientHint: "Obtenez des gemmes ou attendez le retour de {{petName}}.",
       waiting: "{{petName}} revient bientôt, encore un petit instant.",
       returned: "{{petName}} est de retour avec un petit cadeau !",
       claimAccessibilityLabel: "Accueillir {{petName}} et récupérer le cadeau de promenade",
@@ -313,13 +367,45 @@ export const frFR = {
     petSays: "{{petName}} dit : {{text}}",
     finishMessageHint: "Touchez pour afficher tout le message immédiatement",
     opening: "Ouverture d’une discussion douillette...",
+    unavailableTitle: "La longue discussion fait une pause",
+    unavailableDetail: "Les petits échanges et toutes les réactions de soin restent disponibles pendant la vérification de sécurité.",
+    unavailableInput: "La longue discussion est indisponible pour le moment",
     networkError: "Impossible de joindre la discussion pour le moment. Réessayez.",
     startersAccessibilityLabel: "Suggestions pour commencer",
     starterAccessibilityLabel: "Utiliser la suggestion : {{starter}}",
     inputAccessibilityLabel: "Message de discussion premium",
     inputPlaceholder: "Écrire à {{petName}}",
     sendAccessibilityLabel: "Envoyer le message de discussion premium",
-    disclosure: "Cette conversation est générée par une IA à partir du profil de votre compagnon. Elle ne représente pas la conscience de votre véritable animal.",
+    disclosure:
+      "Cette conversation est générée par une IA à partir du profil de votre compagnon. Elle ne représente pas la conscience de votre véritable animal.",
+    disclosureBanner: {
+      dismissAccessibilityLabel: "Fermer l’avis sur l’IA"
+    },
+    info: {
+      button: "À propos de ce chat",
+      title: "À propos de ce chat",
+      aiTitle: "Discussion générée par IA",
+      billingTitle: "Discussions et crédits",
+      billingBody:
+        "Les discussions incluses et les crédits sont vérifiés en toute sécurité dès l’envoi. Une fois les discussions gratuites du jour épuisées, un Day Pass ou des crédits permettent de continuer à discuter.",
+      close: "Compris"
+    },
+    report: {
+      button: "Signaler cette réponse de l’IA",
+      reported: "Cette réponse de l’IA a été signalée",
+      title: "Signaler cette réponse",
+      detail: "Choisissez la raison la plus proche. Seules la référence du message et la raison sont conservées pour examen.",
+      reasons: {
+        harmful: "Nuisible ou dangereuse",
+        inappropriate: "Inappropriée",
+        inaccurate: "Inexacte ou trompeuse",
+        other: "Autre problème"
+      },
+      cancel: "Fermer le signalement",
+      sending: "Envoi du signalement...",
+      success: "Merci. Cette réponse a été envoyée pour examen.",
+      error: "Impossible d’envoyer le signalement. Réessayez."
+    },
     history: {
       accessibilityLabel: "Historique des conversations avec {{petName}}",
       user: "Vous",
@@ -345,9 +431,23 @@ export const frFR = {
     accessibilityLabel: "Page de {{petName}}",
     back: "Retour à l’accueil",
     share: "Partager {{petName}}",
-    movedIn: { today: "A emménagé aujourd’hui", daysAgo: "A emménagé il y a {{count}} jours" },
-    stats: { bond: "Lien", streak: "Série", together: "Ensemble", bondAccessibilityLabel: "Progression du lien vers le niveau {{level}} : {{label}}" },
-    sections: { lately: "Dernièrement, {{petName}}...", walkFinds: "Trouvailles de promenade", moments: "Nos petits moments", letter: "Lettre de {{petName}}", memoryNote: "Note souvenir" },
+    movedIn: {
+      today: "A emménagé aujourd’hui",
+      daysAgo: "A emménagé il y a {{count}} jours"
+    },
+    stats: {
+      bond: "Lien",
+      streak: "Série",
+      together: "Ensemble",
+      bondAccessibilityLabel: "Progression du lien vers le niveau {{level}} : {{label}}"
+    },
+    sections: {
+      lately: "Dernièrement, {{petName}}...",
+      walkFinds: "Trouvailles de promenade",
+      moments: "Nos petits moments",
+      letter: "Lettre de {{petName}}",
+      memoryNote: "Note souvenir"
+    },
     walkFindAccessibilityLabel: "{{name}}, trouvé {{count}} fois",
     undiscoveredWalkFind: "Trouvaille de promenade non découverte",
     letter: {
@@ -367,15 +467,50 @@ export const frFR = {
     shareMessages: {
       days: "{{petName}} est mon petit compagnon de jardin depuis {{count}} jours. Créé avec Mongchi.",
       fallback: "Voici {{petName}}, mon petit compagnon de jardin. Créé avec Mongchi."
+    },
+    shareCard: {
+      title: "Personnaliser et partager",
+      subtitle: "Choisissez une pose et un décor que vos amis adoreront.",
+      poseSectionTitle: "Pose",
+      themeSectionTitle: "Décor",
+      poseOptionAccessibilityLabel: "Pose : {{pose}}",
+      themeOptionAccessibilityLabel: "Décor : {{theme}}",
+      selected: "Sélectionné",
+      previewAccessibilityLabel: "Aperçu de la carte de partage de {{petName}}",
+      closeAccessibilityLabel: "Fermer la personnalisation de la carte",
+      shareAccessibilityLabel: "Partager la carte de {{petName}}"
     }
   },
   shop: {
     accessibilityLabel: "Boutique du jardin",
-    title: "Boutique du jardin",
+    title: "Boutique",
     back: "Retour à l’accueil",
     walletAccessibilityLabel: "Portefeuille de la boutique, {{credits}} crédits et {{owned}} objets possédés",
     creditGemAccessibilityLabel: "Icône de gemme de crédit de la boutique",
-    categories: { treats: "Friandises", toysAndRest: "Jouets", moments: "Moments", themes: "Thèmes" },
+    openCreditStore: "Ouvrir la boutique de gemmes",
+    categories: {
+      all: "Tout",
+      treats: "Friandises",
+      drinks: "Boissons",
+      toys: "Jouets",
+      rest: "Repos",
+      moments: "Moments",
+      themes: "Thèmes"
+    },
+    tabs: {
+      care: "Friandises & jouets",
+      customize: "Poses & thèmes"
+    },
+    sections: {
+      careItems: "Friandises, boissons & jouets",
+      careItemsDescription: "Choisissez de petites récompenses, des jouets et des objets douillets.",
+      posePacks: "Packs de poses",
+      posePacksDescription: "Débloquez trois expressions et poses assorties dans chaque pack.",
+      themes: "Thèmes du jardin",
+      themesDescription: "Changez toute l'ambiance de la maison de votre compagnon."
+    },
+    careFiltersAccessibilityLabel: "Filtres des objets de soin",
+    customizeFiltersAccessibilityLabel: "Filtres de personnalisation",
     categoryAccessibilityLabel: "{{label}}, {{count}} objets",
     emptyPreview: "De nouveaux objets douillets apparaîtront ici quand ce rayon sera rempli.",
     emptyShelf: "Ce rayon est en cours de remplissage.",
@@ -394,16 +529,46 @@ export const frFR = {
     walletGemAccessibilityLabel: "Gemme de crédit du portefeuille",
     coinAccessibilityLabel: "Monnaie en pièces",
     gemPriceAccessibilityLabel: "Prix en gemmes",
-    actions: { unlockTheme: "Débloquer le thème", applyTheme: "Appliquer le thème", getItem: "Obtenir l’objet", unlockPack: "Débloquer le pack" },
-    grants: { consumable: "Crédit", durable: "Acquis définitivement", subscription: "Abonnement" },
+    actions: {
+      unlockTheme: "Débloquer le thème",
+      applyTheme: "Appliquer le thème",
+      getItem: "Acheter",
+      unlockPack: "Débloquer le pack"
+    },
+    grants: {
+      consumable: "Crédit",
+      durable: "Acquis définitivement",
+      subscription: "Abonnement"
+    },
     products: {
-      premiumChat: { name: "Discussion mensuelle Plus", description: "Des échanges plus longs et chaleureux tant que le pass Plus est actif." },
-      extraPetSlot: { name: "Emplacement de compagnon supplémentaire", description: "Faites une place à un profil de petit compagnon en plus." },
-      regenerationCredit: { name: "Crédit de régénération", description: "Une nouvelle tentative d’avatar quand vous souhaitez changer de look." },
-      starterTheme: { name: "Pack de thème de départ", description: "Un nouvel arrière-plan pour la petite maison." },
-      itemPack: { name: "Pack d’objets", description: "Une sélection soignée de friandises et de jouets." },
-      treatPack: { name: "Pack de friandises", description: "Des en-cas spéciaux pour d’adorables réactions." },
-      plusPass: { name: "Pass Plus", description: "Des avantages premium pour renforcer votre lien, discuter plus longtemps et profiter des futures fonctions Plus." }
+      premiumChat: {
+        name: "Discussion mensuelle Plus",
+        description: "Des échanges plus longs et chaleureux tant que le pass Plus est actif."
+      },
+      extraPetSlot: {
+        name: "Emplacement de compagnon supplémentaire",
+        description: "Faites une place à un profil de petit compagnon en plus."
+      },
+      regenerationCredit: {
+        name: "Crédit de régénération",
+        description: "Une nouvelle tentative d’avatar quand vous souhaitez changer de look."
+      },
+      starterTheme: {
+        name: "Pack de thème de départ",
+        description: "Un nouvel arrière-plan pour la petite maison."
+      },
+      itemPack: {
+        name: "Pack d’objets",
+        description: "Une sélection soignée de friandises et de jouets."
+      },
+      treatPack: {
+        name: "Pack de friandises",
+        description: "Des en-cas spéciaux pour d’adorables réactions."
+      },
+      plusPass: {
+        name: "Pass Plus",
+        description: "Des avantages premium pour renforcer votre lien, discuter plus longtemps et profiter des futures fonctions Plus."
+      }
     },
     actionAccessibility: {
       unlockTheme: "Débloquer {{name}} pour {{price}}",
@@ -413,7 +578,7 @@ export const frFR = {
       buy: "Acheter {{name}}"
     },
     summary: {
-      accessibilityLabel: "{{owned}} objets possédés, {{locked}} objets verrouillés dans la boutique, {{plus}}",
+      accessibilityLabel: "{{owned}} objets possédés et {{locked}} objets verrouillés dans la boutique",
       owned: "Objets possédés",
       locked: "{{count}} objets verrouillés dans la boutique"
     },
@@ -441,9 +606,15 @@ export const frFR = {
       boardAccessibilityLabel: "{{name}}, pack de trois poses, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Gemme de crédit",
       allOwned: "Les 3 sont possédées",
-      allPrice: "Les 3 · {{credits}} crédits",
+      allPrice: "Les 3 · {{credits}}",
       actionAccessibilityLabel: "{{action}} depuis {{name}}",
-      actions: { generate: "Créer les 3", retry: "Réessayer les 3", needCredits: "Crédits requis", making: "Création des poses...", owned: "Dans le profil" }
+      actions: {
+        generate: "Créer les 3",
+        retry: "Réessayer les 3",
+        needCredits: "Obtenir des gemmes",
+        making: "Création des poses...",
+        owned: "Dans le profil"
+      }
     },
     themes: {
       defaultName: "Jardin douillet",
@@ -456,6 +627,38 @@ export const frFR = {
       autumnDescription: "Des feuilles chaudes et une douce lumière dorée pour les soins de saison.",
       winterName: "Lumières d’hiver",
       winterDescription: "Un décor de soirée enneigée baigné d’une douce lueur de fête."
+    }
+  },
+  creditsStore: {
+    accessibilityLabel: "Boutique de gemmes",
+    title: "Boutique de gemmes",
+    back: "Retour à la boutique du jardin",
+    balanceAccessibilityLabel: "Solde actuel : {{credits}} gemmes",
+    heroTitle: "Découvrez plus de petits moments",
+    heroBody: "Utilisez les gemmes pour les packs de poses, les thèmes et les soins spéciaux.",
+    starterTitle: "Cadeau du premier ami · {{credits}}",
+    starterBody: "Ajouté une seule fois après l’arrivée de votre premier compagnon.",
+    choosePack: "Choisir un pack de gemmes",
+    popular: "POPULAIRE",
+    packAmount: "{{credits}} gemmes",
+    storePrice: "Prix App Store",
+    purchaseAccessibilityLabel: "Acheter {{credits}} gemmes",
+    packs: {
+      small: "Essayer avec un premier pack",
+      popular: "Idéal pour les poses et les thèmes",
+      large: "Collectionner et décorer longtemps"
+    },
+    actions: {
+      buy: "Acheter",
+      purchasing: "Vérification...",
+      preparing: "Boutique en préparation"
+    },
+    storeNotice: "Les paiements sont gérés par l’App Store. Seules les gemmes vérifiées sont ajoutées.",
+    dialogs: {
+      failedTitle: "Achat non terminé",
+      failedBody: "Vérifiez votre connexion et réessayez.",
+      successTitle: "Les gemmes sont arrivées",
+      successBody: "Les gemmes vérifiées ont été ajoutées."
     }
   },
   inventory: {
@@ -473,7 +676,13 @@ export const frFR = {
     title: "Réglages",
     back: "Retour à l’accueil",
     hero: "Météo, rappels, confidentialité et assistance, réunis dans un coin douillet.",
-    language: { title: "Langue de l’application", english: "Anglais", korean: "Coréen", detail: "Mongchi utilise la langue de votre appareil.", action: "Modifier" },
+    language: {
+      title: "Langue de l’application",
+      english: "Anglais",
+      korean: "Coréen",
+      detail: "Choisissez ici ou suivez votre appareil.",
+      action: "Modifier"
+    },
     status: {
       needsCheck: "Vérification nécessaire",
       syncing: "Synchronisation",
@@ -482,19 +691,48 @@ export const frFR = {
       errorDetail: "La modification n’a pas pu se terminer en toute sécurité. Vérifiez votre connexion et réessayez.",
       keepOpen: "Gardez l’application ouverte jusqu’à la fin de la modification."
     },
-    sections: { reminders: "Petits rappels", sound: "Sons et sensations", privacy: "Confidentialité et protection", support: "Assistance et mentions légales" },
+    sections: {
+      reminders: "Petits rappels",
+      sound: "Sons et sensations",
+      privacy: "Confidentialité et protection",
+      support: "Assistance et mentions légales"
+    },
+    notifications: {
+      careReminders: "Rappels de soins",
+      careRemindersDetail: "De doux rappels pour les repas, l’eau, les petits bonjours et votre lettre mensuelle.",
+      walkUpdates: "Nouvelles de la promenade",
+      walkUpdatesDetail: "Un petit signal quand une promenade se termine et que votre compagnon est rentré."
+    },
     weather: {
       scenes: "Ambiances météo",
       useLocation: "Utiliser ma position",
+      useLocationDetail: "Votre position approximative est envoyée une seule fois pour connaître la météo locale réelle du jardin — jamais stockée, jamais partagée.",
       preview: "Aperçu de la météo",
       next: "Suivant : {{weather}}",
-      locationMessages: { requesting: "Recherche de la météo locale approximative.", ready: "La météo locale est prête.", denied: "L’autorisation d’accéder à votre position n’a pas été accordée. Vous pouvez toujours choisir la météo manuellement.", error: "La météo locale est indisponible pour le moment. Essayez plutôt un aperçu manuel." },
+      locationMessages: {
+        requesting: "Recherche de la météo locale réelle d’aujourd’hui pour le jardin.",
+        ready: "La météo locale est prête.",
+        denied: "L’autorisation d’accéder à votre position n’a pas été accordée. Vous pouvez toujours choisir la météo manuellement.",
+        error: "La météo locale est indisponible pour le moment. Essayez plutôt un aperçu manuel."
+      },
       options: {
         clear: { label: "Dégagé", detail: "Jardin ensoleillé par défaut." },
-        rain: { label: "Pluie", detail: "Effet de pluie et petits mots douillets sur la météo." },
-        snow: { label: "Neige", detail: "Arrière-plan d’hiver et douces paroles bien au chaud." },
-        wind: { label: "Vent", detail: "Feuilles en mouvement et découvertes en promenade." },
-        hot: { label: "Chaud", detail: "Scène ensoleillée et petits rappels pour prendre soin du jardin." }
+        rain: {
+          label: "Pluie",
+          detail: "Effet de pluie et petits mots douillets sur la météo."
+        },
+        snow: {
+          label: "Neige",
+          detail: "Arrière-plan d’hiver et douces paroles bien au chaud."
+        },
+        wind: {
+          label: "Vent",
+          detail: "Feuilles en mouvement et découvertes en promenade."
+        },
+        hot: {
+          label: "Chaud",
+          detail: "Scène ensoleillée et petits rappels pour prendre soin du jardin."
+        }
       }
     },
     sound: {
@@ -516,8 +754,16 @@ export const frFR = {
       restore: "Restaurer une sauvegarde",
       restoreDetail: "Collez une sauvegarde enregistrée pour retrouver votre jardin."
     },
-    links: { privacy: "Confidentialité", terms: "Conditions", support: "Assistance" },
-    reset: { title: "Réinitialiser", detail: "Supprime la configuration locale du compagnon sur cet appareil et relance la présentation.", action: "Supprimer les données du compagnon" },
+    links: {
+      privacy: "Confidentialité",
+      terms: "Conditions",
+      support: "Assistance"
+    },
+    reset: {
+      title: "Réinitialiser",
+      detail: "Supprime la configuration locale du compagnon sur cet appareil et relance la présentation.",
+      action: "Supprimer les données du compagnon"
+    },
     dialogs: {
       errorLog: "Journal des erreurs",
       noErrors: "Aucune erreur récente enregistrée sur cet appareil.",
@@ -536,9 +782,11 @@ export const frFR = {
       restoredTitle: "Heureux de vous revoir !",
       restoredMessage: "Votre jardin a été restauré depuis la sauvegarde.",
       deleteAllTitle: "Supprimer toutes vos données ?",
-      deleteAllMessage: "Cette action supprime de cet appareil la configuration du compagnon, le compagnon généré, l’état des soins et l’inventaire. Elle demande aussi à nos serveurs de supprimer votre photo, les avatars générés et les données du compte. Cette action est irréversible.",
+      deleteAllMessage:
+        "Cette action supprime de cet appareil la configuration du compagnon, le compagnon généré, l’état des soins et l’inventaire. Elle demande aussi à nos serveurs de supprimer votre photo, les avatars générés et les données du compte. Cette action est irréversible.",
       serverRetry: "La suppression sur le serveur doit être relancée",
-      serverRetryMessage: "Les données de votre appareil ont été effacées. Gardez l’application ouverte et réessayez plus tard pour terminer aussi la suppression de la copie sur le serveur."
+      serverRetryMessage:
+        "Les données de votre appareil ont été effacées. Gardez l’application ouverte et réessayez plus tard pour terminer aussi la suppression de la copie sur le serveur."
     },
     restoreModal: {
       accessibilityLabel: "Restaurer une sauvegarde",
@@ -557,25 +805,69 @@ export const frFR = {
     }
   },
   notifications: {
-    channel: { name: "Nouvelles du jardin", description: "De douces nouvelles de votre jardin" },
+    channel: {
+      name: "Nouvelles du jardin",
+      description: "De douces nouvelles de votre jardin"
+    },
     walkReturn: {
       fallbackPetName: "Votre compagnon",
       title: "{{petName}} est de retour de promenade !",
       body: "Venez voir ce que {{petName}} a trouvé dehors."
     },
     garden: {
-      meal_due: { title: "{{petName}} pense très fort à sa gamelle", body: "Un petit repas lui redonnerait une satiété bien douillette." },
-      meal_urgent: { title: "Il reste un peu de place dans la gamelle de {{petName}}", body: "Un repas tout simple ferait plaisir à {{petName}} en ce moment." },
-      thirst_due: { title: "La gamelle d’eau de {{petName}} aimerait être remplie", body: "Un peu d’eau égayerait doucement sa petite humeur." },
-      thirst_hot_weather: { title: "{{petName}} apprécierait une gorgée bien fraîche", body: "L’air est chaud aujourd’hui. Une gamelle d’eau fraîche est le meilleur premier petit soin." },
-      bored_play: { title: "{{petName}} a retrouvé son jouet", body: "Une petite partie de jeu serait parfaite maintenant." },
-      attention_return: { title: "{{petName}} a un petit bonjour pour vous", body: "Ouvrez le jardin pour une caresse, un mot doux ou un petit coucou." },
-      walk_window: { title: "L’heure du petit chemin", body: "{{petName}} aimerait peut-être une promenade tranquille aujourd’hui." },
-      rest_needed: { title: "{{petName}} est en mode dodo", body: "Un peu de repos gardera un rythme tout doux ce soir." },
-      rainy_cozy_check: { title: "Petit coucou sous la pluie", body: "{{petName}} reste bien au chaud. Un bonjour irait parfaitement avec ce temps." },
-      return_after_1_day: { title: "Une petite empreinte est apparue près de la porte", body: "{{petName}} se demandait quand vous repasseriez par ici." },
-      return_after_1_day_streak: { title: "{{petName}} garde votre petite routine bien au chaud", body: "Votre série est encore toute chaude. Une petite visite aujourd’hui la fera continuer à briller." },
-      return_after_3_days: { title: "Le jardin vous a gardé une place", body: "Quelques jours se sont écoulés. {{petName}} sera ravi d’un petit bonjour quand vous en aurez envie." }
+      meal_due: {
+        title: "{{petName}} pense très fort à sa gamelle",
+        body: "Un petit repas lui redonnerait une satiété bien douillette."
+      },
+      meal_urgent: {
+        title: "Il reste un peu de place dans la gamelle de {{petName}}",
+        body: "Un repas tout simple ferait plaisir à {{petName}} en ce moment."
+      },
+      thirst_due: {
+        title: "La gamelle d’eau de {{petName}} aimerait être remplie",
+        body: "Un peu d’eau égayerait doucement sa petite humeur."
+      },
+      thirst_hot_weather: {
+        title: "{{petName}} apprécierait une gorgée bien fraîche",
+        body: "L’air est chaud aujourd’hui. Une gamelle d’eau fraîche est le meilleur premier petit soin."
+      },
+      bored_play: {
+        title: "{{petName}} a retrouvé son jouet",
+        body: "Une petite partie de jeu serait parfaite maintenant."
+      },
+      attention_return: {
+        title: "{{petName}} a un petit bonjour pour vous",
+        body: "Ouvrez le jardin pour une caresse, un mot doux ou un petit coucou."
+      },
+      walk_window: {
+        title: "L’heure du petit chemin",
+        body: "{{petName}} aimerait peut-être une promenade tranquille aujourd’hui."
+      },
+      rest_needed: {
+        title: "{{petName}} est en mode dodo",
+        body: "Un peu de repos gardera un rythme tout doux ce soir."
+      },
+      rainy_cozy_check: {
+        title: "Petit coucou sous la pluie",
+        body: "{{petName}} reste bien au chaud. Un bonjour irait parfaitement avec ce temps."
+      },
+      return_after_1_day: {
+        title: "Une petite empreinte est apparue près de la porte",
+        body: "{{petName}} se demandait quand vous repasseriez par ici."
+      },
+      return_after_1_day_streak: {
+        title: "{{petName}} garde votre petite routine bien au chaud",
+        body: "Votre série est encore toute chaude. Une petite visite aujourd’hui la fera continuer à briller."
+      },
+      return_after_3_days: {
+        title: "Le jardin vous a gardé une place",
+        body: "Quelques jours se sont écoulés. {{petName}} sera ravi d’un petit bonjour quand vous en aurez envie."
+      }
+    },
+    monthlyLetter: {
+      fallbackPetName: "Votre compagnon",
+      title: "Une lettre vous attend",
+      body: "Une lettre de {{petName}} vous attend dans le jardin."
     }
   },
   errorBoundary: {
@@ -593,21 +885,29 @@ export const frFR = {
       updated: "Dernière mise à jour le 8 juillet 2026 · v1.1",
       items: {
         first: "Aucun compte ni e-mail : l’application s’ouvre avec une session anonyme, sans inscription.",
-        second: "La photo originale de votre compagnon est envoyée à OpenAI uniquement pour effectuer un contrôle de sécurité et générer l’avatar. Elle est ensuite automatiquement supprimée de nos serveurs dès la fin de la génération.",
-        third: "Le déblocage ultérieur d’autres expressions réutilise l’avatar déjà généré, et non la photo originale, qui n’existe alors plus sur nos serveurs.",
-        fourth: "Les avatars générés sont conservés dans un espace de stockage privé et affichés uniquement via des liens signés de courte durée, jamais par une URL publique.",
-        fifth: "Les statistiques de soins, les souvenirs et la progression du jardin sont stockés localement sur votre appareil. La désinstallation de l’application les supprime donc définitivement.",
-        sixth: "Si vous l’autorisez, votre position approximative est utilisée une seule fois pour consulter la météo et n’est pas stockée sur nos serveurs.",
+        second:
+          "La photo originale de votre compagnon est envoyée à OpenAI uniquement pour effectuer un contrôle de sécurité et générer l’avatar. Elle est ensuite automatiquement supprimée de nos serveurs dès la fin de la génération.",
+        third:
+          "Le déblocage ultérieur d’autres expressions réutilise l’avatar déjà généré, et non la photo originale, qui n’existe alors plus sur nos serveurs.",
+        fourth:
+          "Les avatars générés sont conservés dans un espace de stockage privé et affichés uniquement via des liens signés de courte durée, jamais par une URL publique.",
+        fifth:
+          "Les statistiques de soins, les souvenirs et la progression du jardin sont stockés localement sur votre appareil. La désinstallation de l’application les supprime donc définitivement.",
+        sixth: "Si vous l’autorisez, votre position approximative est arrondie et envoyée une seule fois pour connaître la météo locale réelle du jardin. Elle n’est jamais stockée — et si la recherche échoue, votre appareil crée lui-même une ambiance météo similaire.",
         seventh: "La discussion premium est signalée comme générée par une IA et modérée avant l’affichage des messages.",
-        eighth: "Aucun kit de développement publicitaire ou de suivi n’est utilisé, et les analyses excluent les photos brutes, le texte brut des discussions et les données de paiement."
+        eighth:
+          "Aucun kit de développement publicitaire ou de suivi n’est utilisé, et les analyses excluent les photos brutes, le texte brut des discussions et les données de paiement."
       },
       sections: {
         sharingTitle: "Tiers avec lesquels nous partageons des données",
-        sharingBody: "OpenAI traite la photo source de votre compagnon pour les contrôles de sécurité et la génération de l’avatar ainsi que, pour la discussion premium, le profil de votre compagnon et le contexte récent de la conversation. Supabase héberge notre base de données, notre stockage privé et l’authentification anonyme. Apple ou Google gère directement les paiements intégrés ; nous recevons un reçu, jamais les données de votre carte.",
+        sharingBody:
+          "OpenAI traite la photo source de votre compagnon pour les contrôles de sécurité et la génération de l’avatar ainsi que, pour la discussion premium, le profil de votre compagnon et le contexte récent de la conversation. Supabase héberge notre base de données, notre stockage privé et l’authentification anonyme. Apple ou Google gère directement les paiements intégrés ; nous recevons un reçu, jamais les données de votre carte.",
         rightsTitle: "Vos droits",
-        rightsBody: "Vous pouvez supprimer séparément la photo originale. Pour tout supprimer, choisissez Supprimer les données du compagnon dans Réglages. Cette action efface les données locales et demande à nos serveurs de supprimer la photo, les avatars générés, le compte anonyme et les données associées. Si le serveur est inaccessible, les données locales sont immédiatement effacées et l’application vous invite à relancer ultérieurement l’étape sur le serveur.",
+        rightsBody:
+          "Vous pouvez supprimer séparément la photo originale. Pour tout supprimer, choisissez Supprimer les données du compagnon dans Réglages. Cette action efface les données locales et demande à nos serveurs de supprimer la photo, les avatars générés, le compte anonyme et les données associées. Si le serveur est inaccessible, les données locales sont immédiatement effacées et l’application vous invite à relancer ultérieurement l’étape sur le serveur.",
         childrenTitle: "Enfants",
-        childrenBody: "Mongchi ne s’adresse pas aux enfants de moins de 13 ans. Si vous pensez qu’un enfant a fourni des informations par le biais d’une photo ou d’une discussion, contactez l’assistance et nous les supprimerons."
+        childrenBody:
+          "Mongchi ne s’adresse pas aux enfants de moins de 13 ans. Si vous pensez qu’un enfant a fourni des informations par le biais d’une photo ou d’une discussion, contactez l’assistance et nous les supprimerons."
       },
       policyLink: "Lien vers la politique",
       policyFallback: "Un lien sécurisé vers la politique de confidentialité apparaîtra ici lorsqu’il sera disponible.",
@@ -626,18 +926,30 @@ export const frFR = {
       faqTitle: "Questions fréquentes",
       faq: {
         photoQuestion: "La photo de mon compagnon est-elle en sécurité ?",
-        photoAnswer: "Votre photo sert uniquement au contrôle de sécurité et à la génération de l’avatar. Elle est automatiquement supprimée de nos serveurs à la fin de la génération.",
+        photoAnswer:
+          "Votre photo sert uniquement au contrôle de sécurité et à la génération de l’avatar. Elle est automatiquement supprimée de nos serveurs à la fin de la génération.",
         deleteQuestion: "Comment supprimer mes données ?",
-        deleteAnswer: "Supprimez séparément la photo originale pendant le parcours photo, ou utilisez Supprimer les données du compagnon dans Réglages pour demander une suppression complète sur l’appareil et le serveur.",
+        deleteAnswer:
+          "Supprimez séparément la photo originale pendant le parcours photo, ou utilisez Supprimer les données du compagnon dans Réglages pour demander une suppression complète sur l’appareil et le serveur.",
         creditQuestion: "Qu’advient-il de mes crédits si la génération échoue ?",
-        creditAnswer: "Une défaillance du système, du contrôle de sécurité ou de la qualité ne devrait pas consommer de crédit payant. Signalez-la ci-dessous si un crédit semble avoir été utilisé à tort."
+        creditAnswer:
+          "Une défaillance du système, du contrôle de sécurité ou de la qualité ne devrait pas consommer de crédit payant. Signalez-la ci-dessous si un crédit semble avoir été utilisé à tort."
       },
       reportTitle: "Signaler un problème de génération",
       reportDetail: "Les signalements utilisent une catégorie sûre et n’envoient aucune photo brute aux outils d’analyse.",
       options: {
-        wrong: { label: "Apparence incorrecte", description: "L’espèce, les marques ou le visage semblent inexacts." },
-        unsafe: { label: "Apparence inquiétante", description: "Quelque chose semble dérangeant ou effrayant." },
-        quality: { label: "Résultat flou", description: "Le compagnon est difficile à reconnaître." }
+        wrong: {
+          label: "Apparence incorrecte",
+          description: "L’espèce, les marques ou le visage semblent inexacts."
+        },
+        unsafe: {
+          label: "Apparence inquiétante",
+          description: "Quelque chose semble dérangeant ou effrayant."
+        },
+        quality: {
+          label: "Résultat flou",
+          description: "Le compagnon est difficile à reconnaître."
+        }
       },
       report: "Signaler",
       saved: "Enregistré",
@@ -651,7 +963,8 @@ export const frFR = {
       title: "Usage équitable et valeur payante",
       updated: "Dernière mise à jour le 7 juillet 2026 · v1.0",
       items: {
-        first: "Mongchi est un divertissement généré par une IA : votre compagnon et ses discussions ne représentent ni la conscience ni les souvenirs de votre véritable animal et ne constituent pas un avis médical.",
+        first:
+          "Mongchi est un divertissement généré par une IA : votre compagnon et ses discussions ne représentent ni la conscience ni les souvenirs de votre véritable animal et ne constituent pas un avis médical.",
         second: "Lors de la création du premier compagnon, vous gardez le contrôle de la photo sélectionnée et pouvez la supprimer séparément.",
         third: "Les générations incorrectes, les défaillances du système et les échecs des contrôles de qualité ne devraient pas consommer de valeur payante.",
         fourth: "Les soins de base restent gratuits. Les objets payants ajoutent de l’expression, sans servir à réparer un manque de soins.",
@@ -660,11 +973,14 @@ export const frFR = {
       },
       sections: {
         useTitle: "Utilisation acceptable",
-        useBody: "N’importez pas de photos contenant des personnes, du contenu explicite ou choquant, ni quoi que ce soit d’illégal. Ne contournez pas les limites de génération ou les contrôles de sécurité et ne tentez pas de débrider la discussion.",
+        useBody:
+          "N’importez pas de photos contenant des personnes, du contenu explicite ou choquant, ni quoi que ce soit d’illégal. Ne contournez pas les limites de génération ou les contrôles de sécurité et ne tentez pas de débrider la discussion.",
         portabilityTitle: "Aucune portabilité de compte",
-        portabilityBody: "Mongchi n’utilise pas de comptes traditionnels. La session et les données locales du jeu restent sur votre appareil. Sans sauvegarde, désinstaller l’application ou changer d’appareil peut donc entraîner la perte définitive de la progression locale, des souvenirs et des crédits.",
+        portabilityBody:
+          "Mongchi n’utilise pas de comptes traditionnels. La session et les données locales du jeu restent sur votre appareil. Sans sauvegarde, désinstaller l’application ou changer d’appareil peut donc entraîner la perte définitive de la progression locale, des souvenirs et des crédits.",
         disclaimerTitle: "Clause de non-responsabilité",
-        disclaimerBody: "Mongchi est fourni en l’état. Le contenu généré par une IA peut parfois être inexact ou échouer malgré les contrôles de sécurité et de qualité. Consultez l’intégralité des conditions pour connaître toutes les limites."
+        disclaimerBody:
+          "Mongchi est fourni en l’état. Le contenu généré par une IA peut parfois être inexact ou échouer malgré les contrôles de sécurité et de qualité. Consultez l’intégralité des conditions pour connaître toutes les limites."
       },
       linkTitle: "Lien vers les conditions",
       linkFallback: "Un lien sécurisé vers les conditions apparaîtra ici lorsqu’il sera disponible.",

@@ -39,6 +39,16 @@ export const ptBR = {
       viewHome: "Ver início"
     }
   },
+  languageSelector: {
+    openAccessibilityLabel: "Escolher idioma do app",
+    title: "Idioma",
+    subtitle: "Siga o idioma do aparelho ou mantenha o Mongchi em um idioma.",
+    automatic: "Automático",
+    automaticDetail: "Seguir este aparelho · {{language}}",
+    selected: "Selecionado",
+    saveError: "Não foi possível salvar o idioma. Tente novamente.",
+    closeAccessibilityLabel: "Fechar seletor de idioma"
+  },
   splash: {
     accessibilityLabel: "Tela de carregamento do lar do bichinho",
     logoAccessibilityLabel: "Logo do app Mongchi",
@@ -54,33 +64,33 @@ export const ptBR = {
     slides: {
       first: {
         step: "Etapa 1",
-        title: "Seu cãozinho pertinho todos os dias",
-        body: "Transforme uma foto favorita do seu cão em um amiguinho que espera por você no jardim."
+        title: "Seu bichinho pertinho todos os dias",
+        body: "Transforme uma foto favorita do seu bichinho em um amiguinho que espera por você no jardim."
       },
       second: {
         step: "Etapa 2",
         title: "Uma foto é tudo o que você precisa",
-        body: "Escolha uma foto nítida do seu cão e adicione o nome e um pouco da personalidade dele."
+        body: "Escolha uma foto nítida do seu bichinho e adicione o nome e um pouco da personalidade dele."
       },
       third: {
         step: "Etapa 3",
         title: "Fortaleça esse laço todo dia",
-        body: "Alimente, brinque, converse e volte ao jardim aconchegante do seu cão todos os dias."
+        body: "Alimente, brinque, converse e volte ao jardim aconchegante do seu bichinho todos os dias."
       }
     }
   },
   photoIntro: {
     accessibilityLabel: "Introdução à foto do bichinho",
-    artAccessibilityLabel: "Foto de um cão se abrindo para um pequeno lar no jardim",
-    title: "Cuide do seu cão amado na palma da mão",
-    body: "Comece com uma foto nítida do seu cão, adicione o nome e a personalidade e conheça o amiguinho que espera por você no jardim.",
+    artAccessibilityLabel: "Foto de um bichinho se abrindo para um pequeno lar no jardim",
+    title: "Tenha seu bichinho amado sempre por perto",
+    body: "Comece com uma foto nítida do seu bichinho, adicione o nome e a personalidade e conheça o amiguinho que espera por você no jardim.",
     quest: {
       photo: "Foto",
       name: "Nome",
       moveIn: "Chegada"
     },
-    privacy: "A foto do seu cão só é usada para criar seu amiguinho. Você pode excluir a original quando ele chegar.",
-    choosePhoto: "Escolher foto do cão"
+    privacy: "A foto do seu bichinho só é usada para criar seu amiguinho. Você pode excluir a original quando ele chegar.",
+    choosePhoto: "Escolher foto do bichinho"
   },
   photoUpload: {
     accessibilityLabel: "Envio da foto do bichinho",
@@ -116,9 +126,10 @@ export const ptBR = {
     eyebrow: "Papéis da chegada",
     title: "Dê um nome ao seu amiguinho",
     summary: "{{species}} / {{voice}} · preparando a chegada",
+    speciesQuestion: "Quem está chegando?",
     petName: "Nome do bichinho",
     nameHint: "Este é o nome que vai receber você na porta todos os dias.",
-    personalityQuestion: "Como seu companheiro está se sentindo hoje?",
+    personalityQuestion: "Como é a personalidade do seu companheiro?",
     voiceQuestion: "Como é a vozinha dele?",
     favoriteQuestion: "Do que ele já gosta?",
     favoriteThing: "Coisinha favorita",
@@ -157,7 +168,6 @@ export const ptBR = {
     failureTitle: "Chegada pausada",
     quotaFailure: "Seu amiguinho estará pronto para chegar em breve. Volte daqui a pouquinho.",
     retryFailure: "A portinha emperrou. Vamos tentar criar {{petName}} de novo.",
-    stepsTitle: "No caminho",
     reveal: "Conhecer bichinho",
     steps: {
       preparing: "Preparando a foto",
@@ -229,7 +239,13 @@ export const ptBR = {
     localeAccessibilityLabel: "Pequeno lar interativo de {{petName}} no jardim",
     hud: {
       accessibilityLabel: "Estado do jogo no pequeno jardim",
-      labels: { fullness: "Saciedade", thirst: "Água", mood: "Humor", energy: "Energia", cleanliness: "Limpeza" },
+      labels: {
+        fullness: "Saciedade",
+        thirst: "Água",
+        mood: "Humor",
+        energy: "Energia",
+        cleanliness: "Limpeza"
+      },
       meterAccessibilityLabel: "Estado de {{label}}. Toque para ver detalhes.",
       artAccessibilityLabel: "Arte do estado de {{label}}"
     },
@@ -253,7 +269,17 @@ export const ptBR = {
     },
     butterflyAccessibilityLabel: "Uma borboletinha veio visitar. Toque para dizer oi.",
     care: {
-      actions: { feed: "Alimentar", talk: "Conversar", walk: "Passear", play: "Brincar", rest: "Descansar", affection: "Acariciar", water_garden: "Dar água", clean: "Limpar", treat: "Petisco" },
+      actions: {
+        feed: "Alimentar",
+        talk: "Conversar",
+        walk: "Passear",
+        play: "Brincar",
+        rest: "Descansar",
+        affection: "Acariciar",
+        water_garden: "Dar água",
+        clean: "Limpar",
+        treat: "Petisco"
+      },
       iconAccessibilityLabel: "Ícone de cuidado: {{label}}",
       itemAccessibilityLabel: "Item de cuidado: {{label}}",
       feedCooldown: "Menu de alimentação. Refeição diária disponível em {{cooldown}}. Talvez ainda haja petiscos.",
@@ -263,7 +289,13 @@ export const ptBR = {
       recommended: "Recomendado: {{label}} com {{petName}}. {{hint}}",
       actionAccessibilityLabel: "{{label}} com {{petName}}",
       tray: {
-        titles: { affection: "Carinho e vínculo", feed: "Comida e petiscos", play: "Opções de brincadeira", walk: "Opções de caminho", water_garden: "Água" },
+        titles: {
+          affection: "Carinho e vínculo",
+          feed: "Comida e petiscos",
+          play: "Opções de brincadeira",
+          walk: "Opções de caminho",
+          water_garden: "Água"
+        },
         optionsAccessibilityLabel: "Opções de {{title}}",
         shopOption: "Abrir a loja de {{title}}.",
         cooldownOption: "{{title}} estará disponível em {{cooldown}}.",
@@ -271,8 +303,23 @@ export const ptBR = {
         openShop: "Abrir a loja de itens de cuidado.",
         shop: "Loja"
       },
-      options: { pet: "Carinho", meal: "Refeição", ball: "Bola", path: "Caminho", water: "Água", bath: "Banho", treat: "Petisco" },
-      meta: { bond: "+Vínculo", fullness: "+Saciedade", mood: "+Humor", thirst: "+Sede", fresh: "+Frescor", shop: "Loja" }
+      options: {
+        pet: "Carinho",
+        meal: "Refeição",
+        ball: "Bola",
+        path: "Caminho",
+        water: "Água",
+        bath: "Banho",
+        treat: "Petisco"
+      },
+      meta: {
+        bond: "+Vínculo",
+        fullness: "+Saciedade",
+        mood: "+Humor",
+        thirst: "+Sede",
+        fresh: "+Frescor",
+        shop: "Loja"
+      }
     },
     walk: {
       activeTitle: "{{petName}} está passeando · volta em {{time}}",
@@ -280,8 +327,15 @@ export const ptBR = {
       bringHomeAccessibilityLabel: "Gastar {{cost}} crédito para trazer {{petName}} para casa agora",
       cannotBringHomeAccessibilityLabel: "Créditos insuficientes para trazer {{petName}} para casa agora",
       coinAccessibilityLabel: "Moeda",
-      commentary: { early: "{{petName}} está seguindo um cheiro muito importante...", mid: "{{petName}} parou para cumprimentar uma folha.", late: "{{petName}} encontrou algo e está trazendo para casa!" },
+      openCreditStoreAccessibilityLabel: "Abrir loja de gemas",
+      commentary: {
+        early: "{{petName}} está seguindo um cheiro muito importante...",
+        mid: "{{petName}} parou para cumprimentar uma folha.",
+        late: "{{petName}} encontrou algo e está trazendo para casa!"
+      },
       bringHome: "Trazer para casa agora · {{cost}}",
+      openCreditStore: "Obter gemas",
+      insufficientHint: "Obtenha gemas ou espere {{petName}} voltar.",
       waiting: "{{petName}} volta logo — só mais um pouquinho.",
       returned: "{{petName}} voltou com um presentinho!",
       claimAccessibilityLabel: "Receber {{petName}} e pegar o presente do passeio",
@@ -313,6 +367,9 @@ export const ptBR = {
     petSays: "{{petName}} diz: {{text}}",
     finishMessageHint: "Toque para mostrar a mensagem inteira agora",
     opening: "Abrindo uma conversa aconchegante...",
+    unavailableTitle: "A conversa longa está descansando",
+    unavailableDetail: "Papos rápidos e todas as reações de cuidado continuam disponíveis durante a revisão de segurança.",
+    unavailableInput: "A conversa longa ainda não está disponível",
     networkError: "Não foi possível acessar a conversa agora. Tente de novo.",
     startersAccessibilityLabel: "Sugestões para começar a conversa",
     starterAccessibilityLabel: "Usar sugestão: {{starter}}",
@@ -320,6 +377,33 @@ export const ptBR = {
     inputPlaceholder: "Mensagem para {{petName}}",
     sendAccessibilityLabel: "Enviar mensagem da conversa premium",
     disclosure: "Esta conversa é gerada por IA com base no perfil do seu bichinho. Ela não é a consciência real dele.",
+    disclosureBanner: {
+      dismissAccessibilityLabel: "Fechar aviso sobre IA"
+    },
+    info: {
+      button: "Sobre esta conversa",
+      title: "Sobre esta conversa",
+      aiTitle: "Conversa gerada por IA",
+      billingTitle: "Conversas e créditos",
+      billingBody: "As conversas incluídas e os créditos são verificados com segurança assim que você envia. Quando as conversas grátis de hoje acabarem, um Day Pass ou créditos podem manter o papo continuando.",
+      close: "Entendi"
+    },
+    report: {
+      button: "Denunciar esta resposta da IA",
+      reported: "Esta resposta da IA foi denunciada",
+      title: "Denunciar esta resposta",
+      detail: "Escolha o motivo mais próximo. Salvamos apenas a referência da mensagem e o motivo para análise.",
+      reasons: {
+        harmful: "Prejudicial ou insegura",
+        inappropriate: "Inadequada",
+        inaccurate: "Incorreta ou enganosa",
+        other: "Outro problema"
+      },
+      cancel: "Fechar denúncia",
+      sending: "Enviando denúncia...",
+      success: "Obrigado. Esta resposta foi enviada para análise.",
+      error: "Não foi possível enviar a denúncia. Tente de novo."
+    },
     history: {
       accessibilityLabel: "Histórico de conversa com {{petName}}",
       user: "Você",
@@ -346,8 +430,19 @@ export const ptBR = {
     back: "Voltar ao início",
     share: "Compartilhar {{petName}}",
     movedIn: { today: "Chegou hoje", daysAgo: "Chegou há {{count}} dias" },
-    stats: { bond: "Vínculo", streak: "Sequência", together: "Juntos", bondAccessibilityLabel: "Progresso do vínculo até o nível {{level}}: {{label}}" },
-    sections: { lately: "Ultimamente, {{petName}}...", walkFinds: "Achados do passeio", moments: "Nossos pequenos momentos", letter: "Carta de {{petName}}", memoryNote: "Nota de lembrança" },
+    stats: {
+      bond: "Vínculo",
+      streak: "Sequência",
+      together: "Juntos",
+      bondAccessibilityLabel: "Progresso do vínculo até o nível {{level}}: {{label}}"
+    },
+    sections: {
+      lately: "Ultimamente, {{petName}}...",
+      walkFinds: "Achados do passeio",
+      moments: "Nossos pequenos momentos",
+      letter: "Carta de {{petName}}",
+      memoryNote: "Nota de lembrança"
+    },
     walkFindAccessibilityLabel: "{{name}}, encontrado {{count}} vezes",
     undiscoveredWalkFind: "Achado do passeio ainda não descoberto",
     letter: {
@@ -367,15 +462,50 @@ export const ptBR = {
     shareMessages: {
       days: "{{petName}} é meu amiguinho do jardim há {{count}} dias. Feito com Mongchi.",
       fallback: "Conheça {{petName}}, meu amiguinho do jardim. Feito com Mongchi."
+    },
+    shareCard: {
+      title: "Personalizar e compartilhar",
+      subtitle: "Escolha uma pose e um cenário que seus amigos vão adorar.",
+      poseSectionTitle: "Pose",
+      themeSectionTitle: "Cenário",
+      poseOptionAccessibilityLabel: "Pose {{pose}}",
+      themeOptionAccessibilityLabel: "Cenário {{theme}}",
+      selected: "Selecionado",
+      previewAccessibilityLabel: "Prévia do cartão de compartilhamento de {{petName}}",
+      closeAccessibilityLabel: "Fechar personalização do cartão",
+      shareAccessibilityLabel: "Compartilhar o cartão de {{petName}}"
     }
   },
   shop: {
     accessibilityLabel: "Loja do jardim",
-    title: "Loja do Jardim",
+    title: "Loja",
     back: "Voltar ao início",
     walletAccessibilityLabel: "Carteira da loja, {{credits}} créditos e {{owned}} itens do conjunto adquiridos",
     creditGemAccessibilityLabel: "Ícone de gema de crédito da loja",
-    categories: { treats: "Petiscos", toysAndRest: "Brinquedos", moments: "Momentos", themes: "Temas" },
+    openCreditStore: "Abrir a loja de gemas",
+    categories: {
+      all: "Todos",
+      treats: "Petiscos",
+      drinks: "Bebidas",
+      toys: "Brinquedos",
+      rest: "Descanso",
+      moments: "Momentos",
+      themes: "Temas"
+    },
+    tabs: {
+      care: "Petiscos e brinquedos",
+      customize: "Poses e temas"
+    },
+    sections: {
+      careItems: "Petiscos, bebidas e brinquedos",
+      careItemsDescription: "Escolha pequenas recompensas, brinquedos e itens aconchegantes.",
+      posePacks: "Pacotes de poses",
+      posePacksDescription: "Desbloqueie três expressões e poses combinando em cada pacote.",
+      themes: "Temas do jardim",
+      themesDescription: "Mude todo o clima da casa do seu companheiro."
+    },
+    careFiltersAccessibilityLabel: "Filtros de itens de cuidado",
+    customizeFiltersAccessibilityLabel: "Filtros de personalização",
     categoryAccessibilityLabel: "{{label}}, {{count}} itens",
     emptyPreview: "Novos itens aconchegantes aparecerão aqui quando esta prateleira estiver abastecida.",
     emptyShelf: "Estamos abastecendo esta prateleira.",
@@ -394,16 +524,46 @@ export const ptBR = {
     walletGemAccessibilityLabel: "Gema de crédito da carteira",
     coinAccessibilityLabel: "Moeda",
     gemPriceAccessibilityLabel: "Preço em gemas",
-    actions: { unlockTheme: "Desbloquear tema", applyTheme: "Aplicar tema", getItem: "Obter item", unlockPack: "Desbloquear pacote" },
-    grants: { consumable: "Crédito", durable: "Compra única", subscription: "Assinatura" },
+    actions: {
+      unlockTheme: "Desbloquear tema",
+      applyTheme: "Aplicar tema",
+      getItem: "Comprar",
+      unlockPack: "Desbloquear pacote"
+    },
+    grants: {
+      consumable: "Crédito",
+      durable: "Compra única",
+      subscription: "Assinatura"
+    },
     products: {
-      premiumChat: { name: "Conversa mensal Plus", description: "Conversas mais longas e acolhedoras enquanto o passe Plus estiver ativo." },
-      extraPetSlot: { name: "Espaço extra para bichinho", description: "Abra espaço para mais um perfil de bichinho." },
-      regenerationCredit: { name: "Crédito de nova geração", description: "Uma nova tentativa de avatar quando você quiser outro visual." },
-      starterTheme: { name: "Pacote de tema inicial", description: "Um novo cenário para o pequeno lar." },
-      itemPack: { name: "Pacote de itens", description: "Uma seleção especial de petiscos e brinquedos." },
-      treatPack: { name: "Pacote de petiscos", description: "Petiscos especiais para momentos de reações fofas." },
-      plusPass: { name: "Passe Plus", description: "Benefícios premium de vínculo para conversas mais longas e futuros recursos Plus." }
+      premiumChat: {
+        name: "Conversa mensal Plus",
+        description: "Conversas mais longas e acolhedoras enquanto o passe Plus estiver ativo."
+      },
+      extraPetSlot: {
+        name: "Espaço extra para bichinho",
+        description: "Abra espaço para mais um perfil de bichinho."
+      },
+      regenerationCredit: {
+        name: "Crédito de nova geração",
+        description: "Uma nova tentativa de avatar quando você quiser outro visual."
+      },
+      starterTheme: {
+        name: "Pacote de tema inicial",
+        description: "Um novo cenário para o pequeno lar."
+      },
+      itemPack: {
+        name: "Pacote de itens",
+        description: "Uma seleção especial de petiscos e brinquedos."
+      },
+      treatPack: {
+        name: "Pacote de petiscos",
+        description: "Petiscos especiais para momentos de reações fofas."
+      },
+      plusPass: {
+        name: "Passe Plus",
+        description: "Benefícios premium de vínculo para conversas mais longas e futuros recursos Plus."
+      }
     },
     actionAccessibility: {
       unlockTheme: "Desbloquear {{name}} por {{price}}",
@@ -413,7 +573,7 @@ export const ptBR = {
       buy: "Comprar {{name}}"
     },
     summary: {
-      accessibilityLabel: "{{owned}} itens do conjunto adquiridos, {{locked}} itens bloqueados na loja, {{plus}}",
+      accessibilityLabel: "{{owned}} itens do conjunto adquiridos e {{locked}} itens bloqueados na loja",
       owned: "Conjunto adquirido",
       locked: "{{count}} itens bloqueados na loja"
     },
@@ -441,9 +601,15 @@ export const ptBR = {
       boardAccessibilityLabel: "{{name}}, pacote de três poses, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Gema de crédito",
       allOwned: "Todas as 3 adquiridas",
-      allPrice: "Todas as 3 · {{credits}} créditos",
+      allPrice: "Todas as 3 · {{credits}}",
       actionAccessibilityLabel: "{{action}} de {{name}}",
-      actions: { generate: "Gerar todas as 3", retry: "Tentar as 3 de novo", needCredits: "Créditos necessários", making: "Criando poses...", owned: "Adquirido no perfil" }
+      actions: {
+        generate: "Gerar todas as 3",
+        retry: "Tentar as 3 de novo",
+        needCredits: "Obter gemas",
+        making: "Criando poses...",
+        owned: "Adquirido no perfil"
+      }
     },
     themes: {
       defaultName: "Jardim Aconchegante",
@@ -456,6 +622,38 @@ export const ptBR = {
       autumnDescription: "Folhas quentes e uma luz dourada suave para cuidados da estação.",
       winterName: "Luzes de Inverno",
       winterDescription: "Um cenário de noite nevada com um brilho festivo delicado."
+    }
+  },
+  creditsStore: {
+    accessibilityLabel: "Loja de gemas",
+    title: "Loja de gemas",
+    back: "Voltar à loja do jardim",
+    balanceAccessibilityLabel: "Saldo atual: {{credits}} gemas",
+    heroTitle: "Encontre mais pequenos momentos",
+    heroBody: "Use gemas em pacotes de poses, temas e cuidados especiais.",
+    starterTitle: "Presente do primeiro amigo · {{credits}}",
+    starterBody: "Adicionado uma vez após a chegada do seu primeiro companheiro.",
+    choosePack: "Escolha um pacote de gemas",
+    popular: "POPULAR",
+    packAmount: "{{credits}} gemas",
+    storePrice: "Preço da App Store",
+    purchaseAccessibilityLabel: "Comprar {{credits}} gemas",
+    packs: {
+      small: "Experimente abrindo um pacote",
+      popular: "Boa escolha para poses e temas",
+      large: "Colecione e decore por mais tempo"
+    },
+    actions: {
+      buy: "Comprar",
+      purchasing: "Verificando...",
+      preparing: "Loja em preparação"
+    },
+    storeNotice: "Os pagamentos são processados pela App Store. Só gemas verificadas entram no saldo.",
+    dialogs: {
+      failedTitle: "Compra não concluída",
+      failedBody: "Verifique a conexão e tente novamente.",
+      successTitle: "As gemas chegaram",
+      successBody: "As gemas verificadas foram adicionadas ao saldo."
     }
   },
   inventory: {
@@ -473,7 +671,13 @@ export const ptBR = {
     title: "Ajustes",
     back: "Voltar ao início",
     hero: "Clima, lembretes, privacidade e ajuda — tudo em um cantinho aconchegante.",
-    language: { title: "Idioma do app", english: "Inglês", korean: "Coreano", detail: "Usa o idioma do seu dispositivo no Mongchi.", action: "Alterar" },
+    language: {
+      title: "Idioma do app",
+      english: "Inglês",
+      korean: "Coreano",
+      detail: "Escolha aqui ou siga o seu aparelho.",
+      action: "Alterar"
+    },
     status: {
       needsCheck: "Precisa de verificação",
       syncing: "Sincronizando",
@@ -482,19 +686,48 @@ export const ptBR = {
       errorDetail: "Não foi possível concluir a alteração com segurança. Verifique sua conexão e tente de novo.",
       keepOpen: "Mantenha o app aberto enquanto a alteração é concluída."
     },
-    sections: { reminders: "Pequenos lembretes", sound: "Som e sensação", privacy: "Privacidade e cuidado", support: "Ajuda e termos legais" },
+    sections: {
+      reminders: "Pequenos lembretes",
+      sound: "Som e sensação",
+      privacy: "Privacidade e cuidado",
+      support: "Ajuda e termos legais"
+    },
+    notifications: {
+      careReminders: "Lembretes de cuidado",
+      careRemindersDetail: "Avisos gentis sobre refeições, água, oizinhos e sua carta mensal.",
+      walkUpdates: "Novidades do passeio",
+      walkUpdatesDetail: "Um aviso rápido quando o passeio termina e seu amiguinho está de volta."
+    },
     weather: {
       scenes: "Cenários de clima",
       useLocation: "Usar minha localização",
+      useLocationDetail: "Sua localização aproximada é enviada uma vez para buscar o clima local real do jardim — nunca é armazenada, nunca é compartilhada.",
       preview: "Prévia do clima",
       next: "Próximo: {{weather}}",
-      locationMessages: { requesting: "Verificando o clima aproximado da região.", ready: "O clima local está pronto.", denied: "A permissão de localização não foi concedida. Você ainda pode escolher o clima manualmente.", error: "O clima local não está disponível agora. Tente escolher uma opção manualmente." },
+      locationMessages: {
+        requesting: "Buscando o clima local real de hoje para o jardim.",
+        ready: "O clima local está pronto.",
+        denied: "A permissão de localização não foi concedida. Você ainda pode escolher o clima manualmente.",
+        error: "O clima local não está disponível agora. Tente escolher uma opção manualmente."
+      },
       options: {
         clear: { label: "Céu limpo", detail: "Jardim ensolarado padrão." },
-        rain: { label: "Chuva", detail: "Chuva sobre o cenário e falas aconchegantes." },
-        snow: { label: "Neve", detail: "Cenário de inverno e falas suaves sobre o frio." },
-        wind: { label: "Vento", detail: "Folhas em movimento e descobertas no passeio." },
-        hot: { label: "Quente", detail: "Cenário ensolarado e mais lembretes para cuidar do jardim." }
+        rain: {
+          label: "Chuva",
+          detail: "Chuva sobre o cenário e falas aconchegantes."
+        },
+        snow: {
+          label: "Neve",
+          detail: "Cenário de inverno e falas suaves sobre o frio."
+        },
+        wind: {
+          label: "Vento",
+          detail: "Folhas em movimento e descobertas no passeio."
+        },
+        hot: {
+          label: "Quente",
+          detail: "Cenário ensolarado e mais lembretes para cuidar do jardim."
+        }
       }
     },
     sound: {
@@ -517,7 +750,11 @@ export const ptBR = {
       restoreDetail: "Cole uma cópia salva para trazer seu jardim de volta."
     },
     links: { privacy: "Privacidade", terms: "Termos", support: "Ajuda" },
-    reset: { title: "Redefinir", detail: "Exclui a configuração local do bichinho neste dispositivo e reinicia as boas-vindas.", action: "Excluir dados do bichinho" },
+    reset: {
+      title: "Redefinir",
+      detail: "Exclui a configuração local do bichinho neste dispositivo e reinicia as boas-vindas.",
+      action: "Excluir dados do bichinho"
+    },
     dialogs: {
       errorLog: "Registro de erros",
       noErrors: "Nenhum erro recente foi registrado neste dispositivo.",
@@ -536,7 +773,8 @@ export const ptBR = {
       restoredTitle: "Que bom ter você de volta!",
       restoredMessage: "Seu jardim foi restaurado da cópia de segurança.",
       deleteAllTitle: "Excluir todos os seus dados?",
-      deleteAllMessage: "Isso exclui deste dispositivo a configuração do bichinho, o bichinho gerado, o estado dos cuidados e o inventário. Também solicita aos nossos servidores a exclusão da sua foto, dos avatares gerados e dos dados da conta. Esta ação não pode ser desfeita.",
+      deleteAllMessage:
+        "Isso exclui deste dispositivo a configuração do bichinho, o bichinho gerado, o estado dos cuidados e o inventário. Também solicita aos nossos servidores a exclusão da sua foto, dos avatares gerados e dos dados da conta. Esta ação não pode ser desfeita.",
       serverRetry: "A exclusão no servidor precisa de nova tentativa",
       serverRetryMessage: "Os dados do dispositivo foram apagados. Mantenha o app aberto e tente mais tarde para concluir também a exclusão no servidor."
     },
@@ -557,25 +795,69 @@ export const ptBR = {
     }
   },
   notifications: {
-    channel: { name: "Novidades do jardim", description: "Novidades gentis sobre seu jardim" },
+    channel: {
+      name: "Novidades do jardim",
+      description: "Novidades gentis sobre seu jardim"
+    },
     walkReturn: {
       fallbackPetName: "Seu bichinho",
       title: "{{petName}} voltou do passeio!",
       body: "Venha ver o que {{petName}} encontrou por aí."
     },
     garden: {
-      meal_due: { title: "{{petName}} está pensando na tigelinha", body: "Uma pequena refeição deixaria a saciedade aconchegante de novo." },
-      meal_urgent: { title: "A tigelinha de {{petName}} tem um espacinho hoje", body: "Uma refeição simples cairia muito bem para {{petName}} agora." },
-      thirst_due: { title: "A tigela de água de {{petName}} pode ganhar mais um pouquinho", body: "Dar água agora deixaria o humor um pouquinho mais alegre." },
-      thirst_hot_weather: { title: "{{petName}} aceitaria um gole fresquinho", body: "O dia está quente. Uma tigela de água fresca é o melhor primeiro cuidado." },
-      bored_play: { title: "{{petName}} encontrou o brinquedo de novo", body: "Uma brincadeira rápida parece divertida agora." },
-      attention_return: { title: "{{petName}} tem um pequeno oi esperando", body: "Abra o jardim para um carinho, uma conversa ou uma visitinha rápida." },
-      walk_window: { title: "Hora de uma pequena caminhada", body: "{{petName}} talvez goste de um passeio tranquilo hoje." },
-      rest_needed: { title: "{{petName}} está com soninho", body: "Um descanso mantém o ritmo tranquilo nesta noite." },
-      rainy_cozy_check: { title: "Uma visitinha em dia de chuva", body: "{{petName}} está bem aconchegado. Um oi combina com este clima." },
-      return_after_1_day: { title: "Uma pegadinha apareceu perto da porta", body: "{{petName}} ficou pensando em quando você voltaria por aqui." },
-      return_after_1_day_streak: { title: "{{petName}} está mantendo sua rotina bem aconchegante", body: "Sua sequência continua quentinha. Uma visita rápida hoje mantém o brilho." },
-      return_after_3_days: { title: "O jardim guardou um lugar para você", body: "Já faz alguns dias. {{petName}} adoraria um oi quando você quiser voltar." }
+      meal_due: {
+        title: "{{petName}} está pensando na tigelinha",
+        body: "Uma pequena refeição deixaria a saciedade aconchegante de novo."
+      },
+      meal_urgent: {
+        title: "A tigelinha de {{petName}} tem um espacinho hoje",
+        body: "Uma refeição simples cairia muito bem para {{petName}} agora."
+      },
+      thirst_due: {
+        title: "A tigela de água de {{petName}} pode ganhar mais um pouquinho",
+        body: "Dar água agora deixaria o humor um pouquinho mais alegre."
+      },
+      thirst_hot_weather: {
+        title: "{{petName}} aceitaria um gole fresquinho",
+        body: "O dia está quente. Uma tigela de água fresca é o melhor primeiro cuidado."
+      },
+      bored_play: {
+        title: "{{petName}} encontrou o brinquedo de novo",
+        body: "Uma brincadeira rápida parece divertida agora."
+      },
+      attention_return: {
+        title: "{{petName}} tem um pequeno oi esperando",
+        body: "Abra o jardim para um carinho, uma conversa ou uma visitinha rápida."
+      },
+      walk_window: {
+        title: "Hora de uma pequena caminhada",
+        body: "{{petName}} talvez goste de um passeio tranquilo hoje."
+      },
+      rest_needed: {
+        title: "{{petName}} está com soninho",
+        body: "Um descanso mantém o ritmo tranquilo nesta noite."
+      },
+      rainy_cozy_check: {
+        title: "Uma visitinha em dia de chuva",
+        body: "{{petName}} está bem aconchegado. Um oi combina com este clima."
+      },
+      return_after_1_day: {
+        title: "Uma pegadinha apareceu perto da porta",
+        body: "{{petName}} ficou pensando em quando você voltaria por aqui."
+      },
+      return_after_1_day_streak: {
+        title: "{{petName}} está mantendo sua rotina bem aconchegante",
+        body: "Sua sequência continua quentinha. Uma visita rápida hoje mantém o brilho."
+      },
+      return_after_3_days: {
+        title: "O jardim guardou um lugar para você",
+        body: "Já faz alguns dias. {{petName}} adoraria um oi quando você quiser voltar."
+      }
+    },
+    monthlyLetter: {
+      fallbackPetName: "Seu bichinho",
+      title: "Uma carta está esperando",
+      body: "Uma carta de {{petName}} está esperando no jardim."
     }
   },
   errorBoundary: {
@@ -593,21 +875,27 @@ export const ptBR = {
       updated: "Última atualização em 8 de julho de 2026 · v1.1",
       items: {
         first: "Sem conta e sem e-mail — o app abre com uma sessão anônima, sem cadastro.",
-        second: "A foto original do seu bichinho é enviada à OpenAI apenas para a verificação de segurança e a geração do avatar. Ela é excluída automaticamente dos nossos servidores assim que a geração termina.",
-        third: "Ao desbloquear mais expressões depois, usamos a arte do avatar já gerado, não a foto original — a essa altura, ela já não existe nos nossos servidores.",
+        second:
+          "A foto original do seu bichinho é enviada à OpenAI apenas para a verificação de segurança e a geração do avatar. Ela é excluída automaticamente dos nossos servidores assim que a geração termina.",
+        third:
+          "Ao desbloquear mais expressões depois, usamos a arte do avatar já gerado, não a foto original — a essa altura, ela já não existe nos nossos servidores.",
         fourth: "Os avatares gerados ficam em um armazenamento privado e só aparecem por links assinados de curta duração, nunca por uma URL pública.",
-        fifth: "Dados de cuidados, lembranças e progresso do jardim ficam armazenados localmente no seu dispositivo. Ao desinstalar o app, eles são excluídos para sempre.",
-        sixth: "Se você permitir, a localização aproximada será usada uma vez para consultar o clima e não será armazenada nos nossos servidores.",
+        fifth:
+          "Dados de cuidados, lembranças e progresso do jardim ficam armazenados localmente no seu dispositivo. Ao desinstalar o app, eles são excluídos para sempre.",
+        sixth: "Se você permitir, sua localização aproximada é arredondada e enviada uma única vez para buscar o clima local real do jardim. Ela nunca é armazenada — e se a busca falhar, seu aparelho cria um clima parecido por conta própria.",
         seventh: "A conversa premium é identificada como gerada por IA e moderada antes que as mensagens apareçam.",
         eighth: "Não usamos SDKs de anúncios ou rastreamento, e as análises não incluem fotos originais, texto bruto de conversas nem dados de pagamento."
       },
       sections: {
         sharingTitle: "Terceiros com quem compartilhamos dados",
-        sharingBody: "A OpenAI processa a foto original do seu bichinho para verificações de segurança e geração do avatar e, na conversa premium, o perfil do bichinho e o contexto recente da conversa. O Supabase hospeda nosso banco de dados, armazenamento privado e autenticação anônima. A Apple ou o Google processam pagamentos no app diretamente; recebemos um comprovante, nunca os dados do seu cartão.",
+        sharingBody:
+          "A OpenAI processa a foto original do seu bichinho para verificações de segurança e geração do avatar e, na conversa premium, o perfil do bichinho e o contexto recente da conversa. O Supabase hospeda nosso banco de dados, armazenamento privado e autenticação anônima. A Apple ou o Google processam pagamentos no app diretamente; recebemos um comprovante, nunca os dados do seu cartão.",
         rightsTitle: "Seus direitos",
-        rightsBody: "Você pode excluir a foto original separadamente. Para excluir tudo, escolha Excluir dados do bichinho nos Ajustes. Isso apaga os dados locais e solicita aos nossos servidores a remoção da foto, dos avatares gerados, da conta anônima e dos registros relacionados. Se não for possível acessar o servidor, os dados locais serão apagados na hora e o app pedirá que você tente novamente a etapa do servidor mais tarde.",
+        rightsBody:
+          "Você pode excluir a foto original separadamente. Para excluir tudo, escolha Excluir dados do bichinho nos Ajustes. Isso apaga os dados locais e solicita aos nossos servidores a remoção da foto, dos avatares gerados, da conta anônima e dos registros relacionados. Se não for possível acessar o servidor, os dados locais serão apagados na hora e o app pedirá que você tente novamente a etapa do servidor mais tarde.",
         childrenTitle: "Crianças",
-        childrenBody: "O Mongchi não é destinado a crianças menores de 13 anos. Se você acredita que uma criança forneceu informações por foto ou conversa, fale com o suporte e nós as excluiremos."
+        childrenBody:
+          "O Mongchi não é destinado a crianças menores de 13 anos. Se você acredita que uma criança forneceu informações por foto ou conversa, fale com o suporte e nós as excluiremos."
       },
       policyLink: "Link da política",
       policyFallback: "Um link seguro para a política de privacidade aparecerá aqui quando estiver disponível.",
@@ -626,18 +914,30 @@ export const ptBR = {
       faqTitle: "Perguntas frequentes",
       faq: {
         photoQuestion: "A foto do meu bichinho está segura?",
-        photoAnswer: "Sua foto é usada apenas para uma verificação de segurança e para gerar o avatar. Ela é excluída automaticamente dos nossos servidores quando a geração termina.",
+        photoAnswer:
+          "Sua foto é usada apenas para uma verificação de segurança e para gerar o avatar. Ela é excluída automaticamente dos nossos servidores quando a geração termina.",
         deleteQuestion: "Como excluo meus dados?",
-        deleteAnswer: "Exclua a foto original separadamente durante o fluxo da foto ou use Excluir dados do bichinho nos Ajustes para solicitar a exclusão completa local e no servidor.",
+        deleteAnswer:
+          "Exclua a foto original separadamente durante o fluxo da foto ou use Excluir dados do bichinho nos Ajustes para solicitar a exclusão completa local e no servidor.",
         creditQuestion: "O que acontece com meus créditos se a geração falhar?",
-        creditAnswer: "Uma falha de sistema, segurança ou qualidade não deve consumir um crédito pago. Relate abaixo se um crédito parecer ter sido usado indevidamente."
+        creditAnswer:
+          "Uma falha de sistema, segurança ou qualidade não deve consumir um crédito pago. Relate abaixo se um crédito parecer ter sido usado indevidamente."
       },
       reportTitle: "Relatar problema na geração",
       reportDetail: "Os relatos usam uma categoria segura e não enviam fotos originais para análise.",
       options: {
-        wrong: { label: "Visual diferente", description: "A espécie, as marcas ou o rosto não parecem certos." },
-        unsafe: { label: "Visual desconfortável", description: "Algo parece desconfortável ou assustador." },
-        quality: { label: "Resultado borrado", description: "Está difícil reconhecer o bichinho." }
+        wrong: {
+          label: "Visual diferente",
+          description: "A espécie, as marcas ou o rosto não parecem certos."
+        },
+        unsafe: {
+          label: "Visual desconfortável",
+          description: "Algo parece desconfortável ou assustador."
+        },
+        quality: {
+          label: "Resultado borrado",
+          description: "Está difícil reconhecer o bichinho."
+        }
       },
       report: "Relatar",
       saved: "Salvo",
@@ -651,7 +951,8 @@ export const ptBR = {
       title: "Uso justo e valor pago",
       updated: "Última atualização em 7 de julho de 2026 · v1.0",
       items: {
-        first: "Mongchi é entretenimento gerado por IA — seu companheiro e a conversa não são a consciência, a memória ou uma orientação médica do seu bichinho real.",
+        first:
+          "Mongchi é entretenimento gerado por IA — seu companheiro e a conversa não são a consciência, a memória ou uma orientação médica do seu bichinho real.",
         second: "No primeiro fluxo do bichinho, a foto selecionada fica sob seu controle e pode ser excluída separadamente.",
         third: "Gerações ruins, falhas do sistema e reprovações de qualidade não devem consumir valores pagos.",
         fourth: "Os cuidados básicos continuam gratuitos. Itens pagos acrescentam expressividade, não aceleram a recuperação dos medidores de cuidado.",
@@ -660,11 +961,14 @@ export const ptBR = {
       },
       sections: {
         useTitle: "Uso aceitável",
-        useBody: "Não envie fotos com pessoas, conteúdo explícito ou violento nem qualquer conteúdo ilegal. Não burle os limites de geração ou as verificações de segurança e não tente contornar as proteções da conversa.",
+        useBody:
+          "Não envie fotos com pessoas, conteúdo explícito ou violento nem qualquer conteúdo ilegal. Não burle os limites de geração ou as verificações de segurança e não tente contornar as proteções da conversa.",
         portabilityTitle: "Sem portabilidade de conta",
-        portabilityBody: "Mongchi não usa contas tradicionais. Os dados da sessão e do jogo ficam no seu dispositivo. Por isso, desinstalar o app ou trocar de dispositivo sem uma cópia de segurança pode apagar para sempre o progresso local, as lembranças e os créditos.",
+        portabilityBody:
+          "Mongchi não usa contas tradicionais. Os dados da sessão e do jogo ficam no seu dispositivo. Por isso, desinstalar o app ou trocar de dispositivo sem uma cópia de segurança pode apagar para sempre o progresso local, as lembranças e os créditos.",
         disclaimerTitle: "Isenção de responsabilidade",
-        disclaimerBody: "Mongchi é fornecido no estado em que se encontra. O conteúdo gerado por IA pode ocasionalmente ser impreciso ou falhar, mesmo com verificações de segurança e qualidade. Consulte os termos completos para conhecer todos os limites."
+        disclaimerBody:
+          "Mongchi é fornecido no estado em que se encontra. O conteúdo gerado por IA pode ocasionalmente ser impreciso ou falhar, mesmo com verificações de segurança e qualidade. Consulte os termos completos para conhecer todos os limites."
       },
       linkTitle: "Link dos termos",
       linkFallback: "Um link seguro para os termos aparecerá aqui quando estiver disponível.",
