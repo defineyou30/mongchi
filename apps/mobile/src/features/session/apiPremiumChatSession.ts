@@ -1,15 +1,19 @@
 import * as Crypto from "expo-crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { buildChatTurnPetProfile, getPremiumChatPaymentPreview, spendPremiumChatTurn } from "@mongchi/shared";
-import type { ChatCareContext, ChatMemoryContext, ConversationMessage, CreditWallet, PetId, PetProfile } from "@mongchi/shared";
+import { buildChatTurnPetProfile } from "@mongchi/shared";
+import type { ChatCareContext, ChatMemoryContext, ChatTurnResponse, ConversationMessage, CreditWallet, PetId, PetProfile } from "@mongchi/shared";
 
 import type { MobileApiError } from "../../shared/api";
 import { normalizeAppLocale } from "../../localization/localeNormalization";
 import type { AppLocale } from "../../localization/localeNormalization";
 import { getResourcesForLocale } from "../../localization/resourceCatalog";
 import { ensureSupabaseSession } from "./supabaseGenerationSession";
-import { invokeSupabaseChatTurn, loadSupabasePremiumChatThread } from "./supabasePremiumChatSession";
+import {
+  invokeSupabaseChatTurn,
+  loadSupabasePremiumChatThread,
+  purchaseSupabaseChatDayPass
+} from "./supabasePremiumChatSession";
 
 // ---------------------------------------------------------------------------
 // Chat Live wave C2 (docs/chat-live-design.md §6.1): thin start/send adapter
@@ -62,6 +66,26 @@ export type SendPremiumChatTurnResult =
       wallet: CreditWallet;
       /** True when this turn matched the crisis-referral pattern -- petMessage is already a warm resource message (sender "system"); nothing was charged. */
       crisisReferral: boolean;
+      /** Server-decided settlement for this turn (§ chat day pass BM decision) -- lets the gate UI notice a "day_pass" turn and keep its "pass is active" state in sync even when the pass was already active before this screen mounted. */
+      chargeKind: ChatTurnResponse["chargeKind"];
+    }
+  | {
+      ok: false;
+      error: MobileApiError;
+    };
+
+export interface PurchaseChatDayPassContext {
+  wallet: CreditWallet;
+  locale?: AppLocale;
+}
+
+export type PurchaseChatDayPassResult =
+  | {
+      ok: true;
+      /** True when the caller already held an active pass -- a relationship-frame success, not a fresh charge (see purchaseSupabaseChatDayPass's doc comment). */
+      alreadyActive: boolean;
+      dayPassExpiresAt: string | null;
+      wallet: CreditWallet;
     }
   | {
       ok: false;
@@ -108,13 +132,9 @@ export const startApiPremiumChatThread = async (
 };
 
 /**
- * Sends one premium chat turn through chat-turn, deciding *before* the call
- * whether it is a free (ticket/Plus) or credit turn (docs/chat-live-design.md
- * §4.1 -- ticket count is local-only truth, credit_wallets.balance is
- * server-only truth) and only mutating the local wallet *after* a successful,
- * non-crisis response (§4.2's "never optimistic" + §5.2's "crisis turns are
- * never charged"). A failed or offline call leaves the wallet completely
- * untouched -- the caller just shows a retry message.
+ * Sends one premium chat turn through chat-turn. Billing, free allowances,
+ * Plus access, rate limiting, and request idempotency are all server-owned;
+ * the client only reconciles the returned wallet snapshot after success.
  */
 export const sendApiPremiumChatTurn = async (
   client: SupabaseClient,
@@ -130,24 +150,12 @@ export const sendApiPremiumChatTurn = async (
     };
   }
 
-  const payment = getPremiumChatPaymentPreview(context.wallet, context.hasPremiumChatEntitlement);
-
-  if (!payment.canStart) {
-    return {
-      ok: false,
-      error: localPremiumChatError("chat_locked", getResourcesForLocale(normalizedLocale).chat.deterministicErrors.locked)
-    };
-  }
-
-  const charge: "free" | "credit" = payment.mode === "credit" ? "credit" : "free";
-
   const outcome = await invokeSupabaseChatTurn(client, {
     petId: context.petId,
     ...(currentThread.conversationId ? { conversationId: currentThread.conversationId } : {}),
     text: normalizedText,
     disclosureAccepted: true,
     requestId,
-    charge,
     locale: normalizedLocale,
     petProfile: buildChatTurnPetProfile(context.petProfile),
     ...(context.memoryContext ? { memoryContext: context.memoryContext } : {}),
@@ -160,29 +168,14 @@ export const sendApiPremiumChatTurn = async (
 
   const { data } = outcome;
   const spentAt = data.userMessage.createdAt;
-  let wallet = context.wallet;
-
-  // Crisis-referral turns never charge (§5.2 layer 1: no OpenAI call, no
-  // ticket/credit spend). Ticket accounting has no server counterpart, so
-  // only the client can honor that for the free-ticket path; the credit path
-  // is naturally safe since chargedCredit stays 0 and serverBalance is
-  // unchanged when the server itself didn't charge.
-  if (!data.crisisReferral) {
-    if (payment.mode === "free_ticket") {
-      const spend = spendPremiumChatTurn(wallet, spentAt);
-
-      if (spend.ok) {
-        wallet = spend.wallet;
-      }
-    } else if (payment.mode === "credit") {
-      // credit_wallets.balance is server-authoritative for wallet.credits
-      // (see hydrateServerCreditBalance's doc comment in
-      // supabaseGenerationSession.ts) -- bonusCredits and freeChatTickets
-      // are separate local-only buckets, untouched here.
-      wallet = { ...wallet, credits: data.serverBalance, updatedAt: spentAt };
-    }
-    // plus_pass: unlimited: nothing to spend locally.
-  }
+  const wallet = data.crisisReferral
+    ? context.wallet
+    : {
+        ...context.wallet,
+        credits: data.serverBalance,
+        freeChatTickets: data.freeTurnsRemaining,
+        updatedAt: spentAt
+      };
 
   return {
     ok: true,
@@ -191,6 +184,45 @@ export const sendApiPremiumChatTurn = async (
       messages: [...currentThread.messages, data.userMessage, data.petMessage]
     },
     wallet,
-    crisisReferral: data.crisisReferral
+    crisisReferral: data.crisisReferral,
+    chargeKind: data.chargeKind
+  };
+};
+
+/**
+ * Spends the server-constant credit price for 24 rolling hours of
+ * day-pass-covered premium chat turns (chatDayPassCreditCost,
+ * @mongchi/shared's wallet.ts). requestId is caller-owned so a retry after a
+ * network failure reuses the same id and stays idempotent server-side (same
+ * principle as sendApiPremiumChatTurn/supabaseGenerationSession's
+ * request_id) -- the default only exists for callers that don't need retry
+ * idempotency (e.g. a one-shot test).
+ */
+export const purchaseApiChatDayPass = async (
+  client: SupabaseClient,
+  context: PurchaseChatDayPassContext,
+  requestId: string = Crypto.randomUUID()
+): Promise<PurchaseChatDayPassResult> => {
+  const normalizedLocale = normalizeAppLocale(context.locale);
+  const outcome = await purchaseSupabaseChatDayPass(client, requestId);
+
+  if (!outcome.ok) {
+    return { ok: false, error: localizePremiumChatError(outcome.error, normalizedLocale) };
+  }
+
+  const { data } = outcome;
+
+  return {
+    ok: true,
+    alreadyActive: data.alreadyActive,
+    dayPassExpiresAt: data.dayPassExpiresAt,
+    wallet: {
+      ...context.wallet,
+      // Server-owned balance after the debit (or, on an already-active
+      // replay, simply the current balance) -- bonusCredits is untouched,
+      // same convention as sendApiPremiumChatTurn's wallet reconciliation
+      // above.
+      credits: data.serverBalance
+    }
   };
 };

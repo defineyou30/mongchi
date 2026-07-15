@@ -8,6 +8,7 @@ import {
   setPrototypeMockPhotoSelected,
   setPrototypeWeatherCondition,
   setPrototypeWeatherEnabled,
+  startPrototypeWalk,
   updatePrototypeDraft
 } from "@mongchi/shared";
 import type { PetSetupDraft, PrototypeSessionState, WeatherCondition } from "@mongchi/shared";
@@ -19,6 +20,8 @@ export const storeScreenshotPresets = [
   "hatching",
   "pet-reveal",
   "terrarium",
+  "terrarium-walk",
+  "terrarium-walk-empty",
   "chat",
   "shop"
 ] as const;
@@ -32,6 +35,8 @@ export const storeScreenshotPresetRoutes: Record<StoreScreenshotPreset, string> 
   hatching: "/generation",
   "pet-reveal": "/pet-reveal",
   terrarium: "/terrarium",
+  "terrarium-walk": "/terrarium",
+  "terrarium-walk-empty": "/terrarium",
   chat: "/chat",
   shop: "/shop"
 };
@@ -50,6 +55,10 @@ const presetAliases: Record<string, StoreScreenshotPreset> = {
   reveal: "pet-reveal",
   terrarium: "terrarium",
   "main-terrarium": "terrarium",
+  "terrarium-walk": "terrarium-walk",
+  walk: "terrarium-walk",
+  "terrarium-walk-empty": "terrarium-walk-empty",
+  "walk-empty": "terrarium-walk-empty",
   chat: "chat",
   "ai-chat": "chat",
   "premium-bond": "chat",
@@ -145,6 +154,21 @@ const withOptionalWeather = (state: PrototypeSessionState, now: string): Prototy
   return condition ? setPrototypeWeatherCondition(setPrototypeWeatherEnabled(state, true, now), condition, now) : state;
 };
 
+const withWalkingPet = (state: PrototypeSessionState, now: string, credits: number): PrototypeSessionState =>
+  startPrototypeWalk(
+    {
+      ...state,
+      wallet: {
+        ...state.wallet,
+        credits,
+        bonusCredits: 0,
+        updatedAt: now
+      }
+    },
+    now,
+    3 * 60 * 1000
+  );
+
 export const normalizeStoreScreenshotPreset = (value: string | null | undefined): StoreScreenshotPreset | null => {
   if (!value) {
     return null;
@@ -186,5 +210,9 @@ export const createStoreScreenshotSession = (
     case "chat":
     case "shop":
       return withOptionalWeather(withAcceptedPet(photoState, now), now);
+    case "terrarium-walk":
+      return withWalkingPet(withAcceptedPet(photoState, now), now, 12);
+    case "terrarium-walk-empty":
+      return withWalkingPet(withAcceptedPet(photoState, now), now, 0);
   }
 };

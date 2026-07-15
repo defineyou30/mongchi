@@ -1,3 +1,5 @@
+import { withRequestTimeout } from "../../shared/api/requestTimeout";
+
 const RETRYABLE_DELETE_CODES = [
   "storage_delete_failed",
   "auth_delete_failed",
@@ -39,6 +41,8 @@ type DeleteAccountFunctionClient = {
   };
 };
 
+const accountDeletionTimeoutMs = 60_000;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -79,7 +83,10 @@ export const deleteSupabaseAccountData = async (
   client: DeleteAccountFunctionClient
 ): Promise<DeleteSupabaseAccountResult> => {
   try {
-    const invoked = await client.functions.invoke("delete-account", { body: {} });
+    const invoked = await withRequestTimeout(
+      client.functions.invoke("delete-account", { body: {} }),
+      accountDeletionTimeoutMs
+    );
 
     if (invoked.error) {
       const status = invoked.response?.status ?? 0;

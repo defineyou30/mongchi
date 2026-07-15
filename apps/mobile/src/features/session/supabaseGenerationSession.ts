@@ -3,17 +3,19 @@ import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { canCreatePet, generationStepStatuses } from "@mongchi/shared";
+import { canCreatePet, generationStepStatuses, isFirstOrOnlyPetId } from "@mongchi/shared";
 import type {
   CareActionType,
   GeneratedAsset,
   GeneratedAssetState,
   GenerationJobStatus,
   PetBundle,
+  PetId,
   PrototypeSessionState
 } from "@mongchi/shared";
 
 import type { MobileApiError } from "../../shared/api";
+import { withRequestTimeout } from "../../shared/api/requestTimeout";
 import { getConfiguredSupabaseAnonKey, getConfiguredSupabaseUrl } from "./supabaseClient";
 import { reporter } from "../../shared/errors/reporter";
 
@@ -28,8 +30,20 @@ export type SupabaseGenerationFlowResult<T> =
     };
 
 const generationPollIntervalMs = 900;
-const petMediaBucket = "pet-media";
-const signedUrlExpirySeconds = 7 * 24 * 60 * 60; // 7 days
+// Exported so localGeneratedAssetStore.ts can re-sign an expired download url
+// for the same bucket without duplicating the bucket name.
+export const petMediaBucket = "pet-media";
+// A signed url is now only ever needed at download time -- once
+// localGeneratedAssetStore.ts's ensureLocalGeneratedAssets has copied an
+// asset to a permanent on-device file, rendering reads that local file and
+// never touches this url again (see generatedAssetUriMap.ts's local-uri
+// precedence). 7 days just gives a generous window to complete that one
+// download (retry after a lapsed app session, slow network, etc) before this
+// url would need re-signing -- it is not a rendering lifetime.
+const signedUrlExpirySeconds = 7 * 24 * 60 * 60;
+const supabaseAuthTimeoutMs = 20_000;
+const generationInvokeTimeoutMs = 180_000;
+const supabaseStorageTimeoutMs = 20_000;
 const sourcePhotoMaxLongEdge = 768;
 const sourcePhotoJpegCompression = 0.8;
 
@@ -106,13 +120,13 @@ export type EnsureSupabaseSessionResult = EnsuredSupabaseSession | { ok: false; 
  * before invoking an Edge Function" step -- see docs/chat-live-design.md §6.1.
  */
 export const ensureSupabaseSession = async (client: SupabaseClient): Promise<EnsureSupabaseSessionResult> => {
-  const existing = await client.auth.getSession();
+  const existing = await withRequestTimeout(client.auth.getSession(), supabaseAuthTimeoutMs);
 
   if (existing.data.session?.user.id) {
     return { ok: true, userId: existing.data.session.user.id };
   }
 
-  const signedIn = await client.auth.signInAnonymously();
+  const signedIn = await withRequestTimeout(client.auth.signInAnonymously(), supabaseAuthTimeoutMs);
 
   if (signedIn.error || !signedIn.data.session?.user.id) {
     return {
@@ -309,7 +323,10 @@ const invokeGenerateAvatarWithBody = async (
   client: SupabaseClient,
   body: Record<string, unknown>
 ): Promise<InvokeGenerateAvatarOutcome> => {
-  const invoked = await client.functions.invoke("generate-avatar", { body });
+  const invoked = await withRequestTimeout(
+    client.functions.invoke("generate-avatar", { body }),
+    generationInvokeTimeoutMs
+  );
 
   if (invoked.error) {
     const context = (invoked.error as { context?: { status?: number } }).context;
@@ -599,7 +616,10 @@ const signGeneratedAssetUrls = async (
   const signed: GeneratedAsset[] = [];
 
   for (const asset of assets) {
-    const result = await client.storage.from(petMediaBucket).createSignedUrl(asset.storage_path, signedUrlExpirySeconds);
+    const result = await withRequestTimeout(
+      client.storage.from(petMediaBucket).createSignedUrl(asset.storage_path, signedUrlExpirySeconds),
+      supabaseStorageTimeoutMs
+    );
 
     if (result.error || !result.data?.signedUrl) {
       continue;
@@ -673,9 +693,12 @@ const pollSupabaseGenerationFlowInner = async (
     job.status !== "failed" &&
     (job.lease_expires_at === null || Date.parse(job.lease_expires_at) <= Date.parse(now))
   ) {
-    const resumed = await client.functions.invoke("generate-avatar", {
-      body: { resume_job_id: job.id }
-    });
+    const resumed = await withRequestTimeout(
+      client.functions.invoke("generate-avatar", {
+        body: { resume_job_id: job.id }
+      }),
+      generationInvokeTimeoutMs
+    );
 
     if (resumed.error) {
       reporter.captureMessage("generation: stale job resume failed", {
@@ -690,40 +713,36 @@ const pollSupabaseGenerationFlowInner = async (
     failureMessageSafe: job.failure_message_safe
   });
 
-  if (job.status !== "completed" || !job.generated_assets || job.generated_assets.length === 0) {
-    const visibleGeneration = job.status === "completed"
-      ? toLocalGenerationState("quality_checking", now, state.generation.retryCount, pollAttemptCount)
-      : generation;
+  if (job.status !== "completed") {
     return {
       ok: true,
-      data: { generation: visibleGeneration }
+      data: { generation }
     };
   }
 
   const petId = state.petProfile?.id ?? job.id;
-  const signedAssets = await signGeneratedAssetUrls(client, job.generated_assets, petId, now);
+  const signedAssets = await signGeneratedAssetUrls(client, job.generated_assets ?? [], petId, now);
 
-  const requiredStates = job.required_states && job.required_states.length > 0 ? job.required_states : ["idle"];
-  const signedStates = new Set<string>(signedAssets.map((asset) => asset.state));
-
-  if (requiredStates.some((state) => !signedStates.has(state))) {
-    return {
-      ok: true,
-      data: {
-        generation: toLocalGenerationState("quality_checking", now, state.generation.retryCount, pollAttemptCount)
-      }
-    };
-  }
-
-  const idleAsset = signedAssets.find((asset) => asset.state === "idle") ?? signedAssets[0];
+  // Starter generation intentionally keeps reward poses locked with RLS. A
+  // completed job may therefore expose only idle even though required_states
+  // also contains happy and sleep. Idle is the reveal contract; locked poses
+  // are fetched later when their unlock conditions are satisfied.
+  const idleAsset = signedAssets.find((asset) => asset.state === "idle");
 
   if (!idleAsset) {
-    return {
-      ok: true,
-      data: {
-        generation: toLocalGenerationState("quality_checking", now, state.generation.retryCount, pollAttemptCount)
-      }
-    };
+    reporter.captureMessage("generation: completed job missing visible idle asset", {
+      jobId: job.id,
+      requiredStates: job.required_states ?? [],
+      visibleStates: signedAssets.map((asset) => asset.state)
+    });
+    return errorResult(
+      toMobileError(
+        0,
+        "generation_idle_asset_unavailable",
+        "Your companion is ready, but its first pose could not be opened. Try again.",
+        true
+      )
+    );
   }
 
   return {
@@ -1123,9 +1142,12 @@ const pollSupabaseExpressionPackFlowInner = async (
     job.status !== "failed" &&
     (job.lease_expires_at === null || Date.parse(job.lease_expires_at) <= Date.parse(now))
   ) {
-    const resumed = await client.functions.invoke("generate-avatar", {
-      body: { resume_job_id: job.id }
-    });
+    const resumed = await withRequestTimeout(
+      client.functions.invoke("generate-avatar", {
+        body: { resume_job_id: job.id }
+      }),
+      generationInvokeTimeoutMs
+    );
 
     if (resumed.error) {
       reporter.captureMessage("expressionPack: stale job resume failed", {
@@ -1240,6 +1262,234 @@ export const unlockSupabaseStarterPosesForCareAction = async (
     ok: true,
     data: { assets: await signGeneratedAssetUrls(client, rows, idleAsset.petId, now) }
   };
+};
+
+/**
+ * Second, independent unlock path for the `sleep` starter pose -- see
+ * supabase/migrations/0022_sleep_pose_night_unlock.sql's header comment for
+ * why unlockSupabaseStarterPosesForCareAction's rest-only path above can
+ * never reach it in practice. Called once per app session the first time
+ * this device reports Home being open during the 22:00-06:00 night window
+ * (see TerrariumSessionProvider's attemptSleepPoseNightUnlock) -- unlike that
+ * function, this RPC takes no p_job_id and simply unlocks every one of the
+ * caller's own still-locked sleep assets in one call. Returns an empty
+ * assets list (never an error) when there is nothing left to unlock, so a
+ * pet that already has its sleep pose is a harmless no-op.
+ */
+export const unlockSupabaseSleepPoseForNightVisit = async (
+  client: SupabaseClient,
+  state: PrototypeSessionState & PetBundle,
+  now: string
+): Promise<SupabaseGenerationFlowResult<StarterPoseUnlockOutcome>> => {
+  const session = await ensureSupabaseSession(client);
+
+  if (!session.ok) {
+    return { ok: false, error: session.error };
+  }
+
+  const idleAsset = state.acceptedAssets.find((asset) => asset.state === "idle") ?? state.acceptedAsset;
+
+  if (!idleAsset) {
+    return { ok: true, data: { assets: [] } };
+  }
+
+  const result = await client.rpc("unlock_sleep_pose_for_night_visit");
+
+  if (result.error) {
+    return errorResult(
+      toMobileError(0, "sleep_pose_unlock_failed", "That sleepy new pose needs another moment. It will be there again tomorrow night.", true)
+    );
+  }
+
+  const returnedRows = Array.isArray(result.data) ? result.data : result.data ? [result.data] : [];
+  const rows: GeneratedAssetRow[] = [];
+
+  for (const row of returnedRows) {
+    if (
+      row &&
+      typeof row === "object" &&
+      typeof row.job_id === "string" &&
+      typeof row.state === "string" &&
+      typeof row.storage_path === "string" &&
+      typeof row.width === "number" &&
+      typeof row.height === "number"
+    ) {
+      rows.push(row as GeneratedAssetRow);
+    }
+  }
+
+  return {
+    ok: true,
+    data: { assets: await signGeneratedAssetUrls(client, rows, idleAsset.petId, now) }
+  };
+};
+
+interface GeneratedAssetSyncRow {
+  job_id: string;
+  pet_id: string | null;
+  state: GeneratedAssetState;
+  storage_path: string;
+  width: number;
+  height: number;
+}
+
+const generatedAssetsSyncSelect = "job_id,pet_id,state,storage_path,width,height";
+
+export interface ResyncGeneratedAssetsOutcome {
+  assets: GeneratedAsset[];
+}
+
+/**
+ * Safety-net resync: reads every one of this user's own unlocked, job-
+ * completed generated_assets rows (RLS's generated_assets_select_unlocked_own
+ * policy already restricts a bare select to exactly that -- see
+ * supabase/migrations/0010_enforce_generated_asset_unlocks.sql -- so this
+ * needs no job-status or unlocked_at filter of its own) and returns the
+ * subset scoped to `bundlePetId`, signed and ready to merge via
+ * mergePrototypeGeneratedAssets.
+ *
+ * Exists because expression-pack completions only ever reach local state
+ * through the in-memory poll-and-merge effect in TerrariumSessionProvider
+ * (itself resumed on app start from state.inventory.pendingExpressionPackJobs
+ * while a job is still pending) -- there is no other path that reconciles
+ * acceptedAssets against server truth once a pending-job record is gone.
+ * A pack whose completion this device never observed live (an earlier app
+ * version's bug, or any other way the local pending-job record and the
+ * in-memory merge fell out of step) leaves that pack's assets stranded
+ * server-side forever without a call like this one. Callers should invoke it
+ * once per app session, right after hydration, and merge in whatever it
+ * returns -- a pack the device already knows about simply arrives again
+ * and mergePrototypeGeneratedAssets's per-state overwrite makes that a no-op.
+ *
+ * Two different ids are involved on purpose, and must not be conflated
+ * (a real-device bug did exactly that -- see below):
+ *
+ *   - `bundlePetId` is a pet *bundle key* (state.activePetId, or any key of
+ *     state.pets) and is used ONLY to decide the generated_assets.pet_id
+ *     filter, via isFirstOrOnlyPetId -- the shared predicate this file used
+ *     to duplicate inline as `petId === FIRST_PET_ID`. Callers must pass the
+ *     bundle key here, never a PetProfile.id.
+ *   - `assetPetId` is used only to *tag* the resulting GeneratedAsset.petId
+ *     field, matching what every other asset already in acceptedAssets uses
+ *     (state.petProfile?.id, e.g. see pollSupabaseGenerationFlowInner) -- it
+ *     has no bearing on the server-side filter.
+ *
+ * The bug: this used to take a single `petId` and both filter *and* tag with
+ * it, comparing it directly against FIRST_PET_ID for the filter decision.
+ * On a real device, that petId was PetProfile.id -- a fresh
+ * `pet_local_<uuid>` minted once real generation starts (see
+ * startSupabaseGenerationFlowInner below), never `pet_local_001` post-
+ * generation -- so `petId === FIRST_PET_ID` was always false, the filter
+ * fell through to `row.pet_id === petId` (a UUID), and every row (all
+ * legitimately pet_id NULL, since no client code path here ever sends an
+ * explicit pet_id -- W3, the client work that would, hasn't landed) matched
+ * zero. The query succeeded and genuinely returned rows, so this resolved
+ * `ok: true` with an empty `assets: []` -- indistinguishable from "nothing
+ * to sync" -- and the caller's one-shot guard was consumed on a false
+ * negative every time.
+ *
+ * Session-not-ready is deliberately surfaced as `ok: false` (retryable),
+ * never folded into an empty-but-ok result -- unlike the poll flows in this
+ * file (which are already on a recurring interval and can afford to treat a
+ * lapsed session as "just reschedule"), this is meant to run at most once
+ * per app session, driven by a caller-side one-shot guard. A cold-boot race
+ * was observed on a real device where TerrariumSessionProvider's Supabase
+ * client had not finished restoring its persisted auth session by the time
+ * this ran (getSession briefly reporting no session even though one exists
+ * in storage): the caller's guard was already consumed *before* this
+ * resolved, so that single unlucky attempt permanently burned the device's
+ * only chance to resync, even though the very same session became available
+ * moments later. Returning `ok: false` here (instead of a silent empty
+ * success) lets the caller distinguish "genuinely nothing to sync" from
+ * "wasn't ready yet, please try again" and only consume its one-shot guard
+ * on the former.
+ */
+const resyncGeneratedAssetsFromServerInner = async (
+  client: SupabaseClient,
+  bundlePetId: PetId,
+  assetPetId: string,
+  now: string
+): Promise<SupabaseGenerationFlowResult<ResyncGeneratedAssetsOutcome>> => {
+  const session = await ensureSupabaseSession(client);
+
+  if (!session.ok) {
+    return errorResult(
+      toMobileError(
+        0,
+        "generated_assets_resync_session_not_ready",
+        "Could not refresh your companion's photo album yet.",
+        true
+      )
+    );
+  }
+
+  const queried = await client.from("generated_assets").select(generatedAssetsSyncSelect);
+
+  if (queried.error) {
+    return errorResult(
+      toMobileError(0, "generated_assets_resync_failed", "Could not refresh your companion's photo album.", true)
+    );
+  }
+
+  const rows = (queried.data ?? []) as GeneratedAssetSyncRow[];
+  const isFirstOrOnlyPet = isFirstOrOnlyPetId(bundlePetId);
+  const scoped = rows.filter((row) => (isFirstOrOnlyPet ? row.pet_id === null : row.pet_id === bundlePetId));
+
+  if (scoped.length === 0) {
+    return { ok: true, data: { assets: [] } };
+  }
+
+  const assetRows: GeneratedAssetRow[] = scoped.map((row) => ({
+    job_id: row.job_id,
+    state: row.state,
+    storage_path: row.storage_path,
+    width: row.width,
+    height: row.height
+  }));
+
+  return {
+    ok: true,
+    data: { assets: await signGeneratedAssetUrls(client, assetRows, assetPetId, now) }
+  };
+};
+
+/**
+ * Same I4 shield as the other flows in this file -- see
+ * pollSupabaseGenerationFlow's doc comment for why an uncaught throw here
+ * would otherwise be a silent no-op instead of a visible, retryable outcome.
+ * An uncaught throw is folded into the same `generated_assets_resync_*`
+ * retryable-error shape as every other failure path in this flow, so callers
+ * only ever need to branch on `ok`, not on which specific failure occurred.
+ *
+ * Callers must only consume a one-shot "already resynced" guard on
+ * `ok: true` -- an `ok: false` here (session not ready, query error, or an
+ * uncaught throw) is always retryable and nothing local was mutated, so the
+ * caller should leave its guard untouched and try again on the next natural
+ * opportunity (next render, app foreground resume, etc.), ideally bounded by
+ * an attempt cap of its own.
+ *
+ * See resyncGeneratedAssetsFromServerInner's doc comment for why
+ * `bundlePetId` and `assetPetId` are two separate parameters that must not
+ * be conflated -- pass state.activePetId (or the relevant pet's bundle key)
+ * for the former, and the pet's PetProfile.id for the latter.
+ */
+export const resyncGeneratedAssetsFromServer = async (
+  client: SupabaseClient,
+  bundlePetId: PetId,
+  assetPetId: string,
+  now: string
+): Promise<SupabaseGenerationFlowResult<ResyncGeneratedAssetsOutcome>> => {
+  try {
+    return await resyncGeneratedAssetsFromServerInner(client, bundlePetId, assetPetId, now);
+  } catch (cause) {
+    console.warn("[generatedAssets] resync flow threw:", cause instanceof Error ? cause.message : String(cause));
+    reporter.captureMessage("generatedAssets: resync flow threw", {
+      cause: cause instanceof Error ? cause.message : String(cause)
+    });
+    return errorResult(
+      toMobileError(0, "generated_assets_resync_failed", "Could not refresh your companion's photo album.", true)
+    );
+  }
 };
 
 // ---------------------------------------------------------------------------

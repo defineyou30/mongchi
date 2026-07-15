@@ -51,7 +51,7 @@ describe("development store credit presentation", () => {
         spendableCreditBalance: 25
       })
     ).toEqual({
-      creditBalance: 25,
+      creditBalance: 0,
       devStoreCreditsAvailable: false,
       expressionPackCreditBalance: 0
     });
@@ -67,7 +67,7 @@ describe("development store credit presentation", () => {
         spendableCreditBalance: 50
       })
     ).toEqual({
-      creditBalance: 50,
+      creditBalance: 25,
       devStoreCreditsAvailable: false,
       expressionPackCreditBalance: 25
     });

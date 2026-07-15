@@ -20,6 +20,8 @@ describe("store screenshot session presets", () => {
       "hatching",
       "pet-reveal",
       "terrarium",
+      "terrarium-walk",
+      "terrarium-walk-empty",
       "chat",
       "shop"
     ]);
@@ -30,6 +32,8 @@ describe("store screenshot session presets", () => {
       hatching: "/generation",
       "pet-reveal": "/pet-reveal",
       terrarium: "/terrarium",
+      "terrarium-walk": "/terrarium",
+      "terrarium-walk-empty": "/terrarium",
       chat: "/chat",
       shop: "/shop"
     });
@@ -39,6 +43,8 @@ describe("store screenshot session presets", () => {
     expect(normalizeStoreScreenshotPreset("welcome")).toBe("welcome");
     expect(normalizeStoreScreenshotPreset("AI_CHAT")).toBe("chat");
     expect(normalizeStoreScreenshotPreset("generation")).toBe("hatching");
+    expect(normalizeStoreScreenshotPreset("walk")).toBe("terrarium-walk");
+    expect(normalizeStoreScreenshotPreset("walk_empty")).toBe("terrarium-walk-empty");
     expect(normalizeStoreScreenshotPreset("walk-reward-shop")).toBeNull();
     expect(normalizeStoreScreenshotPreset("unknown")).toBeNull();
   });
@@ -76,5 +82,17 @@ describe("store screenshot session presets", () => {
     expect(state.inventory.items.find((entry) => entry.source === "walk_reward")).toBeUndefined();
     expect(active(state).currentReaction?.category).not.toBe("new_item");
     expect(active(state).currentReaction?.line).not.toMatch(/[가-힣]/);
+  });
+
+  it("creates walking states with funded and empty gem balances", () => {
+    const funded = createStoreScreenshotSession("terrarium-walk", "2026-06-24T09:00:00.000Z");
+    const empty = createStoreScreenshotSession("terrarium-walk-empty", "2026-06-24T09:00:00.000Z");
+
+    expect(active(funded).activeWalk?.status).toBe("walking");
+    expect(active(funded).activeWalk?.returnAt).toBe("2026-06-24T09:03:00.000Z");
+    expect(funded.wallet.credits).toBe(12);
+    expect(active(empty).activeWalk?.status).toBe("walking");
+    expect(empty.wallet.credits).toBe(0);
+    expect(empty.wallet.bonusCredits).toBe(0);
   });
 });

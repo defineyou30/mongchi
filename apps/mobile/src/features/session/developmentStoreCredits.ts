@@ -27,7 +27,7 @@ export const getDevelopmentStoreCreditPresentation = ({
     : spendableCreditBalance;
 
   return {
-    creditBalance: localCreditBalance,
+    creditBalance: hasServerWallet ? Math.max(0, serverCreditBalance) : localCreditBalance,
     devStoreCreditsAvailable,
     expressionPackCreditBalance: hasServerWallet ? Math.max(0, serverCreditBalance) : localCreditBalance
   };

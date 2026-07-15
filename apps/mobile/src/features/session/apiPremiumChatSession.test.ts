@@ -4,10 +4,16 @@ vi.mock("expo-crypto", () => ({
   randomUUID: vi.fn(() => "11111111-1111-4111-8111-111111111111")
 }));
 
-const { ensureSupabaseSessionMock, invokeSupabaseChatTurnMock, loadSupabasePremiumChatThreadMock } = vi.hoisted(() => ({
+const {
+  ensureSupabaseSessionMock,
+  invokeSupabaseChatTurnMock,
+  loadSupabasePremiumChatThreadMock,
+  purchaseSupabaseChatDayPassMock
+} = vi.hoisted(() => ({
   ensureSupabaseSessionMock: vi.fn(),
   invokeSupabaseChatTurnMock: vi.fn(),
-  loadSupabasePremiumChatThreadMock: vi.fn()
+  loadSupabasePremiumChatThreadMock: vi.fn(),
+  purchaseSupabaseChatDayPassMock: vi.fn()
 }));
 
 vi.mock("./supabaseGenerationSession", () => ({
@@ -16,7 +22,8 @@ vi.mock("./supabaseGenerationSession", () => ({
 
 vi.mock("./supabasePremiumChatSession", () => ({
   invokeSupabaseChatTurn: invokeSupabaseChatTurnMock,
-  loadSupabasePremiumChatThread: loadSupabasePremiumChatThreadMock
+  loadSupabasePremiumChatThread: loadSupabasePremiumChatThreadMock,
+  purchaseSupabaseChatDayPass: purchaseSupabaseChatDayPassMock
 }));
 
 import type { ChatTurnRequest, ChatTurnResponse, CreditWallet, PetProfile } from "@mongchi/shared";
@@ -24,6 +31,7 @@ import type { ChatTurnRequest, ChatTurnResponse, CreditWallet, PetProfile } from
 import type { MobileApiError } from "../../shared/api";
 import {
   normalizePremiumChatDraft,
+  purchaseApiChatDayPass,
   sendApiPremiumChatTurn,
   startApiPremiumChatThread,
   type PremiumChatSessionContext,
@@ -94,6 +102,8 @@ const okOutcome = (overrides: Partial<ChatTurnResponse> = {}): { ok: true; data:
     safetyFlags: [],
     serverBalance: 0,
     chargedCredit: 0,
+    chargeKind: "starter_free",
+    freeTurnsRemaining: 2,
     crisisReferral: false,
     ...overrides
   }
@@ -109,6 +119,7 @@ beforeEach(() => {
   invokeSupabaseChatTurnMock.mockReset();
   loadSupabasePremiumChatThreadMock.mockReset();
   loadSupabasePremiumChatThreadMock.mockResolvedValue({ ok: true, thread: emptyThread });
+  purchaseSupabaseChatDayPassMock.mockReset();
 });
 
 describe("normalizePremiumChatDraft", () => {
@@ -176,16 +187,14 @@ describe("sendApiPremiumChatTurn", () => {
     expect(invokeSupabaseChatTurnMock).not.toHaveBeenCalled();
   });
 
-  it("blocks locally when the wallet has no ticket, credit, or Plus pass", async () => {
+  it("lets the server decide whether a wallet with no local value has a free allowance", async () => {
     const context = baseContext({ userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" });
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome({ freeTurnsRemaining: 2 }));
 
     const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
-    expect(result).toEqual({
-      ok: false,
-      error: { status: 0, code: "chat_locked", messageSafe: "Use a ticket, credit, or Plus pass to keep chatting.", retryable: false }
-    });
-    expect(invokeSupabaseChatTurnMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: true, wallet: { freeChatTickets: 2 } });
+    expect(invokeSupabaseChatTurnMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns Korean deterministic validation errors for a Korean chat", async () => {
@@ -196,14 +205,17 @@ describe("sendApiPremiumChatTurn", () => {
       currentThread: emptyThread,
       text: "  "
     });
-    const lockedResult = await sendApiPremiumChatTurn(fakeClient, {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(
+      failOutcome({ status: 402, code: "insufficient_credits", messageSafe: "server", retryable: false })
+    );
+    const unavailableResult = await sendApiPremiumChatTurn(fakeClient, {
       context: koreanContext(wallet),
       currentThread: emptyThread,
       text: "안녕"
     });
 
     expect(emptyResult).toMatchObject({ ok: false, error: { code: "empty_message", messageSafe: "먼저 짧은 메시지를 적어주세요." } });
-    expect(lockedResult).toMatchObject({ ok: false, error: { code: "chat_locked", messageSafe: "무료 대화, 크레딧 또는 Plus 패스로 대화를 이어갈 수 있어요." } });
+    expect(unavailableResult).toMatchObject({ ok: false, error: { code: "insufficient_credits", messageSafe: "대화에 사용할 크레딧이 부족해요. 준비되면 다시 포근하게 이야기해요." } });
   });
 
   it("returns Brazilian Portuguese validation copy and sends the normalized locale", async () => {
@@ -215,7 +227,10 @@ describe("sendApiPremiumChatTurn", () => {
       currentThread: emptyThread,
       text: "  "
     });
-    const lockedResult = await sendApiPremiumChatTurn(fakeClient, {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(
+      failOutcome({ status: 402, code: "insufficient_credits", messageSafe: "server", retryable: false })
+    );
+    const unavailableResult = await sendApiPremiumChatTurn(fakeClient, {
       context: brazilianPortugueseContext(lockedWallet),
       currentThread: emptyThread,
       text: "olá"
@@ -228,12 +243,12 @@ describe("sendApiPremiumChatTurn", () => {
     });
 
     expect(emptyResult).toMatchObject({ ok: false, error: { code: "empty_message", messageSafe: "Escreva uma mensagem curtinha primeiro." } });
-    expect(lockedResult).toMatchObject({ ok: false, error: { code: "chat_locked", messageSafe: "Use um ingresso, crédito ou passe Plus para continuar a conversa." } });
+    expect(unavailableResult).toMatchObject({ ok: false, error: { code: "insufficient_credits" } });
     expect(invokeSupabaseChatTurnMock).toHaveBeenCalledWith(fakeClient, expect.objectContaining({ locale: "pt-BR" }));
   });
 
-  it("sends charge:free and spends one local ticket on a successful free-ticket turn", async () => {
-    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome());
+  it("omits a client charge claim and reconciles the server-owned free allowance", async () => {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome({ serverBalance: 2, freeTurnsRemaining: 2 }));
     const wallet: CreditWallet = { userId: "u1", credits: 2, bonusCredits: 0, freeChatTickets: 3, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet);
 
@@ -246,7 +261,6 @@ describe("sendApiPremiumChatTurn", () => {
       text: "Hello tiny friend",
       disclosureAccepted: true,
       requestId: "11111111-1111-4111-8111-111111111111",
-      charge: "free",
       petProfile: { name: "Nori", species: "dog", personalityTags: ["curious"], talkingStyle: "gentle" }
     });
     expect(sentBody.conversationId).toBeUndefined();
@@ -255,7 +269,8 @@ describe("sendApiPremiumChatTurn", () => {
       ok: true,
       thread: { conversationId: conversation.id, messages: [userMessage, petMessage] },
       wallet: { ...wallet, freeChatTickets: 2, updatedAt: userMessage.createdAt },
-      crisisReferral: false
+      crisisReferral: false,
+      chargeKind: "starter_free"
     });
   });
 
@@ -286,37 +301,63 @@ describe("sendApiPremiumChatTurn", () => {
     expect(sentBody.requestId).toBe("stable-request-id");
   });
 
-  it("sends charge:free and never mutates the wallet for a Plus-pass turn", async () => {
-    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome());
+  it("reconciles a server-confirmed Plus turn without a client charge claim", async () => {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome({ chargeKind: "plus", freeTurnsRemaining: 0 }));
     const wallet: CreditWallet = { userId: "u1", credits: 0, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet, true);
 
     const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
     const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
-    expect(sentBody.charge).toBe("free");
+    expect(sentBody).not.toHaveProperty("charge");
     expect(result).toEqual({
       ok: true,
       thread: { conversationId: conversation.id, messages: [userMessage, petMessage] },
-      wallet,
-      crisisReferral: false
+      wallet: { ...wallet, updatedAt: userMessage.createdAt },
+      crisisReferral: false,
+      chargeKind: "plus"
     });
   });
 
-  it("sends charge:credit and reconciles wallet.credits from the server balance, leaving bonusCredits/tickets untouched", async () => {
-    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome({ serverBalance: 6, chargedCredit: 1 }));
+  it("reconciles a server-confirmed credit turn and preserves local bonus value", async () => {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(okOutcome({ serverBalance: 6, chargedCredit: 1, chargeKind: "credit", freeTurnsRemaining: 0 }));
     const wallet: CreditWallet = { userId: "u1", credits: 7, bonusCredits: 4, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
     const context = baseContext(wallet);
 
     const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
 
     const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
-    expect(sentBody.charge).toBe("credit");
+    expect(sentBody).not.toHaveProperty("charge");
     expect(result).toEqual({
       ok: true,
       thread: { conversationId: conversation.id, messages: [userMessage, petMessage] },
       wallet: { ...wallet, credits: 6, updatedAt: userMessage.createdAt },
-      crisisReferral: false
+      crisisReferral: false,
+      chargeKind: "credit"
+    });
+  });
+
+  it("reconciles a server-confirmed day-pass turn without inventing a per-turn charge or a ticket decrement", async () => {
+    invokeSupabaseChatTurnMock.mockResolvedValueOnce(
+      okOutcome({ serverBalance: 4, chargedCredit: 0, chargeKind: "day_pass", freeTurnsRemaining: 0 })
+    );
+    const wallet: CreditWallet = { userId: "u1", credits: 4, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+    const context = baseContext(wallet);
+
+    const result = await sendApiPremiumChatTurn(fakeClient, { context, currentThread: emptyThread, text: "hello" });
+
+    const sentBody = invokeSupabaseChatTurnMock.mock.calls[0]![1] as ChatTurnRequest;
+    expect(sentBody).not.toHaveProperty("charge");
+    expect(result).toEqual({
+      ok: true,
+      thread: { conversationId: conversation.id, messages: [userMessage, petMessage] },
+      // Day-pass turns charge nothing: serverBalance reflects the untouched
+      // balance and freeTurnsRemaining reflects the untouched ticket count --
+      // reconciliation just mirrors whatever the server sent back, with no
+      // client-invented decrement for either.
+      wallet: { ...wallet, updatedAt: userMessage.createdAt },
+      crisisReferral: false,
+      chargeKind: "day_pass"
     });
   });
 
@@ -381,6 +422,84 @@ describe("sendApiPremiumChatTurn", () => {
     expect(result).toMatchObject({
       ok: false,
       error: { code: "rate_limited", messageSafe: "대화가 잠깐 쉬어갈 시간이 필요해요. 곧 다시 시도해 주세요." }
+    });
+  });
+});
+
+describe("purchaseApiChatDayPass", () => {
+  it("reconciles the wallet from the server-owned balance after a fresh purchase", async () => {
+    purchaseSupabaseChatDayPassMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alreadyActive: false, dayPassExpiresAt: "2026-07-09T09:00:00.000Z", serverBalance: 4 }
+    });
+    const wallet: CreditWallet = { userId: "u1", credits: 7, bonusCredits: 2, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    const result = await purchaseApiChatDayPass(fakeClient, { wallet }, "stable-purchase-id");
+
+    expect(purchaseSupabaseChatDayPassMock).toHaveBeenCalledWith(fakeClient, "stable-purchase-id");
+    expect(result).toEqual({
+      ok: true,
+      alreadyActive: false,
+      dayPassExpiresAt: "2026-07-09T09:00:00.000Z",
+      // bonusCredits untouched -- same convention as sendApiPremiumChatTurn's
+      // wallet reconciliation (credits mirrors serverBalance only).
+      wallet: { ...wallet, credits: 4 }
+    });
+  });
+
+  it("reuses a caller-provided request id so a retry stays idempotent", async () => {
+    purchaseSupabaseChatDayPassMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alreadyActive: false, dayPassExpiresAt: "2026-07-09T09:00:00.000Z", serverBalance: 1 }
+    });
+    const wallet: CreditWallet = { userId: "u1", credits: 4, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    await purchaseApiChatDayPass(fakeClient, { wallet }, "retry-request-id");
+
+    expect(purchaseSupabaseChatDayPassMock).toHaveBeenCalledWith(fakeClient, "retry-request-id");
+  });
+
+  it("generates a request id when the caller doesn't supply one", async () => {
+    purchaseSupabaseChatDayPassMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alreadyActive: false, dayPassExpiresAt: "2026-07-09T09:00:00.000Z", serverBalance: 1 }
+    });
+    const wallet: CreditWallet = { userId: "u1", credits: 4, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    await purchaseApiChatDayPass(fakeClient, { wallet });
+
+    expect(purchaseSupabaseChatDayPassMock).toHaveBeenCalledWith(fakeClient, "11111111-1111-4111-8111-111111111111");
+  });
+
+  it("treats an already-active pass as a relationship-frame success, not a transaction failure", async () => {
+    purchaseSupabaseChatDayPassMock.mockResolvedValueOnce({
+      ok: true,
+      data: { alreadyActive: true, dayPassExpiresAt: "2026-07-09T09:00:00.000Z", serverBalance: 4 }
+    });
+    const wallet: CreditWallet = { userId: "u1", credits: 4, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    const result = await purchaseApiChatDayPass(fakeClient, { wallet }, "already-active-request-id");
+
+    expect(result).toEqual({
+      ok: true,
+      alreadyActive: true,
+      dayPassExpiresAt: "2026-07-09T09:00:00.000Z",
+      wallet: { ...wallet, credits: 4 }
+    });
+  });
+
+  it("localizes an insufficient-credits purchase failure for a Korean screen", async () => {
+    purchaseSupabaseChatDayPassMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 402, code: "insufficient_credits", messageSafe: "server copy", retryable: false }
+    });
+    const wallet: CreditWallet = { userId: "u1", credits: 1, bonusCredits: 0, freeChatTickets: 0, updatedAt: "2026-07-08T00:00:00.000Z" };
+
+    const result = await purchaseApiChatDayPass(fakeClient, { wallet, locale: "ko-KR" }, "req-id");
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "insufficient_credits", messageSafe: "대화에 사용할 크레딧이 부족해요. 준비되면 다시 포근하게 이야기해요." }
     });
   });
 });

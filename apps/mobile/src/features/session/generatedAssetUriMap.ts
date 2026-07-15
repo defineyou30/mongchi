@@ -15,12 +15,18 @@ import type { GeneratedAssetReadUrlCacheEntry } from "./generatedAssetReadUrl";
 // accepted.
 //
 // Precedence: accepted assets seed the map first, then the read-url cache is
-// layered on top, since the cache may hold a more recently re-signed uri for
-// the same id.
+// layered on top (since the cache may hold a more recently re-signed uri for
+// the same id), and finally `localUriByAssetId` overrides both -- a
+// permanent on-device file (see localGeneratedAssetStore.ts's
+// ensureLocalGeneratedAssets) never expires and is always preferred over a
+// remote signed url when one has been downloaded. An id missing from
+// `localUriByAssetId` (not yet downloaded, or download failed) simply falls
+// back to whatever remote uri the earlier layers produced.
 export const buildGeneratedAssetUriMap = (
   readUrlCache: Partial<Record<GeneratedAssetId, GeneratedAssetReadUrlCacheEntry>>,
   acceptedAsset: GeneratedAsset | null | undefined,
-  acceptedAssets: GeneratedAsset[] | undefined
+  acceptedAssets: GeneratedAsset[] | undefined,
+  localUriByAssetId?: Partial<Record<GeneratedAssetId, string>>
 ): Partial<Record<GeneratedAssetId, string>> => {
   const uris: Partial<Record<GeneratedAssetId, string>> = {};
 
@@ -40,6 +46,14 @@ export const buildGeneratedAssetUriMap = (
   >) {
     if (entry?.uri) {
       uris[assetId] = entry.uri;
+    }
+  }
+
+  for (const [assetId, localUri] of Object.entries(localUriByAssetId ?? {}) as Array<
+    [GeneratedAssetId, string | undefined]
+  >) {
+    if (localUri) {
+      uris[assetId] = localUri;
     }
   }
 

@@ -91,4 +91,56 @@ describe("buildGeneratedAssetUriMap", () => {
     expect(buildGeneratedAssetUriMap({}, undefined, [incomplete])).toEqual({});
     expect(buildGeneratedAssetUriMap({}, null, undefined)).toEqual({});
   });
+
+  it("prefers a local file uri over both the read-url cache and the accepted-asset uri for the same id", () => {
+    const acceptedAsset = makeGeneratedAsset({
+      id: "asset_001",
+      uri: "https://supabase.example.com/stale-asset_001.png"
+    });
+    const readUrlCache: Partial<Record<string, GeneratedAssetReadUrlCacheEntry>> = {
+      asset_001: {
+        assetId: "asset_001",
+        uri: "https://storage.example.com/fresh-asset_001.png",
+        expiresAt: "2026-06-24T09:15:00.000Z"
+      }
+    };
+
+    expect(
+      buildGeneratedAssetUriMap(readUrlCache, acceptedAsset, [acceptedAsset], {
+        asset_001: "file:///pet-assets/asset_001.png"
+      })
+    ).toEqual({
+      asset_001: "file:///pet-assets/asset_001.png"
+    });
+  });
+
+  it("falls back to the remote uri for an id missing from the local uri map", () => {
+    const acceptedAssets = [
+      makeGeneratedAsset({ id: "asset_001", uri: "https://supabase.example.com/asset_001.png" }),
+      makeGeneratedAsset({ id: "asset_002", uri: "https://supabase.example.com/asset_002.png" })
+    ];
+
+    expect(
+      buildGeneratedAssetUriMap({}, null, acceptedAssets, {
+        asset_001: "file:///pet-assets/asset_001.png"
+      })
+    ).toEqual({
+      asset_001: "file:///pet-assets/asset_001.png",
+      asset_002: "https://supabase.example.com/asset_002.png"
+    });
+  });
+
+  it("tolerates an omitted or empty local uri map", () => {
+    const acceptedAsset = makeGeneratedAsset({
+      id: "asset_001",
+      uri: "https://supabase.example.com/asset_001.png"
+    });
+
+    expect(buildGeneratedAssetUriMap({}, acceptedAsset, [acceptedAsset], {})).toEqual({
+      asset_001: "https://supabase.example.com/asset_001.png"
+    });
+    expect(buildGeneratedAssetUriMap({}, acceptedAsset, [acceptedAsset])).toEqual({
+      asset_001: "https://supabase.example.com/asset_001.png"
+    });
+  });
 });

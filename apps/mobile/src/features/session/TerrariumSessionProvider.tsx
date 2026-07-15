@@ -21,31 +21,42 @@ import {
   runSessionMigrations,
   purchasePrototypeThemeBundle,
   claimPrototypeWalkReward,
+  completePrototypeWalkEarly,
   completePrototypeWalkEarlyWithCredit,
   createInitialPrototypeSession,
   createInitialPetBundle,
   deletePrototypeChatHistory,
   deletePrototypeOriginalPhoto,
+  dequeueRewardClaim,
+  emptyRewardClaimQueue,
+  enqueueRewardClaim,
   FIRST_PET_ID,
   getActivePetBundle,
   getActivePrototypePet,
   getBondProgressValue,
   getCareSatisfactionSummary,
   getCreditItemPrice,
+  getCreditRewardAmount,
   getExpressionPackById,
   getGenerationAttemptKey,
   getMonotonicGenerationProgress,
   getPrototypeGenerationPollSnapshot,
   getSpendableCreditBalance,
+  grantCreditWalletValue,
+  grantPrototypeEventItem,
+  isNightTime,
   makeMockGeneratedAsset,
   mergePrototypeGeneratedAssets,
   normalizeRestoredGeneration,
   normalizeRestoredPetSetupDraft,
   parseSessionBackup,
+  peekRewardClaim,
   pollPrototypeGenerationJob,
   performPrototypeCareAction,
   projectCareStateForTime,
   purchasePrototypeInventoryItem,
+  recordCreditItemPurchase,
+  recordThemeBundlePurchase,
   refreshPrototypeWalk,
   reportPrototypeGenerationIssue,
   retryPrototypeGeneration,
@@ -79,6 +90,9 @@ import type {
   PetSetupDraft,
   PrototypeSessionState,
   RestorePurchasesRequest,
+  RewardClaimCopyCategory,
+  RewardClaimQueueItem,
+  RewardClaimQueueState,
   WeatherCondition,
   WalkSession
 } from "@mongchi/shared";
@@ -86,6 +100,7 @@ import { homeWalkDurationMs } from "../terrarium/terrariumHomeInteractionContrac
 import type { MobileApiError } from "../../shared/api";
 import { reporter } from "../../shared/errors/reporter";
 import { getActiveAppLocale, getActiveTimeZone } from "../../localization/config";
+import { ensureAudioSettingsHydrated, isDaytimeNow, playBgmForThemeAndTimeOfDay } from "../../shared/audio";
 
 import {
   acceptApiGeneratedPet,
@@ -100,15 +115,19 @@ import { getDevelopmentStoreCreditPresentation, getExpressionPackValidationWalle
 import { createExpressionPackPurchaseCoordinator } from "./expressionPackPurchaseCoordinator";
 import { clearExpressionPackRequestId, getOrCreateExpressionPackRequestId, rotateExpressionPackRequestId } from "./expressionPackRequestIdStore";
 import { hasActiveGenerationJob } from "./generationJobGuards";
+import { ensureLocalGeneratedAssets } from "./localGeneratedAssetStore";
 import { getSupabaseClient } from "./supabaseClient";
 import { deleteSupabaseAccountData } from "./supabaseAccountDeletion";
+import { deleteSupabaseChatHistory } from "./supabasePremiumChatSession";
 import {
   hydrateServerCreditBalance,
   pollSupabaseExpressionPackFlow,
   pollSupabaseGenerationFlow,
+  resyncGeneratedAssetsFromServer,
   retrySupabaseGenerationFlow,
   startSupabaseExpressionPackFlow,
   startSupabaseGenerationFlow,
+  unlockSupabaseSleepPoseForNightVisit,
   unlockSupabaseStarterPosesForCareAction
 } from "./supabaseGenerationSession";
 import {
@@ -120,6 +139,7 @@ import {
 } from "./apiDailyLoopSession";
 import type { TerrariumRuntimeMode } from "./apiDailyLoopSession";
 import {
+  isRenderableGeneratedAssetUri,
   resolveGeneratedAssetReadUrl,
   shouldRefreshGeneratedAssetReadUrl
 } from "./generatedAssetReadUrl";
@@ -145,6 +165,9 @@ import {
   readCareActionCooldowns,
   writeCareActionCooldowns
 } from "./careActionCooldownSession";
+import { claimSupabaseCreditReward } from "./supabaseRewardSession";
+import { purchaseSupabaseInventoryItem, purchaseSupabaseThemeBundle } from "./supabaseShopSession";
+import { purchaseSupabaseWalkEarlyReturn } from "./supabaseWalkSession";
 import type { Purchase } from "expo-iap";
 
 type RestorePurchasesResult =
@@ -186,6 +209,10 @@ export type PurchaseExpressionPackResult =
   | { ok: true; messageSafe: string; started: boolean }
   | { ok: false; messageSafe: string };
 
+export type CompleteWalkEarlyResult =
+  | { ok: true }
+  | { ok: false; reason: "insufficient_balance" | "no_active_walk" | "request_failed" | "unavailable" };
+
 /**
  * resetSession's result. `ok` mirrors the pre-existing boolean contract:
  * false only when the legacy api-mode block (services/api's deletePrivacyPet)
@@ -226,6 +253,7 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   bondProgress: number;
   creditBalance: number;
   expressionPackCreditBalance: number;
+  paidWalkEarlyReturnAvailable: boolean;
   generationProgress: number;
   generationPollSnapshot: ReturnType<typeof getPrototypeGenerationPollSnapshot>;
   generatedAssetUriById: Partial<Record<GeneratedAssetId, string>>;
@@ -265,10 +293,9 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   refreshWeatherFromApproximateLocation: () => Promise<boolean>;
   refreshWalk: () => void;
   claimWalkReward: () => void;
-  /** Spends 1 credit to bring the pet home early. Returns false (no-op) if the wallet balance is insufficient. */
-  completeWalkEarly: () => boolean;
+  completeWalkEarly: () => Promise<CompleteWalkEarlyResult>;
   applyTheme: (themeId: ItemId) => PurchaseCatalogItemResult;
-  purchaseThemeBundle: (bundleId: string) => PurchaseCatalogItemResult;
+  purchaseThemeBundle: (bundleId: string) => Promise<PurchaseCatalogItemResult>;
   /** Per-pack id status for the friend page's pose gallery (pending job-start/poll, or a warm failure message). Absent = not currently purchasing. */
   expressionPackPurchaseStatusById: Partial<Record<string, ExpressionPackPurchaseState>>;
   /** Starts (or confirms failure fast for) an expression pack purchase -- see purchaseExpressionPack's doc comment for the full state machine. */
@@ -287,6 +314,30 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   exportSessionBackup: () => ExportSessionBackupResult;
   /** Validates, migrates, and restores a pasted backup (see ImportSessionBackupResult's doc comment). */
   importSessionBackup: (backupText: string) => Promise<ImportSessionBackupResult>;
+  /** The reward-claim card that should be showing right now, or null -- see RewardClaimOverlay (mounted once near the app root). */
+  pendingRewardClaim: RewardClaimQueueItem | null;
+  /**
+   * Queues a credit reward for the owner to tap "Receive" on. `alreadyGrantedLocally`
+   * (bond_5/bond_10/collection_complete only) marks that packages/shared's own
+   * reducer already added this amount to wallet.bonusCredits as a side effect
+   * of the action that triggered it -- claimPendingReward reconciles that on a
+   * successful online claim. `localGrantAmountToReconcile` overrides how much
+   * to subtract back out when it differs from the displayed/claimed amount
+   * (only collection_complete: locally granted 20, claims 10 -- see
+   * creditRewards.ts's header comment). A rewardKey already queued or already
+   * locally claimed this session is a no-op.
+   */
+  enqueueCreditRewardClaim: (
+    rewardKey: string,
+    copyCategory: RewardClaimCopyCategory,
+    options?: { alreadyGrantedLocally?: boolean; localGrantAmountToReconcile?: number }
+  ) => void;
+  /** Grants the daily care treat item immediately (local-only, no server call) and queues its celebration card. `dedupeKey` should be date-scoped (see getDailyTreatRewardKey) so today's treat is never queued twice. */
+  enqueueDailyTreatRewardClaim: (dedupeKey: string, itemId: ItemId) => void;
+  /** Performs the actual claim for the reward-claim overlay's "Receive" tap -- RPC for a not-yet-granted credit reward, a wallet reconciliation for one packages/shared already granted locally, or an immediate ok for a treat (already granted at enqueue time). */
+  claimPendingReward: (item: RewardClaimQueueItem) => Promise<{ ok: boolean }>;
+  /** Pops `item` off the front of the queue once its claim animation has finished, revealing the next queued reward (if any). */
+  dismissPendingReward: (item: RewardClaimQueueItem) => void;
 }
 
 const STORAGE_KEY = "mongchi/prototype-session-v1";
@@ -306,6 +357,21 @@ const DEVELOPMENT_STORE_CREDIT_BALANCE = 9999;
 // generation_jobs table. The interval that uses this only runs while at
 // least one pack purchase is pending.
 const EXPRESSION_PACK_POLL_INTERVAL_MS = 2500;
+
+// Caps how many times the one-time generated_assets resync (see
+// resyncGeneratedAssetsFromServer's doc comment) retries after an ok:false
+// attempt (session not ready yet, transient query error) before giving up
+// for the rest of this app session -- bounds the cold-boot-session-race
+// retry (next render / app foreground resume) so a persistently offline or
+// broken device doesn't retry forever.
+const GENERATED_ASSET_RESYNC_MAX_ATTEMPTS = 3;
+
+// Same shape of cap as GENERATED_ASSET_RESYNC_MAX_ATTEMPTS above, but for
+// attemptSleepPoseNightUnlock's ok:false retries (session not ready yet,
+// transient query error) -- bounds a persistently offline/broken device to a
+// handful of tries per app session instead of retrying forever on every
+// 30s sessionClock tick through the whole night window.
+const SLEEP_POSE_NIGHT_UNLOCK_MAX_ATTEMPTS = 5;
 
 const nowIso = () => new Date().toISOString();
 
@@ -585,6 +651,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const [apiCommerceProducts, setApiCommerceProducts] = useState<CommerceProduct[] | null>(null);
   const [apiEntitlements, setApiEntitlements] = useState<Entitlement[] | null>(null);
   const [generatedAssetReadUrls, setGeneratedAssetReadUrls] = useState<Partial<Record<GeneratedAssetId, GeneratedAssetReadUrlCacheEntry>>>({});
+  // Ids that ensureLocalGeneratedAssets has already copied to a permanent
+  // on-device file -- see the local-asset-hydration effect below and
+  // generatedAssetUriById's local-uri precedence.
+  const [localGeneratedAssetUris, setLocalGeneratedAssetUris] = useState<Partial<Record<GeneratedAssetId, string>>>({});
   const nativeStoreConnection = useRef<NativeStorePurchaseConnection | null>(null);
   const [nativeCheckoutReady, setNativeCheckoutReady] = useState(false);
   const [purchaseInProgressProductId, setPurchaseInProgressProductId] = useState<string | null>(null);
@@ -593,6 +663,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const [weatherLocationMessage, setWeatherLocationMessage] = useState<string | null>(null);
   const [sessionClock, setSessionClock] = useState(() => Date.now());
   const [careCooldownUntilByAction, setCareCooldownUntilByAction] = useState<Partial<Record<CareActionType, number>>>({});
+  // Reward-claim overlay queue (RewardClaimOverlay, mounted once near the app
+  // root -- see app/_layout.tsx): every credit/treat reward source (settlement
+  // missions, care-streak milestones, the monthly letter, the walk journal
+  // completing, bond levels, the daily care treat) pushes into this single
+  // queue instead of granting silently, so the owner always sees and taps
+  // "Receive" before a reward lands. See enqueueCreditRewardClaim/
+  // enqueueDailyTreatRewardClaim/claimPendingReward/dismissPendingReward below.
+  const [rewardClaimQueue, setRewardClaimQueue] = useState<RewardClaimQueueState>(emptyRewardClaimQueue);
   // Expression pack purchases: keyed by packId so the friend page's pose
   // gallery can show per-pack progress/failure independent of any other UI.
   const [expressionPackPurchaseStatusById, setExpressionPackPurchaseStatusById] = useState<
@@ -604,6 +682,31 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const [expressionPackJobIdByPackId, setExpressionPackJobIdByPackId] = useState<Partial<Record<string, string>>>({});
   const expressionPackPollGuard = useRef(createAsyncActionGuard());
   const expressionPackInFlightPackIdsRef = useRef<Set<string>>(new Set());
+  // Guards the one-time full generated_assets resync below. `doneRef` is
+  // only ever set on a *definitive* outcome (a completed fetch, even an
+  // empty one) -- never synchronously before the async call resolves, and
+  // never on an ok:false attempt (session not ready yet, transient query
+  // error). A cold-boot race was observed on a real device where the guard
+  // used to be consumed before the (unlucky, session-not-ready) attempt even
+  // resolved, permanently burning the device's only resync chance even
+  // though the very same session became available moments later -- see
+  // resyncGeneratedAssetsFromServer's doc comment. `attemptsRef` bounds how
+  // many ok:false retries (next render / app foreground resume) are allowed
+  // before giving up for the rest of this app session (see
+  // GENERATED_ASSET_RESYNC_MAX_ATTEMPTS), and `guard` just prevents two
+  // overlapping in-flight attempts.
+  const generatedAssetResyncDoneRef = useRef(false);
+  const generatedAssetResyncAttemptsRef = useRef(0);
+  const generatedAssetResyncGuard = useRef(createAsyncActionGuard());
+  // Guards attemptSleepPoseNightUnlock below -- same doneRef/attemptsRef/guard
+  // shape as generatedAssetResyncDoneRef just above, for the same reason: a
+  // definitive outcome (even an empty unlock) sets doneRef, an ok:false
+  // attempt does not (so the next sessionClock tick or hydration retries, up
+  // to SLEEP_POSE_NIGHT_UNLOCK_MAX_ATTEMPTS), and guard just prevents two
+  // overlapping in-flight RPC calls.
+  const sleepPoseNightUnlockDoneRef = useRef(false);
+  const sleepPoseNightUnlockAttemptsRef = useRef(0);
+  const sleepPoseNightUnlockGuard = useRef(createAsyncActionGuard());
   const expressionPackPurchaseCoordinatorRef = useRef(
     createExpressionPackPurchaseCoordinator(() => Crypto.randomUUID())
   );
@@ -741,6 +844,37 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     return () => clearInterval(interval);
   }, []);
 
+  // Theme-aware BGM (see bgmAssets.ts's getBgmTrackForTheme and
+  // PROVENANCE.md's bgm_theme_* prototypes): whenever the selected garden
+  // theme changes -- including once at hydration, since the initial render
+  // uses createInitialPrototypeSession's default before AsyncStorage
+  // restores the real value -- crossfade BGM into that theme's day track and
+  // remember the theme id (module-level in bgmPlayer.ts) so a later plain
+  // playBgmForTimeOfDay(isDaytimeNow()) call elsewhere (e.g.
+  // TerrariumHomeScreen's own mount effect, which only knows day/night) also
+  // resolves to it without needing the theme threaded through again.
+  //
+  // Bugfix: awaits ensureAudioSettingsHydrated() first, same reasoning as
+  // app/_layout.tsx's own startup BGM call -- this effect can fire (at
+  // Provider mount, before the user has ever opened Settings) before
+  // getActiveAudioSettings() reflects the real persisted Music setting, so
+  // calling playBgmForThemeAndTimeOfDay before that would ignore a
+  // previously-saved "off" and start playback anyway.
+  useEffect(() => {
+    let cancelled = false;
+    const themeId = state.inventory.selectedTerrariumThemeId;
+
+    void ensureAudioSettingsHydrated().then(() => {
+      if (!cancelled) {
+        playBgmForThemeAndTimeOfDay(themeId, isDaytimeNow());
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.inventory.selectedTerrariumThemeId]);
+
   useEffect(() => {
     const now = sessionClock;
 
@@ -775,6 +909,79 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       ),
     [activeGeneratedAssetId, activeBundle.acceptedAssets]
   );
+
+  // One-time-ish full resync of this account's own unlocked generated_assets
+  // -- see resyncGeneratedAssetsFromServer's doc comment in
+  // supabaseGenerationSession.ts for why this exists (expression-pack
+  // completions otherwise only ever reach local state through the in-memory
+  // poll-and-merge effect further down, which has no way to recover a pack
+  // this device never observed completing live). Passes TWO different ids,
+  // deliberately not conflated (a real-device bug did exactly that -- see
+  // resyncGeneratedAssetsFromServerInner's doc comment): state.activePetId
+  // (the pet *bundle key*, e.g. FIRST_PET_ID) decides the server pet_id
+  // scope, while activeBundle.petProfile.id (an unrelated per-profile
+  // pet_local_<uuid>) only tags the resulting assets, matching every other
+  // asset already in acceptedAssets. Purely additive:
+  // mergePrototypeGeneratedAssets only ever adds/refreshes per-state
+  // entries, so a device that is already fully in sync just merges in the
+  // same assets it already had.
+  //
+  // "One-time-ish" rather than strictly once: an ok:false result (session
+  // not ready yet, transient query error) does NOT consume
+  // generatedAssetResyncDoneRef, specifically so a cold-boot race where the
+  // Supabase client's persisted session hasn't finished restoring by the
+  // time this first runs gets another chance on the next natural trigger
+  // (this callback's own identity changing, or the app foreground effect
+  // below) instead of permanently stranding server-only assets -- see
+  // generatedAssetResyncDoneRef's doc comment above for the incident this
+  // fixes. GENERATED_ASSET_RESYNC_MAX_ATTEMPTS bounds the retries.
+  const attemptGeneratedAssetResync = useCallback(() => {
+    if (generatedAssetResyncDoneRef.current || storeScreenshotPreset || qaScreenPreset) {
+      return;
+    }
+
+    if (generatedAssetResyncAttemptsRef.current >= GENERATED_ASSET_RESYNC_MAX_ATTEMPTS) {
+      generatedAssetResyncDoneRef.current = true;
+      return;
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient || !activeBundle.petProfile) {
+      return;
+    }
+
+    const assetPetId = activeBundle.petProfile.id;
+
+    generatedAssetResyncGuard.current.run(async () => {
+      generatedAssetResyncAttemptsRef.current += 1;
+
+      const result = await resyncGeneratedAssetsFromServer(supabaseClient, state.activePetId, assetPetId, nowIso());
+
+      if (!result.ok) {
+        // Retryable (session not ready yet, transient query error) --
+        // doneRef stays false so the next trigger tries again, up to the
+        // attempt cap above.
+        return;
+      }
+
+      generatedAssetResyncDoneRef.current = true;
+
+      if (result.data.assets.length === 0) {
+        return;
+      }
+
+      setState((current) => mergePrototypeGeneratedAssets(current, result.data.assets));
+    });
+  }, [activeBundle.petProfile, qaScreenPreset, state.activePetId, storeScreenshotPreset]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    attemptGeneratedAssetResync();
+  }, [attemptGeneratedAssetResync, isHydrated]);
 
   // apiDailyLoopSession.ts/apiGenerationSession.ts/supabaseGenerationSession.ts
   // (W1 leaves these files untouched, see docs/multi-pet-w1-design.md section
@@ -1017,6 +1224,60 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       cancelled = true;
     };
   }, [apiRuntime, generatedAssetIdsToResolve, generatedAssetReadUrls]);
+
+  // Supabase-mode assets are the only ones backed by real (private,
+  // signed-url-only) storage -- mock/bundled/API-mode-preset assets use
+  // mock:// or require()'d uris that ensureLocalGeneratedAssets has no
+  // business touching, so isRenderableGeneratedAssetUri filters those out
+  // before this ever attempts a download. Re-runs whenever the accepted
+  // asset list changes (new expression pack merge, starter-pose unlock
+  // merge, a fresh idle asset after generation) and skips ids that already
+  // resolved to a local file, so a steady state with nothing new to
+  // download is a no-op rather than a per-render/per-tick download attempt.
+  const generatedAssetsToLocalize = useMemo(() => {
+    const seen = new Set<GeneratedAssetId>();
+    const assets: GeneratedAsset[] = [];
+
+    for (const asset of [
+      ...activeBundle.acceptedAssets,
+      ...(activeBundle.acceptedAsset ? [activeBundle.acceptedAsset] : [])
+    ]) {
+      if (asset?.id && asset.uri && isRenderableGeneratedAssetUri(asset.uri) && !seen.has(asset.id)) {
+        seen.add(asset.id);
+        assets.push(asset);
+      }
+    }
+
+    return assets;
+  }, [activeBundle.acceptedAsset, activeBundle.acceptedAssets]);
+
+  useEffect(() => {
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    const assetsNeedingLocalCopy = generatedAssetsToLocalize.filter((asset) => !localGeneratedAssetUris[asset.id]);
+
+    if (assetsNeedingLocalCopy.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void ensureLocalGeneratedAssets(supabaseClient, assetsNeedingLocalCopy).then((localUriByAssetId) => {
+      if (cancelled || Object.keys(localUriByAssetId).length === 0) {
+        return;
+      }
+
+      setLocalGeneratedAssetUris((current) => ({ ...current, ...localUriByAssetId }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [generatedAssetsToLocalize, localGeneratedAssetUris]);
 
   const updateDraft = useCallback((patch: Partial<PetSetupDraft>) => {
     setState((current) => updatePrototypeDraft(current, patch));
@@ -1327,6 +1588,81 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     [legacyFlatState]
   );
 
+  // First-night sleep pose unlock (see
+  // supabase/migrations/0022_sleep_pose_night_unlock.sql's header comment for
+  // why unlockStarterPosesAfterCare's rest-only path above can never reach
+  // the sleep asset in practice): the very first time this device reports
+  // Home being open during the 22:00-06:00 night window (isNightTime, the
+  // same boundary TerrariumHomeScreen's own night-sleep visuals already use),
+  // this unlocks the sleep asset server-side and merges it in. From then on,
+  // selectGeneratedAssetForReaction's existing "sleep" preference (already
+  // wired to isShowingNightSleepPose in TerrariumHomeScreen) picks the real
+  // sleep sprite instead of silently falling back to idle -- no home-screen
+  // rendering change needed.
+  //
+  // "One-time-ish" like attemptGeneratedAssetResync above: sleepPoseNight
+  // UnlockDoneRef is only set on a *definitive* outcome (including an empty
+  // unlock, or acceptedAssets already having a sleep asset), never on an
+  // ok:false attempt (session not ready yet, transient query error) -- so the
+  // next sessionClock tick (every 30s, see the effect below) or the next
+  // hydration retries, up to SLEEP_POSE_NIGHT_UNLOCK_MAX_ATTEMPTS.
+  const attemptSleepPoseNightUnlock = useCallback(() => {
+    if (sleepPoseNightUnlockDoneRef.current || storeScreenshotPreset || qaScreenPreset) {
+      return;
+    }
+
+    if (activeBundle.acceptedAssets.some((asset) => asset.state === "sleep")) {
+      sleepPoseNightUnlockDoneRef.current = true;
+      return;
+    }
+
+    if (!isNightTime(nowIso())) {
+      return;
+    }
+
+    if (sleepPoseNightUnlockAttemptsRef.current >= SLEEP_POSE_NIGHT_UNLOCK_MAX_ATTEMPTS) {
+      sleepPoseNightUnlockDoneRef.current = true;
+      return;
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    sleepPoseNightUnlockGuard.current.run(async () => {
+      sleepPoseNightUnlockAttemptsRef.current += 1;
+
+      const result = await unlockSupabaseSleepPoseForNightVisit(supabaseClient, legacyFlatState, nowIso());
+
+      if (!result.ok) {
+        reporter.captureMessage("sleepPose: night unlock failed", { code: result.error.code });
+        return;
+      }
+
+      sleepPoseNightUnlockDoneRef.current = true;
+
+      if (result.data.assets.length === 0) {
+        return;
+      }
+
+      setState((current) => mergePrototypeGeneratedAssets(current, result.data.assets));
+    });
+  }, [activeBundle.acceptedAssets, legacyFlatState, qaScreenPreset, storeScreenshotPreset]);
+
+  // Runs at hydration and again every sessionClock tick (30s, see the
+  // existing sessionClock interval above) so a session that was opened
+  // during the day still catches the moment it crosses into night, without a
+  // dedicated new timer.
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    attemptSleepPoseNightUnlock();
+  }, [attemptSleepPoseNightUnlock, isHydrated, sessionClock]);
+
   const performCareAction = useCallback(
     (action: CareActionType, itemId?: ItemId) => {
       const occurredAt = nowIso();
@@ -1432,21 +1768,66 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     );
   }, [apiRuntime]);
 
-  /** Spends 1 credit to bring the pet home early; leaves state untouched (and returns false) if the balance is insufficient. */
-  const completeWalkEarly = useCallback(() => {
-    if (apiRuntime.mode !== "api") {
+  const completeWalkEarly = useCallback(async (): Promise<CompleteWalkEarlyResult> => {
+    const walk = activeBundle.activeWalk;
+
+    if (!walk || walk.status !== "walking") {
+      return { ok: false, reason: "no_active_walk" };
+    }
+
+    if (apiRuntime.mode === "api") {
+      return { ok: false, reason: "unavailable" };
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
       const result = completePrototypeWalkEarlyWithCredit(state, nowIso(), 1, getActiveAppLocale());
 
       if (!result.ok) {
-        return false;
+        return { ok: false, reason: result.reason };
       }
 
       setState(result.state);
-      return true;
+      return { ok: true };
     }
 
-    return false;
-  }, [apiRuntime, state]);
+    setApiSyncStatus("syncing");
+    setApiErrorMessage(null);
+
+    const purchase = await purchaseSupabaseWalkEarlyReturn(supabaseClient, walk.id);
+
+    if (!purchase.ok) {
+      if (purchase.reason === "insufficient_balance") {
+        setState((current) => ({
+          ...current,
+          wallet: { ...current.wallet, credits: purchase.serverBalance, updatedAt: nowIso() }
+        }));
+        setApiSyncStatus("ready");
+        return { ok: false, reason: "insufficient_balance" };
+      }
+
+      setApiError(purchase.error);
+      return { ok: false, reason: "request_failed" };
+    }
+
+    const completedAt = nowIso();
+    setState((current) => {
+      const currentWalk = getActivePetBundle(current).activeWalk;
+      const withServerBalance = {
+        ...current,
+        wallet: { ...current.wallet, credits: purchase.serverBalance, updatedAt: completedAt }
+      };
+
+      if (!currentWalk || currentWalk.id !== walk.id || currentWalk.status !== "walking") {
+        return withServerBalance;
+      }
+
+      return completePrototypeWalkEarly(withServerBalance, completedAt, getActiveAppLocale());
+    });
+    setApiSyncStatus("ready");
+    return { ok: true };
+  }, [activeBundle.activeWalk, apiRuntime.mode, setApiError, state]);
 
   const claimWalkReward = useCallback(() => {
     if (apiRuntime.mode !== "api") {
@@ -1472,10 +1853,172 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     });
   }, [activeBundle.activeWalk, activePet.id, apiRuntime, applyApiStatePatch, legacyFlatState, setApiError]);
 
+  const pendingRewardClaim = useMemo(() => peekRewardClaim(rewardClaimQueue), [rewardClaimQueue]);
+
+  const enqueueCreditRewardClaim = useCallback(
+    (
+      rewardKey: string,
+      copyCategory: RewardClaimCopyCategory,
+      options?: { alreadyGrantedLocally?: boolean; localGrantAmountToReconcile?: number }
+    ) => {
+      const amount = getCreditRewardAmount(rewardKey);
+
+      if (!amount) {
+        return;
+      }
+
+      setRewardClaimQueue((current) =>
+        enqueueRewardClaim(current, {
+          id: rewardKey,
+          kind: "credit",
+          rewardKey,
+          copyCategory,
+          amount,
+          ...(options?.alreadyGrantedLocally ? { alreadyGrantedLocally: true } : {}),
+          ...(options?.localGrantAmountToReconcile !== undefined
+            ? { localGrantAmountToReconcile: options.localGrantAmountToReconcile }
+            : {})
+        })
+      );
+    },
+    []
+  );
+
+  const enqueueDailyTreatRewardClaim = useCallback((dedupeKey: string, itemId: ItemId) => {
+    // Local-only reward -- granted the instant it's earned (no server call,
+    // no "unclaimed" window), matching this reward budget's "데일리=간식,
+    // 크레딧=기념일" principle. The overlay still queues a claim card so the
+    // moment gets the same warm, tap-to-receive presentation as every credit
+    // reward; claimPendingReward below just acknowledges it.
+    setState((current) => grantPrototypeEventItem(current, itemId, nowIso()));
+    setRewardClaimQueue((current) =>
+      enqueueRewardClaim(current, {
+        id: dedupeKey,
+        kind: "treat",
+        rewardKey: dedupeKey,
+        copyCategory: "daily_treat",
+        itemId
+      })
+    );
+  }, []);
+
+  const claimPendingReward = useCallback(async (item: RewardClaimQueueItem): Promise<{ ok: boolean }> => {
+    if (item.kind === "treat") {
+      // Already granted at enqueue time -- see enqueueDailyTreatRewardClaim.
+      return { ok: true };
+    }
+
+    const amount = item.amount ?? 0;
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      // Dev/offline fallback: bond_5/bond_10/collection_complete were already
+      // granted locally by packages/shared's own reducer the instant the
+      // level-up/journal-completion happened, so there's nothing left to
+      // grant here -- the tap is just the acknowledgment. Settlement/streak/
+      // letter rewards were never granted until now, so grant them locally.
+      if (!item.alreadyGrantedLocally) {
+        setState((current) => ({ ...current, wallet: grantCreditWalletValue(current.wallet, { bonusCredits: amount }, nowIso()) }));
+      }
+
+      return { ok: true };
+    }
+
+    const result = await claimSupabaseCreditReward(supabaseClient, item.rewardKey);
+
+    if (!result.ok) {
+      return { ok: false };
+    }
+
+    setState((current) => ({
+      ...current,
+      wallet: {
+        ...current.wallet,
+        credits: result.serverBalance,
+        // Reconcile the amount packages/shared's reducer already added to
+        // bonusCredits (bond_5/bond_10/collection_complete only) now that the
+        // same credits are landing in the server-authoritative `credits`
+        // field instead -- see this callback's sibling doc comment on
+        // enqueueCreditRewardClaim in the context interface above.
+        bonusCredits: item.alreadyGrantedLocally
+          ? Math.max(0, current.wallet.bonusCredits - (item.localGrantAmountToReconcile ?? amount))
+          : current.wallet.bonusCredits,
+        updatedAt: nowIso()
+      }
+    }));
+
+    return { ok: true };
+  }, []);
+
+  const dismissPendingReward = useCallback((item: RewardClaimQueueItem) => {
+    setRewardClaimQueue((current) => (peekRewardClaim(current)?.id === item.id ? dequeueRewardClaim(current) : current));
+  }, []);
+
   const purchaseThemeBundle = useCallback(
-    (bundleId: string): PurchaseCatalogItemResult => {
-      if (apiRuntime.mode === "api" || getSupabaseClient()) {
+    async (bundleId: string): Promise<PurchaseCatalogItemResult> => {
+      if (apiRuntime.mode === "api") {
         return { ok: false, messageSafe: "Theme bundles are coming to the live store soon." };
+      }
+
+      const supabaseClient = getSupabaseClient();
+
+      if (supabaseClient) {
+        setApiSyncStatus("syncing");
+        setApiErrorMessage(null);
+
+        const requestId = Crypto.randomUUID();
+        const purchase = await purchaseSupabaseThemeBundle(supabaseClient, bundleId, requestId);
+
+        if (!purchase.ok) {
+          setApiSyncStatus("ready");
+
+          if (purchase.reason === "insufficient_balance") {
+            setState((current) => ({
+              ...current,
+              wallet: { ...current.wallet, credits: purchase.serverBalance, updatedAt: nowIso() }
+            }));
+
+            return { ok: false, messageSafe: "Not enough credits for this set." };
+          }
+
+          if (purchase.reason === "unknown_item") {
+            return { ok: false, messageSafe: "This set is not available." };
+          }
+
+          setApiError(purchase.error);
+          return { ok: false, messageSafe: purchase.error.messageSafe };
+        }
+
+        const grantedAt = nowIso();
+        let alreadyOwned = false;
+
+        // The RPC already debited credit_wallets server-side -- grant the
+        // local theme via recordThemeBundlePurchase (no wallet spend) and
+        // correct wallet.credits to the server's returned balance, rather
+        // than also spending locally (see completeWalkEarly's identical
+        // serverBalance-correction pattern).
+        setState((current) => {
+          const withServerBalance = {
+            ...current,
+            wallet: { ...current.wallet, credits: purchase.serverBalance, updatedAt: grantedAt }
+          };
+          const granted = recordThemeBundlePurchase(withServerBalance, bundleId, grantedAt, getActiveAppLocale());
+
+          if (!granted.ok) {
+            return withServerBalance;
+          }
+
+          alreadyOwned = granted.alreadyOwned;
+          return granted.state;
+        });
+        setApiSyncStatus("ready");
+
+        return {
+          ok: true,
+          mode: apiRuntime.mode,
+          messageSafe: alreadyOwned ? "Theme applied to the garden!" : "New theme unlocked and applied to the garden!",
+          placed: true
+        };
       }
 
       const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
@@ -1503,7 +2046,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         placed: true
       };
     },
-    [apiRuntime, state]
+    [apiRuntime, setApiError, state]
   );
 
   /**
@@ -1883,9 +2426,55 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
       if (apiRuntime.mode !== "api") {
         if (supabaseClient) {
+          setApiSyncStatus("syncing");
+          setApiErrorMessage(null);
+
+          const requestId = Crypto.randomUUID();
+          const purchase = await purchaseSupabaseInventoryItem(supabaseClient, itemId, requestId);
+
+          if (!purchase.ok) {
+            setApiSyncStatus("ready");
+
+            if (purchase.reason === "insufficient_balance") {
+              setState((current) => ({
+                ...current,
+                wallet: { ...current.wallet, credits: purchase.serverBalance, updatedAt: nowIso() }
+              }));
+
+              return { ok: false, messageSafe: "Not enough credits for this item." };
+            }
+
+            if (purchase.reason === "unknown_item") {
+              return { ok: false, messageSafe: "This item is not available for credits yet." };
+            }
+
+            setApiError(purchase.error);
+            return { ok: false, messageSafe: purchase.error.messageSafe };
+          }
+
+          const grantedAt = nowIso();
+
+          // The RPC already debited credit_wallets server-side -- grant the
+          // local item via recordCreditItemPurchase (no wallet spend) and
+          // correct wallet.credits to the server's returned balance, rather
+          // than also spending locally, so this can never double-charge (see
+          // completeWalkEarly's identical serverBalance-correction pattern).
+          setState((current) => {
+            const withServerBalance = {
+              ...current,
+              wallet: { ...current.wallet, credits: purchase.serverBalance, updatedAt: grantedAt }
+            };
+            const granted = recordCreditItemPurchase(withServerBalance, itemId, grantedAt);
+
+            return granted.ok ? granted.state : withServerBalance;
+          });
+          setApiSyncStatus("ready");
+
           return {
-            ok: false,
-            messageSafe: "Credit items are coming to the live store soon."
+            ok: true,
+            mode: apiRuntime.mode,
+            messageSafe: `Used ${price.creditCost} credits.`,
+            placed: false
           };
         }
 
@@ -1997,6 +2586,29 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
   const deleteChatHistory = useCallback(() => {
     const deletedAt = nowIso();
+    const supabaseClient = getSupabaseClient();
+
+    // Live Supabase conversations/conversation_messages are a separate store
+    // from the dead services/api client below (and from local prototype
+    // state) -- delete_own_chat_history (0018_chat_day_pass.sql) is the only
+    // path that actually reaches them. A failure here is reported honestly
+    // (setApiError) rather than quietly falling through to "looks deleted".
+    if (supabaseClient) {
+      setApiSyncStatus("syncing");
+      setApiErrorMessage(null);
+
+      void deleteSupabaseChatHistory(supabaseClient).then((result) => {
+        if (!result.ok) {
+          setApiError(result.error);
+          return;
+        }
+
+        setState((current) => deletePrototypeChatHistory(current, deletedAt));
+        setApiSyncStatus("ready");
+      });
+
+      return;
+    }
 
     if (apiRuntime.mode !== "api") {
       setState((current) => deletePrototypeChatHistory(current, deletedAt));
@@ -2387,16 +2999,21 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   // §6.2). Only fires on background/inactive -> active transitions, not on
   // the initial mount's "active" state (AppState's listener only reports
   // *changes*, so this never double-hydrates alongside a screen's own
-  // mount-time hydrate).
+  // mount-time hydrate). Also re-attempts the generated_assets resync above
+  // -- the same trigger point doubles as the "app foreground resume" retry
+  // that attemptGeneratedAssetResync's doc comment calls out for a
+  // still-pending (ok:false, not yet given up) resync attempt; a no-op once
+  // generatedAssetResyncDoneRef is set or the attempt cap is hit.
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (nextState === "active") {
         void hydrateCreditBalance();
+        attemptGeneratedAssetResync();
       }
     });
 
     return () => subscription.remove();
-  }, [hydrateCreditBalance]);
+  }, [attemptGeneratedAssetResync, hydrateCreditBalance]);
 
   const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
   const hasAuthoritativeWallet = getSupabaseClient() !== null || apiRuntime.mode === "api";
@@ -2417,8 +3034,14 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     return mergeEntitlements(runtimeEntitlements, getDevelopmentStoreEntitlements(state.wallet.userId, nowIso()));
   }, [apiEntitlements, apiRuntime.mode, devStoreUnlocked, state.wallet.userId]);
   const generatedAssetUriById = useMemo(
-    () => buildGeneratedAssetUriMap(generatedAssetReadUrls, activeBundle.acceptedAsset, activeBundle.acceptedAssets),
-    [generatedAssetReadUrls, activeBundle.acceptedAsset, activeBundle.acceptedAssets]
+    () =>
+      buildGeneratedAssetUriMap(
+        generatedAssetReadUrls,
+        activeBundle.acceptedAsset,
+        activeBundle.acceptedAssets,
+        localGeneratedAssetUris
+      ),
+    [generatedAssetReadUrls, activeBundle.acceptedAsset, activeBundle.acceptedAssets, localGeneratedAssetUris]
   );
 
   const sessionNow = useMemo(() => nowIso(), [sessionClock, activeBundle.careState]);
@@ -2457,6 +3080,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     bondProgress: getBondProgressValue(activeBundle.relationshipState),
     creditBalance: storeCreditPresentation.creditBalance,
     expressionPackCreditBalance: storeCreditPresentation.expressionPackCreditBalance,
+    paidWalkEarlyReturnAvailable: apiRuntime.mode !== "api",
     generationProgress,
     generationPollSnapshot: getPrototypeGenerationPollSnapshot(state),
     generatedAssetUriById,
@@ -2508,7 +3132,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     hydrateCreditBalance,
     resetSession,
     exportSessionBackup,
-    importSessionBackup
+    importSessionBackup,
+    pendingRewardClaim,
+    enqueueCreditRewardClaim,
+    enqueueDailyTreatRewardClaim,
+    claimPendingReward,
+    dismissPendingReward
   };
 
   return <TerrariumSessionContext.Provider value={value}>{children}</TerrariumSessionContext.Provider>;

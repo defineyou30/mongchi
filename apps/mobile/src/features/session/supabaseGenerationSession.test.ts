@@ -58,9 +58,11 @@ import {
   pollSupabaseExpressionPackFlow,
   pollSupabaseGenerationFlow,
   resolveIdleAssetStoragePath,
+  resyncGeneratedAssetsFromServer,
   retrySupabaseGenerationFlow,
   startSupabaseExpressionPackFlow,
   startSupabaseGenerationFlow,
+  unlockSupabaseSleepPoseForNightVisit,
   unlockSupabaseStarterPosesForCareAction
 } from "./supabaseGenerationSession";
 
@@ -120,6 +122,13 @@ interface FakeSupabaseClientOptions {
   signedUrlErrorPaths?: readonly string[];
   rpcData?: unknown;
   rpcError?: { message: string } | null;
+  generatedAssetsRows?: Array<Record<string, unknown>>;
+  generatedAssetsError?: { message: string } | null;
+  // Simulates a cold-boot race where the Supabase client's persisted auth
+  // session hasn't finished restoring yet: getSession() reports no session
+  // for this many calls (regardless of `session`/currentSession), then
+  // reports the real one from the call after that onward.
+  getSessionUnavailableForCalls?: number;
 }
 
 const createFakeSupabaseClient = (options: FakeSupabaseClientOptions = {}) => {
@@ -127,12 +136,19 @@ const createFakeSupabaseClient = (options: FakeSupabaseClientOptions = {}) => {
   const signedUrlCalls: string[] = [];
   const rpcCalls: Array<{ fn: string; args: unknown }> = [];
   let currentSession = options.session ?? null;
+  let getSessionCallCount = 0;
 
   const client = {
     auth: {
-      getSession: vi.fn(async () => ({
-        data: { session: currentSession }
-      })),
+      getSession: vi.fn(async () => {
+        getSessionCallCount += 1;
+
+        if (options.getSessionUnavailableForCalls && getSessionCallCount <= options.getSessionUnavailableForCalls) {
+          return { data: { session: null } };
+        }
+
+        return { data: { session: currentSession } };
+      }),
       signInAnonymously: vi.fn(async () => {
         if (options.signInError) {
           return { data: { session: null }, error: options.signInError };
@@ -173,19 +189,33 @@ const createFakeSupabaseClient = (options: FakeSupabaseClientOptions = {}) => {
         return { data: options.invokeData ?? { jobId: "job_supabase_001" }, error: null };
       })
     },
-    from: vi.fn((_table: string) => ({
-      select: vi.fn((_columns: string) => ({
-        eq: vi.fn((_column: string, _value: string) => ({
-          single: vi.fn(async () => {
-            if (options.jobError) {
-              return { data: null, error: options.jobError };
+    from: vi.fn((table: string) => {
+      if (table === "generated_assets") {
+        return {
+          select: vi.fn(async (_columns: string) => {
+            if (options.generatedAssetsError) {
+              return { data: null, error: options.generatedAssetsError };
             }
 
-            return { data: options.jobRow ?? null, error: null };
+            return { data: options.generatedAssetsRows ?? [], error: null };
           })
+        };
+      }
+
+      return {
+        select: vi.fn((_columns: string) => ({
+          eq: vi.fn((_column: string, _value: string) => ({
+            single: vi.fn(async () => {
+              if (options.jobError) {
+                return { data: null, error: options.jobError };
+              }
+
+              return { data: options.jobRow ?? null, error: null };
+            })
+          }))
         }))
-      }))
-    })),
+      };
+    }),
     rpc: vi.fn(async (fn: string, args: unknown) => {
       rpcCalls.push({ fn, args });
 
@@ -649,10 +679,8 @@ describe("supabase generation session poll flow", () => {
     expect(result.data.acceptedAssets?.[0]!.state).toBe("idle");
   });
 
-  it("keeps a completed job nonterminal locally until every required asset URL is signed", async () => {
-    const failedPath = "generated/job_supabase_001/sleep.png";
+  it("completes starter generation when RLS exposes idle but keeps reward poses locked", async () => {
     const { client } = createFakeSupabaseClient({
-      signedUrlErrorPaths: [failedPath],
       jobRow: {
         id: "job_supabase_001",
         status: "completed",
@@ -662,19 +690,46 @@ describe("supabase generation session poll flow", () => {
         created_at: "2026-07-03T09:01:00.000Z",
         updated_at: "2026-07-03T09:02:00.000Z",
         generated_assets: [
-          { job_id: "job_supabase_001", state: "idle", storage_path: "generated/job_supabase_001/idle.png", width: 512, height: 512 },
-          { job_id: "job_supabase_001", state: "happy", storage_path: "generated/job_supabase_001/happy.png", width: 512, height: 512 },
-          { job_id: "job_supabase_001", state: "sleep", storage_path: failedPath, width: 512, height: 512 }
+          { job_id: "job_supabase_001", state: "idle", storage_path: "generated/job_supabase_001/idle.png", width: 512, height: 512 }
         ]
       }
     });
 
     const result = await pollSupabaseGenerationFlow(client as never, stateWithJob(), "2026-07-03T09:02:01.000Z");
 
-    expect(result).toMatchObject({ ok: true, data: { generation: { status: "quality_checking" } } });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        generation: { status: "completed" },
+        acceptedAsset: { state: "idle" },
+        acceptedAssets: [{ state: "idle" }]
+      }
+    });
+  });
+
+  it("returns an error instead of polling forever when a completed job has no visible idle asset", async () => {
+    const { client } = createFakeSupabaseClient({
+      jobRow: {
+        id: "job_supabase_001",
+        status: "completed",
+        failure_code: null,
+        failure_message_safe: null,
+        required_states: ["idle", "happy", "sleep"],
+        created_at: "2026-07-03T09:01:00.000Z",
+        updated_at: "2026-07-03T09:02:00.000Z",
+        generated_assets: []
+      }
+    });
+
+    const result = await pollSupabaseGenerationFlow(client as never, stateWithJob(), "2026-07-03T09:02:01.000Z");
+
+    expect(result.ok).toBe(false);
     if (result.ok) {
-      expect(result.data.acceptedAssets).toBeUndefined();
+      return;
     }
+
+    expect(result.error.code).toBe("generation_idle_asset_unavailable");
+    expect(result.error.retryable).toBe(true);
   });
 
   it("maps a failed job status with the failure reason", async () => {
@@ -1488,6 +1543,252 @@ describe("starter pose unlock flow", () => {
         args: { p_action: "rest", p_job_id: "job_starter_001" }
       }
     ]);
+  });
+});
+
+describe("sleep pose night unlock flow", () => {
+  it("unlocks and signs the sleep pose with no p_job_id/p_action args (unlike unlock_starter_poses_for_care_action, this RPC is user-wide)", async () => {
+    const idle = makeMockGeneratedAsset("idle", { petId: "pet_local_001", generationJobId: "job_starter_001" });
+    const state = { ...createMockPhotoState(), acceptedAsset: idle, acceptedAssets: [idle] };
+    const { client, rpcCalls } = createFakeSupabaseClient({
+      rpcData: [
+        {
+          job_id: "job_starter_001",
+          state: "sleep",
+          storage_path: "avatars/user/job_starter_001/sleep.png",
+          width: 512,
+          height: 512
+        }
+      ]
+    });
+
+    const result = await unlockSupabaseSleepPoseForNightVisit(client as never, state, "2026-07-14T23:10:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets.map((asset) => asset.state)).toEqual(["sleep"]);
+    expect(rpcCalls).toEqual([{ fn: "unlock_sleep_pose_for_night_visit", args: undefined }]);
+  });
+
+  it("returns no assets, without calling the RPC's data through, when the pet has no accepted asset yet", async () => {
+    const state = createMockPhotoState();
+    const { client, rpcCalls } = createFakeSupabaseClient();
+
+    const result = await unlockSupabaseSleepPoseForNightVisit(client as never, state, "2026-07-14T23:10:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets).toEqual([]);
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("is a harmless no-op (empty assets, not an error) when the sleep pose is already unlocked", async () => {
+    const idle = makeMockGeneratedAsset("idle", { petId: "pet_local_001", generationJobId: "job_starter_001" });
+    const state = { ...createMockPhotoState(), acceptedAsset: idle, acceptedAssets: [idle] };
+    const { client, rpcCalls } = createFakeSupabaseClient({ rpcData: [] });
+
+    const result = await unlockSupabaseSleepPoseForNightVisit(client as never, state, "2026-07-14T23:10:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets).toEqual([]);
+    expect(rpcCalls).toEqual([{ fn: "unlock_sleep_pose_for_night_visit", args: undefined }]);
+  });
+
+  it("returns a retryable error when the RPC call fails", async () => {
+    const idle = makeMockGeneratedAsset("idle", { petId: "pet_local_001", generationJobId: "job_starter_001" });
+    const state = { ...createMockPhotoState(), acceptedAsset: idle, acceptedAssets: [idle] };
+    const { client } = createFakeSupabaseClient({ rpcError: { message: "unavailable" } });
+
+    const result = await unlockSupabaseSleepPoseForNightVisit(client as never, state, "2026-07-14T23:10:00.000Z");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("sleep_pose_unlock_failed");
+    expect(result.error.retryable).toBe(true);
+  });
+});
+
+describe("resyncGeneratedAssetsFromServer", () => {
+  it("signs and returns every unlocked row RLS returns for the first pet (pet_id null)", async () => {
+    const { client, signedUrlCalls } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      generatedAssetsRows: [
+        { job_id: "job_starter_001", pet_id: null, state: "idle", storage_path: "avatars/user/job_starter_001/idle.png", width: 512, height: 512 },
+        { job_id: "job_starter_001", pet_id: null, state: "happy", storage_path: "avatars/user/job_starter_001/happy.png", width: 512, height: 512 },
+        { job_id: "job_pack_curious", pet_id: null, state: "curious", storage_path: "avatars/user/job_pack_curious/curious.png", width: 512, height: 512 }
+      ]
+    });
+
+    const result = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets.map((asset) => asset.state)).toEqual(["idle", "happy", "curious"]);
+    expect(result.data.assets.every((asset) => asset.petId === "pet_local_001")).toBe(true);
+    expect(signedUrlCalls).toEqual([
+      "avatars/user/job_starter_001/idle.png",
+      "avatars/user/job_starter_001/happy.png",
+      "avatars/user/job_pack_curious/curious.png"
+    ]);
+  });
+
+  it("regression: a default pet whose PetProfile.id is a UUID (not the FIRST_PET_ID string) is still scoped to pet_id IS NULL via the bundle key, not the UUID", async () => {
+    // Real-device bug this guards against: PetProfile.id is a freshly minted
+    // `pet_local_<uuid>` once real generation starts (see
+    // startSupabaseGenerationFlowInner), never the literal "pet_local_001"
+    // post-generation -- an earlier version of this flow compared THAT uuid
+    // against FIRST_PET_ID for the filter decision, which was always false,
+    // so it fell through to an equality filter against the uuid and matched
+    // zero of the account's actual (pet_id NULL) rows. bundlePetId (the pet
+    // *bundle key*, state.activePetId -- always FIRST_PET_ID for the one
+    // pet this codebase supports today, see PetBundle's INV-1 doc comment)
+    // must be what decides the filter; assetPetId (the uuid) must only tag
+    // the resulting assets.
+    const uuidProfileId = "pet_local_b6c0f2ac-37bc-42b3-a3ec-3c49a66cc779";
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      generatedAssetsRows: [
+        { job_id: "job_starter_001", pet_id: null, state: "idle", storage_path: "avatars/user/job_starter_001/idle.png", width: 512, height: 512 },
+        { job_id: "job_starter_001", pet_id: null, state: "happy", storage_path: "avatars/user/job_starter_001/happy.png", width: 512, height: 512 },
+        { job_id: "job_pack_curious", pet_id: null, state: "curious", storage_path: "avatars/user/job_pack_curious/curious.png", width: 512, height: 512 },
+        { job_id: "job_pack_play", pet_id: null, state: "play", storage_path: "avatars/user/job_pack_play/play.png", width: 512, height: 512 },
+        { job_id: "job_pack_hungry", pet_id: null, state: "hungry", storage_path: "avatars/user/job_pack_hungry/hungry.png", width: 512, height: 512 }
+      ]
+    });
+
+    const result = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", uuidProfileId, "2026-07-14T09:00:00.000Z");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.data.assets.map((asset) => asset.state)).toEqual(["idle", "happy", "curious", "play", "hungry"]);
+    // Tagged with the profile uuid (matching every other asset already in
+    // acceptedAssets), not the bundle key used for the filter decision.
+    expect(result.data.assets.every((asset) => asset.petId === uuidProfileId)).toBe(true);
+  });
+
+  it("scopes rows to the given pet's bundle key, excluding another pet's rows", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      generatedAssetsRows: [
+        { job_id: "job_starter_001", pet_id: null, state: "idle", storage_path: "avatars/user/job_starter_001/idle.png", width: 512, height: 512 },
+        { job_id: "job_starter_002", pet_id: "pet_second_001", state: "idle", storage_path: "avatars/user/job_starter_002/idle.png", width: 512, height: 512 }
+      ]
+    });
+
+    const first = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+    const second = await resyncGeneratedAssetsFromServer(client as never, "pet_second_001", "pet_second_001", "2026-07-14T09:00:00.000Z");
+
+    expect(first.ok && first.data.assets.map((asset) => asset.generationJobId)).toEqual(["job_starter_001"]);
+    expect(second.ok && second.data.assets.map((asset) => asset.generationJobId)).toEqual(["job_starter_002"]);
+  });
+
+  it("returns no assets without erroring when RLS/the query returns nothing", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      generatedAssetsRows: []
+    });
+
+    const result = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.data.assets).toEqual([]);
+  });
+
+  it("surfaces a not-yet-ready session as a retryable ok:false, never as a silent empty success", async () => {
+    // Regression guard: an earlier version of this flow treated "no session"
+    // as an ok:true empty result, indistinguishable from "queried fine, truly
+    // nothing to sync." TerrariumSessionProvider's one-shot resync guard was
+    // consumed synchronously before this resolved, so a session that simply
+    // hadn't finished restoring yet (see the race test below) permanently
+    // burned the device's only resync attempt. ok:false is what lets the
+    // caller know to retry instead of giving up.
+    const { client } = createFakeSupabaseClient({
+      session: null,
+      signInError: { message: "network unreachable" }
+    });
+
+    const result = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe("generated_assets_resync_session_not_ready");
+    expect(!result.ok && result.error.retryable).toBe(true);
+  });
+
+  it("recovers on a later attempt once a session that was still restoring becomes available (the cold-boot race this guards against)", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      // The first getSession() call can't see the persisted session yet
+      // (still restoring), and signInAnonymously (ensureSupabaseSession's
+      // fallback) also fails, exactly like a device whose network stack
+      // isn't ready a split second after cold boot -- the existing
+      // persisted session is never overwritten by that failed attempt.
+      signInError: { message: "network not ready" },
+      getSessionUnavailableForCalls: 1,
+      generatedAssetsRows: [
+        { job_id: "job_starter_001", pet_id: null, state: "idle", storage_path: "avatars/user/job_starter_001/idle.png", width: 512, height: 512 },
+        { job_id: "job_pack_curious", pet_id: null, state: "curious", storage_path: "avatars/user/job_pack_curious/curious.png", width: 512, height: 512 }
+      ]
+    });
+
+    const firstAttempt = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+
+    expect(firstAttempt.ok).toBe(false);
+    expect(!firstAttempt.ok && firstAttempt.error.retryable).toBe(true);
+
+    // A caller that (correctly) left its one-shot guard untouched after that
+    // ok:false retries with the same client shortly after -- by now the
+    // session that was still restoring is visible, so this attempt succeeds
+    // and returns every unlocked asset ready to merge.
+    const secondAttempt = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:05:00.000Z");
+
+    expect(secondAttempt.ok).toBe(true);
+    expect(secondAttempt.ok && secondAttempt.data.assets.map((asset) => asset.state)).toEqual(["idle", "curious"]);
+  });
+
+  it("maps a query error to a retryable resync-failed error", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" },
+      generatedAssetsError: { message: "permission denied" }
+    });
+
+    const result = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe("generated_assets_resync_failed");
+    expect(!result.ok && result.error.retryable).toBe(true);
+  });
+
+  it("catches an unexpected throw and returns a retryable resync-failed error instead of crashing", async () => {
+    const { client } = createFakeSupabaseClient({
+      session: { user: { id: "user_existing_001" }, access_token: "token_existing_001" }
+    });
+    client.from = vi.fn(() => {
+      throw new Error("unexpected client failure");
+    });
+
+    const result = await resyncGeneratedAssetsFromServer(client as never, "pet_local_001", "pet_local_001", "2026-07-14T09:00:00.000Z");
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe("generated_assets_resync_failed");
   });
 });
 
