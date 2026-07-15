@@ -5,7 +5,8 @@ import {
   getAvailableTreatItemId,
   isCareItemEligibleForAction,
   isConsumableCareItem,
-  isDrinkInventoryItem
+  isDrinkInventoryItem,
+  isSleepInventoryItem
 } from "../domain";
 import type { Inventory } from "../domain";
 import { mockItems } from "../mock/mockData";
@@ -116,6 +117,23 @@ describe("care item consumption semantics", () => {
     expect(isConsumableCareItem(findItem("item_treat_plate_biscuit"))).toBe(true);
     expect(isConsumableCareItem(findItem("item_plush_toy_buddy"))).toBe(false);
     expect(isConsumableCareItem(findItem("item_cushion_rose"))).toBe(false);
+  });
+
+  it("flags bed/rest furniture as sleep items but not toys or treats", () => {
+    const findItem = (itemId: string) => {
+      const item = mockItems.find((candidate) => candidate.id === itemId);
+
+      if (!item) {
+        throw new Error(`Missing item fixture: ${itemId}`);
+      }
+
+      return item;
+    };
+
+    expect(isSleepInventoryItem(findItem("item_garden_hammock"))).toBe(true);
+    expect(isSleepInventoryItem(findItem("item_cushion_rose"))).toBe(true);
+    expect(isSleepInventoryItem(findItem("item_plush_toy_buddy"))).toBe(false);
+    expect(isSleepInventoryItem(findItem("item_treat_plate_biscuit"))).toBe(false);
   });
 
   it("only allows catalog items on their authored care actions", () => {

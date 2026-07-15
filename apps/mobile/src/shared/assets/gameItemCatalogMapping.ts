@@ -77,7 +77,8 @@ export type GameItemAssetKey =
   | "doghouse"
   | "gift"
   | "lantern"
-  | "bath";
+  | "bath"
+  | "heart";
 
 export const gameItemAssetByCatalogId: Record<string, GameItemAssetKey> = {
   item_food_bowl_basic: "foodBowl",

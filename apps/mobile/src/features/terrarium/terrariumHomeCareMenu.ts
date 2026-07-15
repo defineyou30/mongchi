@@ -45,7 +45,7 @@ const baseOptionByAction: Record<HomeFloatingDockAction, HomeCareMenuOption> = {
     title: "Pet",
     meta: "+Bond",
     quantity: 1,
-    assetKey: "petBed",
+    assetKey: "heart",
     owned: true
   },
   feed: {

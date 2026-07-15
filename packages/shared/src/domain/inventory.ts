@@ -218,6 +218,16 @@ export const isTreatInventoryItem = (item: Item): boolean => item.category === "
 
 export const isDrinkInventoryItem = (item: Item): boolean => item.category === "drink" || item.behaviorTags.includes("drink");
 
+/**
+ * True for beds/rest furniture (every "bed"-category item is authored with a
+ * "sleep" behaviorTag -- see mockData.ts). Used to re-flavor the affection
+ * tray's feedback copy: petting the pet with a bed/hammock item should read
+ * as a rest moment ("Rested") rather than the generic "Gentle pet" line,
+ * even though the underlying CareActionType stays "affection" for stats and
+ * cooldown purposes (see terrariumHomePresentation.ts).
+ */
+export const isSleepInventoryItem = (item: Item): boolean => item.behaviorTags.includes("sleep");
+
 export const isConsumableCareItem = (item: Item): boolean => isTreatInventoryItem(item) || isDrinkInventoryItem(item);
 
 export const isCareItemEligibleForAction = (item: Item, action: CareActionType): boolean => {

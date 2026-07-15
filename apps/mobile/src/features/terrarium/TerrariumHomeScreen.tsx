@@ -1982,6 +1982,16 @@ export function TerrariumHomeScreen() {
   const episodeRoll = createSeededRandom(episodeRollSeed)();
   const preferEpisodeLine = isFirstHomeThoughtRef.current || episodeRoll < 0.35;
   const isShowingNightCareAcknowledgement = nightCareAcknowledgedUntil > clock;
+  // The specific owned item the last care action used (e.g. a bed/hammock
+  // picked from the affection tray) -- forwarded to getHomeThoughtPresentation
+  // and getHomeCareActionFeedbackPresentation so a sleep-tagged item re-flavors
+  // their copy to the "rest" family instead of the generic per-action text
+  // (see terrariumHomePresentation.ts's isRestItemMoment). null for the base
+  // no-item action.
+  const lastActionItem = useMemo(
+    () => (lastActionSnapshot?.itemId ? catalogItems.find((candidate) => candidate.id === lastActionSnapshot.itemId) ?? null : null),
+    [catalogItems, lastActionSnapshot?.itemId]
+  );
   const homeThought = getHomeThoughtPresentation({
     petName: activePet.name,
     reaction: daysAway > 0 && !lastActionSnapshot && justClaimedWalkAt === null ? ambientReaction : reaction,
@@ -1990,6 +2000,7 @@ export function TerrariumHomeScreen() {
     weather: activeWeather,
     now: reactionNow,
     recentAction: lastActionSnapshot?.action ?? null,
+    item: lastActionItem,
     daysAway,
     episodeLine,
     preferEpisodeLine,
@@ -2027,6 +2038,7 @@ export function TerrariumHomeScreen() {
         nextCareState: careState,
         previousRelationshipState: lastActionSnapshot.previousRelationshipState,
         nextRelationshipState: relationshipState,
+        item: lastActionItem,
         reward: null,
         locale
       })

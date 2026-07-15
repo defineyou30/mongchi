@@ -84,6 +84,20 @@ describe("getVisibleHomeCareMenuOptions", () => {
     ]);
   });
 
+  it("shows a heart icon (not the pink petBed art) for the base Pet option in the affection tray", () => {
+    const options = getVisibleHomeCareMenuOptions({
+      action: "affection",
+      catalogItems: mockItems,
+      devStoreUnlocked: false,
+      inventory: mockInventory
+    });
+
+    const basePet = options.find((option) => option.id === "base-affection");
+
+    expect(basePet).toBeDefined();
+    expect(basePet?.assetKey).toBe("heart");
+  });
+
   it("does not leak the Bath option into unrelated trays (e.g. feed)", () => {
     const options = getVisibleHomeCareMenuOptions({
       action: "feed",

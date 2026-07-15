@@ -402,6 +402,7 @@ const itemSources = {
     | "gift"
     | "lantern"
     | "bath"
+    | "heart"
   >,
   Record<GameItemVariant, ImageSourcePropType>
 >;
@@ -462,6 +463,17 @@ const plantStageSources = {
  * same technique as plantStageSources above.
  */
 const bathSources = defineSingleImageSources(require("../../../assets/game-items/action/bath.png"));
+
+/**
+ * Pet tray icon (terrariumHomeCareMenu's always-visible "Pet" (+Bond)
+ * option in the affection tray) -- a heart, not the pink bed art it
+ * previously (mistakenly) borrowed from item_cushion_rose's "petBed" key.
+ * Single pixel-art icon reused across all four variants, same technique as
+ * bathSources above. Lives under game-buttons/feedback (a feedback-icon set)
+ * rather than game-items, since it is a tray/feedback glyph, not a placed
+ * scene item.
+ */
+const heartSources = defineSingleImageSources(require("../../../assets/game-buttons/feedback/heart.png"));
 
 export const gameItemDefinitions: Record<GameItemAssetKey, GameItemDefinition> = {
   foodBowl: defineItem("scene_food_bowl", "food", "small", 96, ["foodSlot"], "petAdjacent", itemSources.foodBowl),
@@ -560,7 +572,8 @@ export const gameItemDefinitions: Record<GameItemAssetKey, GameItemDefinition> =
     anchorY: 0.12,
     contactShadow: "none"
   }),
-  bath: defineItem("scene_bath_tray", "water", "small", 96, ["waterSlot", "rightPlantSlot"], "foreground", bathSources)
+  bath: defineItem("scene_bath_tray", "water", "small", 96, ["waterSlot", "rightPlantSlot"], "foreground", bathSources),
+  heart: defineItem("scene_heart_tray", "reward", "small", 96, ["rewardSlot"], "foreground", heartSources)
 };
 
 export const gameItemAssetByCatalogId = catalogAssetMapping satisfies Record<string, GameItemAssetKey>;

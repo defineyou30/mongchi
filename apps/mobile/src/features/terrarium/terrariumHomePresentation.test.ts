@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MemoryEntry, SelectedReaction, WalkSession } from "@mongchi/shared";
-import { applyLocalCareAction, applyRelationshipCareAction, mockCareState, mockRelationshipState } from "@mongchi/shared";
+import { applyLocalCareAction, applyRelationshipCareAction, mockCareState, mockItems, mockRelationshipState } from "@mongchi/shared";
 
 import {
   getAmbientReactionSeed,
@@ -48,6 +48,19 @@ const walking: WalkSession = {
   createdAt: "2026-06-24T09:00:00.000Z",
   updatedAt: "2026-06-24T09:00:00.000Z"
 };
+
+const findItem = (itemId: string) => {
+  const item = mockItems.find((candidate) => candidate.id === itemId);
+
+  if (!item) {
+    throw new Error(`fixture setup error: ${itemId} missing from mockItems`);
+  }
+
+  return item;
+};
+
+const gardenHammock = findItem("item_garden_hammock");
+const plushToy = findItem("item_plush_toy_buddy");
 
 describe("terrarium home presentation", () => {
   it("uses the current care need for the home thought bubble", () => {
@@ -292,6 +305,43 @@ describe("terrarium home presentation", () => {
     expect(result.line).toBe("My belly sent an official request for dinner.");
   });
 
+  it("shows the rest-family reaction line (not the generic petting line) when the affection tap used a sleep-tagged item, e.g. the Garden Hammock", () => {
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: idleReaction,
+      satisfactionSummary: { hint: "Care rhythm is good." },
+      recentAction: "affection",
+      item: gardenHammock
+    });
+
+    expect(result.line).toBe("Now I can rest all cozy.");
+  });
+
+  it("keeps the generic petting reaction line for the base no-item affection tap", () => {
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: idleReaction,
+      satisfactionSummary: { hint: "Care rhythm is good." },
+      recentAction: "affection",
+      locale: "ko-KR"
+    });
+
+    expect(result.line).toBe("따뜻한 손길이 정말 좋아요.");
+  });
+
+  it("keeps the generic petting reaction line when the affection tap used a non-sleep item, e.g. the Buddy Plush", () => {
+    const result = getHomeThoughtPresentation({
+      petName: "Miso",
+      reaction: idleReaction,
+      satisfactionSummary: { hint: "Care rhythm is good." },
+      recentAction: "affection",
+      item: plushToy,
+      locale: "ko-KR"
+    });
+
+    expect(result.line).toBe("따뜻한 손길이 정말 좋아요.");
+  });
+
   it("shows a startable path CTA when no walk is active", () => {
     expect(getHomeWalkCtaPresentation(null, "Miso", 0)).toMatchObject({
       status: "start",
@@ -459,6 +509,68 @@ describe("terrarium home presentation", () => {
     expect(presentation.line).toBe("Mong trotted off to the path.");
     expect(presentation.line).not.toMatch(/[+-]\d/);
     expect(presentation.accessibilityLabel).toBe("Path started. Mong trotted off to the path.");
+  });
+
+  it("shows the base 'Gentle pet' feedback for a no-item affection tap", () => {
+    const occurredAt = "2026-06-24T10:20:00.000Z";
+    const careResult = applyLocalCareAction(mockCareState, {
+      action: "affection",
+      occurredAt
+    });
+    const relationship = applyRelationshipCareAction(mockRelationshipState, "affection", occurredAt);
+
+    const presentation = getHomeCareActionFeedbackPresentation({
+      action: "affection",
+      previousCareState: careResult.previousState,
+      nextCareState: careResult.nextState,
+      previousRelationshipState: mockRelationshipState,
+      nextRelationshipState: relationship
+    });
+
+    expect(presentation.title).toBe("Gentle pet");
+    expect(presentation.icon).toBe("heart");
+  });
+
+  it("re-flavors affection feedback to the rest family when the item used is bed/rest furniture (e.g. the Garden Hammock)", () => {
+    const occurredAt = "2026-06-24T10:20:00.000Z";
+    const careResult = applyLocalCareAction(mockCareState, {
+      action: "affection",
+      occurredAt
+    });
+    const relationship = applyRelationshipCareAction(mockRelationshipState, "affection", occurredAt);
+
+    const presentation = getHomeCareActionFeedbackPresentation({
+      action: "affection",
+      previousCareState: careResult.previousState,
+      nextCareState: careResult.nextState,
+      previousRelationshipState: mockRelationshipState,
+      nextRelationshipState: relationship,
+      item: gardenHammock
+    });
+
+    expect(presentation.title).toBe("Rested");
+    expect(presentation.icon).toBe("rest");
+  });
+
+  it("keeps the base 'Gentle pet' feedback when the item used has no sleep tag (e.g. the Buddy Plush)", () => {
+    const occurredAt = "2026-06-24T10:20:00.000Z";
+    const careResult = applyLocalCareAction(mockCareState, {
+      action: "affection",
+      occurredAt
+    });
+    const relationship = applyRelationshipCareAction(mockRelationshipState, "affection", occurredAt);
+
+    const presentation = getHomeCareActionFeedbackPresentation({
+      action: "affection",
+      previousCareState: careResult.previousState,
+      nextCareState: careResult.nextState,
+      previousRelationshipState: mockRelationshipState,
+      nextRelationshipState: relationship,
+      item: plushToy
+    });
+
+    expect(presentation.title).toBe("Gentle pet");
+    expect(presentation.icon).toBe("heart");
   });
 
 });

@@ -1,4 +1,4 @@
-import { bondLevelRewards, getCareStatBand, getExpressionPackById, NIGHT_CARE_ACKNOWLEDGEMENT_LINE, selectPetStatusLine } from "@mongchi/shared";
+import { bondLevelRewards, getCareStatBand, getExpressionPackById, isSleepInventoryItem, NIGHT_CARE_ACKNOWLEDGEMENT_LINE, selectPetStatusLine } from "@mongchi/shared";
 import type {
   ActiveCareBuff,
   CareActionReward,
@@ -6,6 +6,7 @@ import type {
   CareSatisfactionSummary,
   CareState,
   CareStatBand,
+  Item,
   MemoryEntry,
   PetStatusNeed,
   PetStatusSource,
@@ -123,6 +124,19 @@ const feedbackIconByAction: Record<CareActionType, HomeCareActionFeedbackIcon> =
   treat: "treat"
 };
 
+/**
+ * True when the care action's used item is bed/rest furniture (e.g. the
+ * Garden Hammock) rather than the base no-item action or a non-sleep item.
+ * The affection tray shows every item behaviorTagged "affection" or "sleep"
+ * (see terrariumHomeCareMenu.ts's isSpecialCareItemForAction), but only the
+ * sleep-tagged ones (every "bed"-category item) should read as a rest moment
+ * ("Rested" / "Now I can rest all cozy.") instead of the generic "Gentle
+ * pet" copy -- the CareActionType itself stays "affection" either way
+ * (stats/cooldown are unaffected), this only re-flavors the copy shown for
+ * that moment.
+ */
+const isRestItemMoment = (item: Item | null | undefined): boolean => Boolean(item && isSleepInventoryItem(item));
+
 const careDeltaFields: Array<{ key: keyof Pick<CareState, "satiety" | "happiness" | "energy" | "cleanliness" | "gardenHealth" | "affection">; label: LocalizedText }> = [
   { key: "satiety", label: { "en-US": "Food", "ko-KR": "밥", "ja-JP": "ごはん", "zh-TW": "飽足", "de-DE": "Futter", "fr-FR": "Repas", "pt-BR": "Comida", "es-MX": "Comida" } },
   { key: "happiness", label: { "en-US": "Mood", "ko-KR": "기분", "ja-JP": "気分", "zh-TW": "心情", "de-DE": "Laune", "fr-FR": "Humeur", "pt-BR": "Humor", "es-MX": "Ánimo" } },
@@ -165,6 +179,7 @@ export const getHomeCareActionFeedbackPresentation = ({
   previousRelationshipState,
   nextRelationshipState,
   reward,
+  item = null,
   locale = "en-US"
 }: {
   action: CareActionType;
@@ -173,6 +188,8 @@ export const getHomeCareActionFeedbackPresentation = ({
   previousRelationshipState: RelationshipState;
   nextRelationshipState: RelationshipState;
   reward?: CareActionReward | null;
+  /** The specific owned item this care action used (e.g. a bed/hammock picked from the affection tray) -- see isRestItemMoment. Undefined/null for the base no-item action. */
+  item?: Item | null;
   locale?: AppLocale;
 }): HomeCareActionFeedbackPresentation => {
   const careDeltas = careDeltaFields
@@ -208,10 +225,11 @@ export const getHomeCareActionFeedbackPresentation = ({
   const tone = getCareActionTone(action, deltas, reward ?? null);
   const accessibilityDetail =
     walkStartedLine ?? rewardLine ?? (deltas.length > 0 ? deltas.map(formatDelta).join(", ") : rhythmUpdatedLine);
-  const feedbackTitle = getLocalizedText(locale, feedbackTitleByAction[action]);
+  const feedbackKey = isRestItemMoment(item) ? "rest" : action;
+  const feedbackTitle = getLocalizedText(locale, feedbackTitleByAction[feedbackKey]);
 
   return {
-    icon: reward ? "reward" : feedbackIconByAction[action],
+    icon: reward ? "reward" : feedbackIconByAction[feedbackKey],
     tone,
     title: feedbackTitle,
     line,
@@ -307,6 +325,7 @@ export const getHomeThoughtPresentation = ({
   weather,
   now = "2026-06-24T09:00:00.000Z",
   recentAction,
+  item = null,
   daysAway,
   episodeLine,
   preferEpisodeLine = false,
@@ -321,6 +340,8 @@ export const getHomeThoughtPresentation = ({
   weather?: WeatherContext | null;
   now?: string;
   recentAction?: CareActionType | null;
+  /** The specific owned item `recentAction` used (e.g. a bed/hammock picked from the affection tray) -- see isRestItemMoment. Undefined/null for the base no-item action. */
+  item?: Item | null;
   daysAway?: number;
   /** A candidate episode line (memory recall / habit / weather-shift) -- only used when there's no urgent need or return greeting to show, and only when `preferEpisodeLine` says this is the moment for it. */
   episodeLine?: SelectedEpisodeLine | null;
@@ -349,12 +370,19 @@ export const getHomeThoughtPresentation = ({
   const momentIsShowing = !celebrationIsShowing && Boolean(momentOverrideLine);
   const nightCareIsShowing = !celebrationIsShowing && !momentIsShowing && isShowingNightCareAcknowledgement;
   const episodeIsShowing = !celebrationIsShowing && !momentIsShowing && !nightCareIsShowing && Boolean(episodeLine && preferEpisodeLine && AMBIENT_STATUS_SOURCES.has(status.source));
+  // True only when the recentAction branch below is the one that will actually
+  // render *and* that action used a bed/sleep item -- e.g. petting with the
+  // Garden Hammock. Swaps the pet's reaction line for the "rest" family copy
+  // (all locales, including en-US, rather than the generic per-action pool)
+  // instead of the misleading "I love your warm touch." said for a nap.
+  const restItemMomentShowing =
+    !celebrationIsShowing && !momentIsShowing && !nightCareIsShowing && (daysAway ?? 0) <= 0 && Boolean(recentAction) && isRestItemMoment(item);
   const lineCopy: LocalizedText = celebrationIsShowing
     ? { "en-US": reaction.line, "ko-KR": "오늘 우리 사이가 한층 더 가까워졌어요!", "ja-JP": "今日、ふたりの絆がもっと深まりました！", "zh-TW": "今天我們又更親近了一點！", "de-DE": "Heute sind wir uns noch näher gekommen!", "fr-FR": "Aujourd’hui, nous nous sommes encore rapprochés !", "pt-BR": "Hoje ficamos ainda mais próximos!", "es-MX": "¡Hoy nos volvimos aún más cercanos!" }
     : momentIsShowing ? { "en-US": momentOverrideLine ?? "", "ko-KR": "나비가 인사하러 왔어요!", "ja-JP": "ちょうちょがあいさつに来ました！", "zh-TW": "蝴蝶來打招呼了！", "de-DE": "Ein Schmetterling ist zum Grüßen gekommen!", "fr-FR": "Un papillon est venu dire bonjour !", "pt-BR": "Uma borboleta veio dar oi!", "es-MX": "¡Una mariposa vino a saludar!" }
     : nightCareIsShowing ? { "en-US": NIGHT_CARE_ACKNOWLEDGEMENT_LINE, "ko-KR": "고마워요. 이제 포근하게 다시 잘게요.", "ja-JP": "ありがとう。もう一度ぬくぬく眠るね。", "zh-TW": "謝謝你。我現在要暖暖地繼續睡了。", "de-DE": "Danke. Jetzt kuschle ich mich wieder in den Schlaf.", "fr-FR": "Merci. Je vais me rendormir bien au chaud.", "pt-BR": "Obrigado. Agora vou voltar a dormir bem aconchegado.", "es-MX": "Gracias. Ahora volveré a dormir muy a gusto." }
     : (daysAway ?? 0) > 0 ? { "en-US": status.line, "ko-KR": "{petName}가 돌아오길 기다렸어요. 다시 만나서 정말 좋아요!", "ja-JP": "{petName}はあなたを待っていました。帰ってきてくれてとってもうれしい！", "zh-TW": "{petName} 一直在等你。你回來真是太好了！", "de-DE": "{petName} hat auf dich gewartet. Wie schön, dass du wieder da bist!", "fr-FR": "{petName} vous attendait. Quel bonheur de vous retrouver !", "pt-BR": "{petName} estava esperando você. Que bom ter você de volta!", "es-MX": "{petName} te estuvo esperando. ¡Qué alegría tenerte de vuelta!" }
-    : recentAction ? { ...localizedActionThoughtByAction[recentAction], "en-US": status.line }
+    : recentAction ? (restItemMomentShowing ? localizedActionThoughtByAction.rest : { ...localizedActionThoughtByAction[recentAction], "en-US": status.line })
     : needCopy ? { ...needCopy, "en-US": status.line }
     : episodeIsShowing ? { "en-US": episodeLine?.line ?? status.line, "ko-KR": "우리의 작은 추억 하나가 문득 떠올랐어요.", "ja-JP": "ふたりの小さな思い出をふと思い出しました。", "zh-TW": "忽然想起我們的一段小回憶。", "de-DE": "Gerade ist mir eine unserer kleinen Erinnerungen eingefallen.", "fr-FR": "Un de nos petits souvenirs vient de me revenir.", "pt-BR": "Acabei de lembrar de um dos nossos pequenos momentos.", "es-MX": "Acabo de recordar uno de nuestros pequeños momentos." }
     : { "en-US": status.line, "ko-KR": "오늘도 네 곁에서 천천히 쉬고 싶어요.", "ja-JP": "今日もあなたのそばで、のんびり休みたいな。", "zh-TW": "今天也想在你身邊慢慢休息。", "de-DE": "Heute möchte ich wieder ganz in Ruhe bei dir sein.", "fr-FR": "Aujourd’hui encore, j’aimerais me reposer doucement près de toi.", "pt-BR": "Hoje também quero descansar devagar ao seu lado.", "es-MX": "Hoy también quiero descansar tranquilamente a tu lado." };
@@ -362,7 +390,7 @@ export const getHomeThoughtPresentation = ({
   const englishAccessibilityLabel = nightCareIsShowing
     ? `${petName} sleepily thanks you and settles back down. ${NIGHT_CARE_ACKNOWLEDGEMENT_LINE}`
     : episodeIsShowing ? episodeLine?.line ?? status.accessibilityLabel
-    : celebrationIsShowing || momentIsShowing ? lineCopy["en-US"]
+    : celebrationIsShowing || momentIsShowing || restItemMomentShowing ? lineCopy["en-US"]
     : status.accessibilityLabel;
   const accessibilityLabel = getLocalizedText(locale, { ...lineCopy, "en-US": englishAccessibilityLabel }).replaceAll("{petName}", petName);
 
