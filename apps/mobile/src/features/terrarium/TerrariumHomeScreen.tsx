@@ -14,6 +14,9 @@ import {
   getAutonomousBehaviorIntervalMs,
   getAvailableTreatItemId,
   getCareDaysAway,
+  getCrossedBondCreditRewardKeys,
+  getCrossedCareStreakRewardKeys,
+  getLocalDayKey,
   getWalkCollectibleById,
   getWalkCommentaryIntervalMs,
   getWalkCommentaryStage,
@@ -29,9 +32,11 @@ import {
   selectEpisodeLine,
   selectGeneratedAssetForReaction,
   selectLocalReaction,
+  settlementMissionRewardKeys,
   shouldShowMorningStretch,
   shouldSpawnButterflyVisit,
   starterReactionRules,
+  WALK_COLLECTION_COMPLETE_CREDITS,
   AUTONOMOUS_BEHAVIOR_HOLD_MS
 } from "@mongchi/shared";
 import type {
@@ -74,13 +79,25 @@ import {
   synchronizeWalkReturnNotification
 } from "../notifications/walkReturnNotification";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
+import {
+  createEmptyDailyCareProgress,
+  getDailyTreatRewardKey,
+  pickDailyTreatItemId,
+  recordCoreCareAction
+} from "../rewards/dailyCareTreatReward";
+import { hasQueuedRewardLocally, markRewardQueuedLocally } from "../rewards/rewardClaimLocalFlags";
 import { CareMomentLayer } from "./CareMomentLayer";
 import { NightWashLayer, NightZzzFloat } from "./NightOverlayLayer";
 import { ButterflyVisitorLayer } from "./ButterflyVisitorLayer";
 import { HomeCareActionTray } from "./HomeCareActionTray";
 import { HomeRetentionPromptCard } from "./HomeRetentionPromptCard";
-import type { HomeRetentionPromptAction } from "./homeRetentionPresentation";
-import { getHomeRetentionPromptPresentation } from "./homeRetentionPresentation";
+import type { HomeRetentionCollapsedState, HomeRetentionMilestoneId, HomeRetentionPromptAction } from "./homeRetentionPresentation";
+import {
+  getHomeRetentionCardDisplayMode,
+  getHomeRetentionPromptPresentation,
+  parseHomeRetentionCollapsedState,
+  serializeHomeRetentionCollapsedState
+} from "./homeRetentionPresentation";
 import type {
   HomeCareActionFeedbackIcon,
   HomeCareActionFeedbackPresentation,
@@ -102,14 +119,16 @@ import {
   getHomeStreakTogglePresentation,
   getHomeThoughtPresentation,
   getHudMeterGuidePresentation,
+  getSleepPoseUnlockedTogglePresentation,
   getStreakToastPersistedKey,
   getWalkCollectionCompleteTogglePresentation,
   getLocalizedWalkCollectibleName,
   getWalkDiscoveryCardPresentation,
   isCelebrationReaction,
-  pruneEventToastPersistedKeys
+  pruneEventToastPersistedKeys,
+  SLEEP_POSE_UNLOCK_TOAST_PERSISTED_KEY
 } from "./terrariumHomePresentation";
-import { getVisibleHomeCareMenuOptions } from "./terrariumHomeCareMenu";
+import { getShopCategoryForHomeAction, getVisibleHomeCareMenuOptions } from "./terrariumHomeCareMenu";
 import {
   getHomeCareActionCooldownLeftMs,
   getHomeCarePressDecision,
@@ -123,6 +142,7 @@ import {
   HOME_THOUGHT_BUBBLE_MAX_LINES,
   HOME_THOUGHT_BUBBLE_WIDTH_PX,
   estimateHomeThoughtBubbleLineCount,
+  getCenteredOverlayMarginLeftPx,
   getHomePetStageBottomPx,
   getHomeStageHorizontalMarginLeftPx,
   getHomeThoughtBubbleBottomPx,
@@ -161,6 +181,15 @@ interface LastCareActionSnapshot {
   // AnimatedCareFeedbackToast) wouldn't remount/re-animate on the second
   // press when the resulting deltas happen to match the first press exactly.
   actedAtMs: number;
+  // The specific owned item this press used (a picked treat/drink/toy/bed),
+  // undefined for the base no-item action -- forwarded to CareMomentLayer so
+  // its Tier 2 moment shows that item's own art instead of generic category
+  // art (see terrariumHomeCareMoment.ts's getCareMomentStaging). Typed as
+  // required-but-possibly-undefined (not `itemId?:`) because the one call
+  // site forwards decision.itemId's own `ItemId | undefined` type verbatim --
+  // exactOptionalPropertyTypes rejects passing an undefined-typed value
+  // through an omittable `?:` field.
+  itemId: ItemId | undefined;
 }
 
 const careButtons: CareButtonConfig[] = [
@@ -192,6 +221,8 @@ const HOME_WELCOME_SEEN_KEY = "mongchi.home.welcome.v1";
 const HOME_EVENT_TOAST_SHOWN_KEYS_KEY = "mongchi.home.eventToast.shownKeys.v1";
 /** Same key the friend page writes when its 30-day letter is opened -- read here only to drive the badge dot. */
 const MONTHLY_LETTER_OPENED_KEY = "mongchi.friend.monthlyLetter.openedAt.v1";
+/** Persists the owner's manual fold of the retention card -- see getHomeRetentionCardDisplayMode. */
+const HOME_RETENTION_COLLAPSED_KEY = "mongchi.home.retentionCard.collapsed.v1";
 /** Local-wallet cost of the "Bring home now" early-walk-return button. */
 const WALK_EARLY_RETURN_CREDIT_COST = 1;
 /** Fade in/hold/out timings for each running-commentary line over the walk paw trail. */
@@ -204,9 +235,9 @@ const WALK_COMMENTARY_DISAPPEAR_MS = 480;
  * has no discriminant field beyond `id` -- see terrariumHomePresentation.ts)
  * and plays a matching haptic for the two celebration-grade toasts. Bond
  * level-ups and discovery-grade moments (walk finds, walk journal
- * completion, expression pack unlocks) get their own jingle; every other
- * event toast (streaks, buffs, days-together milestones) gets the shared,
- * lower-key sfx_toast chime.
+ * completion, expression pack unlocks, the sleep pose's first-night unlock)
+ * get their own jingle; every other event toast (streaks, buffs,
+ * days-together milestones) gets the shared, lower-key sfx_toast chime.
  */
 // Jingle length here matches the placeholder jingle_* durations from
 // synth_sfx.py (well under 1s); ducking briefly for it is a "make room for
@@ -225,7 +256,8 @@ const playEventToastSfx = (toastId: string): void => {
   if (
     toastId.startsWith("walk-discovery-") ||
     toastId === "walk-collection-complete" ||
-    toastId.startsWith("expression-pack-")
+    toastId.startsWith("expression-pack-") ||
+    toastId === "sleep-pose-unlock"
   ) {
     duckBgmForMs(JINGLE_DUCK_MS);
     playSfx("jingle_discovery");
@@ -933,11 +965,14 @@ export function TerrariumHomeScreen() {
     claimWalkReward,
     completeWalkEarly,
     creditBalance,
+    paidWalkEarlyReturnAvailable,
     currentReaction,
     acceptedAsset,
     careStats,
     catalogItems,
     devStoreUnlocked,
+    enqueueCreditRewardClaim,
+    enqueueDailyTreatRewardClaim,
     generatedAssetUriById,
     inventory,
     lastWalkDiscovery,
@@ -974,6 +1009,23 @@ export function TerrariumHomeScreen() {
   // walk claim) caused it -- see getBondLevelUpTogglePresentation.
   const previousBondLevelRef = useRef<number | null>(null);
   const [celebratingBondLevelUntil, setCelebratingBondLevelUntil] = useState(0);
+  // Care-streak credit milestones (streak_3/7/14/30, see creditRewards.ts) --
+  // mirrors previousBondLevelRef's "watch the raw value via a ref" pattern,
+  // independent of the existing every-day streak toast below.
+  const previousStreakCountRef = useRef<number | null>(null);
+  // First-ever feed/play, for the settle_first_feed/settle_first_play
+  // settlement missions -- null until the first render's careStats snapshot
+  // is read below, matching previousBondLevelRef's "skip the very first
+  // render" guard so a returning owner's existing count never misfires.
+  const previousFeedCountRef = useRef<number | null>(null);
+  const previousPlayCountRef = useRef<number | null>(null);
+  const previousAffectionCountRef = useRef<number | null>(null);
+  // Today's care progress toward the daily snack reward (feed + play +
+  // affection, see dailyCareTreatReward.ts) -- session-only, matching the
+  // house rule against touching prototypeSession's persisted shape for this
+  // reward wave. Worst case on app restart mid-day: today's snack needs all
+  // three actions again, never a duplicate grant (dedupeKey below still guards that).
+  const dailyCareProgressRef = useRef(createEmptyDailyCareProgress(getLocalDayKey(new Date().toISOString())));
   // Visual hint that a long-press (opens the friend page) is available:
   // scales the pet down slightly while the finger is down, same idea as
   // FriendRailButton's pressed translateY -- purely cosmetic, no gesture logic.
@@ -983,8 +1035,9 @@ export function TerrariumHomeScreen() {
   // 4): a card tap there navigates here with an `openTray` route param naming
   // the dock tray to auto-open (see getHomeDockActionForItem). This is a
   // route-param handoff only -- prototypeSession's own shape is untouched.
-  const { openTray: requestedOpenTrayRawParam } = useLocalSearchParams();
+  const { openItem: requestedOpenItemRawParam, openTray: requestedOpenTrayRawParam } = useLocalSearchParams();
   const requestedOpenTrayParam = Array.isArray(requestedOpenTrayRawParam) ? requestedOpenTrayRawParam[0] : requestedOpenTrayRawParam;
+  const requestedOpenItemParam = Array.isArray(requestedOpenItemRawParam) ? requestedOpenItemRawParam[0] : requestedOpenItemRawParam;
   const hasAppliedRequestedOpenTrayRef = useRef(false);
   const [actionLockedUntil, setActionLockedUntil] = useState(0);
   const actionLockedUntilRef = useRef(0);
@@ -1030,6 +1083,15 @@ export function TerrariumHomeScreen() {
   const [nightCareAcknowledgedUntil, setNightCareAcknowledgedUntil] = useState(0);
   const availableTreatItemId = useMemo(() => getAvailableTreatItemId(inventory, catalogItems), [catalogItems, inventory]);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
+  // Retention card fold state -- see getHomeRetentionCardDisplayMode.
+  // `retentionCollapsedState` persists the owner's manual fold for the rest
+  // of that calendar day; `retentionExpandedOverride` is session-only and
+  // lets a chip tap peek back at the full card until the milestone changes.
+  const [retentionCollapsedState, setRetentionCollapsedState] = useState<HomeRetentionCollapsedState | null>(null);
+  const [retentionExpandedOverride, setRetentionExpandedOverride] = useState(false);
+  const [bringHomeRequestPending, setBringHomeRequestPending] = useState(false);
+  const bringHomeRequestPendingRef = useRef(false);
+  const [bringHomeFailedWalkId, setBringHomeFailedWalkId] = useState<string | null>(null);
   const daysTogether = useMemo(
     () => getDaysTogether(activePet.createdAt, new Date(clock).toISOString()),
     [activePet.createdAt, clock]
@@ -1155,12 +1217,127 @@ export function TerrariumHomeScreen() {
         enqueueEventToast(getBondLevelUpTogglePresentation(crossed, locale), getBondLevelToastPersistedKey(crossed));
       }
 
+      // bondRewards.ts's bondLevelRewards already granted bond_5/bond_10's
+      // credits straight into wallet.bonusCredits as part of that same
+      // level-up (unconditionally, online or offline) -- queue the
+      // reward-claim card as "already granted locally" so claimPendingReward
+      // reconciles it (server credits replace the local bonusCredits amount)
+      // instead of granting a second time. See creditRewards.ts's header
+      // comment for the full reasoning.
+      for (const rewardKey of getCrossedBondCreditRewardKeys(previousBondLevelRef.current, level)) {
+        enqueueCreditRewardClaim(rewardKey, "bond", { alreadyGrantedLocally: true });
+      }
+
       setCelebratingBondLevelUntil(Date.now() + homeActionFeedbackMs);
     }
 
     previousBondLevelRef.current = level;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relationshipState.bondLevel, persistedEventToastKeysLoaded]);
+
+  // Care-streak length milestones (streak_3/7/14/30, one-time credit reward
+  // -- distinct from the recurring every-3rd/7th-day snack item toast above).
+  // Watches careStreak.current the same way the bond-level effect watches
+  // bondLevel: skip the very first render (so a returning owner's existing
+  // streak never misfires), then queue a claim card for every length crossed.
+  useEffect(() => {
+    const current = careStreak.current;
+
+    if (previousStreakCountRef.current === null) {
+      previousStreakCountRef.current = current;
+      return;
+    }
+
+    for (const rewardKey of getCrossedCareStreakRewardKeys(previousStreakCountRef.current, current)) {
+      enqueueCreditRewardClaim(rewardKey, "streak");
+    }
+
+    previousStreakCountRef.current = current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [careStreak.current]);
+
+  // Settlement missions (settle_first_feed/settle_first_play, +1 credit each,
+  // one-time "moving in" gifts) AND today's care treat (feed + play +
+  // affection, all three, once per local day -- see dailyCareTreatReward.ts)
+  // share this one effect so their "previous count" bookkeeping can never
+  // desync from each other (two separate effects both reading/writing the
+  // same refs would race on execution order). Skips the very first render so
+  // a returning owner's existing counts never misfire a "first" mission.
+  useEffect(() => {
+    const feedCount = careStats.actionCounts.feed ?? 0;
+    const playCount = careStats.actionCounts.play ?? 0;
+    const affectionCount = careStats.actionCounts.affection ?? 0;
+
+    if (
+      previousFeedCountRef.current === null ||
+      previousPlayCountRef.current === null ||
+      previousAffectionCountRef.current === null
+    ) {
+      previousFeedCountRef.current = feedCount;
+      previousPlayCountRef.current = playCount;
+      previousAffectionCountRef.current = affectionCount;
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let progress = dailyCareProgressRef.current;
+    let justCompletedAllToday = false;
+
+    if (feedCount > previousFeedCountRef.current) {
+      if (previousFeedCountRef.current === 0) {
+        enqueueCreditRewardClaim(settlementMissionRewardKeys.firstFeed, "settlement");
+      }
+
+      const recorded = recordCoreCareAction(progress, "feed", now);
+
+      progress = recorded.progress;
+      justCompletedAllToday = justCompletedAllToday || recorded.justCompletedAllToday;
+    }
+
+    if (playCount > previousPlayCountRef.current) {
+      if (previousPlayCountRef.current === 0) {
+        enqueueCreditRewardClaim(settlementMissionRewardKeys.firstPlay, "settlement");
+      }
+
+      const recorded = recordCoreCareAction(progress, "play", now);
+
+      progress = recorded.progress;
+      justCompletedAllToday = justCompletedAllToday || recorded.justCompletedAllToday;
+    }
+
+    if (affectionCount > previousAffectionCountRef.current) {
+      const recorded = recordCoreCareAction(progress, "affection", now);
+
+      progress = recorded.progress;
+      justCompletedAllToday = justCompletedAllToday || recorded.justCompletedAllToday;
+    }
+
+    dailyCareProgressRef.current = progress;
+    previousFeedCountRef.current = feedCount;
+    previousPlayCountRef.current = playCount;
+    previousAffectionCountRef.current = affectionCount;
+
+    if (justCompletedAllToday) {
+      const dayKey = getLocalDayKey(now);
+      const dedupeKey = getDailyTreatRewardKey(dayKey);
+
+      // dailyCareProgressRef is session-only (see its declaration above), so
+      // it can't tell "all three today" from "all three today, but in an
+      // earlier session before a restart" -- this AsyncStorage-backed check
+      // is what actually keeps the treat to once per calendar day across a
+      // restart, reusing the same guard settle_first_chat_hello/
+      // settle_first_photo use for their own repeat-visit dedupe.
+      void hasQueuedRewardLocally(dedupeKey).then((alreadyGranted) => {
+        if (alreadyGranted) {
+          return;
+        }
+
+        enqueueDailyTreatRewardClaim(dedupeKey, pickDailyTreatItemId(dayKey));
+        void markRewardQueuedLocally(dedupeKey);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [careStats.actionCounts.feed, careStats.actionCounts.play, careStats.actionCounts.affection]);
 
   // D7/D14/D30 celebration: fires once, the day a days_milestone memory is
   // first recorded (recordDaysTogetherMilestoneIfCrossed in prototypeSession
@@ -1197,6 +1374,20 @@ export function TerrariumHomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventory.ownedExpressionPackIds, activePet.name, persistedEventToastKeysLoaded]);
 
+  // Sleep pose night-unlock celebration: fires once, the first time the
+  // `sleep` starter pose lands in acceptedAssets -- see
+  // TerrariumSessionProvider's attemptSleepPoseNightUnlock, which merges it
+  // in the first night this device reports Home being open. A single
+  // constant persisted key (not one per pack/level -- this can only ever
+  // happen once per pet) keeps it from ever replaying on a later night or
+  // after an app restart.
+  useEffect(() => {
+    if (acceptedAssets.some((asset) => asset.state === "sleep")) {
+      enqueueEventToast(getSleepPoseUnlockedTogglePresentation(activePet.name, locale), SLEEP_POSE_UNLOCK_TOAST_PERSISTED_KEY);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acceptedAssets, activePet.name, persistedEventToastKeysLoaded]);
+
   // Mirrors the friend page's monthly-letter "opened" flag purely to decide
   // whether the friend rail button's unread-letter badge dot should show --
   // never writes this key, only reads it.
@@ -1211,6 +1402,27 @@ export function TerrariumHomeScreen() {
       })
       .catch(() => {
         // Silent: worst case the badge shows a little longer than necessary.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Loads any earlier manual fold of the retention card -- see
+  // getHomeRetentionCardDisplayMode. A stale (wrong day/milestone) value is
+  // simply ignored there, so nothing here needs to validate it up front.
+  useEffect(() => {
+    let cancelled = false;
+
+    void AsyncStorage.getItem(HOME_RETENTION_COLLAPSED_KEY)
+      .then((raw) => {
+        if (!cancelled) {
+          setRetentionCollapsedState(parseHomeRetentionCollapsedState(raw));
+        }
+      })
+      .catch(() => {
+        // Silent: worst case the card just starts full again today.
       });
 
     return () => {
@@ -1281,11 +1493,11 @@ export function TerrariumHomeScreen() {
             catalogItems,
             devStoreUnlocked,
             inventory,
-            limit: openCareMenu === "feed" ? 5 : 4,
-            locale
+            locale,
+            preferredItemId: requestedOpenItemParam
           })
         : [],
-    [catalogItems, devStoreUnlocked, inventory, locale, openCareMenu]
+    [catalogItems, devStoreUnlocked, inventory, locale, openCareMenu, requestedOpenItemParam]
   );
 
   useEffect(() => {
@@ -1492,7 +1704,43 @@ export function TerrariumHomeScreen() {
 
       if (collectible) {
         enqueueEventToast(getWalkDiscoveryCardPresentation(getLocalizedWalkCollectibleName(collectible, locale), collectible.rarity, locale));
+        return;
       }
+    }
+
+    // Plain "welcome home" claim: no new find and no journal completion, so
+    // neither branch above enqueued a toast (and with it, playEventToastSfx's
+    // jingle_discovery) -- give the claim its own dedicated chime instead of
+    // the pet coming home in silence. Never both: this only runs when
+    // nothing above already returned.
+    playSfx("sfx_walk_return");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justClaimedWalkAt]);
+
+  // Walk journal completing (+10 credits, collection_complete) and the very
+  // first walk ever claimed (+1 credit, settle_first_walk) each queue their
+  // own reward-claim card alongside the toast above. claimPrototypeWalkReward
+  // already granted WALK_COLLECTION_COMPLETE_CREDITS (20) into
+  // wallet.bonusCredits as part of this same claim -- alreadyGrantedLocally
+  // plus localGrantAmountToReconcile lets claimPendingReward subtract that
+  // back out and replace it with the smaller server amount (see
+  // creditRewards.ts's header comment). careStats.walkCount was already
+  // bumped when the walk *started*, so a value of exactly 1 here means the
+  // walk being claimed right now was the owner's first ever.
+  useEffect(() => {
+    if (justClaimedWalkAt === null || !lastWalkDiscovery) {
+      return;
+    }
+
+    if (lastWalkDiscovery.collectionCompleted) {
+      enqueueCreditRewardClaim("collection_complete", "collection", {
+        alreadyGrantedLocally: true,
+        localGrantAmountToReconcile: WALK_COLLECTION_COMPLETE_CREDITS
+      });
+    }
+
+    if (careStats.walkCount === 1) {
+      enqueueCreditRewardClaim(settlementMissionRewardKeys.firstWalk, "settlement");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justClaimedWalkAt]);
@@ -1587,7 +1835,8 @@ export function TerrariumHomeScreen() {
       action,
       previousCareState: careState,
       previousRelationshipState: relationshipState,
-      actedAtMs: nowMs
+      actedAtMs: nowMs,
+      itemId: decision.itemId
     });
     setLastAction(action);
 
@@ -1620,17 +1869,40 @@ export function TerrariumHomeScreen() {
     handleCareAction(action);
   };
 
-  const canAffordBringHomeNow = creditBalance >= WALK_EARLY_RETURN_CREDIT_COST;
+  const canAffordBringHomeNow = paidWalkEarlyReturnAvailable && creditBalance >= WALK_EARLY_RETURN_CREDIT_COST;
+  const bringHomeButtonLabel = bringHomeRequestPending
+    ? t("common.actions.checking")
+    : bringHomeFailedWalkId === activeWalk?.id
+      ? t("common.actions.tryAgain")
+      : canAffordBringHomeNow
+        ? t("home.walk.bringHome", { cost: WALK_EARLY_RETURN_CREDIT_COST })
+        : t("home.walk.openCreditStore");
 
-  // Transactional by construction: completeWalkEarly only mutates state (and
-  // returns true) once the credit spend itself succeeds, so a tap never
-  // burns a credit without the pet actually coming home early.
-  const handleBringHomeNow = () => {
-    if (!canAffordBringHomeNow) {
+  const handleBringHomeNow = async () => {
+    if (bringHomeRequestPendingRef.current) {
       return;
     }
 
-    completeWalkEarly();
+    if (!canAffordBringHomeNow) {
+      router.push("/credits");
+      return;
+    }
+
+    bringHomeRequestPendingRef.current = true;
+    setBringHomeRequestPending(true);
+    setBringHomeFailedWalkId(null);
+    const result = await completeWalkEarly();
+    bringHomeRequestPendingRef.current = false;
+    setBringHomeRequestPending(false);
+
+    if (!result.ok) {
+      if (result.reason === "insufficient_balance") {
+        router.push("/credits");
+      } else if (result.reason === "request_failed" && activeWalk) {
+        setBringHomeFailedWalkId(activeWalk.id);
+      }
+      return;
+    }
 
     // Coming home early means the scheduled "welcome home" ping (see
     // handleCareAction's "walk" branch) would otherwise still fire at the
@@ -1670,6 +1942,7 @@ export function TerrariumHomeScreen() {
   const handleButterflyCaught = () => {
     setButterflyVisitActive(false);
     setButterflyCaughtLine(pickButterflyTapLine(Math.random()));
+    playSfx("sfx_tap");
     playLightImpactHaptic();
   };
 
@@ -1846,7 +2119,7 @@ export function TerrariumHomeScreen() {
   // walk panel below (see homeStageLayout.ts).
   const walkPawsLayerSizePx = getWalkPawsLayerSizePx(windowHeight);
   const walkPawsLayerBottomPx = getWalkPawsLayerBottomPx(windowHeight, walkPawsLayerSizePx);
-  const walkPawsLayerMarginLeftPx = getHomeStageHorizontalMarginLeftPx(windowWidth, walkPawsLayerSizePx);
+  const walkPawsLayerMarginLeftPx = getCenteredOverlayMarginLeftPx(walkPawsLayerSizePx);
   const hudMeters = useMemo<HudMeterConfig[]>(
     () => {
       const moodValue = Math.max(0, Math.min(100, Math.round(careState.happiness * 0.65 + careState.affection * 0.35)));
@@ -1902,16 +2175,54 @@ export function TerrariumHomeScreen() {
 
     setFirstCareGuideVisible(true);
   };
+  const hasCaredTodayNow = hasCaredToday(careStreak, reactionNow);
   const homeRetentionPrompt = getHomeRetentionPromptPresentation({
     petName: activePet.name,
     daysTogether,
-    hasCaredToday: hasCaredToday(careStreak, reactionNow),
+    hasCaredToday: hasCaredTodayNow,
     hasOpenedMonthlyLetter,
     isOnWalk: activeWalk?.status === "walking" || activeWalk?.status === "returned",
     locale
   });
   const showHomeRetentionPrompt =
     Boolean(homeRetentionPrompt) && !openCareMenu && !firstCareGuideVisible && !welcomeVisible;
+  const retentionMilestoneId: HomeRetentionMilestoneId | null = homeRetentionPrompt?.milestoneId ?? null;
+  const todayDateKey = getLocalDayKey(new Date(clock).toISOString());
+  const retentionDisplayMode = homeRetentionPrompt
+    ? getHomeRetentionCardDisplayMode({
+        milestoneId: homeRetentionPrompt.milestoneId,
+        hasCaredToday: hasCaredTodayNow,
+        todayDateKey,
+        collapsedState: retentionCollapsedState,
+        isExpandedOverride: retentionExpandedOverride
+      })
+    : "full";
+
+  // A tap on the chip is only ever meant to peek at *this* milestone's full
+  // card -- once the milestone moves on (e.g. day1 -> day3), drop the
+  // leftover override so the new milestone's card starts full on its own
+  // terms rather than inheriting a stale "expanded" flag.
+  useEffect(() => {
+    setRetentionExpandedOverride(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retentionMilestoneId]);
+
+  const handleExpandRetentionChip = () => {
+    setRetentionExpandedOverride(true);
+  };
+  const handleCollapseRetentionCard = () => {
+    if (!homeRetentionPrompt) {
+      return;
+    }
+
+    setRetentionExpandedOverride(false);
+    const nextCollapsedState: HomeRetentionCollapsedState = { dateKey: todayDateKey, milestoneId: homeRetentionPrompt.milestoneId };
+
+    setRetentionCollapsedState(nextCollapsedState);
+    void AsyncStorage.setItem(HOME_RETENTION_COLLAPSED_KEY, serializeHomeRetentionCollapsedState(nextCollapsedState)).catch(() => {
+      // Silent: worst case the fold doesn't survive to the next app launch, harmless.
+    });
+  };
 
   return (
     <View style={styles.homeRoot}>
@@ -2109,6 +2420,7 @@ export function TerrariumHomeScreen() {
               <CareMomentLayer
                 action={lastActionSnapshot?.action ?? null}
                 actedAtMs={lastActionSnapshot?.actedAtMs ?? null}
+                itemId={lastActionSnapshot?.itemId ?? null}
                 petStageBottomPx={homePetStageBottomPx}
               />
               {isShowingNightSleepPose ? (
@@ -2143,29 +2455,35 @@ export function TerrariumHomeScreen() {
           <Text style={[styles.walkPanelSubcopy, { fontFamily: fontFamilies.body }]}>
             {t("home.walk.activeSubcopy", { petName: activePet.name })}
           </Text>
-          <View style={styles.walkPanelButtons}>
+          {paidWalkEarlyReturnAvailable ? <View style={styles.walkPanelButtons}>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ disabled: bringHomeRequestPending }}
               accessibilityLabel={
                 canAffordBringHomeNow
                   ? t("home.walk.bringHomeAccessibilityLabel", { cost: WALK_EARLY_RETURN_CREDIT_COST, petName: activePet.name })
-                  : t("home.walk.cannotBringHomeAccessibilityLabel", { petName: activePet.name })
+                  : t("home.walk.openCreditStoreAccessibilityLabel")
               }
-              accessibilityState={{ disabled: !canAffordBringHomeNow }}
-              disabled={!canAffordBringHomeNow}
               style={({ pressed }) => [
                 styles.walkPanelButton,
-                pressed ? styles.walkPanelButtonPressed : null,
-                !canAffordBringHomeNow ? styles.walkPanelButtonDisabled : null
+                bringHomeRequestPending ? styles.walkPanelButtonDisabled : null,
+                pressed ? styles.walkPanelButtonPressed : null
               ]}
-              onPress={handleBringHomeNow}
+              disabled={bringHomeRequestPending}
+              onPress={() => {
+                void handleBringHomeNow();
+              }}
             >
-              <GameItemImage accessibilityLabel={t("home.walk.coinAccessibilityLabel")} decorative item="coin" style={styles.walkPanelButtonCoinIcon} variant="hud" />
-              <Text style={[styles.walkPanelButtonText, { fontFamily: fontFamilies.button }]}>{t("home.walk.bringHome", { cost: WALK_EARLY_RETURN_CREDIT_COST })}</Text>
+              <GameItemImage accessibilityLabel={t("shop.creditGemAccessibilityLabel")} decorative item="gem" style={styles.walkPanelButtonCoinIcon} variant="hud" />
+              <Text style={[styles.walkPanelButtonText, { fontFamily: fontFamilies.button }]}>
+                {bringHomeButtonLabel}
+              </Text>
             </Pressable>
-          </View>
-          {!canAffordBringHomeNow ? (
+          </View> : null}
+          {!paidWalkEarlyReturnAvailable ? (
             <Text style={[styles.walkPanelHint, { fontFamily: fontFamilies.body }]}>{t("home.walk.waiting", { petName: activePet.name })}</Text>
+          ) : !canAffordBringHomeNow ? (
+            <Text style={[styles.walkPanelHint, { fontFamily: fontFamilies.body }]}>{t("home.walk.insufficientHint", { petName: activePet.name })}</Text>
           ) : null}
         </View>
       ) : null}
@@ -2201,7 +2519,13 @@ export function TerrariumHomeScreen() {
       ) : null}
 
       {showHomeRetentionPrompt && homeRetentionPrompt ? (
-        <HomeRetentionPromptCard prompt={homeRetentionPrompt} onPress={handleRetentionPromptPress} />
+        <HomeRetentionPromptCard
+          displayMode={retentionDisplayMode}
+          prompt={homeRetentionPrompt}
+          onCollapse={handleCollapseRetentionCard}
+          onExpand={handleExpandRetentionChip}
+          onPress={handleRetentionPromptPress}
+        />
       ) : null}
 
       {openCareMenu ? (
@@ -2211,7 +2535,10 @@ export function TerrariumHomeScreen() {
           getCooldownLeftMs={getActionCooldownLeftMs}
           isCareActionLocked={isCareActionLocked}
           options={visibleCareMenuOptions}
-          onOpenShop={() => router.push("/shop")}
+          onOpenShop={() => {
+            const category = getShopCategoryForHomeAction(openCareMenu);
+            router.push(category ? { pathname: "/shop", params: { category } } : "/shop");
+          }}
           onSelectOption={handleCareAction}
         />
       ) : null}
@@ -2628,7 +2955,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2
   },
   walkPanelButtonDisabled: {
-    opacity: 0.5
+    opacity: 0.7
   },
   walkPanelButtonCoinIcon: {
     width: 18,
@@ -3571,7 +3898,12 @@ const styles = StyleSheet.create({
   },
   careButtonImageFeed: {
     width: 62,
-    height: 62
+    height: 62,
+    // feed.png's bowl+food composition sits high in its frame (not a style
+    // issue -- the source art itself is top-heavy), so nudge it down to match
+    // the shared optical baseline across the tray, same fix as play below.
+    // 6px tuned by on-device visual comparison; 3px still read as raised.
+    transform: [{ translateY: 6 }]
   },
   careButtonImagePlay: {
     width: 62,

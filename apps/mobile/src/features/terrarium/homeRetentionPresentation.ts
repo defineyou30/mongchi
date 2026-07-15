@@ -5,6 +5,12 @@ import type { LocalizedText } from "../../localization/localizedText";
 export type HomeRetentionMilestoneId = "day1" | "day3" | "day7" | "day14" | "day30";
 export type HomeRetentionPromptTone = "daily" | "reward" | "memory" | "letter";
 export type HomeRetentionPromptAction = "care" | "friend";
+/**
+ * "full" is the normal card; "chip" is the one-line, milestone-title-only
+ * summary it collapses into once today's care is done (or once the owner
+ * folds it manually) -- see getHomeRetentionCardDisplayMode.
+ */
+export type HomeRetentionCardDisplayMode = "full" | "chip";
 
 export interface HomeRetentionPromptPresentation {
   readonly milestoneId: HomeRetentionMilestoneId;
@@ -16,7 +22,97 @@ export interface HomeRetentionPromptPresentation {
   readonly progressLabel: string;
   readonly tone: HomeRetentionPromptTone;
   readonly accessibilityLabel: string;
+  readonly collapseAccessibilityLabel: string;
+  readonly chipAccessibilityLabel: string;
 }
+
+/**
+ * What gets persisted (AsyncStorage) when the owner manually folds the card
+ * with its collapse control. Scoped to both the calendar day and the
+ * milestone active when they folded it, so it never survives past that day
+ * (b) or into a new milestone reached mid-day (c) -- either mismatch and the
+ * card is back to full on its own, no explicit "unfold" needed.
+ */
+export interface HomeRetentionCollapsedState {
+  readonly dateKey: string;
+  readonly milestoneId: HomeRetentionMilestoneId;
+}
+
+const homeRetentionMilestoneIds: readonly HomeRetentionMilestoneId[] = ["day1", "day3", "day7", "day14", "day30"];
+
+const isHomeRetentionMilestoneId = (value: unknown): value is HomeRetentionMilestoneId =>
+  typeof value === "string" && (homeRetentionMilestoneIds as readonly string[]).includes(value);
+
+/**
+ * Parses the AsyncStorage-persisted collapse marker. Defensive by design --
+ * a missing key, a corrupt string, or a payload shaped by some future app
+ * version should just fall back to the full card rather than throw, so this
+ * returns null on anything it doesn't fully recognize.
+ */
+export const parseHomeRetentionCollapsedState = (raw: string | null | undefined): HomeRetentionCollapsedState | null => {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "dateKey" in parsed &&
+      "milestoneId" in parsed &&
+      typeof (parsed as { dateKey: unknown }).dateKey === "string" &&
+      isHomeRetentionMilestoneId((parsed as { milestoneId: unknown }).milestoneId)
+    ) {
+      return {
+        dateKey: (parsed as { dateKey: string }).dateKey,
+        milestoneId: (parsed as { milestoneId: HomeRetentionMilestoneId }).milestoneId
+      };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const serializeHomeRetentionCollapsedState = (state: HomeRetentionCollapsedState): string => JSON.stringify(state);
+
+/**
+ * Decides whether the retention prompt should render as the full card or the
+ * one-line chip.
+ *
+ * - `isExpandedOverride` wins outright: the owner tapped the chip to peek at
+ *   the full card again, and that holds until the milestone changes or they
+ *   fold it again themselves.
+ * - Otherwise, today's care being done (a) or a same-day-and-milestone
+ *   manual fold (b) each independently collapse it to the chip.
+ * - A stale `collapsedState` (wrong day, or the milestone moved on --
+ *   c) is simply ignored, so a new milestone day always starts full.
+ */
+export const getHomeRetentionCardDisplayMode = ({
+  milestoneId,
+  hasCaredToday,
+  todayDateKey,
+  collapsedState,
+  isExpandedOverride = false
+}: {
+  readonly milestoneId: HomeRetentionMilestoneId;
+  readonly hasCaredToday: boolean;
+  readonly todayDateKey: string;
+  readonly collapsedState: HomeRetentionCollapsedState | null;
+  readonly isExpandedOverride?: boolean;
+}): HomeRetentionCardDisplayMode => {
+  if (isExpandedOverride) {
+    return "full";
+  }
+
+  const isManuallyCollapsedToday =
+    collapsedState !== null && collapsedState.dateKey === todayDateKey && collapsedState.milestoneId === milestoneId;
+
+  return hasCaredToday || isManuallyCollapsedToday ? "chip" : "full";
+};
 
 const retentionTargetDays: Record<HomeRetentionMilestoneId, number> = {
   day1: 1,
@@ -143,6 +239,28 @@ const getHomeRetentionCopy = ({
   };
 };
 
+const collapseAccessibilityLabelText: LocalizedText = {
+  "en-US": "Hide for today",
+  "ko-KR": "오늘 하루 접어두기",
+  "ja-JP": "今日はしまう",
+  "zh-TW": "今天先收起",
+  "de-DE": "Für heute ausblenden",
+  "fr-FR": "Masquer pour aujourd’hui",
+  "pt-BR": "Ocultar por hoje",
+  "es-MX": "Ocultar por hoy"
+};
+
+const chipExpandHintText: LocalizedText = {
+  "en-US": "Tap to expand",
+  "ko-KR": "탭하면 펼쳐져요",
+  "ja-JP": "タップで広がります",
+  "zh-TW": "點一下展開",
+  "de-DE": "Zum Ausklappen tippen",
+  "fr-FR": "Toucher pour développer",
+  "pt-BR": "Toque para expandir",
+  "es-MX": "Toca para expandir"
+};
+
 export const getHomeRetentionPromptPresentation = ({
   petName,
   daysTogether,
@@ -183,6 +301,8 @@ export const getHomeRetentionPromptPresentation = ({
     action: copy.action,
     progressLabel,
     tone: retentionToneByMilestone[milestoneId],
-    accessibilityLabel: `${copy.title}. ${copy.line} ${copy.ctaLabel}. ${progressLabel}.`
+    accessibilityLabel: `${copy.title}. ${copy.line} ${copy.ctaLabel}. ${progressLabel}.`,
+    collapseAccessibilityLabel: getLocalizedText(locale, collapseAccessibilityLabelText),
+    chipAccessibilityLabel: `${copy.title}. ${getLocalizedText(locale, chipExpandHintText)}.`
   };
 };

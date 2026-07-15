@@ -9,6 +9,7 @@ import type { AppLocale } from "../../localization/localeNormalization";
 import { getLocalizedText } from "../../localization/localizedText";
 import type { LocalizedText } from "../../localization/localizedText";
 import { getLocalizedCatalogItemCopy } from "../shop/shopCatalogPresentation";
+import type { CareShopCategoryId } from "../shop/shopRouteParams";
 
 export interface HomeCareMenuOption {
   readonly id: string;
@@ -26,8 +27,15 @@ interface HomeCareMenuInput {
   readonly catalogItems: readonly Item[];
   readonly devStoreUnlocked: boolean;
   readonly inventory: Inventory;
+  /**
+   * @deprecated No longer applied -- the dock now always shows every owned
+   * item (see getVisibleHomeCareMenuOptions) rather than a preview-capped
+   * mix of owned and unowned items, so there is nothing left to cap. Kept
+   * only so existing call sites don't need to drop the prop.
+   */
   readonly limit?: number;
   readonly locale?: AppLocale;
+  readonly preferredItemId?: ItemId | undefined;
 }
 
 const baseOptionByAction: Record<HomeFloatingDockAction, HomeCareMenuOption> = {
@@ -115,8 +123,30 @@ const baseMetaById: Readonly<Record<string, LocalizedText>> = {
   "base-clean": { "en-US": "+Fresh", "ko-KR": "+청결", "ja-JP": "+さっぱり", "zh-TW": "+清爽", "de-DE": "+Frische", "fr-FR": "+Fraîcheur", "pt-BR": "+Frescor", "es-MX": "+Frescura" }
 };
 
-const treatTitle: LocalizedText = { "en-US": "Treat", "ko-KR": "간식", "ja-JP": "おやつ", "zh-TW": "點心", "de-DE": "Leckerli", "fr-FR": "Friandise", "pt-BR": "Petisco", "es-MX": "Premio" };
 const shopMeta: LocalizedText = { "en-US": "Shop", "ko-KR": "상점", "ja-JP": "ショップ", "zh-TW": "商店", "de-DE": "Shop", "fr-FR": "Boutique", "pt-BR": "Loja", "es-MX": "Tienda" };
+
+/**
+ * Which shop category (if any) the dock's trailing "More ..." tile should
+ * deep-link to for a given action. Walk has none: its only special item
+ * (item_stepping_stone_path) isn't sold anywhere in the shop, so a "More"
+ * tile there would just be a dead end -- see getVisibleHomeCareMenuOptions.
+ */
+const shopCategoryByAction: Partial<Record<HomeFloatingDockAction, CareShopCategoryId>> = {
+  affection: "rest",
+  feed: "treats",
+  play: "toys",
+  water_garden: "drinks"
+};
+
+export const getShopCategoryForHomeAction = (action: HomeFloatingDockAction): CareShopCategoryId | null =>
+  shopCategoryByAction[action] ?? null;
+
+const moreTitleByAction: Partial<Record<HomeFloatingDockAction, LocalizedText>> = {
+  affection: { "en-US": "More cozy picks", "ko-KR": "포근한 아이템 더보기", "ja-JP": "くつろぎグッズをもっと見る", "zh-TW": "更多舒適小物", "de-DE": "Mehr Kuschelsachen", "fr-FR": "Plus de douceurs", "pt-BR": "Mais itens aconchegantes", "es-MX": "Más artículos acogedores" },
+  feed: { "en-US": "More treats", "ko-KR": "간식 더보기", "ja-JP": "おやつをもっと見る", "zh-TW": "更多點心", "de-DE": "Mehr Leckerlis", "fr-FR": "Plus de friandises", "pt-BR": "Mais petiscos", "es-MX": "Más premios" },
+  play: { "en-US": "More toys", "ko-KR": "장난감 더보기", "ja-JP": "おもちゃをもっと見る", "zh-TW": "更多玩具", "de-DE": "Mehr Spielzeug", "fr-FR": "Plus de jouets", "pt-BR": "Mais brinquedos", "es-MX": "Más juguetes" },
+  water_garden: { "en-US": "More drinks", "ko-KR": "음료 더보기", "ja-JP": "お水をもっと見る", "zh-TW": "更多飲品", "de-DE": "Mehr Getränke", "fr-FR": "Plus de boissons", "pt-BR": "Mais bebidas", "es-MX": "Más bebidas" }
+};
 
 const isSpecialCareItemForAction = (action: HomeFloatingDockAction, item: Item): boolean => {
   switch (action) {
@@ -129,7 +159,7 @@ const isSpecialCareItemForAction = (action: HomeFloatingDockAction, item: Item):
     case "walk":
       return item.behaviorTags.includes("walk") || item.category === "path";
     case "water_garden":
-      return item.id === "item_milk_pup_cup";
+      return item.category === "drink" || item.behaviorTags.includes("drink");
   }
 };
 
@@ -157,8 +187,8 @@ export const getVisibleHomeCareMenuOptions = ({
   catalogItems,
   devStoreUnlocked,
   inventory,
-  limit = action === "feed" ? 3 : 4,
-  locale = "en-US"
+  locale = "en-US",
+  preferredItemId
 }: HomeCareMenuInput): HomeCareMenuOption[] => {
   const quantityByItemId = new Map(inventory.items.map((entry) => [entry.itemId, entry.quantity]));
   const specialOptions = catalogItems
@@ -170,7 +200,7 @@ export const getVisibleHomeCareMenuOptions = ({
       return {
         id: `item-${item.id}`,
         action: getOptionActionForItem(action, item),
-        title: action === "feed" ? getLocalizedText(locale, treatTitle) : getLocalizedCatalogItemCopy(item, locale).name,
+        title: getLocalizedCatalogItemCopy(item, locale).name,
         meta: owned ? `x${devStoreUnlocked ? Math.max(1, quantity) : quantity}` : getLocalizedText(locale, shopMeta),
         quantity: devStoreUnlocked ? Math.max(1, quantity) : quantity,
         owned,
@@ -178,12 +208,31 @@ export const getVisibleHomeCareMenuOptions = ({
         itemId: item.id
       };
     });
-  const ownedOptions = specialOptions.filter((option) => option.owned);
-  const previewOptions = specialOptions.filter((option) => !option.owned).slice(0, Math.max(0, limit - 1));
-  const visibleSpecialOptions = devStoreUnlocked ? ownedOptions : [...ownedOptions, ...previewOptions].slice(0, Math.max(0, limit - 1));
-  // Bath is a second always-visible base option, not one of the
-  // limit-bounded special/preview slots above (same reasoning as the base
-  // option itself never counting against `limit`).
+  // Every owned item is reachable -- no preview cap. Unowned catalog items no
+  // longer render as translucent "Shop" cards in the dock itself: besides
+  // needlessly advertising items an owner can't yet act on, item_stepping_
+  // stone_path (walk) isn't sold anywhere in the shop, making its old preview
+  // card a dead end. A single trailing "More ..." tile (only for actions
+  // with a real shop category -- see shopCategoryByAction) closes the loop
+  // instead; if nothing is owned yet, that tile is the only special option.
+  const ownedOptions = specialOptions
+    .filter((option) => option.owned)
+    .sort((left, right) => Number(right.itemId === preferredItemId) - Number(left.itemId === preferredItemId));
+  const moreTitle = devStoreUnlocked ? undefined : moreTitleByAction[action];
+  const moreOption: HomeCareMenuOption | null = moreTitle
+    ? {
+        id: `more-${action}`,
+        action,
+        title: getLocalizedText(locale, moreTitle),
+        meta: getLocalizedText(locale, shopMeta),
+        quantity: 0,
+        assetKey: "giftBox",
+        owned: false
+      }
+    : null;
+  const visibleSpecialOptions = moreOption ? [...ownedOptions, moreOption] : ownedOptions;
+  // Bath is a second always-visible base option, not one of the special/more
+  // options above (same reasoning as the base option itself always showing).
   const leadingOptions = action === "water_garden" ? [baseOptionByAction[action], bathOption] : [baseOptionByAction[action]];
 
   return [...leadingOptions, ...visibleSpecialOptions].map((option) => {

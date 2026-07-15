@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getHomeRetentionPromptPresentation } from "./homeRetentionPresentation";
+import {
+  getHomeRetentionCardDisplayMode,
+  getHomeRetentionPromptPresentation,
+  parseHomeRetentionCollapsedState,
+  serializeHomeRetentionCollapsedState
+} from "./homeRetentionPresentation";
 
 describe("home retention prompt presentation", () => {
   it("starts with a D1 care prompt when today's care is still missing", () => {
@@ -161,5 +166,98 @@ describe("home retention prompt presentation", () => {
         isOnWalk: true
       })
     ).toBeNull();
+  });
+
+  it("carries a collapse control label and a chip label alongside the full-card copy", () => {
+    const prompt = getHomeRetentionPromptPresentation({
+      petName: "Mong",
+      daysTogether: 1,
+      hasCaredToday: false,
+      hasOpenedMonthlyLetter: false,
+      isOnWalk: false
+    });
+
+    expect(prompt?.collapseAccessibilityLabel).toBe("Hide for today");
+    expect(prompt?.chipAccessibilityLabel).toBe("First daily hello. Tap to expand.");
+  });
+});
+
+describe("getHomeRetentionCardDisplayMode", () => {
+  const baseInput = {
+    milestoneId: "day1" as const,
+    hasCaredToday: false,
+    todayDateKey: "2026-07-14",
+    collapsedState: null
+  };
+
+  it("stays full when today's care is missing and nothing was manually collapsed", () => {
+    expect(getHomeRetentionCardDisplayMode(baseInput)).toBe("full");
+  });
+
+  it("auto-collapses to a chip once today's care is done", () => {
+    expect(getHomeRetentionCardDisplayMode({ ...baseInput, hasCaredToday: true })).toBe("chip");
+  });
+
+  it("collapses to a chip when manually folded earlier today for this same milestone", () => {
+    expect(
+      getHomeRetentionCardDisplayMode({
+        ...baseInput,
+        collapsedState: { dateKey: "2026-07-14", milestoneId: "day1" }
+      })
+    ).toBe("chip");
+  });
+
+  it("ignores a manual fold from a previous calendar day", () => {
+    expect(
+      getHomeRetentionCardDisplayMode({
+        ...baseInput,
+        collapsedState: { dateKey: "2026-07-13", milestoneId: "day1" }
+      })
+    ).toBe("full");
+  });
+
+  it("ignores a manual fold left over from an earlier milestone once a new one starts", () => {
+    expect(
+      getHomeRetentionCardDisplayMode({
+        ...baseInput,
+        milestoneId: "day3",
+        collapsedState: { dateKey: "2026-07-14", milestoneId: "day1" }
+      })
+    ).toBe("full");
+  });
+
+  it("lets an explicit expand override win even while care is done or it was folded today", () => {
+    expect(getHomeRetentionCardDisplayMode({ ...baseInput, hasCaredToday: true, isExpandedOverride: true })).toBe("full");
+    expect(
+      getHomeRetentionCardDisplayMode({
+        ...baseInput,
+        collapsedState: { dateKey: "2026-07-14", milestoneId: "day1" },
+        isExpandedOverride: true
+      })
+    ).toBe("full");
+  });
+});
+
+describe("parseHomeRetentionCollapsedState", () => {
+  it("round-trips a serialized state", () => {
+    const state = { dateKey: "2026-07-14", milestoneId: "day3" as const };
+
+    expect(parseHomeRetentionCollapsedState(serializeHomeRetentionCollapsedState(state))).toEqual(state);
+  });
+
+  it("returns null for a missing or empty value", () => {
+    expect(parseHomeRetentionCollapsedState(null)).toBeNull();
+    expect(parseHomeRetentionCollapsedState(undefined)).toBeNull();
+    expect(parseHomeRetentionCollapsedState("")).toBeNull();
+  });
+
+  it("returns null for malformed JSON rather than throwing", () => {
+    expect(parseHomeRetentionCollapsedState("{not json")).toBeNull();
+  });
+
+  it("returns null when the shape is missing fields or has an unrecognized milestone id", () => {
+    expect(parseHomeRetentionCollapsedState(JSON.stringify({ dateKey: "2026-07-14" }))).toBeNull();
+    expect(parseHomeRetentionCollapsedState(JSON.stringify({ milestoneId: "day1" }))).toBeNull();
+    expect(parseHomeRetentionCollapsedState(JSON.stringify({ dateKey: "2026-07-14", milestoneId: "day99" }))).toBeNull();
   });
 });

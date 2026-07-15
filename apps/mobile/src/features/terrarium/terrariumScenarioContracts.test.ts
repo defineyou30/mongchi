@@ -217,7 +217,7 @@ describe("terrarium interaction scenario contracts", () => {
     }
   });
 
-  it("shows treat shop previews when no treat is owned yet", () => {
+  it("shows only a More treats shop tile (no individual unowned previews) when no treat is owned yet", () => {
     const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
     const options = getVisibleHomeCareMenuOptions({
       action: "feed",
@@ -226,14 +226,17 @@ describe("terrarium interaction scenario contracts", () => {
       inventory: state.inventory
     });
 
-    expect(options).toHaveLength(3);
+    expect(options).toHaveLength(2);
     expect(options[0]).toMatchObject({
       action: "feed",
       owned: true,
       title: "Meal"
     });
-    expect(options.slice(1).every((option) => !option.owned)).toBe(true);
-    expect(options.slice(1).every((option) => option.quantity === 0)).toBe(true);
+    expect(options[1]).toMatchObject({
+      id: "more-feed",
+      owned: false,
+      quantity: 0
+    });
   });
 
   it("unlocks visible treats during local development QA", () => {

@@ -161,6 +161,10 @@ export function getHomeStageHorizontalMarginLeftPx(windowWidth: number, elementW
   return windowWidth / 2 - elementWidthPx / 2;
 }
 
+export function getCenteredOverlayMarginLeftPx(elementWidthPx: number): number {
+  return -elementWidthPx / 2;
+}
+
 /**
  * True when the given bottom offset + element height still clears the
  * bottom care tray, given the actual window height. Used by tests to assert

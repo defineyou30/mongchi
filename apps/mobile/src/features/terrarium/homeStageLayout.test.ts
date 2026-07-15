@@ -5,6 +5,7 @@ import {
   HOME_THOUGHT_BUBBLE_MAX_LINES,
   clearsCareTray,
   estimateHomeThoughtBubbleLineCount,
+  getCenteredOverlayMarginLeftPx,
   getHomePetStageBottomPx,
   getHomeStageHorizontalMarginLeftPx,
   getHomeThoughtBubbleBottomPx,
@@ -40,6 +41,13 @@ describe("getHomeStageHorizontalMarginLeftPx", () => {
   it("centers a fixed-width element against the actual window width, regardless of screen size", () => {
     expect(getHomeStageHorizontalMarginLeftPx(390, 282)).toBeCloseTo(54, 5);
     expect(getHomeStageHorizontalMarginLeftPx(667, 282)).toBeCloseTo((667 - 282) / 2, 5);
+  });
+});
+
+describe("getCenteredOverlayMarginLeftPx", () => {
+  it("centers an absolutely positioned overlay whose left edge starts at 50%", () => {
+    expect(getCenteredOverlayMarginLeftPx(264)).toBe(-132);
+    expect(getCenteredOverlayMarginLeftPx(175)).toBe(-87.5);
   });
 });
 

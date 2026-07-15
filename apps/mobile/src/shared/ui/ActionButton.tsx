@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3
   },
   disabled: {
-    opacity: 0.44
+    opacity: 0.68
   },
   label: {
     fontSize: 16,

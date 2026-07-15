@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 
-import type { CareActionType } from "@mongchi/shared";
+import type { CareActionType, ItemId } from "@mongchi/shared";
 
 import { GameItemImage } from "../../shared/ui/GameIllustrations";
+import type { GameItemAssetKey } from "../../shared/ui/GameIllustrations";
 import { BubbleShape } from "../../shared/ui/effects/BubbleShape";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
@@ -26,6 +27,13 @@ interface CareMomentLayerProps {
   actedAtMs: number | null;
   /** Bottom offset (px) of the pet stage, so props anchor relative to where the pet actually stands (see homeStageLayout.ts). */
   petStageBottomPx: number;
+  /**
+   * The specific owned item this care action used (a picked treat/drink/toy/
+   * bed), or null/undefined for the base no-item action -- forwarded to
+   * getCareMomentStaging so the moment shows that item's own art instead of
+   * the generic category art.
+   */
+  itemId?: ItemId | null;
 }
 
 /**
@@ -36,14 +44,14 @@ interface CareMomentLayerProps {
  * wired at the call site (TerrariumHomeScreen plays careActionSfxById on
  * every press) -- this layer is visual-only, no new audio.
  */
-export function CareMomentLayer({ action, actedAtMs, petStageBottomPx }: CareMomentLayerProps) {
+export function CareMomentLayer({ action, actedAtMs, petStageBottomPx, itemId }: CareMomentLayerProps) {
   const reduceMotionEnabled = useReducedMotionPreference();
 
   if (action === null || actedAtMs === null) {
     return null;
   }
 
-  const staging = getCareMomentStaging(action);
+  const staging = getCareMomentStaging(action, itemId);
 
   if (!staging) {
     return null;
@@ -68,7 +76,9 @@ export function CareMomentLayer({ action, actedAtMs, petStageBottomPx }: CareMom
     return <BubbleBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} staging={staging} />;
   }
 
-  return <HeartBurstMoment key={key} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} />;
+  return (
+    <HeartBurstMoment key={key} item={staging.item} petStageBottomPx={petStageBottomPx} reduceMotionEnabled={reduceMotionEnabled} />
+  );
 }
 
 function BowlMoment({
@@ -203,15 +213,35 @@ function BallMoment({
 // playthrough finishes, so the last frame never just sits there frozen.
 const HEART_BURST_FADE_OUT_MS = 280;
 
+// The optional item icon (see below) runs its own short scale+fade -- same
+// choreography family as BowlMoment -- timed to roughly cover the Lottie
+// burst's own on-screen lifetime rather than trying to sync to its actual
+// (variable) finish callback.
+const HEART_BURST_ITEM_APPEAR_MS = 220;
+const HEART_BURST_ITEM_HOLD_MS = 650;
+const HEART_BURST_ITEM_DISAPPEAR_MS = 300;
+
 function HeartBurstMoment({
   petStageBottomPx,
-  reduceMotionEnabled
+  reduceMotionEnabled,
+  item
 }: {
   petStageBottomPx: number;
   reduceMotionEnabled: boolean;
+  /**
+   * A specific owned item (e.g. a "sleep"/"affection"-tagged bed) picked
+   * from the Pet tray -- shown as a small fading icon beside the heart
+   * burst. Undefined for the base petting action, which has no item.
+   * Typed as a required-but-possibly-undefined prop (not `item?:`) because
+   * the one call site always forwards staging.item's own
+   * `GameItemAssetKey | undefined` type verbatim -- exactOptionalPropertyTypes
+   * rejects passing an undefined-typed value through an omittable `?:` prop.
+   */
+  item: GameItemAssetKey | undefined;
 }) {
   const opacity = useRef(new Animated.Value(1)).current;
   const [hasFinishedPlaying, setHasFinishedPlaying] = useState(false);
+  const itemProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!hasFinishedPlaying) {
@@ -230,13 +260,43 @@ function HeartBurstMoment({
     return () => animation.stop();
   }, [hasFinishedPlaying, opacity]);
 
+  useEffect(() => {
+    if (!item || reduceMotionEnabled) {
+      return;
+    }
+
+    const sequence = Animated.sequence([
+      Animated.timing(itemProgress, {
+        toValue: 1,
+        duration: HEART_BURST_ITEM_APPEAR_MS,
+        easing: Easing.out(Easing.back(1.3)),
+        useNativeDriver: true
+      }),
+      Animated.delay(HEART_BURST_ITEM_HOLD_MS),
+      Animated.timing(itemProgress, {
+        toValue: 0,
+        duration: HEART_BURST_ITEM_DISAPPEAR_MS,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true
+      })
+    ]);
+
+    sequence.start();
+
+    return () => sequence.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, reduceMotionEnabled]);
+
   if (reduceMotionEnabled) {
     return null;
   }
 
   // A single heart-burst Lottie plays once over the pet, then fades out --
   // replacing the old 2-3 drifting SVG hearts (BubbleBurstMoment below keeps
-  // its SVG bubbles; only affection's moment moved to Lottie).
+  // its SVG bubbles; only affection's moment moved to Lottie). When a
+  // specific item was used, its icon fades in just beside the burst rather
+  // than inside it -- the burst stays legible and the item still reads as
+  // "what was just used".
   return (
     <Animated.View
       accessibilityElementsHidden
@@ -252,6 +312,19 @@ function HeartBurstMoment({
         style={styles.heartBurstAnimation}
         onAnimationFinish={() => setHasFinishedPlaying(true)}
       />
+      {item ? (
+        <Animated.View
+          style={[
+            styles.heartBurstItemAnchor,
+            {
+              opacity: itemProgress,
+              transform: [{ scale: itemProgress.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }]
+            }
+          ]}
+        >
+          <GameItemImage accessibilityLabel="" decorative item={item} style={styles.heartBurstItemIcon} variant="action" />
+        </Animated.View>
+      ) : null}
     </Animated.View>
   );
 }
@@ -389,6 +462,19 @@ const styles = StyleSheet.create({
   heartBurstAnimation: {
     width: 160,
     height: 160
+  },
+  heartBurstItemAnchor: {
+    position: "absolute",
+    bottom: 8,
+    right: 4,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  heartBurstItemIcon: {
+    width: 36,
+    height: 36
   },
   bubbleAnchor: {
     position: "absolute",

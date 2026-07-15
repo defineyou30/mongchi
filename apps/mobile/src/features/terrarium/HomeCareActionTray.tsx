@@ -61,10 +61,13 @@ export function HomeCareActionTray({
         {options.map((option) => {
           // A purchased item (a treat, or a special toy like Buddy Plush /
           // Rose Cushion) bypasses the base action's rhythm cooldown -- see
-          // getHomeCarePressDecision. Only the base (no-itemId) option should
-          // show/respect the cooldown badge; an item option stays tappable
-          // even while the base action is cooling down.
-          const cooldownLeftMs = option.itemId ? 0 : getCooldownLeftMs(option.action);
+          // getHomeCarePressDecision. Only the base (owned, no-itemId) option
+          // should show/respect the cooldown badge: an item option stays
+          // tappable even while the base action is cooling down, and the
+          // trailing "More ..." shop tile (also itemId-less, but never
+          // owned) must never borrow the base action's cooldown countdown
+          // as its own meta text.
+          const cooldownLeftMs = option.owned && !option.itemId ? getCooldownLeftMs(option.action) : 0;
           const disabled = isCareActionLocked || (option.owned && cooldownLeftMs > 0);
           const cooldownLabel = cooldownLeftMs > 0 ? formatCooldownBadge(cooldownLeftMs) : null;
           const accessibilityLabel = !option.owned

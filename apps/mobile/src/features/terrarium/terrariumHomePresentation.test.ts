@@ -18,12 +18,14 @@ import {
   getHomeWalkCtaPresentation,
   getHomeWalkPanelVisibility,
   getHudMeterGuidePresentation,
+  getSleepPoseUnlockedTogglePresentation,
   getStreakToastPersistedKey,
   getWalkCollectionCompleteTogglePresentation,
   getLocalizedWalkCollectibleName,
   getWalkDiscoveryCardPresentation,
   isCelebrationReaction,
-  pruneEventToastPersistedKeys
+  pruneEventToastPersistedKeys,
+  SLEEP_POSE_UNLOCK_TOAST_PERSISTED_KEY
 } from "./terrariumHomePresentation";
 
 const idleReaction: SelectedReaction = {
@@ -567,6 +569,32 @@ describe("terrarium home event toasts", () => {
     expect(toast.id).toBe("walk-collection-complete");
     expect(toast.line).not.toMatch(/\d/);
     expect(toast.line).toContain("Walk journal complete");
+  });
+
+  it("celebrates the sleep pose's first-night unlock warmly, without implying it was ever locked", () => {
+    const toast = getSleepPoseUnlockedTogglePresentation("Miso");
+
+    expect(toast).toEqual({
+      id: "sleep-pose-unlock",
+      line: "A quiet little moment — Miso slept soundly all night long.",
+      accessibilityLabel: "New sight: Miso sleeping soundly through the night, for the first time."
+    });
+    expect(toast.line.toLowerCase()).not.toContain("lock");
+    expect(toast.accessibilityLabel.toLowerCase()).not.toContain("lock");
+  });
+
+  it("localizes the sleep pose unlock toast into Korean without changing the stable toast id", () => {
+    const toast = getSleepPoseUnlockedTogglePresentation("미소", "ko-KR");
+
+    expect(toast).toEqual({
+      id: "sleep-pose-unlock",
+      line: "조용한 순간이었어요 — 미소가 밤새 곤히 잠들었어요.",
+      accessibilityLabel: "새로운 모습: 미소가 처음으로 밤새 곤히 잠든 모습이에요."
+    });
+  });
+
+  it("uses one constant persisted key for the sleep pose unlock toast, since it can only ever fire once per pet", () => {
+    expect(SLEEP_POSE_UNLOCK_TOAST_PERSISTED_KEY).toBe("sleep-pose-unlock");
   });
 });
 

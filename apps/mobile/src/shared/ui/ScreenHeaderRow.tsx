@@ -30,7 +30,12 @@ interface ScreenHeaderRowProps {
 export function ScreenHeaderRow({ title, titleFontFamily, onBack, backAccessibilityLabel = "Back", style, trailing, right }: ScreenHeaderRowProps) {
   return (
     <View style={[styles.row, style]}>
-      <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, titleFontFamily ? { fontFamily: titleFontFamily } : null]}>
+      <Text
+        accessibilityRole="header"
+        maxFontSizeMultiplier={1.3}
+        numberOfLines={1}
+        style={[styles.title, titleFontFamily ? { fontFamily: titleFontFamily } : null]}
+      >
         {title}
       </Text>
       <BackButton accessibilityLabel={backAccessibilityLabel} onPress={onBack} />

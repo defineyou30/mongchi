@@ -68,8 +68,12 @@ describe("terrarium home care moment staging", () => {
     expect(staging.totalMs).toBeGreaterThan(0);
   });
 
-  it("has no staging for actions outside the Tier 2 scope (walk, rest, talk, treat)", () => {
-    const unstagedActions: CareActionType[] = ["walk", "rest", "talk", "treat"];
+  it("has no staging for actions outside the Tier 2 scope (walk, rest, talk)", () => {
+    // treat used to be unstaged too, but the 2026-07 "every item gets its
+    // own moment" decision brought it into scope (see the treat tests
+    // below) -- rest stays out because it has no dock entry to press it
+    // from today, and walk/talk never had a Tier 2 moment to begin with.
+    const unstagedActions: CareActionType[] = ["walk", "rest", "talk"];
 
     for (const action of unstagedActions) {
       expect(getCareMomentStaging(action)).toBeNull();
@@ -81,5 +85,102 @@ describe("terrarium home care moment staging", () => {
     const second = getCareMomentStaging("feed");
 
     expect(first).toEqual(second);
+  });
+
+  it("swaps the generic bowl art for the specific treat that was fed", () => {
+    const staging = getCareMomentStaging("feed", "item_salmon_bites");
+
+    expect(staging?.kind).toBe("bowl");
+    if (staging?.kind !== "bowl") {
+      throw new Error("expected bowl staging");
+    }
+
+    expect(staging.item).toBe("salmonBites");
+  });
+
+  it("swaps the generic water bowl art for the specific drink that was used", () => {
+    const staging = getCareMomentStaging("water_garden", "item_berry_milk");
+
+    expect(staging?.kind).toBe("bowl");
+    if (staging?.kind !== "bowl") {
+      throw new Error("expected bowl staging");
+    }
+
+    expect(staging.item).toBe("berryMilk");
+  });
+
+  it("swaps the generic ball art for the specific toy that was played with", () => {
+    const staging = getCareMomentStaging("play", "item_moon_frisbee");
+
+    expect(staging?.kind).toBe("ball");
+    if (staging?.kind !== "ball") {
+      throw new Error("expected ball staging");
+    }
+
+    expect(staging.item).toBe("moonFrisbee");
+  });
+
+  it("adds the specific bed item's icon to the affection heart burst when one was used", () => {
+    const withItem = getCareMomentStaging("affection", "item_clover_nap_mat");
+    const withoutItem = getCareMomentStaging("affection");
+
+    expect(withItem?.kind).toBe("heartBurst");
+    if (withItem?.kind !== "heartBurst") {
+      throw new Error("expected heartBurst staging");
+    }
+
+    expect(withItem.item).toBe("cloverNapMat");
+    expect(withoutItem?.kind).toBe("heartBurst");
+    if (withoutItem?.kind !== "heartBurst") {
+      throw new Error("expected heartBurst staging");
+    }
+
+    expect(withoutItem.item).toBeUndefined();
+  });
+
+  it("falls back to the base staging when the itemId isn't a known game item", () => {
+    const staging = getCareMomentStaging("feed", "not_a_real_item" as never);
+
+    expect(staging?.kind).toBe("bowl");
+    if (staging?.kind !== "bowl") {
+      throw new Error("expected bowl staging");
+    }
+
+    expect(staging.item).toBe("foodBowl");
+  });
+
+  it("ignores a null/undefined itemId the same as calling with no itemId at all", () => {
+    expect(getCareMomentStaging("feed", null)).toEqual(getCareMomentStaging("feed"));
+    expect(getCareMomentStaging("feed", undefined)).toEqual(getCareMomentStaging("feed"));
+  });
+
+  it("still has no staging for unstaged actions even when an itemId is provided", () => {
+    expect(getCareMomentStaging("rest", "item_cushion_rose")).toBeNull();
+    expect(getCareMomentStaging("walk", "item_salmon_bites")).toBeNull();
+  });
+
+  it("stages a treat plate for the base treat action with the same bowl timeline as feed", () => {
+    const staging = getCareMomentStaging("treat");
+    const feedStaging = getCareMomentStaging("feed");
+
+    expect(staging?.kind).toBe("bowl");
+    if (staging?.kind !== "bowl" || feedStaging?.kind !== "bowl") {
+      throw new Error("expected bowl staging for both treat and feed");
+    }
+
+    expect(staging.item).toBe("treatPlate");
+    expect(staging.appearMs + staging.holdMs + staging.disappearMs).toBe(staging.totalMs);
+    expect(staging.totalMs).toBe(feedStaging.totalMs);
+  });
+
+  it("swaps the generic treat plate art for the specific treat that was used", () => {
+    const staging = getCareMomentStaging("treat", "item_duck_biscuit");
+
+    expect(staging?.kind).toBe("bowl");
+    if (staging?.kind !== "bowl") {
+      throw new Error("expected bowl staging");
+    }
+
+    expect(staging.item).toBe("duckBiscuit");
   });
 });

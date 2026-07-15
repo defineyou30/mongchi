@@ -679,6 +679,25 @@ export const getExpressionPackUnlockedTogglePresentation = (packId: string, petN
 export const getExpressionPackToastPersistedKey = (packId: string): string => `expression-pack:${packId}`;
 
 /**
+ * Fires once, the first time the pet's `sleep` starter pose lands in
+ * acceptedAssets (see TerrariumSessionProvider's attemptSleepPoseNightUnlock,
+ * which unlocks it server-side the first night this device reports Home
+ * being open) -- a warm, one-time discovery moment rather than an always-on
+ * badge, since there is nothing left to announce on any later night. Never
+ * mentions that the pose was previously "locked" -- the healing-app tone
+ * treats this as a sweet first sighting, not something the owner missed out
+ * on.
+ */
+export const getSleepPoseUnlockedTogglePresentation = (petName: string, locale: AppLocale = "en-US"): HomeEventTogglePresentation => ({
+  id: "sleep-pose-unlock",
+  line: getLocalizedText(locale, { "en-US": `A quiet little moment — ${petName} slept soundly all night long.`, "ko-KR": `조용한 순간이었어요 — ${petName}가 밤새 곤히 잠들었어요.`, "ja-JP": `静かなひととき — ${petName}が夜通しぐっすり眠りました。`, "zh-TW": `安靜的小時刻——${petName} 一整晚都睡得香甜。`, "de-DE": `Ein stiller kleiner Moment — ${petName} hat die ganze Nacht tief geschlafen.`, "fr-FR": `Un petit moment tout calme — ${petName} a dormi profondément toute la nuit.`, "pt-BR": `Um momentinho tranquilo — ${petName} dormiu profundamente a noite toda.`, "es-MX": `Un pequeño momento tranquilo — ${petName} durmió profundamente toda la noche.` }),
+  accessibilityLabel: getLocalizedText(locale, { "en-US": `New sight: ${petName} sleeping soundly through the night, for the first time.`, "ko-KR": `새로운 모습: ${petName}가 처음으로 밤새 곤히 잠든 모습이에요.`, "ja-JP": `新しい姿：${petName}が初めて夜通しぐっすり眠っている様子です。`, "zh-TW": `新畫面：${petName} 第一次一整晚睡得香甜。`, "de-DE": `Neuer Anblick: ${petName} schläft zum ersten Mal die ganze Nacht tief und fest.`, "fr-FR": `Nouvelle vue : ${petName} dort profondément toute la nuit, pour la première fois.`, "pt-BR": `Nova cena: ${petName} dormindo profundamente a noite toda, pela primeira vez.`, "es-MX": `Nueva escena: ${petName} durmiendo profundamente toda la noche, por primera vez.` })
+});
+
+/** Storage key for "already showed the sleep pose unlock toast" -- a single constant, since this can only ever happen once per pet. */
+export const SLEEP_POSE_UNLOCK_TOAST_PERSISTED_KEY = "sleep-pose-unlock";
+
+/**
  * Caps the persisted "shown toast" key list so it cannot grow forever across
  * app sessions. Keeps only the most recently added keys (assumes `keys` is
  * already in insertion order); oldest keys are dropped first.

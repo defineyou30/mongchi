@@ -102,9 +102,6 @@ function HatchingAura() {
     <View style={styles.hatchingAura}>
       <Animated.View style={[styles.hatchingAuraGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
       <View style={styles.hatchingAuraCore} />
-      <View style={styles.hatchingAuraQuestionBadge}>
-        <Text style={styles.hatchingAuraQuestionMark}>?</Text>
-      </View>
       <Animated.View style={[styles.hatchingAuraSparkleA, { opacity: sparkleOpacity }]} />
       <Animated.View style={[styles.hatchingAuraSparkleB, { opacity: sparkleOpacity }]} />
       <Animated.View style={[styles.hatchingAuraSparkleC, { opacity: sparkleOpacity }]} />
@@ -823,26 +820,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,245,222,0.88)",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.85)"
-  },
-  hatchingAuraQuestionBadge: {
-    position: "absolute",
-    bottom: -6,
-    right: 4,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderWidth: 2,
-    borderColor: colors.cream,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.tile
-  },
-  hatchingAuraQuestionMark: {
-    color: colors.woodDark,
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: "900"
   },
   hatchingAuraSparkleA: {
     position: "absolute",
