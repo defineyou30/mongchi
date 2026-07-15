@@ -1,4 +1,4 @@
-import { getFavoriteCareAction, getFavoriteTreatItemId, getRecentPetMemories, normalizeApproximateWeatherCoordinates } from "../domain";
+import { getFavoriteCareAction, getFavoriteTreatItemId, getRecentPetMemories, isNightTime, normalizeApproximateWeatherCoordinates } from "../domain";
 import type {
   CareActionRequest,
   CareActionReward,
@@ -563,6 +563,15 @@ export interface ChatCareContext {
   cleanliness: number;
   gardenHealth: number;
   daysAway?: number;
+  /**
+   * The pet's local time of day at the moment this turn is sent -- "night"
+   * for the same 22:00-05:59 sleep window as dayNightCycle.ts's
+   * isNightHour/isNightTime (re-derived client-side from device local time
+   * in buildChatCareContext below, not the server's clock/timezone). Lets
+   * chat-turn's system prompt add a drowsy, "just woke up" tone at night
+   * without locking or charging anything differently -- world-flavor only.
+   */
+  localTimeOfDay?: "day" | "night";
 }
 
 /** Just what chat-turn's prompt needs from a pet profile -- mirrors supabase/functions/chat-turn/index.ts's ValidatedPetProfile. */
@@ -581,8 +590,6 @@ export interface ChatTurnRequest {
   text: string;
   disclosureAccepted: boolean;
   requestId: string;
-  /** "free" = client already spent a local ticket/Plus turn (§4.1 truth-source split, ticket=local truth); "credit" = server debits credit_wallets via consume_credits. */
-  charge: "free" | "credit";
   locale?: Locale;
   timezone?: string;
   petProfile: ChatTurnPetProfile;
@@ -595,9 +602,11 @@ export interface ChatTurnResponse {
   userMessage: ConversationMessage;
   petMessage: ConversationMessage;
   safetyFlags: string[];
-  /** credit_wallets.balance after this turn -- only changes when charge === "credit". */
+  /** Server-owned credit_wallets balance after this turn. */
   serverBalance: number;
   chargedCredit: number;
+  chargeKind: "plus" | "day_pass" | "starter_free" | "daily_free" | "credit" | "crisis";
+  freeTurnsRemaining: number;
   /** True when the input matched the crisis-referral pattern (§5.2 layer 1) -- petMessage is a `sender: "system"` resource message and nothing was charged. */
   crisisReferral: boolean;
 }
@@ -606,11 +615,15 @@ export interface ChatTurnResponse {
  * Assembles the chat-turn care band the pet's live reply leans on -- mirrors
  * buildChatMemoryContext above (client-prepared, pure, no network). daysAway
  * is threaded in separately since CareState itself has no notion of "now"
- * (see getCareDaysAway).
+ * (see getCareDaysAway). nowIso is the device's current local time, reused
+ * (via isNightTime, the same 22:00-05:59 boundary bgmAssets.ts's day/night
+ * crossfade already agrees on) to fill in localTimeOfDay -- see
+ * ChatCareContext's doc comment.
  */
 export const buildChatCareContext = (
   careState: Pick<CareState, "satiety" | "energy" | "happiness" | "affection" | "cleanliness" | "gardenHealth">,
-  daysAway: number
+  daysAway: number,
+  nowIso: string
 ): ChatCareContext => ({
   satiety: careState.satiety,
   energy: careState.energy,
@@ -618,7 +631,8 @@ export const buildChatCareContext = (
   affection: careState.affection,
   cleanliness: careState.cleanliness,
   gardenHealth: careState.gardenHealth,
-  daysAway
+  daysAway,
+  localTimeOfDay: isNightTime(nowIso) ? "night" : "day"
 });
 
 /**
@@ -638,3 +652,22 @@ export const buildChatTurnPetProfile = (
   ...(pet.favoriteThing ? { favoriteThing: pet.favoriteThing } : {}),
   ...(pet.memoryNote ? { memoryNote: pet.memoryNote } : {})
 });
+
+// ---------------------------------------------------------------------------
+// purchase-chat-pass Edge Function contract (Chat Live BM decision:
+// subscription-free single credit economy + a one-off "chatty day pass").
+// Mirrors supabase/functions/purchase-chat-pass/purchasePlan.ts's
+// PurchaseChatPassRequestBody/PurchaseChatPassMappedResponse -- the request
+// body key stays snake_case (request_id) to match that function's own
+// convention (see purchasePlan.ts's doc comment), while the response is
+// camelCase like every other mobile contract in this file.
+// ---------------------------------------------------------------------------
+
+export interface PurchaseChatPassRequest {
+  request_id: string;
+}
+
+export interface PurchaseChatPassResponse {
+  dayPassExpiresAt: string;
+  serverBalance: number;
+}

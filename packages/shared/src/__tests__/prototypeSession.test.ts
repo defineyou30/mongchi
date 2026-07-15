@@ -10,8 +10,10 @@ import {
   deletePrototypeOriginalPhoto,
   mockItems,
   failPrototypeGeneration,
+  FIRST_PET_ID,
   getGenerationAttemptKey,
   getMonotonicGenerationProgress,
+  isFirstOrOnlyPetId,
   mergePrototypeGeneratedAssets,
   getPrototypeGenerationPollSnapshot,
   getSpendableCreditBalance,
@@ -21,6 +23,7 @@ import {
   performPrototypeCareAction,
   claimPrototypeWalkReward,
   completePrototypeWalkEarlyWithCredit,
+  createRealLocationWeatherContext,
   getActivePetBundle,
   purchasePrototypeThemeBundle,
   refreshPrototypeWalk,
@@ -188,6 +191,30 @@ describe("prototype first-session state", () => {
     expect(selectGeneratedAssetForReaction(freeAssets, idleAsset, "sad")?.state).toBe("sleep");
   });
 
+  // Locks in the exact contract TerrariumHomeScreen's night-sleep visuals
+  // depend on: isShowingNightSleepPose always asks for preference "sleep",
+  // whether or not the pet's `sleep` starter pose has been unlocked yet (see
+  // supabase/migrations/0022_sleep_pose_night_unlock.sql /
+  // TerrariumSessionProvider's attemptSleepPoseNightUnlock). Before that
+  // unlock lands, "sleep" has no fallback chain entry (unlike e.g. "play" or
+  // "hungry" above), so it must fall all the way back to the idle asset
+  // rather than showing nothing; the instant the real sleep asset merges
+  // into acceptedAssets, the very same call must switch to it with no other
+  // code change.
+  it("selects the real sleep sprite once unlocked, and falls back to idle beforehand -- the night-sleep-pose contract", () => {
+    const idleOnly: GeneratedAsset[] = [makeMockGeneratedAsset("idle", { petId: "pet_local_001", generationJobId: "gen_night_001" })];
+    const idleAsset = idleOnly[0] ?? null;
+
+    expect(selectGeneratedAssetForReaction(idleOnly, idleAsset, "sleep")?.state).toBe("idle");
+
+    const withSleepUnlocked: GeneratedAsset[] = [
+      ...idleOnly,
+      makeMockGeneratedAsset("sleep", { petId: "pet_local_001", generationJobId: "gen_night_001" })
+    ];
+
+    expect(selectGeneratedAssetForReaction(withSleepUnlocked, idleAsset, "sleep")?.state).toBe("sleep");
+  });
+
   it("consumes owned treat items when a treat care action uses an inventory item", () => {
     let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
 
@@ -246,6 +273,41 @@ describe("prototype first-session state", () => {
     expect(treated.inventory.items.some((item) => item.itemId === "item_treat_plate_biscuit")).toBe(false);
     expect(active(treated).currentReaction?.category).toBe("treat_common");
     expect(active(treated).relationshipState.bondXp).toBe(active(state).relationshipState.bondXp + 5);
+  });
+
+  it("consumes one owned drink per item-backed water action and rejects an empty drink", () => {
+    let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    state = {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        items: [
+          ...state.inventory.items,
+          {
+            itemId: "item_milk_pup_cup",
+            quantity: 1,
+            acquiredAt: "2026-06-24T09:01:00.000Z",
+            source: "purchase"
+          }
+        ]
+      }
+    };
+
+    const watered = performPrototypeCareAction(state, "water_garden", "2026-06-24T09:02:00.000Z", "item_milk_pup_cup");
+
+    expect(watered.inventory.items.some((item) => item.itemId === "item_milk_pup_cup")).toBe(false);
+    const rejected = performPrototypeCareAction(watered, "water_garden", "2026-06-24T09:03:00.000Z", "item_milk_pup_cup");
+    expect(rejected).toStrictEqual(watered);
+  });
+
+  it("rejects mismatched or unowned item-backed care actions without changing session state", () => {
+    const state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+
+    const mismatched = performPrototypeCareAction(state, "play", "2026-06-24T09:01:00.000Z", "item_food_bowl_basic");
+    const unowned = performPrototypeCareAction(state, "affection", "2026-06-24T09:02:00.000Z", "item_lantern_nest");
+
+    expect(mismatched).toStrictEqual(state);
+    expect(unowned).toStrictEqual(state);
   });
 
   it("keeps daily care, walk return, and time decay coherent across a home-session loop", () => {
@@ -479,6 +541,32 @@ describe("prototype walk reward loop", () => {
     state = startPrototypeWalk(state, "2026-06-24T09:01:00.000Z", 1000);
 
     expect(active(state).activeWalk?.discoveryLine).toContain("rainy");
+    expect(active(state).currentReaction?.ruleId).toBe("en_weather_rain_walk_001");
+  });
+
+  // Bug fix regression coverage: a walk started under a real (weather-lookup
+  // Edge Function) rain context must earn the same rainy discovery line and
+  // reward item as a synthetic rain context -- getWalkDiscoveryLineForWeather/
+  // getWalkRewardItemIdForWeather (prototypeSession.ts) are driven purely by
+  // weather.condition, so a real context is not filtered out.
+  it("uses weather-aware walk episodes and discovery copy for a real (weather-lookup) rain context too", () => {
+    let state = createInitialPrototypeSession("2026-06-24T09:00:00.000Z");
+    state = updatePrototypeDraft(state, {
+      name: "Miso"
+    });
+    state = acceptPrototypeGeneratedPet(state, "2026-06-24T09:00:10.000Z");
+    state = {
+      ...state,
+      weatherState: {
+        ...state.weatherState,
+        settings: { ...state.weatherState.settings, enabled: true },
+        context: createRealLocationWeatherContext({ condition: "rain", intensity: "heavy", isDaytime: true }, "2026-06-24T09:00:20.000Z")
+      }
+    };
+    state = startPrototypeWalk(state, "2026-06-24T09:01:00.000Z", 1000);
+
+    expect(active(state).activeWalk?.discoveryLine).toContain("rainy");
+    expect(active(state).activeWalk?.rewardItemIds[0]).toBe("item_chicken_jerky");
     expect(active(state).currentReaction?.ruleId).toBe("en_weather_rain_walk_001");
   });
 
@@ -1048,6 +1136,21 @@ describe("memory + care stats spine", () => {
 
   it("caps play bond XP at 5 grants per local day, but always applies play's mood effects (special toys bypass the cooldown, not the XP cap)", () => {
     let state = buildAcceptedPet("2026-06-24T09:00:00.000Z");
+    state = {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        items: [
+          ...state.inventory.items,
+          {
+            itemId: "item_plush_toy_buddy",
+            quantity: 1,
+            acquiredAt: "2026-06-24T09:00:00.000Z",
+            source: "purchase"
+          }
+        ]
+      }
+    };
 
     // First 5 plays of the day (as if a special toy like Buddy Plush bypassed
     // the base 20-minute play cooldown -- see terrariumHomeInteractionContract.ts)
@@ -1165,5 +1268,19 @@ describe("item individuality reactions (docs/gamefeel-sound-plan.md §1 Tier 4)"
 
     expect(active(state).careStats.itemUsageCounts?.item_plush_toy_buddy).toBe(2);
     expect(active(state).careStats.itemUsageCounts?.item_cushion_rose).toBe(1);
+  });
+});
+
+describe("isFirstOrOnlyPetId", () => {
+  it("is true for the FIRST_PET_ID bundle key", () => {
+    expect(isFirstOrOnlyPetId(FIRST_PET_ID)).toBe(true);
+  });
+
+  it("is false for any other pet bundle key", () => {
+    expect(isFirstOrOnlyPetId("pet_second_001")).toBe(false);
+  });
+
+  it("is false for a PetProfile.id-shaped uuid, even though that's exactly the mistake a real-device bug made -- callers must pass a pet bundle key, never PetProfile.id", () => {
+    expect(isFirstOrOnlyPetId("pet_local_b6c0f2ac-37bc-42b3-a3ec-3c49a66cc779")).toBe(false);
   });
 });

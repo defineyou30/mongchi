@@ -202,4 +202,68 @@ describe("buildChatGreetingLine", () => {
 
     expect(line).toMatch(/bond|close/i);
   });
+
+  it("greets with a drowsy night line ahead of today's care action or the all-time favorite", () => {
+    const careStats = makeCareStats({ actionCounts: { clean: 4, feed: 1 }, totalCareActions: 5 });
+
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories: [],
+      careStats,
+      careState: { lastInteractionAt: "2026-06-24T08:30:00.000Z", updatedAt: now },
+      now,
+      isNight: true
+    });
+
+    expect([
+      "Mmh... you're here? Come sit with me.",
+      "*yawns softly* I was just dozing off. Stay a little while?",
+      "Mm, hi... still sleepy, but happy you came."
+    ]).toContain(line);
+  });
+
+  it("lets a recent milestone memory still outrank the night greeting", () => {
+    const memories: MemoryEntry[] = [
+      makeMemory({ id: "mem_bond_3", type: "bond_level", occurredAt: "2026-06-23T09:00:00.000Z" })
+    ];
+    const careStats = makeCareStats({ actionCounts: { clean: 5 }, totalCareActions: 5 });
+
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories,
+      careStats,
+      careState: { lastInteractionAt: now, updatedAt: now },
+      now,
+      isNight: true
+    });
+
+    expect(line).toMatch(/bond|close/i);
+  });
+
+  it("lets an active walk still outrank the night greeting", () => {
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories: [],
+      careStats: createInitialCareStats(),
+      now,
+      isOnWalk: true,
+      isNight: true
+    });
+
+    expect(["On my walk! Smells amazing out here.", "Can't talk long -- I'm out and about right now."]).toContain(line);
+  });
+
+  it("does not show the night line when isNight is not set, even at the same seed", () => {
+    const careStats = makeCareStats({ actionCounts: { clean: 4, feed: 1 }, totalCareActions: 5 });
+
+    const line = buildChatGreetingLine({
+      petName: "Miso",
+      memories: [],
+      careStats,
+      careState: { lastInteractionAt: "2026-06-24T08:30:00.000Z", updatedAt: now },
+      now
+    });
+
+    expect(line).toBe("You gave me the good brushes today.");
+  });
 });

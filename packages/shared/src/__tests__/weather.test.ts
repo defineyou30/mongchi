@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   createApproximateLocationWeatherContext,
   createManualWeatherContext,
+  createRealLocationWeatherContext,
   getWeatherScenePresentation,
   normalizeApproximateWeatherCoordinates
 } from "../index";
-import type { ApproximateWeatherCoordinates, WeatherCondition } from "../index";
+import type { ApproximateWeatherCoordinates, WeatherCondition, WeatherContext } from "../index";
 
 const addDaysIso = (baseIso: string, days: number): string => {
   const date = new Date(baseIso);
@@ -170,5 +171,137 @@ describe("weather presentation locale boundaries", () => {
     expect(presentation.label).toBe("Nieve");
     expect(presentation.shortLine).toBe("La luz de la nieve se posó suavemente al borde del jardín.");
     expect(presentation.accessibilityLabel).toContain("Escena del clima");
+  });
+});
+
+describe("createRealLocationWeatherContext (weather-lookup Edge Function result)", () => {
+  const now = "2026-07-07T09:00:00.000Z";
+
+  it("carries the condition, intensity, and isDaytime straight through from the lookup result", () => {
+    const context = createRealLocationWeatherContext({ condition: "rain", intensity: "heavy", temperatureBand: "mild", isDaytime: false }, now);
+
+    expect(context.source).toBe("device_location");
+    expect(context.condition).toBe("rain");
+    expect(context.isDaytime).toBe(false);
+    // Unlike the synthetic path (which derives intensity from a day/location
+    // hash), the real path must pass the Edge Function's own intensity
+    // through verbatim -- flattening it to a hardcoded "normal" is exactly
+    // the bug that made a real heavy storm indistinguishable from a light
+    // drizzle to anything gated on WeatherContext.intensity (see
+    // localReactionEngine.ts's weatherIntensity condition/scoring).
+    expect(context.intensity).toBe("heavy");
+    expect(context.fetchedAt).toBe(now);
+  });
+
+  it("fills temperatureC from the same condition-keyed table the synthetic path uses", () => {
+    // Compares against createApproximateLocationWeatherContext's own output
+    // for a day that happens to seed "hot" for this fixed location, rather
+    // than a hardcoded number, so this test breaks (instead of silently
+    // drifting) if the shared temperatureByCondition table ever changes.
+    const coordinates = normalizeApproximateWeatherCoordinates(37.5, 127.0) as ApproximateWeatherCoordinates;
+    let hotDayContext: WeatherContext | null = null;
+
+    for (let day = 0; day < 60 && !hotDayContext; day += 1) {
+      const candidate = createApproximateLocationWeatherContext(coordinates, addDaysIso(now, day));
+
+      if (candidate.condition === "hot") {
+        hotDayContext = candidate;
+      }
+    }
+
+    expect(hotDayContext).not.toBeNull();
+
+    const real = createRealLocationWeatherContext({ condition: "hot", intensity: "normal", isDaytime: true }, now);
+
+    expect(real.temperatureC).toBe(hotDayContext?.temperatureC);
+  });
+
+  it("stamps an explicit, per-locale 'local weather' regionLabel distinct from the synthetic path's 'approximate' phrasing", () => {
+    const context = createRealLocationWeatherContext(
+      { condition: "clear", intensity: "normal", temperatureBand: "mild", isDaytime: true },
+      now,
+      { locale: "ko-KR" }
+    );
+
+    expect(context.regionLabel).toBe("현지 날씨");
+
+    const presentation = getWeatherScenePresentation("home", context, "ko-KR");
+
+    expect(presentation.accessibilityLabel).toContain("현지 날씨");
+    expect(presentation.accessibilityLabel).not.toContain("대략적인");
+  });
+
+  it("defaults regionLabel to the en-US label when no locale is given", () => {
+    const context = createRealLocationWeatherContext({ condition: "clear", intensity: "normal", isDaytime: true }, now);
+
+    expect(context.regionLabel).toBe("Local weather");
+  });
+
+  it("still reads distinctly from the approximate path's 'Approximate local weather' region label", () => {
+    const coordinates = normalizeApproximateWeatherCoordinates(35.7, 139.7) as ApproximateWeatherCoordinates;
+    const approximate = createApproximateLocationWeatherContext(coordinates, now, { locale: "en-US" });
+    const real = createRealLocationWeatherContext(
+      { condition: approximate.condition, intensity: "normal", isDaytime: approximate.isDaytime },
+      now,
+      { locale: "en-US" }
+    );
+
+    const approximatePresentation = getWeatherScenePresentation("home", approximate, "en-US");
+    const realPresentation = getWeatherScenePresentation("home", real, "en-US");
+
+    expect(approximatePresentation.accessibilityLabel).toContain("approximate local weather");
+    expect(realPresentation.accessibilityLabel).toContain("Local weather");
+    expect(realPresentation.accessibilityLabel).not.toContain("approximate local weather");
+  });
+
+  it("every WeatherCondition the lookup can return maps to a defined temperatureC", () => {
+    const conditions: WeatherCondition[] = [
+      "clear",
+      "partly_cloudy",
+      "cloudy",
+      "rain",
+      "storm",
+      "snow",
+      "fog",
+      "wind",
+      "hot",
+      "cold"
+    ];
+
+    for (const condition of conditions) {
+      const context = createRealLocationWeatherContext({ condition, intensity: "normal", isDaytime: true }, now);
+      expect(typeof context.temperatureC).toBe("number");
+    }
+  });
+
+  // Bug fix regression coverage: a real "it's raining right now" lookup must
+  // drive the exact same home-screen scene presentation (overlay wash, rain
+  // drops, background key) as a synthetic "rain" context already did --
+  // getWeatherScenePresentation/getWeatherOverlayKey/getWeatherBackgroundKey
+  // are driven purely by `condition` (+ `isDaytime` for the night/clear
+  // special case), so a real context is not filtered out by any of them.
+  it("a real rain context resolves to the same rain overlay/background as a synthetic rain context", () => {
+    const real = createRealLocationWeatherContext({ condition: "rain", intensity: "heavy", isDaytime: false }, now);
+    const synthetic = createManualWeatherContext("rain", now);
+
+    const realPresentation = getWeatherScenePresentation("home", real, "en-US");
+    const syntheticPresentation = getWeatherScenePresentation("home", synthetic, "en-US");
+
+    expect(realPresentation.overlayKey).toBe("rain");
+    expect(realPresentation.backgroundKey).toBe("home-garden-rain");
+    expect(realPresentation.overlayKey).toBe(syntheticPresentation.overlayKey);
+    expect(realPresentation.backgroundKey).toBe(syntheticPresentation.backgroundKey);
+  });
+
+  it("a real storm/snow/fog context resolves to its matching overlay too", () => {
+    expect(getWeatherScenePresentation("home", createRealLocationWeatherContext({ condition: "storm", intensity: "heavy", isDaytime: true }, now)).overlayKey).toBe(
+      "storm"
+    );
+    expect(getWeatherScenePresentation("home", createRealLocationWeatherContext({ condition: "snow", intensity: "light", isDaytime: true }, now)).overlayKey).toBe(
+      "snow"
+    );
+    expect(getWeatherScenePresentation("home", createRealLocationWeatherContext({ condition: "fog", intensity: "normal", isDaytime: true }, now)).overlayKey).toBe(
+      "fog"
+    );
   });
 });

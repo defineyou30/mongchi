@@ -105,6 +105,26 @@ describe("buff effects on care math", () => {
 describe("buffs in the prototype session", () => {
   it("starts a buff when its item is used and grants boosted bond xp afterward", () => {
     let state = acceptPrototypeGeneratedPet(createInitialPrototypeSession(now), now);
+    // performPrototypeCareAction only acts on an itemId the pet's inventory
+    // actually owns (see the shop-economy ownership gate that replaced the
+    // old "trust the caller" behavior, which let items be reused without
+    // limit) -- so the treat has to be granted here first, same as the
+    // other inventory-backed care-action tests in prototypeSession.test.ts.
+    state = {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        items: [
+          ...state.inventory.items,
+          {
+            itemId: "item_duck_biscuit",
+            quantity: 1,
+            acquiredAt: now,
+            source: "purchase"
+          }
+        ]
+      }
+    };
 
     state = performPrototypeCareAction(state, "treat", hoursLater(1), "item_duck_biscuit");
     expect(state.activeBuffs).toHaveLength(1);

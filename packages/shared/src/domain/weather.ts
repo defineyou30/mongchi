@@ -101,6 +101,26 @@ const approximateWeatherRegionLabelByLocale: Record<Locale, string> = {
   "es-MX": "Clima local aproximado"
 };
 
+/**
+ * Distinct from approximateWeatherRegionLabelByLocale above on purpose: this
+ * is the real weather-lookup Edge Function's result, so its label should
+ * never read as "approximate". Stamped explicitly by
+ * createRealLocationWeatherContext (rather than left undefined) so the
+ * real-vs-approximate distinction never depends on getWeatherScenePresentation's
+ * `regionLabel ?? copy.localSource` fallback chain -- see that function's doc
+ * comment.
+ */
+const realLocationWeatherRegionLabelByLocale: Record<Locale, string> = {
+  "en-US": "Local weather",
+  "ko-KR": "현지 날씨",
+  "ja-JP": "現地の天気",
+  "zh-TW": "當地天氣",
+  "de-DE": "Lokales Wetter",
+  "fr-FR": "Météo locale",
+  "pt-BR": "Clima local",
+  "es-MX": "Clima local"
+};
+
 // allow: SIZE_OK — exhaustive localized weather copy is an indivisible typed data table.
 const labelsByLocale: Record<Locale, Record<WeatherCondition, string>> = {
   "en-US": {
@@ -492,6 +512,73 @@ export const createApproximateLocationWeatherContext = (
     regionLabel: options.regionLabel ?? approximateWeatherRegionLabelByLocale[options.locale ?? "en-US"]
   };
 };
+
+export type RealWeatherTemperatureBand = "cold" | "mild" | "hot";
+
+export interface RealLocationWeatherLookup {
+  condition: WeatherCondition;
+  /**
+   * Always sent by the weather-lookup Edge Function (see its
+   * weatherMapping.ts's mapWeatherCodeToIntensity) -- required, not optional,
+   * unlike temperatureBand. Every downstream consumer that reads
+   * WeatherContext.intensity (packages/shared/src/reactions/
+   * localReactionEngine.ts's weatherIntensity rule condition/scoring) needs a
+   * real value here, not a flattened "normal" default, or a genuinely heavy
+   * real storm would never be distinguishable from a light drizzle the way a
+   * synthetic one already is.
+   */
+  intensity: WeatherIntensity;
+  temperatureBand?: RealWeatherTemperatureBand;
+  isDaytime: boolean;
+}
+
+/**
+ * Builds a WeatherContext from the weather-lookup Edge Function's real-weather
+ * result (supabase/functions/weather-lookup, which maps Open-Meteo's current
+ * weathercode/temperature/wind to this same condition/intensity/
+ * temperatureBand/isDaytime shape -- see that function's weatherMapping.ts
+ * for the mapping table). This is the real-weather counterpart to
+ * createApproximateLocationWeatherContext below; locationWeatherSession.ts
+ * (apps/mobile) tries this path first and only falls back to the synthetic
+ * generator when the Edge Function is unreachable, offline, or unconfigured.
+ *
+ * `source` stays "device_location", same as the synthetic path -- both are
+ * triggered by the same "use my location" action, so WeatherSource doesn't
+ * need a fourth variant just to distinguish real from approximate.
+ *
+ * `regionLabel` is stamped from realLocationWeatherRegionLabelByLocale
+ * (distinct per-locale text from the synthetic path's "Approximate local
+ * weather" family) -- every consumer of WeatherContext.condition/intensity/
+ * isDaytime/source (getWeatherScenePresentation, getWeatherOverlayKey,
+ * getWeatherBackgroundKey, localReactionEngine's weatherSource/weatherCondition/
+ * weatherIntensity conditions, prototypeSession's walk-reward helpers) reads
+ * those fields directly and never regionLabel, so this has no effect on any
+ * of them; it only makes the settings/accessibility "which weather source is
+ * this" copy explicit rather than relying on getWeatherScenePresentation's
+ * `regionLabel ?? copy.localSource` fallback picking the right thing by
+ * omission.
+ *
+ * temperatureC is filled from the same temperatureByCondition table the
+ * synthetic path uses, keyed off the final (possibly overridden) condition --
+ * not a raw upstream reading -- so a real "hot" afternoon and a synthetic
+ * "hot" day render an identically warm scene. The Edge Function's
+ * temperatureBand has already done its job by the time it reaches here (it
+ * only ever influenced which condition the server reported); it isn't
+ * re-applied on the client.
+ */
+export const createRealLocationWeatherContext = (
+  lookup: RealLocationWeatherLookup,
+  now: ISODateTime,
+  options: { locale?: Locale } = {}
+): WeatherContext => ({
+  source: "device_location",
+  condition: lookup.condition,
+  intensity: lookup.intensity,
+  isDaytime: lookup.isDaytime,
+  fetchedAt: now,
+  temperatureC: temperatureByCondition[lookup.condition],
+  regionLabel: realLocationWeatherRegionLabelByLocale[options.locale ?? "en-US"]
+});
 
 export const getWeatherBackgroundKey = (surface: WeatherSurface, weather: WeatherContext = defaultWeatherContext): WeatherBackgroundKey => {
   if (!weather.isDaytime && surface === "home" && weather.condition === "clear") {

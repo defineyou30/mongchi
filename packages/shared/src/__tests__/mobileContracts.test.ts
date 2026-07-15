@@ -14,7 +14,23 @@ import {
   mockPetProfile,
   validateLocalPhotoCandidate
 } from "../index";
-import type { CareStats, CreateConversationRequest, MemoryEntry, PurchaseVerificationRequest, RestorePurchasesRequest } from "../index";
+import type {
+  CareStats,
+  ChatTurnResponse,
+  CreateConversationRequest,
+  MemoryEntry,
+  PurchaseChatPassRequest,
+  PurchaseChatPassResponse,
+  PurchaseVerificationRequest,
+  RestorePurchasesRequest
+} from "../index";
+
+/** Builds an ISO string whose *local* hour is `hour` -- buildChatCareContext's night read re-derives the hour via isNightTime -> `new Date(iso).getHours()`, so round-tripping through setHours keeps this independent of the test runner's timezone (mirrors dayNightCycle.test.ts's isoAtLocalHour). */
+const isoAtLocalHour = (hour: number): string => {
+  const date = new Date("2026-06-24T00:00:00.000Z");
+  date.setHours(hour, 0, 0, 0);
+  return date.toISOString();
+};
 
 describe("mobile API contract mappers", () => {
   it("maps pet setup draft into a trimmed create-pet request", () => {
@@ -235,27 +251,35 @@ describe("mobile API contract mappers", () => {
   });
 
   it("builds a chat-turn care context from the six live care meters plus daysAway", () => {
-    expect(buildChatCareContext(mockCareState, 2)).toEqual({
+    expect(buildChatCareContext(mockCareState, 2, isoAtLocalHour(9))).toEqual({
       satiety: 48,
       energy: 74,
       happiness: 70,
       affection: 66,
       cleanliness: 76,
       gardenHealth: 58,
-      daysAway: 2
+      daysAway: 2,
+      localTimeOfDay: "day"
     });
   });
 
   it("includes a zero daysAway rather than omitting it", () => {
-    expect(buildChatCareContext(mockCareState, 0)).toEqual({
+    expect(buildChatCareContext(mockCareState, 0, isoAtLocalHour(9))).toEqual({
       satiety: 48,
       energy: 74,
       happiness: 70,
       affection: 66,
       cleanliness: 76,
       gardenHealth: 58,
-      daysAway: 0
+      daysAway: 0,
+      localTimeOfDay: "day"
     });
+  });
+
+  it("reads localTimeOfDay as night during the 22:00-05:59 sleep window", () => {
+    expect(buildChatCareContext(mockCareState, 0, isoAtLocalHour(23)).localTimeOfDay).toBe("night");
+    expect(buildChatCareContext(mockCareState, 0, isoAtLocalHour(3)).localTimeOfDay).toBe("night");
+    expect(buildChatCareContext(mockCareState, 0, isoAtLocalHour(6)).localTimeOfDay).toBe("day");
   });
 
   it("trims a full pet profile down to the chat-turn snapshot, dropping empty optional fields", () => {
@@ -278,6 +302,26 @@ describe("mobile API contract mappers", () => {
       name: "Miso",
       species: "dog",
       talkingStyle: "gentle"
+    });
+  });
+
+  it("accepts the day_pass charge kind on ChatTurnResponse (Chat Live BM decision: chatty day pass)", () => {
+    const chargeKind: ChatTurnResponse["chargeKind"] = "day_pass";
+
+    expect(chargeKind).toBe("day_pass");
+  });
+
+  it("shapes the purchase-chat-pass request/response contract", () => {
+    const request: PurchaseChatPassRequest = { request_id: "purchase_req_001" };
+    const response: PurchaseChatPassResponse = {
+      dayPassExpiresAt: "2026-07-14T09:00:00.000Z",
+      serverBalance: 4
+    };
+
+    expect(request.request_id).toBe("purchase_req_001");
+    expect(response).toEqual({
+      dayPassExpiresAt: "2026-07-14T09:00:00.000Z",
+      serverBalance: 4
     });
   });
 });

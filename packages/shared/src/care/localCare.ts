@@ -62,29 +62,58 @@ const careMeterKeys = ["satiety", "happiness", "cleanliness", "energy", "gardenH
 
 const specialItemEffectsByAction: Partial<Record<CareActionRequest["action"], Record<ItemId, CareMeterPatch>>> = {
   affection: {
-    // Rose Cushion doubles as a rest moment (docs/gamefeel-sound-plan.md §1
+    // Nap cushions double as a rest moment (docs/gamefeel-sound-plan.md §1
     // Tier 4 -- rest's own dock button stays retired to avoid a 6th dock
     // slot, so this is the cushion's "cozy nap" stand-in). +14 energy is half
     // of rest's own +28 gain -- a real nap-sized bonus on top of the base
     // affection effect, without letting one cushion tap fully substitute for
     // the dedicated rest action.
     item_cushion_rose: { affection: 10, happiness: 4, energy: 14 },
+    item_cloud_cushion_sky: { affection: 10, happiness: 4, energy: 14 },
+    item_clover_nap_mat: { affection: 8, happiness: 4, energy: 12 },
+    item_moon_pillow: { affection: 8, happiness: 4, energy: 12 },
+    item_star_blanket: { affection: 8, happiness: 4, energy: 12 },
+    item_cozy_basket: { affection: 10, happiness: 5, energy: 14 },
+    item_window_perch: { affection: 9, happiness: 6, energy: 12 },
+    item_patchwork_rug: { affection: 8, happiness: 4, energy: 12 },
+    item_sleep_tent: { affection: 11, happiness: 5, energy: 16 },
+    item_donut_bed: { affection: 10, happiness: 5, energy: 14 },
+    item_garden_hammock: { affection: 11, happiness: 6, energy: 16 },
+    item_lantern_nest: { affection: 12, happiness: 6, energy: 18 },
     item_plush_toy_buddy: { affection: 8, happiness: 4 }
   },
   play: {
     item_toy_ball_mint: { happiness: 4 },
-    item_plush_toy_buddy: { happiness: 10, affection: 5 }
+    item_plush_toy_buddy: { happiness: 10, affection: 5 },
+    item_moon_frisbee: { happiness: 5 },
+    item_bell_roller: { happiness: 5, affection: 2 },
+    item_feather_teaser: { happiness: 6 },
+    item_snuffle_mat: { happiness: 8, affection: 3 },
+    item_wobble_treat_ball: { happiness: 8, affection: 3 },
+    item_crinkle_leaf: { happiness: 5 },
+    item_sunbeam_spinner: { happiness: 5, affection: 2 }
   },
   treat: {
     item_berry_yogurt: { happiness: 5, affection: 3 },
     item_duck_biscuit: { happiness: 6, affection: 2 },
-    item_milk_pup_cup: { gardenHealth: 8, happiness: 5, affection: 3 }
+    item_honey_paw_wafer: { happiness: 4, affection: 2 }
   },
   walk: {
     item_stepping_stone_path: { happiness: 7, energy: 5, affection: 3 }
   },
   water_garden: {
     item_milk_pup_cup: { gardenHealth: 12, satiety: 4, happiness: 5 },
+    item_dewdrop_water: { gardenHealth: 6, energy: 2 },
+    item_apple_sip: { gardenHealth: 6, happiness: 2 },
+    item_berry_milk: { gardenHealth: 6, happiness: 3 },
+    item_pumpkin_cream: { gardenHealth: 8, happiness: 4, affection: 2 },
+    item_blueberry_smoothie: { gardenHealth: 8, happiness: 5 },
+    item_carrot_cooler: { gardenHealth: 6, energy: 3 },
+    item_sweet_potato_shake: { gardenHealth: 6, happiness: 3, affection: 2 },
+    item_salmon_broth: { gardenHealth: 8, satiety: 4, affection: 2 },
+    item_tuna_broth: { gardenHealth: 6, satiety: 3 },
+    item_coconut_splash: { gardenHealth: 8, happiness: 4, energy: 3 },
+    item_pear_nectar: { gardenHealth: 6, happiness: 2 },
     item_pond_tile_lily: { gardenHealth: 8, happiness: 3 }
   }
 };

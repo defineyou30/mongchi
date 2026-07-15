@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPremiumChatPaymentPreview, grantCreditWalletValue, mockCreditWallet } from "..";
+import { canAffordChatDayPass, chatDayPassCreditCost, getPremiumChatPaymentPreview, grantCreditWalletValue, mockCreditWallet } from "..";
 
 describe("credit wallet grants", () => {
   it("adds purchased wallet value without reducing existing balances", () => {
@@ -89,5 +89,12 @@ describe("credit wallet grants", () => {
       mode: "locked",
       canStart: false
     });
+  });
+
+  it("affords a chat day pass once the spendable balance reaches the server-constant price", () => {
+    expect(chatDayPassCreditCost).toBe(5);
+    expect(canAffordChatDayPass({ ...mockCreditWallet, credits: 4, bonusCredits: 0 })).toBe(false);
+    expect(canAffordChatDayPass({ ...mockCreditWallet, credits: 5, bonusCredits: 0 })).toBe(true);
+    expect(canAffordChatDayPass({ ...mockCreditWallet, credits: 1, bonusCredits: 4 })).toBe(true);
   });
 });

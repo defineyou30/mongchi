@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { consumeInventoryItem, getAvailableTreatItemId } from "../domain";
+import {
+  consumeInventoryItem,
+  getAvailableTreatItemId,
+  isCareItemEligibleForAction,
+  isConsumableCareItem,
+  isDrinkInventoryItem
+} from "../domain";
 import type { Inventory } from "../domain";
 import { mockItems } from "../mock/mockData";
 
@@ -90,5 +96,48 @@ describe("available treat lookup", () => {
         mockItems
       )
     ).toBeNull();
+  });
+});
+
+describe("care item consumption semantics", () => {
+  it("treats and drinks are consumable while toys and beds remain durable", () => {
+    const findItem = (itemId: string) => {
+      const item = mockItems.find((candidate) => candidate.id === itemId);
+
+      if (!item) {
+        throw new Error(`Missing item fixture: ${itemId}`);
+      }
+
+      return item;
+    };
+
+    expect(isDrinkInventoryItem(findItem("item_milk_pup_cup"))).toBe(true);
+    expect(isConsumableCareItem(findItem("item_milk_pup_cup"))).toBe(true);
+    expect(isConsumableCareItem(findItem("item_treat_plate_biscuit"))).toBe(true);
+    expect(isConsumableCareItem(findItem("item_plush_toy_buddy"))).toBe(false);
+    expect(isConsumableCareItem(findItem("item_cushion_rose"))).toBe(false);
+  });
+
+  it("only allows catalog items on their authored care actions", () => {
+    const findItem = (itemId: string) => {
+      const item = mockItems.find((candidate) => candidate.id === itemId);
+
+      if (!item) {
+        throw new Error(`Missing item fixture: ${itemId}`);
+      }
+
+      return item;
+    };
+
+    expect(isCareItemEligibleForAction(findItem("item_food_bowl_basic"), "feed")).toBe(true);
+    expect(isCareItemEligibleForAction(findItem("item_toy_ball_mint"), "play")).toBe(true);
+    expect(isCareItemEligibleForAction(findItem("item_cushion_rose"), "affection")).toBe(true);
+    expect(isCareItemEligibleForAction(findItem("item_milk_pup_cup"), "water_garden")).toBe(true);
+    expect(isCareItemEligibleForAction(findItem("item_treat_plate_biscuit"), "treat")).toBe(true);
+
+    expect(isCareItemEligibleForAction(findItem("item_food_bowl_basic"), "play")).toBe(false);
+    expect(isCareItemEligibleForAction(findItem("item_toy_ball_mint"), "affection")).toBe(false);
+    expect(isCareItemEligibleForAction(findItem("item_milk_pup_cup"), "treat")).toBe(false);
+    expect(isCareItemEligibleForAction(findItem("item_cushion_rose"), "talk")).toBe(false);
   });
 });

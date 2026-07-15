@@ -147,6 +147,308 @@ export const mockCreditWallet: CreditWallet = {
   updatedAt: now
 };
 
+type ExpandedCareShopItemSeed = Omit<Item, "placementSlots" | "createdAt" | "updatedAt">;
+
+const createExpandedCareShopItem = (item: ExpandedCareShopItemSeed): Item => ({
+  ...item,
+  placementSlots: ["ground", "pet_corner"],
+  createdAt: now,
+  updatedAt: now
+});
+
+const expandedCareShopItems: readonly Item[] = [
+  createExpandedCareShopItem({
+    id: "item_honey_paw_wafer",
+    name: "Honey Paw Wafer",
+    description: "A crisp honey wafer shaped like a tiny paw.",
+    category: "treat",
+    rarity: "common",
+    visualKey: "item-honey-paw-wafer-v1",
+    isPremium: false,
+    behaviorTags: ["treat", "food"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_dewdrop_water",
+    name: "Dewdrop Water",
+    description: "A sparkling bowl of clear water for a fresh little reset.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-dewdrop-water-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_apple_sip",
+    name: "Apple Sip",
+    description: "A crisp apple drink for bright everyday care.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-apple-sip-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate", "fruit"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_berry_milk",
+    name: "Berry Milk",
+    description: "A soft berry milk for cheerful little reactions.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-berry-milk-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate", "fruit"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_pumpkin_cream",
+    name: "Pumpkin Cream",
+    description: "A cozy pumpkin drink for slow garden afternoons.",
+    category: "drink",
+    rarity: "rare",
+    visualKey: "item-pumpkin-cream-v1",
+    isPremium: true,
+    behaviorTags: ["drink", "hydrate", "cozy", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_blueberry_smoothie",
+    name: "Blueberry Smoothie",
+    description: "A cool blueberry blend for an extra-happy sip.",
+    category: "drink",
+    rarity: "rare",
+    visualKey: "item-blueberry-smoothie-v1",
+    isPremium: true,
+    behaviorTags: ["drink", "hydrate", "fruit", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_carrot_cooler",
+    name: "Carrot Cooler",
+    description: "A light carrot cooler for playful care breaks.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-carrot-cooler-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate", "vegetable"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_sweet_potato_shake",
+    name: "Sweet Potato Shake",
+    description: "A mellow purple shake for calm, cozy moments.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-sweet-potato-shake-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate", "cozy"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_salmon_broth",
+    name: "Salmon Broth",
+    description: "A warm savory broth for a special care moment.",
+    category: "drink",
+    rarity: "rare",
+    visualKey: "item-salmon-broth-v1",
+    isPremium: true,
+    behaviorTags: ["drink", "hydrate", "savory", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_tuna_broth",
+    name: "Tuna Broth",
+    description: "A clear fish broth for curious little friends.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-tuna-broth-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate", "savory"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_coconut_splash",
+    name: "Coconut Splash",
+    description: "A creamy coconut sip for sunny garden days.",
+    category: "drink",
+    rarity: "rare",
+    visualKey: "item-coconut-splash-v1",
+    isPremium: true,
+    behaviorTags: ["drink", "hydrate", "tropical", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_pear_nectar",
+    name: "Pear Nectar",
+    description: "A gentle pear drink for a sweet daily pause.",
+    category: "drink",
+    rarity: "common",
+    visualKey: "item-pear-nectar-v1",
+    isPremium: false,
+    behaviorTags: ["drink", "hydrate", "fruit"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_moon_frisbee",
+    name: "Moon Frisbee",
+    description: "A soft crescent disc for quick chase games.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-moon-frisbee-v1",
+    isPremium: false,
+    behaviorTags: ["play", "chase"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_bell_roller",
+    name: "Bell Roller",
+    description: "A rolling bell toy that rewards curious nudges.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-bell-roller-v1",
+    isPremium: false,
+    behaviorTags: ["play", "curious"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_feather_teaser",
+    name: "Feather Teaser",
+    description: "A colorful teaser for tiny leaps and pounces.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-feather-teaser-v1",
+    isPremium: false,
+    behaviorTags: ["play", "chase"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_snuffle_mat",
+    name: "Snuffle Mat",
+    description: "A layered fabric puzzle for slow, curious play.",
+    category: "toy",
+    rarity: "rare",
+    visualKey: "item-snuffle-mat-v1",
+    isPremium: true,
+    behaviorTags: ["play", "curious", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_wobble_treat_ball",
+    name: "Wobble Treat Ball",
+    description: "A bouncy puzzle ball for focused playtime.",
+    category: "toy",
+    rarity: "rare",
+    visualKey: "item-wobble-treat-ball-v1",
+    isPremium: true,
+    behaviorTags: ["play", "curious", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_crinkle_leaf",
+    name: "Crinkle Leaf",
+    description: "A soft rustling leaf for playful little bursts.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-crinkle-leaf-v1",
+    isPremium: false,
+    behaviorTags: ["play", "squeak"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_sunbeam_spinner",
+    name: "Sunbeam Spinner",
+    description: "A bright little spinner for quick curious taps.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-sunbeam-spinner-v1",
+    isPremium: false,
+    behaviorTags: ["play", "curious"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_clover_nap_mat",
+    name: "Clover Nap Mat",
+    description: "A low quilted mat for a short peaceful rest.",
+    category: "bed",
+    rarity: "common",
+    visualKey: "item-clover-nap-mat-v1",
+    isPremium: false,
+    behaviorTags: ["sleep", "rest", "affection"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_moon_pillow",
+    name: "Moon Pillow",
+    description: "A plump crescent pillow for dreamy naps.",
+    category: "bed",
+    rarity: "common",
+    visualKey: "item-moon-pillow-v1",
+    isPremium: false,
+    behaviorTags: ["sleep", "rest", "affection"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_star_blanket",
+    name: "Star Blanket",
+    description: "A folded patchwork blanket for warm quiet time.",
+    category: "bed",
+    rarity: "common",
+    visualKey: "item-star-blanket-v1",
+    isPremium: false,
+    behaviorTags: ["sleep", "rest", "affection"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_cozy_basket",
+    name: "Cozy Basket",
+    description: "A woven basket nest with a plump soft cushion.",
+    category: "bed",
+    rarity: "rare",
+    visualKey: "item-cozy-basket-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "affection", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_window_perch",
+    name: "Window Perch",
+    description: "A padded perch for watching the tiny world go by.",
+    category: "bed",
+    rarity: "rare",
+    visualKey: "item-window-perch-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "curious", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_patchwork_rug",
+    name: "Patchwork Rug",
+    description: "A warm oval rug for stretching out in comfort.",
+    category: "bed",
+    rarity: "common",
+    visualKey: "item-patchwork-rug-v1",
+    isPremium: false,
+    behaviorTags: ["sleep", "rest", "affection"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_sleep_tent",
+    name: "Storybook Sleep Tent",
+    description: "A tiny canvas hideaway for deeper cozy naps.",
+    category: "bed",
+    rarity: "rare",
+    visualKey: "item-sleep-tent-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "affection", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_donut_bed",
+    name: "Donut Bed",
+    description: "A round plush bed that hugs every sleepy curl.",
+    category: "bed",
+    rarity: "rare",
+    visualKey: "item-donut-bed-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "affection", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_garden_hammock",
+    name: "Garden Hammock",
+    description: "A gentle fabric hammock for slow garden sways.",
+    category: "bed",
+    rarity: "rare",
+    visualKey: "item-garden-hammock-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "affection", "premium"]
+  }),
+  createExpandedCareShopItem({
+    id: "item_lantern_nest",
+    name: "Lantern Nest",
+    description: "A glowing little nest for the coziest nighttime rest.",
+    category: "bed",
+    rarity: "premium",
+    visualKey: "item-lantern-nest-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "affection", "premium"]
+  })
+];
+
 export const mockItems: Item[] = [
   {
     id: "item_food_bowl_basic",
@@ -184,6 +486,71 @@ export const mockItems: Item[] = [
     isPremium: false,
     behaviorTags: ["play", "decorate"],
     placementSlots: ["ground", "pet_corner"],
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "item_rope_ring_mint",
+    name: "Mint Rope Ring",
+    description: "A braided ring for lively tug-and-chase play.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-rope-ring-mint-v1",
+    isPremium: false,
+    behaviorTags: ["play", "tug"],
+    placementSlots: ["ground", "pet_corner"],
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "item_star_squeaker_sunny",
+    name: "Sunny Star Squeaker",
+    description: "A bright fabric star for quick playful bursts.",
+    category: "toy",
+    rarity: "common",
+    visualKey: "item-star-squeaker-sunny-v1",
+    isPremium: false,
+    behaviorTags: ["play", "squeak"],
+    placementSlots: ["ground", "pet_corner"],
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "item_ribbon_wand_garden",
+    name: "Garden Ribbon Wand",
+    description: "Soft colorful ribbons for a tiny chase game.",
+    category: "toy",
+    rarity: "rare",
+    visualKey: "item-ribbon-wand-garden-v1",
+    isPremium: true,
+    behaviorTags: ["play", "chase", "premium"],
+    placementSlots: ["ground", "pet_corner"],
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "item_clover_puzzle_mint",
+    name: "Clover Puzzle Toy",
+    description: "A gentle sliding puzzle for curious playtime.",
+    category: "toy",
+    rarity: "rare",
+    visualKey: "item-clover-puzzle-mint-v1",
+    isPremium: true,
+    behaviorTags: ["play", "curious", "premium"],
+    placementSlots: ["ground", "pet_corner"],
+    createdAt: now,
+    updatedAt: now
+  },
+  {
+    id: "item_cloud_cushion_sky",
+    name: "Cloud Nap Cushion",
+    description: "A soft cloud cushion for peaceful little rests.",
+    category: "bed",
+    rarity: "rare",
+    visualKey: "item-cloud-cushion-sky-v1",
+    isPremium: true,
+    behaviorTags: ["sleep", "rest", "premium"],
+    placementSlots: ["pet_corner", "ground"],
     createdAt: now,
     updatedAt: now
   },
@@ -369,11 +736,11 @@ export const mockItems: Item[] = [
     id: "item_milk_pup_cup",
     name: "Milk Pup Cup",
     description: "A creamy cup for premium cozy reactions.",
-    category: "treat",
+    category: "drink",
     rarity: "premium",
     visualKey: "item-milk-pup-cup-v1",
     isPremium: true,
-    behaviorTags: ["treat", "food", "premium"],
+    behaviorTags: ["drink", "hydrate", "premium"],
     placementSlots: ["ground", "pet_corner"],
     createdAt: now,
     updatedAt: now
@@ -390,7 +757,8 @@ export const mockItems: Item[] = [
     placementSlots: ["pet_corner", "ground"],
     createdAt: now,
     updatedAt: now
-  }
+  },
+  ...expandedCareShopItems
 ];
 
 export const mockInventory: Inventory = {

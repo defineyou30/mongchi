@@ -50,26 +50,69 @@ export type CreditWalletSpendResult =
 export const getSpendableCreditBalance = (wallet: CreditWallet): number =>
   Math.max(0, wallet.credits + wallet.bonusCredits);
 
+// Flat per-category pricing (2026-07 pricing pass): treats and drinks are
+// both 2 credits, toys and beds (rest) are both 5 credits, regardless of
+// rarity/premium flag — a single easy-to-remember price per category rather
+// than per-item variance. item_stepping_stone_path is the one exception
+// (see its own comment below).
+const TREAT_OR_DRINK_CREDIT_COST = 2;
+const TOY_OR_BED_CREDIT_COST = 5;
+
 export const starterCreditItemPrices: readonly CreditItemPrice[] = [
-  { itemId: "item_treat_plate_biscuit", creditCost: 2 },
-  { itemId: "item_bone_biscuit", creditCost: 2 },
-  { itemId: "item_salmon_bites", creditCost: 2 },
-  { itemId: "item_chicken_jerky", creditCost: 2 },
-  { itemId: "item_pumpkin_cookie", creditCost: 3 },
-  { itemId: "item_berry_yogurt", creditCost: 4 },
-  { itemId: "item_sweet_potato_chew", creditCost: 2 },
-  { itemId: "item_tuna_crunch", creditCost: 3 },
-  { itemId: "item_duck_biscuit", creditCost: 4 },
-  { itemId: "item_cheese_puff", creditCost: 3 },
-  { itemId: "item_apple_biscuit", creditCost: 2 },
-  { itemId: "item_milk_pup_cup", creditCost: 5 },
-  { itemId: "item_plush_toy_buddy", creditCost: 3 },
-  { itemId: "item_cushion_rose", creditCost: 5 },
+  { itemId: "item_treat_plate_biscuit", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_bone_biscuit", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_salmon_bites", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_chicken_jerky", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_pumpkin_cookie", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_berry_yogurt", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_sweet_potato_chew", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_tuna_crunch", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_duck_biscuit", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_cheese_puff", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_apple_biscuit", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_honey_paw_wafer", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_milk_pup_cup", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_dewdrop_water", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_apple_sip", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_berry_milk", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_pumpkin_cream", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_blueberry_smoothie", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_carrot_cooler", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_sweet_potato_shake", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_salmon_broth", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_tuna_broth", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_coconut_splash", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_pear_nectar", creditCost: TREAT_OR_DRINK_CREDIT_COST },
+  { itemId: "item_plush_toy_buddy", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_rope_ring_mint", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_star_squeaker_sunny", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_ribbon_wand_garden", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_clover_puzzle_mint", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_moon_frisbee", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_bell_roller", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_feather_teaser", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_snuffle_mat", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_wobble_treat_ball", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_crinkle_leaf", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_sunbeam_spinner", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_cloud_cushion_sky", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_cushion_rose", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_clover_nap_mat", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_moon_pillow", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_star_blanket", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_cozy_basket", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_window_perch", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_patchwork_rug", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_sleep_tent", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_donut_bed", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_garden_hammock", creditCost: TOY_OR_BED_CREDIT_COST },
+  { itemId: "item_lantern_nest", creditCost: TOY_OR_BED_CREDIT_COST },
   // item_stepping_stone_path is retired from the mobile shop's UI (its
   // category, "path", is filtered out of every mobile shop tab — see
-  // ShopPreviewScreen.tsx's getItemShopCategory) but keeps a price here
-  // because services/api's purchaseInventoryItem tests exercise buying it
-  // for 3 credits. See mockData.ts's note beside the catalog entry.
+  // ShopPreviewScreen.tsx's getItemShopCategory) and sits outside the
+  // treat/drink/toy/bed pricing pass above -- it keeps its old price here
+  // only because services/api's purchaseInventoryItem tests exercise buying
+  // it for 3 credits. See mockData.ts's note beside the catalog entry.
   { itemId: "item_stepping_stone_path", creditCost: 3 }
 ];
 
@@ -78,6 +121,21 @@ export const getCreditItemPrice = (itemId: ItemId): CreditItemPrice | null =>
 
 export const canSpendPremiumChatTurn = (wallet: CreditWallet, creditCost: number = 1): boolean =>
   wallet.freeChatTickets > 0 || getSpendableCreditBalance(wallet) >= creditCost;
+
+/**
+ * Server-constant price of a chat "day pass" (Chat Live BM decision:
+ * subscription-free single credit economy + a one-off "chatty day pass") --
+ * mirrors purchase_chat_day_pass's v_cost constant, originally defined in
+ * 0018_chat_day_pass.sql and repriced by 0020_chat_day_pass_price_increase.sql
+ * (CREATE OR REPLACE, 0018 itself is untouched). The server always owns the
+ * real charge; this is exported purely so the mobile gate UI can decide
+ * whether to offer the purchase (and label its price) without inventing its
+ * own copy of the number.
+ */
+export const chatDayPassCreditCost = 5;
+
+export const canAffordChatDayPass = (wallet: CreditWallet): boolean =>
+  getSpendableCreditBalance(wallet) >= chatDayPassCreditCost;
 
 export const getPremiumChatPaymentPreview = (
   wallet: CreditWallet,

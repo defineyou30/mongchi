@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createManualWeatherContext,
+  createRealLocationWeatherContext,
   createSeededRandom,
   mockCareState,
   mockPetProfile,
@@ -440,5 +441,63 @@ describe("createSeededRandom", () => {
     );
 
     expect(values.size).toBeGreaterThan(1);
+  });
+});
+
+// Bug fix regression coverage: real weather-lookup contexts
+// (createRealLocationWeatherContext) must be able to drive
+// weatherIntensity-gated reaction/chat-greeting copy exactly like a
+// synthetic context already can -- a hardcoded "normal" intensity on the
+// real path would make this rule permanently unreachable during an actual
+// heavy storm.
+describe("weatherIntensity-gated reactions work with a real (weather-lookup) context", () => {
+  const heavyRainRule: ReactionRule = {
+    id: "test_heavy_rain_gate",
+    locale: "en-US",
+    category: "weather_rain",
+    conditions: { weatherCondition: ["rain", "storm"], weatherIntensity: ["heavy"] },
+    lines: ["It's really pouring out there."],
+    animation: "idle_happy",
+    priority: 50,
+    cooldownHours: 0,
+    safetyLevel: "safe"
+  };
+
+  it("selects the heavy-intensity rule for a real context whose intensity is 'heavy'", () => {
+    const heavyRealRain = createRealLocationWeatherContext({ condition: "rain", intensity: "heavy", isDaytime: true }, "2026-07-14T09:00:00.000Z");
+
+    const reaction = selectLocalReaction(
+      [heavyRainRule],
+      {
+        locale: "en-US",
+        now: "2026-07-14T09:00:00.000Z",
+        pet: mockPetProfile,
+        careState: mockCareState,
+        weather: heavyRealRain,
+        recentReactions: []
+      },
+      { random: () => 0 }
+    );
+
+    expect(reaction.ruleId).toBe("test_heavy_rain_gate");
+  });
+
+  it("falls back to the safe default when a real context's intensity is only 'normal'", () => {
+    const normalRealRain = createRealLocationWeatherContext({ condition: "rain", intensity: "normal", isDaytime: true }, "2026-07-14T09:00:00.000Z");
+
+    const reaction = selectLocalReaction(
+      [heavyRainRule],
+      {
+        locale: "en-US",
+        now: "2026-07-14T09:00:00.000Z",
+        pet: mockPetProfile,
+        careState: mockCareState,
+        weather: normalRealRain,
+        recentReactions: []
+      },
+      { random: () => 0 }
+    );
+
+    expect(reaction.ruleId).not.toBe("test_heavy_rain_gate");
   });
 });

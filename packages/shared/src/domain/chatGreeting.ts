@@ -87,6 +87,20 @@ const walkGreetingLines: readonly string[] = [
   "Can't talk long -- I'm out and about right now."
 ];
 
+/**
+ * Shown instead of the usual care/memory-based greeting during the pet's
+ * local sleep window (see ChatGreetingLineInput.isNight) -- a drowsy,
+ * "just woke up" hello instead of a status report. A rarer milestone memory
+ * still outranks this (see the priority list on buildChatGreetingLine's doc
+ * comment); this never blocks or changes anything about the chat itself and
+ * never mentions the hour as a complaint (healing-app tone, see CLAUDE.md).
+ */
+const nightGreetingLines: readonly string[] = [
+  "Mmh... you're here? Come sit with me.",
+  "*yawns softly* I was just dozing off. Stay a little while?",
+  "Mm, hi... still sleepy, but happy you came."
+];
+
 export interface ChatGreetingLineInput {
   petName: string;
   memories: readonly MemoryEntry[];
@@ -95,6 +109,15 @@ export interface ChatGreetingLineInput {
   now: string;
   /** True while the pet is out on an active walk -- takes priority over every other greeting tier below. */
   isOnWalk?: boolean;
+  /**
+   * True while it's the pet's local sleep window -- computed by the caller
+   * from the same 22:00-05:59 boundary as dayNightCycle.ts's
+   * isNightHour/isNightTime (kept as a plain boolean input here, rather than
+   * re-deriving it from `now` internally, so this pure function never has to
+   * parse a Date itself). Outranked only by isOnWalk and a fresh milestone
+   * memory; outranks the ordinary care-action/default tiers below.
+   */
+  isNight?: boolean;
 }
 
 const hashString = (value: string): number => {
@@ -158,13 +181,14 @@ const getMostRecentMilestoneWithinWindow = (memories: readonly MemoryEntry[], no
  * Builds the pet's free, ticket-less first chat greeting -- the "this pet
  * remembers me" moment shown before any paywall interaction. Priority:
  * 0) currently out on a walk, 1) a milestone memory from the last 24-48h,
- * 2) today's most-performed care action, 3) the owner's all-time favorite
- * care action, 4) a default warm hello. Selection within each tier is
- * deterministic (seeded by petName + now + the chosen memory/action) so the
- * same state renders the same line across re-renders, while still varying
- * across days/situations.
+ * 2) the pet's local sleep window (a drowsy "just woke up" hello -- see
+ * isNight), 3) today's most-performed care action, 4) the owner's all-time
+ * favorite care action, 5) a default warm hello. Selection within each tier
+ * is deterministic (seeded by petName + now + the chosen memory/action) so
+ * the same state renders the same line across re-renders, while still
+ * varying across days/situations.
  */
-export const buildChatGreetingLine = ({ petName, memories, careStats, careState, now, isOnWalk }: ChatGreetingLineInput): string => {
+export const buildChatGreetingLine = ({ petName, memories, careStats, careState, now, isOnWalk, isNight }: ChatGreetingLineInput): string => {
   if (isOnWalk) {
     return chooseLine(walkGreetingLines, [petName, "walk", now.slice(0, 10)].join("|"));
   }
@@ -175,6 +199,10 @@ export const buildChatGreetingLine = ({ petName, memories, careStats, careState,
     const lines = milestoneGreetingLinesByType[milestone.type] ?? defaultGreetingLines;
 
     return chooseLine(lines, [petName, milestone.id, milestone.type].join("|"));
+  }
+
+  if (isNight) {
+    return chooseLine(nightGreetingLines, [petName, "night", now.slice(0, 10)].join("|"));
   }
 
   const lastInteractionAt = careState?.lastInteractionAt;

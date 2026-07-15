@@ -1,10 +1,12 @@
 import type { AuditTimestamps, ISODateTime, ItemId, UserId } from "./common";
+import type { CareActionType } from "./care";
 import type { PlantGrowthEntry } from "./plants";
 import { getPlantPlacementPresetForItemId } from "./plants";
 
 /**
  * Live catalog categories still reachable from the mobile app: consumables
- * (food/treat), equip-ish comfort items (toy/bed), and backgrounds (theme).
+ * (food/treat/drink), equip-ish comfort items (toy/bed), and backgrounds
+ * (theme).
  * The placement-only decor categories (house/plant/light/water/path/reward/
  * premiumDecor/seasonalDecor/lantern/terrain/terrarium_shell) were retired
  * from the mobile app in the "배치형 소품 시스템 철거" wave — the home garden
@@ -15,6 +17,7 @@ import { getPlantPlacementPresetForItemId } from "./plants";
  */
 export type ItemCategory =
   | "food"
+  | "drink"
   | "toy"
   | "bed"
   | "house"
@@ -205,12 +208,39 @@ export const getHomePlacementLane = (item: Item): HomePlacementLane => {
       return "theme";
     case "toy":
       return "toy";
+    case "drink":
     case "water":
       return "water";
   }
 };
 
 export const isTreatInventoryItem = (item: Item): boolean => item.category === "treat" || item.behaviorTags.includes("treat");
+
+export const isDrinkInventoryItem = (item: Item): boolean => item.category === "drink" || item.behaviorTags.includes("drink");
+
+export const isConsumableCareItem = (item: Item): boolean => isTreatInventoryItem(item) || isDrinkInventoryItem(item);
+
+export const isCareItemEligibleForAction = (item: Item, action: CareActionType): boolean => {
+  switch (action) {
+    case "feed":
+      return item.behaviorTags.includes("feed");
+    case "talk":
+    case "clean":
+      return false;
+    case "walk":
+      return item.category === "path" || item.behaviorTags.includes("walk");
+    case "play":
+      return item.category === "toy" || item.behaviorTags.includes("play");
+    case "rest":
+      return item.category === "bed" || item.behaviorTags.includes("rest") || item.behaviorTags.includes("sleep");
+    case "affection":
+      return item.category === "bed" || item.behaviorTags.includes("affection") || item.behaviorTags.includes("sleep");
+    case "water_garden":
+      return isDrinkInventoryItem(item);
+    case "treat":
+      return isTreatInventoryItem(item);
+  }
+};
 
 /**
  * Only scans `inventory.items` — placed decor is retired on the mobile app,

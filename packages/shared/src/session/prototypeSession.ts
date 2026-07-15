@@ -64,6 +64,7 @@ import {
   getCreditItemPrice,
   getAvailableTreatItemId,
   getCareStreakSnackReward,
+  isCareItemEligibleForAction,
   getLocalDayKey,
   getStreakGraceReturnLine,
   grantRelationshipBondXp,
@@ -176,6 +177,33 @@ export interface PetBundle {
 
 /** The first (and, until W3, only) pet's id -- kept stable across the v6 -> v7 migration lift (INV-3). */
 export const FIRST_PET_ID: PetId = "pet_local_001";
+
+/**
+ * Whether `petId` is the account's first/only pet, for SERVER pet_id scoping
+ * purposes. generation_jobs.pet_id / generated_assets.pet_id /
+ * conversations.pet_id all share the same convention (see
+ * supabase/migrations/0005_pet_namespace.sql and 0006_conversations.sql):
+ * NULL on the row means "the caller's first/only pet," and the client has
+ * never sent an explicit pet_id for any request it makes today (W3, the
+ * client work that starts sending one for a second pet, hasn't landed) -- so
+ * every job/asset/conversation this client creates is NULL-scoped as long as
+ * it's for this pet.
+ *
+ * `petId` here must be a pet *bundle key* (state.activePetId, or any key of
+ * state.pets) -- never a PetProfile.id. Those are unrelated identifiers:
+ * PetBundle keys are stable, low-cardinality slots (FIRST_PET_ID today, a
+ * second fixed id once W3 adds a second bundle), while PetProfile.id is a
+ * fresh `pet_local_<uuid>` minted per pet once its real generation starts
+ * (see apps/mobile/src/features/session/supabaseGenerationSession.ts's
+ * startSupabaseGenerationFlowInner) that this client has never transmitted
+ * to the server as pet_id. A real-device bug traced a resync silently
+ * matching zero rows back to exactly this mix-up: comparing PetProfile.id
+ * (always a UUID post-generation, so never `=== FIRST_PET_ID`) against this
+ * predicate's intended input instead of the bundle key that's actually
+ * `FIRST_PET_ID` for every pet in the W1 codebase (INV-1: state.pets always
+ * has exactly one bundle, keyed at FIRST_PET_ID).
+ */
+export const isFirstOrOnlyPetId = (petId: PetId): boolean => petId === FIRST_PET_ID;
 
 export interface PrototypeSessionState {
   draft: PetSetupDraft;
@@ -1279,12 +1307,22 @@ export const performPrototypeCareAction = (
 ): PrototypeSessionState => {
   const locale = options?.locale ?? "en-US";
 
+  if (itemId) {
+    const requestedItem = mockItems.find((item) => item.id === itemId);
+    const ownsRequestedItem = state.inventory.items.some((entry) => entry.itemId === itemId && entry.quantity > 0);
+
+    if (!requestedItem || !ownsRequestedItem || !isCareItemEligibleForAction(requestedItem, action)) {
+      return state;
+    }
+  }
+
   if (action === "walk") {
     return startPrototypeWalk(state, now, options?.walkDurationMs ?? DEFAULT_WALK_DURATION_MS, itemId, locale);
   }
 
   const consumableTreatItemId = action === "treat" ? itemId ?? getAvailableTreatItemId(state.inventory, mockItems) : undefined;
-  const resolvedActionItemId = action === "treat" ? consumableTreatItemId : itemId;
+  const consumableDrinkItemId = action === "water_garden" ? itemId : undefined;
+  const resolvedActionItemId = action === "treat" ? consumableTreatItemId : action === "water_garden" ? consumableDrinkItemId : itemId;
 
   if (action === "treat" && !consumableTreatItemId) {
     return withActivePetBundle(state, () => ({
@@ -1352,7 +1390,8 @@ export const performPrototypeCareAction = (
     ...(individualityEventContext ? { eventContext: individualityEventContext } : {})
   });
 
-  const consumedInventory = action === "treat" && consumableTreatItemId ? consumeInventoryItem(state.inventory, consumableTreatItemId, now) : null;
+  const consumableItemId = consumableTreatItemId ?? consumableDrinkItemId;
+  const consumedInventory = consumableItemId ? consumeInventoryItem(state.inventory, consumableItemId, now) : null;
   const inventory = consumedInventory?.ok ? consumedInventory.inventory : state.inventory;
   // Daily bond-XP farming caps for treat/talk/play (see mongchi "케어 체감 밸런스"
   // fix, extended to play when purchased toys bypass its cooldown -- see
@@ -1693,6 +1732,62 @@ export const purchasePrototypeInventoryItem = (
   };
 };
 
+export type RecordCreditItemPurchaseResult =
+  | { ok: true; state: PrototypeSessionState }
+  | { ok: false; reason: "item_not_found" };
+
+/**
+ * Grants one unit of a credit-store catalog item *without* touching the
+ * wallet -- the server-authoritative live-shop purchase path (Supabase
+ * purchase_inventory_item RPC, 0021_live_shop_purchases.sql) already debited
+ * credit_wallets via consume_credits before this is ever reached, so a
+ * second local deduction here would double-charge the player. Mirrors
+ * recordExpressionPackUnlock's contract exactly: the caller
+ * (TerrariumSessionProvider.purchaseCatalogItem) is responsible for syncing
+ * state.wallet.credits to the RPC's returned balance separately. Only checks
+ * "does this item exist in the credit catalog" -- deliberately does not
+ * re-check canSpendCredits, since the credits gate already happened
+ * server-side and re-checking a stale local cache here could reject an
+ * already-paid-for grant.
+ */
+export const recordCreditItemPurchase = (
+  state: PrototypeSessionState,
+  itemId: ItemId,
+  now: string = FALLBACK_NOW
+): RecordCreditItemPurchaseResult => {
+  const price = getCreditItemPrice(itemId);
+
+  if (!price) {
+    return { ok: false, reason: "item_not_found" };
+  }
+
+  return {
+    ok: true,
+    state: {
+      ...state,
+      inventory: grantInventoryItem(state.inventory, itemId, now, "purchase")
+    }
+  };
+};
+
+/**
+ * Grants one unit of `itemId` into the inventory with source "event" --
+ * no wallet interaction, no credit-catalog lookup (unlike
+ * recordCreditItemPurchase, which is purchase-shaped and requires the item
+ * to have a credit price). Used for the "today's care" daily snack reward
+ * (apps/mobile/src/features/rewards/dailyCareTreatReward.ts picks the item;
+ * this just performs the grant) -- a gift, not a purchase, so it shouldn't
+ * be tagged "purchase" in the inventory entry's source.
+ */
+export const grantPrototypeEventItem = (
+  state: PrototypeSessionState,
+  itemId: ItemId,
+  now: string = FALLBACK_NOW
+): PrototypeSessionState => ({
+  ...state,
+  inventory: grantInventoryItem(state.inventory, itemId, now, "event")
+});
+
 export type PurchaseThemeBundleResult =
   | { ok: true; state: PrototypeSessionState; alreadyOwned: boolean }
   | { ok: false; reason: "bundle_not_found" | "insufficient_credits" };
@@ -1766,6 +1861,80 @@ export const purchasePrototypeThemeBundle = (
       {
         ...state,
         wallet: walletSpend.wallet,
+        inventory
+      },
+      () => ({
+        memories,
+        ...appendReaction(petBundle, selectedReaction, now)
+      })
+    )
+  };
+};
+
+export type RecordThemeBundlePurchaseResult =
+  | { ok: true; state: PrototypeSessionState; alreadyOwned: boolean }
+  | { ok: false; reason: "bundle_not_found" };
+
+/**
+ * Grants a theme bundle (ownership + applies the background + a "theme
+ * applied" memory/reaction) *without* touching the wallet -- the
+ * server-authoritative live-shop purchase path (Supabase
+ * purchase_theme_bundle RPC, 0021_live_shop_purchases.sql) already debited
+ * credit_wallets via consume_credits before this is ever reached, so a
+ * second local deduction here would double-charge the player. Otherwise
+ * mirrors purchasePrototypeThemeBundle exactly, including skipping the
+ * memory/reaction when the theme was already owned (a re-apply, not a new
+ * purchase -- see purchasePrototypeThemeBundle's own doc comment).
+ */
+export const recordThemeBundlePurchase = (
+  state: PrototypeSessionState,
+  bundleId: string,
+  now: string = FALLBACK_NOW,
+  locale: Locale = "en-US"
+): RecordThemeBundlePurchaseResult => {
+  const themeBundle = getThemeBundleById(bundleId);
+
+  if (!themeBundle) {
+    return { ok: false, reason: "bundle_not_found" };
+  }
+
+  const alreadyOwned = (state.inventory.ownedThemeIds ?? []).includes(themeBundle.themeId);
+
+  const inventory: Inventory = {
+    ...state.inventory,
+    selectedTerrariumThemeId: themeBundle.themeId,
+    ownedThemeIds: alreadyOwned ? (state.inventory.ownedThemeIds ?? []) : [...(state.inventory.ownedThemeIds ?? []), themeBundle.themeId],
+    updatedAt: now
+  };
+
+  const petBundle = getActivePetBundle(state);
+  const pet = getActivePrototypePet(state, now);
+  const selectedReaction = selectLocalReaction(starterReactionRules, {
+    locale,
+    now,
+    pet,
+    careState: petBundle.careState,
+    eventContext: "item_placed",
+    weather: state.weatherState.context,
+    recentReactions: petBundle.recentReactions
+  });
+
+  const memories = alreadyOwned
+    ? petBundle.memories
+    : recordPetMemory(petBundle.memories, {
+        id: `mem_theme_${themeBundle.themeId}`,
+        type: "theme_applied",
+        occurredAt: now,
+        line: `The garden looks different today. I like this new look on us.`,
+        refs: { itemId: themeBundle.themeId }
+      });
+
+  return {
+    ok: true,
+    alreadyOwned,
+    state: withActivePetBundle(
+      {
+        ...state,
         inventory
       },
       () => ({

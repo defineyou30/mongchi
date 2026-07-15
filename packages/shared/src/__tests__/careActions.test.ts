@@ -197,4 +197,24 @@ describe("local care actions", () => {
     expect(baseAffection.nextState.energy).toBe(50);
     expect(cushionAffection.nextState.energy).toBeGreaterThan(baseAffection.nextState.energy);
   });
+
+  it("gives the Cloud Nap Cushion an energy lift when it is used as a cozy affection moment", () => {
+    const baseAffection = applyLocalCareAction(
+      { ...mockCareState, energy: 50 },
+      {
+        action: "affection",
+        occurredAt: "2026-06-24T10:05:00.000Z"
+      }
+    );
+    const cushionAffection = applyLocalCareAction(
+      { ...mockCareState, energy: 50 },
+      {
+        action: "affection",
+        itemId: "item_cloud_cushion_sky",
+        occurredAt: "2026-06-24T10:05:00.000Z"
+      }
+    );
+
+    expect(cushionAffection.nextState.energy).toBeGreaterThan(baseAffection.nextState.energy);
+  });
 });
