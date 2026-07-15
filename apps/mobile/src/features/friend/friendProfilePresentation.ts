@@ -20,6 +20,7 @@ import {
   expressionPacks,
   getBondLevelFromXp,
   getBondProgressValue,
+  getCalendarDaysBetween,
   getFavoriteTreatItemId,
   getRecentPetMemories,
   getWalkCollectionProgress,
@@ -235,21 +236,18 @@ export const getFriendWalkCollectionPresentation = (collection: WalkCollectionSt
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Whole days elapsed between `sinceIso` (the pet's profile createdAt -- the
- * "moved in" moment) and `nowIso`, floored and never negative so a
+ * Local-calendar days elapsed between `sinceIso` (the pet's profile createdAt
+ * -- the "moved in" moment) and `nowIso`, counted from device-local midnight
+ * to device-local midnight (never a raw 24h-span floor) so moving in at 22:00
+ * and checking back the next morning at 10:00 reads as 1 day, not 0. Delegates
+ * to getCalendarDaysBetween (packages/shared's careStreak.ts) so this stays in
+ * lockstep with packages/shared/src/session/prototypeSession.ts's private
+ * getDaysTogether, the other caller that derives the same "days together"
+ * count for the memory-spine days_milestone entry. Never negative -- a
  * clock-skewed or same-day read still shows "Moved in today" instead of a
  * negative number.
  */
-export const getDaysTogether = (sinceIso: string, nowIso: string): number => {
-  const since = new Date(sinceIso).getTime();
-  const now = new Date(nowIso).getTime();
-
-  if (!Number.isFinite(since) || !Number.isFinite(now)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.floor((now - since) / DAY_MS));
-};
+export const getDaysTogether = (sinceIso: string, nowIso: string): number => getCalendarDaysBetween(sinceIso, nowIso);
 
 export const getMovedInLine = (daysTogether: number, locale: AppLocale = "en-US"): string => {
   const movedInCopy = getResourcesForLocale(locale).friend.movedIn;

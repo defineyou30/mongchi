@@ -600,8 +600,6 @@ export const frFR = {
       themeAppliedMessage: "{{name}} est maintenant l’arrière-plan de votre jardin."
     },
     expressionPacks: {
-      title: "Packs de poses",
-      description: "Un pack crée trois nouvelles poses à partir de l’apparence actuelle de votre compagnon.",
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, pack de trois poses, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Gemme de crédit",

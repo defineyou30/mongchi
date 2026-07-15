@@ -590,8 +590,6 @@ export const koKR = {
       themeAppliedMessage: "{{name}} 테마가 정원 배경에 적용됐어요."
     },
     expressionPacks: {
-      title: "포즈 팩",
-      description: "지금 모습에서 새 포즈 3개를 만들어요.",
       poseCount: "포즈 3개",
       boardAccessibilityLabel: "{{name}}, 포즈 3개 팩, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "크레딧 보석",

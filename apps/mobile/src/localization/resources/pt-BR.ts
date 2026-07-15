@@ -595,8 +595,6 @@ export const ptBR = {
       themeAppliedMessage: "{{name}} agora é o cenário do seu jardim."
     },
     expressionPacks: {
-      title: "Pacotes de poses",
-      description: "Um pacote cria três novas poses com o visual atual do seu companheiro.",
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, pacote de três poses, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Gema de crédito",

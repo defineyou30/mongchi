@@ -595,8 +595,6 @@ export const esMX = {
       themeAppliedMessage: "{{name}} ahora es el fondo de tu jardín."
     },
     expressionPacks: {
-      title: "Paquetes de poses",
-      description: "Un paquete crea tres poses nuevas a partir del aspecto actual de tu compañero.",
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, paquete de tres poses, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Gema de crédito",

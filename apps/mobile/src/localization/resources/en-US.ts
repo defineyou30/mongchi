@@ -592,8 +592,6 @@ export const enUS = {
       themeAppliedMessage: "{{name}} is now your garden background."
     },
     expressionPacks: {
-      title: "Pose packs",
-      description: "One pack creates three new poses from your companion's current look.",
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, three-pose pack, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Credit gem",

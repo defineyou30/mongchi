@@ -594,8 +594,6 @@ export const jaJP = {
       themeAppliedMessage: "{{name}}が庭の背景になりました。"
     },
     expressionPacks: {
-      title: "ポーズパック",
-      description: "今の姿から新しい3ポーズを作ります。",
       poseCount: "3ポーズ",
       boardAccessibilityLabel: "{{name}}、3ポーズパック、{{price}}。{{status}}",
       creditGemAccessibilityLabel: "クレジットジェム",

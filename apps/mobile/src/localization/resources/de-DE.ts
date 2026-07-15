@@ -598,8 +598,6 @@ export const deDE = {
       themeAppliedMessage: "{{name}} ist jetzt dein Gartenhintergrund."
     },
     expressionPacks: {
-      title: "Posenpakete",
-      description: "Ein Paket erstellt drei neue Posen aus dem aktuellen Aussehen deines Gefährten.",
       poseCount: "3 POSEN",
       boardAccessibilityLabel: "{{name}}, Dreier-Posenpaket, {{price}}. {{status}}",
       creditGemAccessibilityLabel: "Credit-Edelstein",

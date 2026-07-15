@@ -43,6 +43,7 @@ import {
   canSpendCredits,
   careBuffTemplatesByItem,
   createInitialCareStats,
+  getCalendarDaysBetween,
   getCrossedBondLevels,
   getExpressionPackById,
   getThemeBundleById,
@@ -371,17 +372,14 @@ const getWalkRewardItemIdForWeather = (weather: WeatherContext): ItemId => {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Whole days elapsed between `createdAt` and `now` -- used to detect days-together milestones. */
-const getDaysTogether = (createdAt: string, now: string): number => {
-  const createdMs = new Date(createdAt).getTime();
-  const nowMs = new Date(now).getTime();
-
-  if (!Number.isFinite(createdMs) || !Number.isFinite(nowMs)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.floor((nowMs - createdMs) / DAY_MS));
-};
+/**
+ * Local-calendar days elapsed between `createdAt` and `now` -- used to detect
+ * days-together milestones. Delegates to getCalendarDaysBetween (careStreak.ts)
+ * so this stays in lockstep with apps/mobile/src/features/friend/
+ * friendProfilePresentation.ts's getDaysTogether, the other caller that needs
+ * the same "days together" count (see that file's own cross-reference note).
+ */
+const getDaysTogether = (createdAt: string, now: string): number => getCalendarDaysBetween(createdAt, now);
 
 const DAYS_TOGETHER_MILESTONES = [7, 14, 30] as const;
 

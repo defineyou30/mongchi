@@ -40,22 +40,6 @@ export function ExpressionPackShelf({ items, ownedStates, onOpenCreditStore, onU
 
   return (
     <View style={styles.shelf}>
-      <View style={styles.introBand}>
-        <MongchiIcon id="sparkles" size={28} />
-        <View style={styles.introCopy}>
-          <Text style={[styles.introTitle, typography.title]}>{t("shop.expressionPacks.title")}</Text>
-          <Text
-            adjustsFontSizeToFit
-            lineBreakStrategyIOS={locale === "ko-KR" ? "hangul-word" : "standard"}
-            minimumFontScale={0.9}
-            numberOfLines={2}
-            style={[styles.introText, typography.body]}
-          >
-            {t("shop.expressionPacks.description")}
-          </Text>
-        </View>
-      </View>
-
       {items.map(({ pack, presentation }) => {
         const accent = accentByPackId[pack.id] ?? colors.honey;
         const settled = presentation.status === "owned";

@@ -1,23 +1,9 @@
 import { StyleSheet } from "react-native";
 
-import { colors, profileSurfaces, radii, shadows, spacing } from "../../shared/design/tokens";
+import { colors, radii, shadows, spacing } from "../../shared/design/tokens";
 
 export const styles = StyleSheet.create({
   shelf: { gap: spacing.md },
-  introBand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    borderRadius: radii.card,
-    borderWidth: 3,
-    borderColor: colors.cream,
-    backgroundColor: profileSurfaces.parchmentPanel,
-    padding: spacing.md,
-    ...shadows.tile
-  },
-  introCopy: { flex: 1, gap: spacing.xs },
-  introTitle: { color: colors.ink, fontSize: 20, lineHeight: 24 },
-  introText: { color: colors.mutedInk },
   packBoard: {
     overflow: "hidden",
     borderRadius: radii.card,

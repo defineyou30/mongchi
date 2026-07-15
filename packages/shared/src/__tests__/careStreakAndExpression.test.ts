@@ -7,6 +7,7 @@ import {
   deriveAmbientPetAssetState,
   didStreakJustUseGrace,
   getActivePetBundle,
+  getCalendarDaysBetween,
   getCareStatBand,
   getCareStreakSnackReward,
   getStreakGraceReturnLine,
@@ -70,6 +71,31 @@ describe("care streak", () => {
     expect(projectCareStreakForNow(streak, "2026-06-25T01:00:00.000Z").current).toBe(1);
     expect(projectCareStreakForNow(streak, "2026-06-27T01:00:00.000Z").current).toBe(0);
     expect(streak.current).toBe(1);
+  });
+});
+
+describe("getCalendarDaysBetween", () => {
+  // No trailing "Z" on these inputs is deliberate: a date-time string with no
+  // timezone designator parses as local time, so these assertions hold
+  // regardless of the test runner's own timezone (getLocalDayKey reads
+  // device-local calendar dates).
+  it("counts local-calendar days elapsed, not a raw 24h span", () => {
+    // Same calendar day, nearly 24h apart -- still 0 days.
+    expect(getCalendarDaysBetween("2026-06-24T00:05:00.000", "2026-06-24T23:55:00.000")).toBe(0);
+    // Barely crosses one local midnight -- 1 full calendar day even though
+    // only two minutes of wall-clock time elapsed.
+    expect(getCalendarDaysBetween("2026-06-24T23:59:00.000", "2026-06-25T00:01:00.000")).toBe(1);
+    // Two local midnights crossed in only 36 raw hours -- a floor((now-since)/24h)
+    // implementation would undercount this as 1.
+    expect(getCalendarDaysBetween("2026-06-13T22:00:00.000", "2026-06-15T10:00:00.000")).toBe(2);
+  });
+
+  it("never goes negative for a clock-skewed 'laterIso'", () => {
+    expect(getCalendarDaysBetween("2026-06-27T09:00:00.000", "2026-06-24T09:00:00.000")).toBe(0);
+  });
+
+  it("falls back to 0 for invalid timestamps instead of throwing", () => {
+    expect(getCalendarDaysBetween("not-a-date", "2026-06-27T09:00:00.000")).toBe(0);
   });
 });
 

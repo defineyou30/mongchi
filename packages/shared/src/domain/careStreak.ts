@@ -56,6 +56,29 @@ const daysBetweenDayKeys = (earlierKey: string, laterKey: string): number => {
 };
 
 /**
+ * Whole local-calendar days between two ISO timestamps -- both are read at
+ * device-local midnight (via getLocalDayKey), so "days together" matches the
+ * calendar dates the owner actually sees rather than a raw 24h-span floor.
+ * Moving in at 22:00 and coming back the next morning at 10:00 reads as 1 day,
+ * not 0. Shared by both callers that derive a "days together" count --
+ * packages/shared/src/session/prototypeSession.ts's days_milestone memory
+ * check and apps/mobile/src/features/friend/friendProfilePresentation.ts's
+ * getDaysTogether -- so the two never drift apart. Never negative: a
+ * clock-skewed or same-day `laterIso` clamps to 0. Invalid timestamps also
+ * fall back to 0 rather than throwing.
+ */
+export const getCalendarDaysBetween = (earlierIso: ISODateTime, laterIso: ISODateTime): number => {
+  const earlierMs = new Date(earlierIso).getTime();
+  const laterMs = new Date(laterIso).getTime();
+
+  if (!Number.isFinite(earlierMs) || !Number.isFinite(laterMs)) {
+    return 0;
+  }
+
+  return Math.max(0, daysBetweenDayKeys(getLocalDayKey(earlierIso), getLocalDayKey(laterIso)));
+};
+
+/**
  * Call on every care action; counts at most one streak step per local day.
  *
  * Grace policy (one skipped day forgiven, at most once every 7 days): if

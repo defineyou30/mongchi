@@ -1003,7 +1003,10 @@ export function ShopPreviewScreen() {
               {selectedCustomizeFilter === "all" || selectedCustomizeFilter === "moments" ? (
                 <>
                   <View style={styles.shopSectionHeader}>
-                    <Text style={[styles.shopSectionTitle, typography.title]}>{t("shop.sections.posePacks")}</Text>
+                    <View style={styles.shopSectionTitleRow}>
+                      <MongchiIcon id="sparkles" size={20} />
+                      <Text style={[styles.shopSectionTitle, typography.title]}>{t("shop.sections.posePacks")}</Text>
+                    </View>
                     <Text style={[styles.shopSectionBody, typography.body]}>{t("shop.sections.posePacksDescription")}</Text>
                   </View>
                   <ExpressionPackShelf
@@ -1226,6 +1229,11 @@ const styles = StyleSheet.create({
   },
   shopSectionTitle: {
     color: colors.ink
+  },
+  shopSectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs
   },
   shopSectionBody: {
     color: colors.woodDark

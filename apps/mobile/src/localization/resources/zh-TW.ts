@@ -584,8 +584,6 @@ export const zhTW = {
       themeAppliedMessage: "{{name}} 現在是你的花園背景了。"
     },
     expressionPacks: {
-      title: "姿勢套組",
-      description: "依照目前模樣創造3個新姿勢。",
       poseCount: "3 個姿勢",
       boardAccessibilityLabel: "{{name}}，三姿勢套組，{{price}}。{{status}}",
       creditGemAccessibilityLabel: "點數寶石",

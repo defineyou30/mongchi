@@ -120,9 +120,23 @@ describe("friend walk collection presentation", () => {
 });
 
 describe("days together / moved-in copy", () => {
-  it("floors partial days rather than rounding up", () => {
-    expect(getDaysTogether("2026-06-24T09:00:00.000Z", "2026-06-27T08:59:00.000Z")).toBe(2);
-    expect(getDaysTogether("2026-06-24T09:00:00.000Z", "2026-06-27T09:00:00.000Z")).toBe(3);
+  // No trailing "Z" on these inputs is deliberate: getDaysTogether counts
+  // device-local calendar days (via getCalendarDaysBetween), so the inputs
+  // are written as local wall-clock time strings -- JS parses a date-time
+  // string with no timezone designator as local time, which keeps these
+  // assertions correct regardless of the test runner's own timezone.
+  it("counts local-calendar days elapsed, not a raw 24h span", () => {
+    // Same calendar day, nearly 24h apart -- still 0 days, matching the
+    // "Moved in today" copy instead of counting almost-a-day as 1.
+    expect(getDaysTogether("2026-06-24T00:05:00.000", "2026-06-24T23:55:00.000")).toBe(0);
+    // Barely crosses one local midnight -- 1 full calendar day, even though
+    // only two minutes of wall-clock time actually elapsed.
+    expect(getDaysTogether("2026-06-24T23:59:00.000", "2026-06-25T00:01:00.000")).toBe(1);
+    // The reported bug: moved in at 22:00 two calendar days ago, checked at
+    // 10:00 today -- only 36 raw hours elapsed (old floor((now-since)/24h)
+    // logic would floor this to 1), but two local midnights have passed, so
+    // this must read as 2.
+    expect(getDaysTogether("2026-06-13T22:00:00.000", "2026-06-15T10:00:00.000")).toBe(2);
   });
 
   it("never goes negative for a clock-skewed 'now'", () => {
