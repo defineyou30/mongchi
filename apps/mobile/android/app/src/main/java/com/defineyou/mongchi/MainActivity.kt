@@ -1,4 +1,4 @@
-package app.mongchi.mobile
+package com.defineyou.mongchi
 
 import android.os.Build
 import android.os.Bundle

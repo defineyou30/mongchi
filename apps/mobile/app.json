@@ -30,7 +30,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.mongchi.mobile",
+      "bundleIdentifier": "com.defineyou.mongchi",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -55,7 +55,7 @@
       }
     },
     "android": {
-      "package": "app.mongchi.mobile",
+      "package": "com.defineyou.mongchi",
       "permissions": [
         "CAMERA",
         "READ_MEDIA_IMAGES"

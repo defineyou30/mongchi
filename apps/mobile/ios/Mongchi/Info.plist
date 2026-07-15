@@ -41,7 +41,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>mongchi</string>
-          <string>app.mongchi.mobile</string>
+          <string>com.defineyou.mongchi</string>
         </array>
       </dict>
       <dict>

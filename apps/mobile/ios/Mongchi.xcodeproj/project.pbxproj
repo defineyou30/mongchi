@@ -521,7 +521,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = app.mongchi.mobile;
+				PRODUCT_BUNDLE_IDENTIFIER = com.defineyou.mongchi;
 				PRODUCT_NAME = Mongchi;
 				SWIFT_OBJC_BRIDGING_HEADER = "Mongchi/Mongchi-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -553,7 +553,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = app.mongchi.mobile;
+				PRODUCT_BUNDLE_IDENTIFIER = com.defineyou.mongchi;
 				PRODUCT_NAME = Mongchi;
 				SWIFT_OBJC_BRIDGING_HEADER = "Mongchi/Mongchi-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -706,7 +706,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = app.mongchi.mobileUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.defineyou.mongchiUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -725,7 +725,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = app.mongchi.mobileUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.defineyou.mongchiUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;

@@ -1,4 +1,4 @@
-package app.mongchi.mobile
+package com.defineyou.mongchi
 
 import android.app.Application
 import android.content.res.Configuration

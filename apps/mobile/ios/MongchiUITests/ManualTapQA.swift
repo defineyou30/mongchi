@@ -1,7 +1,7 @@
 import XCTest
 
 final class ManualTapQA: XCTestCase {
-  private let app = XCUIApplication(bundleIdentifier: "app.mongchi.mobile")
+  private let app = XCUIApplication(bundleIdentifier: "com.defineyou.mongchi")
 
   override func setUpWithError() throws {
     continueAfterFailure = false

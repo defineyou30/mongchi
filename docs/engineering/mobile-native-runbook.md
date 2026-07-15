@@ -94,7 +94,7 @@ To build and install the simulator development client without Expo CLI's Simulat
 npm run ios:dev-client:build
 ```
 
-The script runs `xcodebuild`, installs the built `Mongchi.app` with `xcrun simctl install`, and verifies the installed app container for `app.mongchi.mobile`. It is quiet by default; set `TINY_PET_IOS_DEV_CLIENT_VERBOSE=true` when full `xcodebuild` logs are needed. The local iPhone 16 Pro development-client build/install has passed with this AppleScript-free path.
+The script runs `xcodebuild`, installs the built `Mongchi.app` with `xcrun simctl install`, and verifies the installed app container for `com.defineyou.mongchi`. It is quiet by default; set `TINY_PET_IOS_DEV_CLIENT_VERBOSE=true` when full `xcodebuild` logs are needed. The local iPhone 16 Pro development-client build/install has passed with this AppleScript-free path.
 
 ## Device Screenshot QA
 
