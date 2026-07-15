@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ArrowLeft, Mail, Share2 } from "lucide-react-native";
+import { ArrowLeft, Mail } from "lucide-react-native";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -10,8 +10,11 @@ import {
   expressionPacks,
   getCompanionHabitHints,
   getFavoriteTreatItemId,
+  getLetterMonthRewardKey,
   isExpressionPackUnlocked,
-  projectCareStreakForNow
+  MONTHLY_LETTER_THRESHOLD_DAYS,
+  projectCareStreakForNow,
+  settlementMissionRewardKeys
 } from "@mongchi/shared";
 import type { MemoryType } from "@mongchi/shared";
 
@@ -22,17 +25,13 @@ import { colors, profileSurfaces, radii, shadows, spacing, useFontFamilies, useT
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { walkCollectibleAssets } from "../../shared/assets/walkCollectibleAssets";
-import { getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPetAssets";
-import {
-  BRANDED_SHARE_CARD_SIZE,
-  BrandedPetShareCard
-} from "../../shared/share/MongchiShareCard";
-import type { BrandedPetShareCardHandle } from "../../shared/share/MongchiShareCard";
-import { buildFriendShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
+import { hasQueuedRewardLocally, markRewardQueuedLocally } from "../rewards/rewardClaimLocalFlags";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { HeroPoseSlider } from "./FriendHeroPoseSlider";
+import { ShareCardCustomizeSheet } from "./ShareCardCustomizeSheet";
 import {
   getDaysTogether,
   getFriendBondPresentation,
@@ -330,15 +329,16 @@ const statTileStyles = StyleSheet.create({
 
 export function FriendProfileScreen() {
   const {
-    acceptedAsset,
     acceptedAssets,
     activePet,
     careStats,
     careState,
     careStreak,
     catalogItems,
+    enqueueCreditRewardClaim,
     expressionPackPurchaseStatusById,
     generatedAssetUriById,
+    inventory,
     memories,
     relationshipState,
     walkCollection
@@ -349,8 +349,7 @@ export function FriendProfileScreen() {
   const fontFamilies = useFontFamilies();
   const reduceMotionEnabled = useReducedMotionPreference();
   const [now] = useState(() => new Date().toISOString());
-  const [isSharing, setIsSharing] = useState(false);
-  const shareCardRef = useRef<BrandedPetShareCardHandle>(null);
+  const [isShareSheetVisible, setIsShareSheetVisible] = useState(false);
   const [hasOpenedMonthlyLetter, setHasOpenedMonthlyLetter] = useState(false);
   const [monthlyLetterLoaded, setMonthlyLetterLoaded] = useState(false);
   // Pack ids whose reveal showcase (stagger + banner line) has already played,
@@ -509,29 +508,30 @@ export function FriendProfileScreen() {
     void AsyncStorage.setItem(MONTHLY_LETTER_OPENED_KEY, new Date().toISOString()).catch(() => {
       // Silent: worst case the "Open" interaction is offered again next visit.
     });
+    // Monthly letter bonus (+5 credits, letter_month_<N> -- see
+    // docs/game-economy-bm-proposal.md's 2026-07-15 faucet budget). This
+    // handler is only reachable once per letter (hasOpenedMonthlyLetter
+    // gates the "Open" CTA away once opened), so no extra local dedupe guard
+    // is needed here the way settle_first_chat_hello/settle_first_photo need
+    // one.
+    enqueueCreditRewardClaim(getLetterMonthRewardKey(Math.floor(daysTogether / MONTHLY_LETTER_THRESHOLD_DAYS)), "letter");
   };
 
-  const petAssetId =
-    acceptedAsset?.id ?? activePet.activeAssetId ?? getFallbackGeneratedPetAssetId(activePet.species, "happy");
-  const petAssetUri = generatedAssetUriById[petAssetId] ?? null;
+  const handleShare = () => {
+    setIsShareSheetVisible(true);
 
-  const handleShare = async () => {
-    if (isSharing) {
-      return;
-    }
+    // Settlement mission: the owner's first-ever open of the share sheet
+    // (+1 credit, settle_first_photo). Unlike the letter above, this CTA
+    // stays reachable on every visit, so rewardClaimLocalFlags' cross-session
+    // guard is what keeps this a one-time claim card.
+    void hasQueuedRewardLocally(settlementMissionRewardKeys.firstPhoto).then((alreadyQueued) => {
+      if (alreadyQueued) {
+        return;
+      }
 
-    setIsSharing(true);
-    try {
-      const brandedCardUri = (await shareCardRef.current?.capture()) ?? null;
-
-      await sharePetCard({
-        petName: activePet.name,
-        brandedCardUri,
-        message: buildFriendShareMessage({ petName: activePet.name, daysTogether, locale })
-      });
-    } finally {
-      setIsSharing(false);
-    }
+      enqueueCreditRewardClaim(settlementMissionRewardKeys.firstPhoto, "settlement");
+      void markRewardQueuedLocally(settlementMissionRewardKeys.firstPhoto);
+    });
   };
 
   return (
@@ -540,17 +540,6 @@ export function FriendProfileScreen() {
       contentStyle={styles.content}
       innerStyle={styles.inner}
     >
-      <View style={styles.shareCaptureHost}>
-        <BrandedPetShareCard
-          ref={shareCardRef}
-          assetId={petAssetId}
-          daysTogether={daysTogether}
-          petAssetUri={petAssetUri}
-          petName={activePet.name}
-          locale={locale}
-        />
-      </View>
-
       {/* 1. HERO STAGE -- the page's first beat: a back button overlaid on
           the garden backdrop (GardenSceneFrame's own background art already
           supplies the "garden" behind everything below), the name +
@@ -564,6 +553,15 @@ export function FriendProfileScreen() {
       <View style={styles.heroStage}>
         <View style={styles.heroHeaderOverlay}>
           <BackButton accessibilityLabel={t("friend.back")} onPress={() => router.push("/terrarium")} />
+          <Pressable
+            accessibilityLabel={t("friend.share", { petName: activePet.name })}
+            accessibilityRole="button"
+            hitSlop={10}
+            style={({ pressed }) => [styles.shareButton, pressed ? styles.shareButtonPressed : null]}
+            onPress={handleShare}
+          >
+            <MongchiIcon id="share" size={26} />
+          </Pressable>
         </View>
 
         <View style={styles.heroNamePlate}>
@@ -770,19 +768,8 @@ export function FriendProfileScreen() {
         </View>
       ) : null}
 
-      {/* 7. Share + Back home */}
+      {/* 7. Back home (Share now lives in the hero header, top-right) */}
       <View style={styles.footerActions}>
-        <ActionButton
-          accessibilityLabel={t("friend.share", { petName: activePet.name })}
-          label={t("friend.share", { petName: activePet.name })}
-          Icon={Share2}
-          variant="secondary"
-          size="compact"
-          disabled={isSharing}
-          style={styles.footerAction}
-          onPress={handleShare}
-        />
-
         <ActionButton
           accessibilityLabel={t("friend.back")}
           label={t("friend.back")}
@@ -792,18 +779,23 @@ export function FriendProfileScreen() {
           onPress={() => router.push("/terrarium")}
         />
       </View>
+
+      <ShareCardCustomizeSheet
+        daysTogether={daysTogether}
+        generatedAssetUriById={generatedAssetUriById}
+        ownedThemeIds={inventory.ownedThemeIds ?? []}
+        petName={activePet.name}
+        poseCells={poseGallery.cells}
+        preferredThemeId={inventory.selectedTerrariumThemeId ?? null}
+        species={activePet.species}
+        visible={isShareSheetVisible}
+        onClose={() => setIsShareSheetVisible(false)}
+      />
     </GardenSceneFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  shareCaptureHost: {
-    position: "absolute",
-    left: -BRANDED_SHARE_CARD_SIZE.width - spacing.xl,
-    top: 0,
-    width: BRANDED_SHARE_CARD_SIZE.width,
-    height: BRANDED_SHARE_CARD_SIZE.height
-  },
   content: {
     // paddingTop is the single top-of-content gap below the safe area for
     // this screen (~8-12pt target, matching the rest of the app's screens
@@ -837,8 +829,29 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     paddingTop: spacing.sm,
     zIndex: 30
+  },
+  // Mirrors BackButton's cream tile so the share action reads as its
+  // right-side twin -- same size, border, and shadow, just a different icon.
+  shareButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,245,222,0.94)",
+    borderWidth: 3,
+    borderBottomWidth: 5,
+    borderColor: "rgba(255,255,255,0.86)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.tile
+  },
+  shareButtonPressed: {
+    transform: [{ translateY: 2 }],
+    borderBottomWidth: 3
   },
   heroNamePlate: {
     alignItems: "center",

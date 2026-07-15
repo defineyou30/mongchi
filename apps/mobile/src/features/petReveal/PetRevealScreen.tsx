@@ -10,18 +10,14 @@ import { getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPet
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
 import { TerrariumArt } from "../../shared/ui/GameIllustrations";
-import {
-  BRANDED_SHARE_CARD_SIZE,
-  BrandedPetShareCard
-} from "../../shared/share/MongchiShareCard";
+import { BRANDED_SHARE_CARD_SIZE, BrandedPetShareCard } from "../../shared/share/MongchiShareCard";
 import type { BrandedPetShareCardHandle } from "../../shared/share/MongchiShareCard";
 import { buildPetRevealShareMessage, sharePetCard } from "../../shared/share/petShare";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 
 export function PetRevealScreen() {
-  const { acceptGeneratedPet, acceptedAsset, activePet, generation, generatedAssetUriById, pollMockGeneration, retryMockGeneration } =
-    useTerrariumSession();
+  const { acceptGeneratedPet, acceptedAsset, activePet, generation, generatedAssetUriById, pollMockGeneration } = useTerrariumSession();
   const fontFamilies = useFontFamilies();
   const { i18n, t } = useTranslation();
   const locale = normalizeAppLocale(i18n.resolvedLanguage);
@@ -60,11 +56,6 @@ export function PetRevealScreen() {
     router.replace("/terrarium");
   };
 
-  const handleRetry = () => {
-    retryMockGeneration();
-    router.push("/generation");
-  };
-
   const handleShare = async () => {
     if (isSharing) {
       return;
@@ -85,21 +76,21 @@ export function PetRevealScreen() {
   };
 
   return (
-    <GardenSceneFrame accessibilityLabel={t("reveal.accessibilityLabel", { petName: activePet.name })}>
+    <GardenSceneFrame
+      accessibilityLabel={t("reveal.accessibilityLabel", {
+        petName: activePet.name
+      })}
+    >
       <View style={styles.shareCaptureHost}>
-        <BrandedPetShareCard
-          ref={shareCardRef}
-          assetId={petAssetId}
-          petAssetUri={petAssetUri}
-          petName={activePet.name}
-          locale={locale}
-        />
+        <BrandedPetShareCard ref={shareCardRef} assetId={petAssetId} petAssetUri={petAssetUri} petName={activePet.name} locale={locale} />
       </View>
 
       <BackButton accessibilityLabel={t("reveal.back")} onPress={() => router.replace("/generation")} />
 
       <TerrariumArt
-        accessibilityLabel={t("reveal.artAccessibilityLabel", { petName: activePet.name })}
+        accessibilityLabel={t("reveal.artAccessibilityLabel", {
+          petName: activePet.name
+        })}
         petAssetId={petAssetId}
         petAssetUri={petAssetUri}
         scene="reveal"
@@ -124,7 +115,9 @@ export function PetRevealScreen() {
       <View style={styles.actionPanel}>
         <ActionButton label={t("reveal.enter")} iconId="forward" onPress={handleAccept} />
         <ActionButton
-          accessibilityLabel={t("reveal.shareAccessibilityLabel", { petName: activePet.name })}
+          accessibilityLabel={t("reveal.shareAccessibilityLabel", {
+            petName: activePet.name
+          })}
           label={t("common.actions.share")}
           iconId="share"
           variant="secondary"
@@ -137,10 +130,6 @@ export function PetRevealScreen() {
       <View style={styles.notQuiteRightRow}>
         <Text style={[styles.notQuiteRightLabel, { fontFamily: fontFamilies.body }]}>{t("reveal.notRight")}</Text>
         <View style={styles.notQuiteRightLinks}>
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={handleRetry}>
-            <Text style={[styles.textLink, { fontFamily: fontFamilies.label }]}>{t("common.actions.tryAgain")}</Text>
-          </Pressable>
-          <Text style={[styles.textLinkDivider, { fontFamily: fontFamilies.body }]}>·</Text>
           <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push("/support")}>
             <Text style={[styles.textLink, { fontFamily: fontFamilies.label }]}>{t("common.actions.reportIssue")}</Text>
           </Pressable>
@@ -185,7 +174,15 @@ const styles = StyleSheet.create({
     textTransform: "uppercase"
   },
   copy: {
-    gap: spacing.md
+    gap: spacing.xs,
+    borderRadius: radii.panel,
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: "rgba(255,255,255,0.86)",
+    backgroundColor: "rgba(255,245,222,0.94)",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    ...shadows.gamePanel
   },
   eyebrow: {
     color: colors.woodDark,
@@ -210,10 +207,18 @@ const styles = StyleSheet.create({
   },
   notQuiteRightRow: {
     alignItems: "center",
-    gap: 4
+    gap: 4,
+    alignSelf: "center",
+    borderRadius: radii.card,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.82)",
+    backgroundColor: "rgba(255,245,222,0.9)",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    ...shadows.tile
   },
   notQuiteRightLabel: {
-    color: colors.mutedInk,
+    color: colors.woodDark,
     fontSize: 12,
     fontWeight: "700"
   },
@@ -227,10 +232,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     textDecorationLine: "underline"
-  },
-  textLinkDivider: {
-    color: colors.mutedInk,
-    fontSize: 13,
-    fontWeight: "700"
   }
 });

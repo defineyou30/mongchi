@@ -1,9 +1,10 @@
 import { router } from "expo-router";
-import { Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import type { PersonalityTag, TalkingStyle } from "@mongchi/shared";
 
+import { GeneratedPetAssetImage, getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPetAssets";
 import { colors, useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
@@ -13,6 +14,7 @@ import { OnboardingStoryArt } from "../../shared/ui/OnboardingStoryArt";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { petSetupScreenStyles as styles } from "./petSetupScreen.styles";
+import { petSpeciesOptions } from "./petSpeciesOptions";
 const personalityOptions = [
   { value: "playful", labelKey: "petSetup.personality.playful" },
   { value: "calm", labelKey: "petSetup.personality.calm" },
@@ -53,6 +55,48 @@ export function PetSetupScreen() {
       </View>
 
       <View style={styles.setupCard}>
+        <View style={styles.sectionLabelRow}>
+          <View style={styles.sectionLabelDot} />
+          <Text style={[styles.sectionLabel, { fontFamily: fontFamilies.label }]}>{t("petSetup.speciesQuestion")}</Text>
+        </View>
+        <View accessibilityRole="radiogroup" style={styles.speciesRow}>
+          {petSpeciesOptions.map((option) => {
+            const selected = draft.species === option.value;
+
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={t(option.labelKey)}
+                onPress={() => updateDraft({ species: option.value })}
+                style={({ pressed }) => [
+                  styles.speciesOption,
+                  selected ? styles.speciesOptionSelected : null,
+                  pressed ? styles.speciesOptionPressed : null
+                ]}
+              >
+                <View style={[styles.speciesIconPlate, selected ? styles.speciesIconPlateSelected : null]}>
+                  <GeneratedPetAssetImage
+                    accessibilityLabel={t(option.labelKey)}
+                    assetId={getFallbackGeneratedPetAssetId(option.value, "idle")}
+                    decorative
+                    style={styles.speciesPetIcon}
+                  />
+                  {selected ? (
+                    <View style={styles.speciesSelectedBadge}>
+                      <MongchiIcon id="check" size={18} />
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={[styles.speciesLabel, { fontFamily: fontFamilies.title }]}>{t(option.labelKey)}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.divider} />
+
         <View style={styles.namePlate}>
           <View style={styles.namePlateIcon}>
             <MongchiIcon id="paw" size={28} />

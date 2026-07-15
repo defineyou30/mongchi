@@ -1,4 +1,3 @@
-import { Sparkles } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
@@ -171,7 +170,7 @@ export function HeroPoseSlider({
         <ActionButton
           accessibilityLabel={t("friend.pose.moreAccessibilityLabel")}
           label={t("friend.pose.more")}
-          Icon={Sparkles}
+          iconId="sparkles"
           size="compact"
           style={styles.poseShopButton}
           onPress={onOpenPoseShop}

@@ -9,7 +9,9 @@ describe("buildBrandedPetShareCardCopy", () => {
       heading: "MY TINY GARDEN FRIEND",
       warmLine: "A tiny friend, always close.",
       attribution: "Made with Mongchi",
-      publicUrl: null
+      publicUrl: null,
+      wordmark: "Mongchi",
+      tagline: "Your pet's cozy little garden"
     });
   });
 
@@ -49,5 +51,16 @@ describe("buildBrandedPetShareCardCopy", () => {
     expect(
       buildBrandedPetShareCardCopy({ petName: "Miso", publicUrl: "https://example.com/app" }).publicUrl
     ).toBeNull();
+  });
+
+  it("keeps the wordmark untranslated but localizes the poster footer's tagline", () => {
+    expect(buildBrandedPetShareCardCopy({ petName: "Miso", locale: "ja-JP" })).toMatchObject({
+      wordmark: "Mongchi",
+      tagline: "うちの子の、居心地いい小さな庭"
+    });
+    expect(buildBrandedPetShareCardCopy({ petName: "Miso", locale: "ko-KR" })).toMatchObject({
+      wordmark: "Mongchi",
+      tagline: "우리 반려동물의 아늑한 작은 정원"
+    });
   });
 });

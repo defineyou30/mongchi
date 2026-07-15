@@ -16,15 +16,21 @@ export interface BrandedPetShareCardCopy {
   readonly warmLine: string;
   readonly attribution: string;
   readonly publicUrl: string | null;
+  /** App wordmark for the poster layout's brand footer -- the brand name itself, so it stays "Mongchi" in every locale. */
+  readonly wordmark: string;
+  /** One quiet tagline line under the wordmark (see the App Store subtitle in docs/store-listing-draft.md, reused here for a consistent brand voice). */
+  readonly tagline: string;
 }
 
 const fallbackPetName = "My dog";
+const cardWordmarkText = "Mongchi";
 
 const cardHeading: LocalizedText = { "en-US": "MY TINY GARDEN FRIEND", "ko-KR": "나의 작은 정원 친구", "ja-JP": "小さな庭のお友だち", "zh-TW": "我的迷你花園朋友", "de-DE": "MEIN KLEINER GARTENFREUND", "fr-FR": "MON PETIT AMI DU JARDIN", "pt-BR": "MEU AMIGUINHO DO JARDIM", "es-MX": "MI AMIGUITO DEL JARDÍN" };
 const cardFallbackPetName: LocalizedText = { "en-US": fallbackPetName, "ko-KR": "우리 강아지", "ja-JP": "うちの子", "zh-TW": "我家小寶貝", "de-DE": "Mein Hund", "fr-FR": "Mon chien", "pt-BR": "Meu cachorro", "es-MX": "Mi perrito" };
 const cardWarmLine: LocalizedText = { "en-US": "A tiny friend, always close.", "ko-KR": "언제나 곁에 있는 작은 친구.", "ja-JP": "いつもそばにいる、小さなお友だち。", "zh-TW": "一直陪在身邊的迷你朋友。", "de-DE": "Ein kleiner Freund, immer ganz nah.", "fr-FR": "Un petit ami, toujours tout près.", "pt-BR": "Um amiguinho sempre por perto.", "es-MX": "Un amiguito siempre cerquita." };
 const cardDaysLine: LocalizedText = { "en-US": "{{count}} {{day}} of tiny garden moments.", "ko-KR": "작은 정원에서 함께한 지 {{count}}일.", "ja-JP": "小さな庭で一緒に過ごして{{count}}日。", "zh-TW": "在迷你花園相伴的第 {{count}} 天。", "de-DE": "{{count}} {{day}} voller kleiner Gartenmomente.", "fr-FR": "{{count}} {{day}} de petits moments au jardin.", "pt-BR": "{{count}} {{day}} de pequenos momentos no jardim.", "es-MX": "{{count}} {{day}} de pequeños momentos en el jardín." };
 const cardAttribution: LocalizedText = { "en-US": "Made with Mongchi", "ko-KR": "Mongchi에서 만들었어요", "ja-JP": "Mongchiで作りました", "zh-TW": "由 Mongchi 創造", "de-DE": "Erstellt mit Mongchi", "fr-FR": "Créé avec Mongchi", "pt-BR": "Feito com Mongchi", "es-MX": "Creado con Mongchi" };
+const cardTagline: LocalizedText = { "en-US": "Your pet's cozy little garden", "ko-KR": "우리 반려동물의 아늑한 작은 정원", "ja-JP": "うちの子の、居心地いい小さな庭", "zh-TW": "我家寵物的溫馨迷你花園", "de-DE": "Der gemütliche kleine Garten deines Haustiers", "fr-FR": "Le petit jardin douillet de votre compagnon", "pt-BR": "O jardinzinho aconchegante do seu pet", "es-MX": "El jardincito acogedor de tu mascota" };
 
 const interpolateCardText = (text: string, values: Readonly<Record<string, string | number>>): string =>
   Object.entries(values).reduce((result, [key, value]) => result.replaceAll(`{{${key}}}`, String(value)), text);
@@ -60,6 +66,8 @@ export const buildBrandedPetShareCardCopy = ({
     heading: getLocalizedText(locale, cardHeading),
     warmLine,
     attribution: getLocalizedText(locale, cardAttribution),
-    publicUrl: normalizeConfiguredUrl(publicUrl)
+    publicUrl: normalizeConfiguredUrl(publicUrl),
+    wordmark: cardWordmarkText,
+    tagline: getLocalizedText(locale, cardTagline)
   };
 };

@@ -10,10 +10,44 @@ export type GameItemAssetKey =
   | "duckBiscuit"
   | "cheesePuff"
   | "appleBiscuit"
+  | "honeyPawWafer"
   | "milkPupCup"
+  | "dewdropWater"
+  | "appleSip"
+  | "berryMilk"
+  | "pumpkinCream"
+  | "blueberrySmoothie"
+  | "carrotCooler"
+  | "sweetPotatoShake"
+  | "salmonBroth"
+  | "tunaBroth"
+  | "coconutSplash"
+  | "pearNectar"
   | "toyBall"
   | "plushToy"
+  | "ropeRing"
+  | "starSqueaker"
+  | "ribbonWand"
+  | "cloverPuzzle"
+  | "moonFrisbee"
+  | "bellRoller"
+  | "featherTeaser"
+  | "snuffleMat"
+  | "wobbleTreatBall"
+  | "crinkleLeaf"
+  | "sunbeamSpinner"
+  | "cloudCushion"
   | "petBed"
+  | "cloverNapMat"
+  | "moonPillow"
+  | "starBlanket"
+  | "cozyBasket"
+  | "windowPerch"
+  | "patchworkRug"
+  | "sleepTent"
+  | "donutBed"
+  | "gardenHammock"
+  | "lanternNest"
   | "tinyHouse"
   | "flowerPot"
   | "flowerPotSeed"
@@ -58,10 +92,44 @@ export const gameItemAssetByCatalogId: Record<string, GameItemAssetKey> = {
   item_duck_biscuit: "duckBiscuit",
   item_cheese_puff: "cheesePuff",
   item_apple_biscuit: "appleBiscuit",
+  item_honey_paw_wafer: "honeyPawWafer",
   item_milk_pup_cup: "milkPupCup",
+  item_dewdrop_water: "dewdropWater",
+  item_apple_sip: "appleSip",
+  item_berry_milk: "berryMilk",
+  item_pumpkin_cream: "pumpkinCream",
+  item_blueberry_smoothie: "blueberrySmoothie",
+  item_carrot_cooler: "carrotCooler",
+  item_sweet_potato_shake: "sweetPotatoShake",
+  item_salmon_broth: "salmonBroth",
+  item_tuna_broth: "tunaBroth",
+  item_coconut_splash: "coconutSplash",
+  item_pear_nectar: "pearNectar",
   item_toy_ball_mint: "toyBall",
   item_plush_toy_buddy: "plushToy",
+  item_rope_ring_mint: "ropeRing",
+  item_star_squeaker_sunny: "starSqueaker",
+  item_ribbon_wand_garden: "ribbonWand",
+  item_clover_puzzle_mint: "cloverPuzzle",
+  item_moon_frisbee: "moonFrisbee",
+  item_bell_roller: "bellRoller",
+  item_feather_teaser: "featherTeaser",
+  item_snuffle_mat: "snuffleMat",
+  item_wobble_treat_ball: "wobbleTreatBall",
+  item_crinkle_leaf: "crinkleLeaf",
+  item_sunbeam_spinner: "sunbeamSpinner",
+  item_cloud_cushion_sky: "cloudCushion",
   item_cushion_rose: "petBed",
+  item_clover_nap_mat: "cloverNapMat",
+  item_moon_pillow: "moonPillow",
+  item_star_blanket: "starBlanket",
+  item_cozy_basket: "cozyBasket",
+  item_window_perch: "windowPerch",
+  item_patchwork_rug: "patchworkRug",
+  item_sleep_tent: "sleepTent",
+  item_donut_bed: "donutBed",
+  item_garden_hammock: "gardenHammock",
+  item_lantern_nest: "lanternNest",
   item_doghouse_sunny: "tinyHouse",
   item_flower_pot_sunny: "flowerPot",
   item_leafy_plant_clover: "leafyPlant",

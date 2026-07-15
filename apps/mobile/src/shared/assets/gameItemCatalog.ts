@@ -8,6 +8,7 @@ import type { GameItemAssetKey } from "./gameItemCatalogMapping";
 export type GameItemCategory =
   | "food"
   | "treat"
+  | "drink"
   | "toy"
   | "bed"
   | "house"
@@ -67,6 +68,20 @@ export interface GameItemDefinition {
   contactShadow: GameItemContactShadow;
   sources: Record<GameItemVariant, ImageSourcePropType>;
 }
+
+const defineSingleImageSources = (source: ImageSourcePropType): Record<GameItemVariant, ImageSourcePropType> => ({
+  scene: source,
+  ui: source,
+  hud: source,
+  action: source
+});
+
+const defineVariantImageSources = (
+  scene: ImageSourcePropType,
+  ui: ImageSourcePropType,
+  hud: ImageSourcePropType,
+  action: ImageSourcePropType
+): Record<GameItemVariant, ImageSourcePropType> => ({ scene, ui, hud, action });
 
 const itemSources = {
   foodBowl: {
@@ -141,12 +156,51 @@ const itemSources = {
     hud: require("../../../assets/game-items/hud/apple-biscuit.png"),
     action: require("../../../assets/game-items/action/apple-biscuit.png")
   },
+  honeyPawWafer: defineVariantImageSources(
+    require("../../../assets/game-items/scene/honey-paw-wafer.png"),
+    require("../../../assets/game-items/ui/honey-paw-wafer.png"),
+    require("../../../assets/game-items/hud/honey-paw-wafer.png"),
+    require("../../../assets/game-items/action/honey-paw-wafer.png")
+  ),
   milkPupCup: {
     scene: require("../../../assets/game-items/scene/milk-pup-cup.png"),
     ui: require("../../../assets/game-items/ui/milk-pup-cup.png"),
     hud: require("../../../assets/game-items/hud/milk-pup-cup.png"),
     action: require("../../../assets/game-items/action/milk-pup-cup.png")
   },
+  dewdropWater: defineVariantImageSources(
+    require("../../../assets/game-items/scene/dewdrop-water.png"), require("../../../assets/game-items/ui/dewdrop-water.png"), require("../../../assets/game-items/hud/dewdrop-water.png"), require("../../../assets/game-items/action/dewdrop-water.png")
+  ),
+  appleSip: defineVariantImageSources(
+    require("../../../assets/game-items/scene/apple-sip.png"), require("../../../assets/game-items/ui/apple-sip.png"), require("../../../assets/game-items/hud/apple-sip.png"), require("../../../assets/game-items/action/apple-sip.png")
+  ),
+  berryMilk: defineVariantImageSources(
+    require("../../../assets/game-items/scene/berry-milk.png"), require("../../../assets/game-items/ui/berry-milk.png"), require("../../../assets/game-items/hud/berry-milk.png"), require("../../../assets/game-items/action/berry-milk.png")
+  ),
+  pumpkinCream: defineVariantImageSources(
+    require("../../../assets/game-items/scene/pumpkin-cream.png"), require("../../../assets/game-items/ui/pumpkin-cream.png"), require("../../../assets/game-items/hud/pumpkin-cream.png"), require("../../../assets/game-items/action/pumpkin-cream.png")
+  ),
+  blueberrySmoothie: defineVariantImageSources(
+    require("../../../assets/game-items/scene/blueberry-smoothie.png"), require("../../../assets/game-items/ui/blueberry-smoothie.png"), require("../../../assets/game-items/hud/blueberry-smoothie.png"), require("../../../assets/game-items/action/blueberry-smoothie.png")
+  ),
+  carrotCooler: defineVariantImageSources(
+    require("../../../assets/game-items/scene/carrot-cooler.png"), require("../../../assets/game-items/ui/carrot-cooler.png"), require("../../../assets/game-items/hud/carrot-cooler.png"), require("../../../assets/game-items/action/carrot-cooler.png")
+  ),
+  sweetPotatoShake: defineVariantImageSources(
+    require("../../../assets/game-items/scene/sweet-potato-shake.png"), require("../../../assets/game-items/ui/sweet-potato-shake.png"), require("../../../assets/game-items/hud/sweet-potato-shake.png"), require("../../../assets/game-items/action/sweet-potato-shake.png")
+  ),
+  salmonBroth: defineVariantImageSources(
+    require("../../../assets/game-items/scene/salmon-broth.png"), require("../../../assets/game-items/ui/salmon-broth.png"), require("../../../assets/game-items/hud/salmon-broth.png"), require("../../../assets/game-items/action/salmon-broth.png")
+  ),
+  tunaBroth: defineVariantImageSources(
+    require("../../../assets/game-items/scene/tuna-broth.png"), require("../../../assets/game-items/ui/tuna-broth.png"), require("../../../assets/game-items/hud/tuna-broth.png"), require("../../../assets/game-items/action/tuna-broth.png")
+  ),
+  coconutSplash: defineVariantImageSources(
+    require("../../../assets/game-items/scene/coconut-splash.png"), require("../../../assets/game-items/ui/coconut-splash.png"), require("../../../assets/game-items/hud/coconut-splash.png"), require("../../../assets/game-items/action/coconut-splash.png")
+  ),
+  pearNectar: defineVariantImageSources(
+    require("../../../assets/game-items/scene/pear-nectar.png"), require("../../../assets/game-items/ui/pear-nectar.png"), require("../../../assets/game-items/hud/pear-nectar.png"), require("../../../assets/game-items/action/pear-nectar.png")
+  ),
   toyBall: {
     scene: require("../../../assets/game-items/scene/toy-ball.png"),
     ui: require("../../../assets/game-items/ui/toy-ball.png"),
@@ -159,12 +213,93 @@ const itemSources = {
     hud: require("../../../assets/game-items/hud/plush-toy.png"),
     action: require("../../../assets/game-items/action/plush-toy.png")
   },
+  ropeRing: {
+    scene: require("../../../assets/game-items/scene/rope-ring.png"),
+    ui: require("../../../assets/game-items/ui/rope-ring.png"),
+    hud: require("../../../assets/game-items/hud/rope-ring.png"),
+    action: require("../../../assets/game-items/action/rope-ring.png")
+  },
+  starSqueaker: {
+    scene: require("../../../assets/game-items/scene/star-squeaker.png"),
+    ui: require("../../../assets/game-items/ui/star-squeaker.png"),
+    hud: require("../../../assets/game-items/hud/star-squeaker.png"),
+    action: require("../../../assets/game-items/action/star-squeaker.png")
+  },
+  ribbonWand: {
+    scene: require("../../../assets/game-items/scene/ribbon-wand.png"),
+    ui: require("../../../assets/game-items/ui/ribbon-wand.png"),
+    hud: require("../../../assets/game-items/hud/ribbon-wand.png"),
+    action: require("../../../assets/game-items/action/ribbon-wand.png")
+  },
+  cloverPuzzle: {
+    scene: require("../../../assets/game-items/scene/clover-puzzle.png"),
+    ui: require("../../../assets/game-items/ui/clover-puzzle.png"),
+    hud: require("../../../assets/game-items/hud/clover-puzzle.png"),
+    action: require("../../../assets/game-items/action/clover-puzzle.png")
+  },
+  moonFrisbee: defineVariantImageSources(
+    require("../../../assets/game-items/scene/moon-frisbee.png"), require("../../../assets/game-items/ui/moon-frisbee.png"), require("../../../assets/game-items/hud/moon-frisbee.png"), require("../../../assets/game-items/action/moon-frisbee.png")
+  ),
+  bellRoller: defineVariantImageSources(
+    require("../../../assets/game-items/scene/bell-roller.png"), require("../../../assets/game-items/ui/bell-roller.png"), require("../../../assets/game-items/hud/bell-roller.png"), require("../../../assets/game-items/action/bell-roller.png")
+  ),
+  featherTeaser: defineVariantImageSources(
+    require("../../../assets/game-items/scene/feather-teaser.png"), require("../../../assets/game-items/ui/feather-teaser.png"), require("../../../assets/game-items/hud/feather-teaser.png"), require("../../../assets/game-items/action/feather-teaser.png")
+  ),
+  snuffleMat: defineVariantImageSources(
+    require("../../../assets/game-items/scene/snuffle-mat.png"), require("../../../assets/game-items/ui/snuffle-mat.png"), require("../../../assets/game-items/hud/snuffle-mat.png"), require("../../../assets/game-items/action/snuffle-mat.png")
+  ),
+  wobbleTreatBall: defineVariantImageSources(
+    require("../../../assets/game-items/scene/wobble-treat-ball.png"), require("../../../assets/game-items/ui/wobble-treat-ball.png"), require("../../../assets/game-items/hud/wobble-treat-ball.png"), require("../../../assets/game-items/action/wobble-treat-ball.png")
+  ),
+  crinkleLeaf: defineVariantImageSources(
+    require("../../../assets/game-items/scene/crinkle-leaf.png"), require("../../../assets/game-items/ui/crinkle-leaf.png"), require("../../../assets/game-items/hud/crinkle-leaf.png"), require("../../../assets/game-items/action/crinkle-leaf.png")
+  ),
+  sunbeamSpinner: defineVariantImageSources(
+    require("../../../assets/game-items/scene/sunbeam-spinner.png"), require("../../../assets/game-items/ui/sunbeam-spinner.png"), require("../../../assets/game-items/hud/sunbeam-spinner.png"), require("../../../assets/game-items/action/sunbeam-spinner.png")
+  ),
+  cloudCushion: {
+    scene: require("../../../assets/game-items/scene/cloud-cushion.png"),
+    ui: require("../../../assets/game-items/ui/cloud-cushion.png"),
+    hud: require("../../../assets/game-items/hud/cloud-cushion.png"),
+    action: require("../../../assets/game-items/action/cloud-cushion.png")
+  },
   petBed: {
     scene: require("../../../assets/game-items/scene/pet-bed.png"),
     ui: require("../../../assets/game-items/ui/pet-bed.png"),
     hud: require("../../../assets/game-items/hud/pet-bed.png"),
     action: require("../../../assets/game-items/action/pet-bed.png")
   },
+  cloverNapMat: defineVariantImageSources(
+    require("../../../assets/game-items/scene/clover-nap-mat.png"), require("../../../assets/game-items/ui/clover-nap-mat.png"), require("../../../assets/game-items/hud/clover-nap-mat.png"), require("../../../assets/game-items/action/clover-nap-mat.png")
+  ),
+  moonPillow: defineVariantImageSources(
+    require("../../../assets/game-items/scene/moon-pillow.png"), require("../../../assets/game-items/ui/moon-pillow.png"), require("../../../assets/game-items/hud/moon-pillow.png"), require("../../../assets/game-items/action/moon-pillow.png")
+  ),
+  starBlanket: defineVariantImageSources(
+    require("../../../assets/game-items/scene/star-blanket.png"), require("../../../assets/game-items/ui/star-blanket.png"), require("../../../assets/game-items/hud/star-blanket.png"), require("../../../assets/game-items/action/star-blanket.png")
+  ),
+  cozyBasket: defineVariantImageSources(
+    require("../../../assets/game-items/scene/cozy-basket.png"), require("../../../assets/game-items/ui/cozy-basket.png"), require("../../../assets/game-items/hud/cozy-basket.png"), require("../../../assets/game-items/action/cozy-basket.png")
+  ),
+  windowPerch: defineVariantImageSources(
+    require("../../../assets/game-items/scene/window-perch.png"), require("../../../assets/game-items/ui/window-perch.png"), require("../../../assets/game-items/hud/window-perch.png"), require("../../../assets/game-items/action/window-perch.png")
+  ),
+  patchworkRug: defineVariantImageSources(
+    require("../../../assets/game-items/scene/patchwork-rug.png"), require("../../../assets/game-items/ui/patchwork-rug.png"), require("../../../assets/game-items/hud/patchwork-rug.png"), require("../../../assets/game-items/action/patchwork-rug.png")
+  ),
+  sleepTent: defineVariantImageSources(
+    require("../../../assets/game-items/scene/sleep-tent.png"), require("../../../assets/game-items/ui/sleep-tent.png"), require("../../../assets/game-items/hud/sleep-tent.png"), require("../../../assets/game-items/action/sleep-tent.png")
+  ),
+  donutBed: defineVariantImageSources(
+    require("../../../assets/game-items/scene/donut-bed.png"), require("../../../assets/game-items/ui/donut-bed.png"), require("../../../assets/game-items/hud/donut-bed.png"), require("../../../assets/game-items/action/donut-bed.png")
+  ),
+  gardenHammock: defineVariantImageSources(
+    require("../../../assets/game-items/scene/garden-hammock.png"), require("../../../assets/game-items/ui/garden-hammock.png"), require("../../../assets/game-items/hud/garden-hammock.png"), require("../../../assets/game-items/action/garden-hammock.png")
+  ),
+  lanternNest: defineVariantImageSources(
+    require("../../../assets/game-items/scene/lantern-nest.png"), require("../../../assets/game-items/ui/lantern-nest.png"), require("../../../assets/game-items/hud/lantern-nest.png"), require("../../../assets/game-items/action/lantern-nest.png")
+  ),
   tinyHouse: {
     scene: require("../../../assets/game-items/scene/tiny-house.png"),
     ui: require("../../../assets/game-items/ui/tiny-house.png"),
@@ -296,13 +431,6 @@ const defineItem = (
   sources
 });
 
-const defineSingleImageSources = (source: ImageSourcePropType): Record<GameItemVariant, ImageSourcePropType> => ({
-  scene: source,
-  ui: source,
-  hud: source,
-  action: source
-});
-
 const plantStageSources = {
   flowerPotSeed: defineSingleImageSources(require("../../../assets/game-items/plant-stages/scene/flower-pot-seed.png")),
   flowerPotSprout: defineSingleImageSources(require("../../../assets/game-items/plant-stages/scene/flower-pot-sprout.png")),
@@ -348,10 +476,44 @@ export const gameItemDefinitions: Record<GameItemAssetKey, GameItemDefinition> =
   duckBiscuit: defineItem("scene_duck_biscuit", "treat", "small", 96, ["rewardSlot", "foodSlot"], "foreground", itemSources.duckBiscuit),
   cheesePuff: defineItem("scene_cheese_puff", "treat", "small", 96, ["rewardSlot", "foodSlot"], "foreground", itemSources.cheesePuff),
   appleBiscuit: defineItem("scene_apple_biscuit", "treat", "small", 96, ["rewardSlot", "foodSlot"], "foreground", itemSources.appleBiscuit),
-  milkPupCup: defineItem("scene_milk_pup_cup", "treat", "small", 96, ["rewardSlot", "foodSlot"], "foreground", itemSources.milkPupCup),
+  honeyPawWafer: defineItem("scene_honey_paw_wafer", "treat", "small", 96, ["rewardSlot", "foodSlot"], "foreground", itemSources.honeyPawWafer),
+  milkPupCup: defineItem("scene_milk_pup_cup", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.milkPupCup),
+  dewdropWater: defineItem("scene_dewdrop_water", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.dewdropWater),
+  appleSip: defineItem("scene_apple_sip", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.appleSip),
+  berryMilk: defineItem("scene_berry_milk", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.berryMilk),
+  pumpkinCream: defineItem("scene_pumpkin_cream", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.pumpkinCream),
+  blueberrySmoothie: defineItem("scene_blueberry_smoothie", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.blueberrySmoothie),
+  carrotCooler: defineItem("scene_carrot_cooler", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.carrotCooler),
+  sweetPotatoShake: defineItem("scene_sweet_potato_shake", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.sweetPotatoShake),
+  salmonBroth: defineItem("scene_salmon_broth", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.salmonBroth),
+  tunaBroth: defineItem("scene_tuna_broth", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.tunaBroth),
+  coconutSplash: defineItem("scene_coconut_splash", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.coconutSplash),
+  pearNectar: defineItem("scene_pear_nectar", "drink", "small", 96, ["waterSlot", "foodSlot"], "foreground", itemSources.pearNectar),
   toyBall: defineItem("scene_toy_ball", "toy", "small", 96, ["toySlot"], "foreground", itemSources.toyBall),
   plushToy: defineItem("scene_plush_toy", "toy", "medium", 128, ["toySlot", "bedSlot"], "foreground", itemSources.plushToy),
+  ropeRing: defineItem("scene_rope_ring", "toy", "small", 96, ["toySlot"], "foreground", itemSources.ropeRing),
+  starSqueaker: defineItem("scene_star_squeaker", "toy", "small", 96, ["toySlot"], "foreground", itemSources.starSqueaker),
+  ribbonWand: defineItem("scene_ribbon_wand", "toy", "small", 96, ["toySlot"], "foreground", itemSources.ribbonWand),
+  cloverPuzzle: defineItem("scene_clover_puzzle", "toy", "medium", 96, ["toySlot"], "foreground", itemSources.cloverPuzzle),
+  moonFrisbee: defineItem("scene_moon_frisbee", "toy", "small", 96, ["toySlot"], "foreground", itemSources.moonFrisbee),
+  bellRoller: defineItem("scene_bell_roller", "toy", "small", 96, ["toySlot"], "foreground", itemSources.bellRoller),
+  featherTeaser: defineItem("scene_feather_teaser", "toy", "small", 96, ["toySlot"], "foreground", itemSources.featherTeaser),
+  snuffleMat: defineItem("scene_snuffle_mat", "toy", "medium", 128, ["toySlot"], "foreground", itemSources.snuffleMat),
+  wobbleTreatBall: defineItem("scene_wobble_treat_ball", "toy", "small", 96, ["toySlot"], "foreground", itemSources.wobbleTreatBall),
+  crinkleLeaf: defineItem("scene_crinkle_leaf", "toy", "small", 96, ["toySlot"], "foreground", itemSources.crinkleLeaf),
+  sunbeamSpinner: defineItem("scene_sunbeam_spinner", "toy", "small", 96, ["toySlot"], "foreground", itemSources.sunbeamSpinner),
+  cloudCushion: defineItem("scene_cloud_cushion", "bed", "medium", 96, ["bedSlot"], "midground", itemSources.cloudCushion),
   petBed: defineItem("scene_pet_bed", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.petBed),
+  cloverNapMat: defineItem("scene_clover_nap_mat", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.cloverNapMat),
+  moonPillow: defineItem("scene_moon_pillow", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.moonPillow),
+  starBlanket: defineItem("scene_star_blanket", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.starBlanket),
+  cozyBasket: defineItem("scene_cozy_basket", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.cozyBasket),
+  windowPerch: defineItem("scene_window_perch", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.windowPerch),
+  patchworkRug: defineItem("scene_patchwork_rug", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.patchworkRug),
+  sleepTent: defineItem("scene_sleep_tent", "bed", "large", 160, ["bedSlot"], "midground", itemSources.sleepTent),
+  donutBed: defineItem("scene_donut_bed", "bed", "medium", 128, ["bedSlot"], "midground", itemSources.donutBed),
+  gardenHammock: defineItem("scene_garden_hammock", "bed", "large", 160, ["bedSlot"], "midground", itemSources.gardenHammock),
+  lanternNest: defineItem("scene_lantern_nest", "bed", "large", 160, ["bedSlot"], "midground", itemSources.lanternNest),
   tinyHouse: defineItem("scene_tiny_house", "house", "hero", 192, ["houseSlot"], "background", itemSources.tinyHouse, {
     defaultScale: 0.95
   }),
@@ -435,7 +597,7 @@ export const homeDecorationSlots: Record<HomeDecorationSlotId, HomeDecorationSlo
     y: 0.74,
     zIndex: 50,
     scale: 1,
-    allowedCategories: ["food", "treat", "toy", "bed", "house", "plant", "light", "water", "path", "reward", "premiumDecor", "seasonalDecor"],
+    allowedCategories: ["food", "treat", "drink", "toy", "bed", "house", "plant", "light", "water", "path", "reward", "premiumDecor", "seasonalDecor"],
     canOverlapPet: true,
     layer: "petAdjacent"
   },
@@ -445,7 +607,7 @@ export const homeDecorationSlots: Record<HomeDecorationSlotId, HomeDecorationSlo
     y: 0.79,
     zIndex: 64,
     scale: 0.82,
-    allowedCategories: ["food", "treat"],
+    allowedCategories: ["food", "treat", "drink"],
     rotation: -2,
     canOverlapPet: false,
     layer: "foreground"
@@ -520,7 +682,7 @@ export const homeDecorationSlots: Record<HomeDecorationSlotId, HomeDecorationSlo
     y: 0.9,
     zIndex: 70,
     scale: 0.9,
-    allowedCategories: ["water"],
+    allowedCategories: ["water", "drink"],
     rotation: -3,
     canOverlapPet: false,
     layer: "foreground"
@@ -542,7 +704,7 @@ export const homeDecorationSlots: Record<HomeDecorationSlotId, HomeDecorationSlo
     y: 0.84,
     zIndex: 72,
     scale: 0.82,
-    allowedCategories: ["reward", "food", "treat"],
+    allowedCategories: ["reward", "food", "treat", "drink"],
     rotation: 5,
     canOverlapPet: false,
     layer: "foreground"

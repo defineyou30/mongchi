@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
+import { LanguageGlobeButton, LanguageSelectorSheet } from "../../shared/ui/LanguageSelectorSheet";
 import { OnboardingStoryArt } from "../../shared/ui/OnboardingStoryArt";
 import type { OnboardingStoryArtVariant } from "../../shared/ui/OnboardingStoryArt";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
@@ -16,6 +17,7 @@ const lastSlideIndex = welcomeSlideVariants.length - 1;
 export function WelcomeOnboardingScreen() {
   const { height, width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [languageSelectorVisible, setLanguageSelectorVisible] = useState(false);
   const { t } = useTranslation();
   const compact = height < 720 || width < 380;
   const fontFamilies = useFontFamilies();
@@ -48,6 +50,8 @@ export function WelcomeOnboardingScreen() {
       includeBottomEdge
       innerStyle={styles.inner}
     >
+      <LanguageGlobeButton style={styles.languageButton} onPress={() => setLanguageSelectorVisible(true)} />
+
       <View style={[styles.card, compact ? styles.compactCard : null]}>
         <OnboardingStoryArt
           accessibilityLabel={`${activeSlide.step}: ${activeSlide.title}`}
@@ -81,6 +85,8 @@ export function WelcomeOnboardingScreen() {
           </Pressable>
         </View>
       </View>
+
+      <LanguageSelectorSheet visible={languageSelectorVisible} onClose={() => setLanguageSelectorVisible(false)} />
     </GardenSceneFrame>
   );
 }
@@ -98,6 +104,12 @@ const styles = StyleSheet.create({
   },
   inner: {
     justifyContent: "center"
+  },
+  languageButton: {
+    position: "absolute",
+    top: -spacing.xl,
+    right: 0,
+    zIndex: 50
   },
   card: {
     borderRadius: 32,

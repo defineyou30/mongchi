@@ -15,7 +15,7 @@ import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
 import { getGenerationMotionPolicy } from "./generationMotionPolicy";
-import { getGenerationPresentation, playGenerationStartCueOnce } from "./generationPresentation";
+import { getGenerationPresentation, playGenerationArrivalCueOnce } from "./generationPresentation";
 
 // Rotating personalized narration keeps the wait feeling like the pet is being
 // hand-crafted rather than a spinner running.
@@ -129,11 +129,17 @@ export function GenerationScreen() {
     status: generation.status
   });
 
+  // Plays the arrival jingle the moment this job's status flips to
+  // completed, not when the loading screen is first entered -- see
+  // playGenerationArrivalCueOnce's doc comment. This is the one "it's done"
+  // beat for this flow: PetRevealScreen's own sfx_reveal on mount is a
+  // separate, later moment the player reaches only after deliberately
+  // tapping "Reveal" below, not an automatic follow-on from this screen.
   useEffect(() => {
-    if (generationPresentation.guidance) {
-      playGenerationStartCueOnce(petProfile?.activeGenerationJobId);
+    if (completed) {
+      playGenerationArrivalCueOnce(petProfile?.activeGenerationJobId);
     }
-  }, [generationPresentation.guidance, petProfile?.activeGenerationJobId]);
+  }, [completed, petProfile?.activeGenerationJobId]);
 
   useEffect(() => {
     // Re-enables "Try again" whenever a fresh failure lands, not just when
@@ -283,41 +289,21 @@ export function GenerationScreen() {
         </Pressable>
       ) : null}
 
-      <View style={styles.stepList}>
-        <Text style={styles.stepListTitle}>{t("generation.stepsTitle")}</Text>
-        {generationStepKeys.map((stepKey, index) => {
-          const isCurrent = index === generation.currentStepIndex && !completed;
-          const isPast = index < generation.currentStepIndex || completed;
-
-          return (
-            <View key={stepKey} style={styles.stepRow}>
-              <View
-                style={[
-                  styles.stepDot,
-                  isPast ? styles.stepDotDone : null,
-                  isCurrent ? styles.stepDotCurrent : null
-                ]}
-              />
-              <Text
-                style={[
-                  styles.stepLabel,
-                  isPast ? styles.stepLabelDone : null,
-                  isCurrent ? styles.stepLabelCurrent : null
-                ]}
-              >
-                {t(stepKey)}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
     </GardenSceneFrame>
   );
 }
 
 const styles = StyleSheet.create({
   copy: {
-    gap: spacing.sm
+    gap: spacing.xs,
+    borderRadius: radii.panel,
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: "rgba(255,255,255,0.84)",
+    backgroundColor: "rgba(255,245,222,0.94)",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    ...shadows.gamePanel
   },
   eyebrow: {
     color: colors.skyDeep,
@@ -453,64 +439,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 9,
     backgroundColor: colors.honey
-  },
-  stepList: {
-    borderRadius: radii.panel,
-    backgroundColor: "rgba(255,245,222,0.84)",
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.8)",
-    padding: spacing.md,
-    gap: spacing.sm,
-    ...shadows.gamePanel
-  },
-  stepListTitle: {
-    color: colors.skyDeep,
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    marginBottom: 2
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm
-  },
-  stepDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "rgba(122,110,102,0.14)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)"
-  },
-  stepDotDone: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "rgba(84,168,92,0.5)",
-    borderColor: "transparent"
-  },
-  stepDotCurrent: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.honey,
-    borderColor: colors.cream,
-    ...shadows.tile
-  },
-  stepLabel: {
-    color: "rgba(122,110,102,0.55)",
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "700"
-  },
-  stepLabelDone: {
-    color: colors.mutedInk
-  },
-  stepLabelCurrent: {
-    color: colors.ink,
-    fontSize: 14,
-    fontWeight: "900"
   },
   failureBlock: {
     borderRadius: radii.panel,

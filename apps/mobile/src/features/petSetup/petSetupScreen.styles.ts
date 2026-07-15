@@ -11,7 +11,13 @@ export const petSetupScreenStyles = StyleSheet.create({
   },
   titleLockup: {
     gap: 6,
-    paddingHorizontal: spacing.xs
+    borderRadius: radii.panel,
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: "rgba(255,255,255,0.84)",
+    backgroundColor: "rgba(255,245,222,0.94)",
+    padding: spacing.md,
+    ...shadows.gamePanel
   },
   eyebrowTag: {
     alignSelf: "flex-start",
@@ -79,6 +85,73 @@ export const petSetupScreenStyles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     ...shadows.tile
+  },
+  speciesRow: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  speciesOption: {
+    minHeight: 76,
+    flex: 1,
+    borderRadius: radii.control,
+    borderWidth: 3,
+    borderBottomWidth: 6,
+    borderColor: "rgba(216,179,130,0.68)",
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    ...shadows.tile
+  },
+  speciesOptionSelected: {
+    borderColor: colors.honey,
+    backgroundColor: colors.parchment
+  },
+  speciesOptionPressed: {
+    opacity: 0.82,
+    transform: [{ translateY: 2 }]
+  },
+  speciesIconPlate: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "rgba(216,179,130,0.42)",
+    backgroundColor: colors.cream,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible"
+  },
+  speciesIconPlateSelected: {
+    borderColor: colors.honey,
+    backgroundColor: colors.white
+  },
+  speciesPetIcon: {
+    width: 46,
+    height: 46
+  },
+  speciesSelectedBadge: {
+    position: "absolute",
+    right: -7,
+    bottom: -7,
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: colors.cream,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.tile
+  },
+  speciesLabel: {
+    color: colors.ink,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "900"
   },
   namePlateIcon: {
     width: 40,

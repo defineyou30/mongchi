@@ -1,15 +1,29 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { View } from "react-native";
 import type { ViewStyle } from "react-native";
-import Svg, { Circle, Defs, Image as SvgImage, LinearGradient, Path, Rect, Stop, Text as SvgText } from "react-native-svg";
+import Svg, {
+  Circle,
+  ClipPath,
+  Defs,
+  Image as SvgImage,
+  LinearGradient,
+  Path,
+  Rect,
+  Stop,
+  Text as SvgText
+} from "react-native-svg";
 
-import type { GeneratedAssetId } from "@mongchi/shared";
+import { DEFAULT_THEME_ID } from "@mongchi/shared";
+import type { GeneratedAssetId, ItemId } from "@mongchi/shared";
 import type { AppLocale } from "../../localization/localeNormalization";
 
 import { getGeneratedPetAssetSource } from "../assets/generatedPetAssets";
+import { themeBackgroundSourceById } from "../assets/weatherSceneAssets";
 import { colors, useFontFamilies } from "../design/tokens";
 import { buildBrandedPetShareCardCopy } from "./brandedPetShareCard";
 import { captureBrandedPetShareCard } from "./captureBrandedPetShareCard";
+
+const appIconSource = require("../../../assets/icon.png");
 
 export interface BrandedPetShareCardHandle {
   readonly capture: () => Promise<string | null>;
@@ -23,6 +37,15 @@ interface BrandedPetShareCardProps {
   readonly publicUrl?: string | null;
   readonly style?: ViewStyle;
   readonly locale?: AppLocale;
+  /**
+   * Present only for the friend page's customizable marketing card (see
+   * ShareCardCustomizeSheet): switches to the full-bleed "poster" layout --
+   * the owned theme's actual garden art behind the pet instead of the
+   * classic drawn-gradient card below, with the brand footer as a small
+   * signature rather than the old bottom attribution line. Omitted by
+   * PetRevealScreen's first-reveal share, which keeps the classic layout.
+   */
+  readonly backgroundThemeId?: ItemId | null;
 }
 
 export const BRANDED_SHARE_CARD_SIZE = {
@@ -31,9 +54,10 @@ export const BRANDED_SHARE_CARD_SIZE = {
 } as const;
 
 const exportViewBox = "0 0 1080 1350";
+const posterIconSize = 64;
 
 export const BrandedPetShareCard = forwardRef<BrandedPetShareCardHandle, BrandedPetShareCardProps>(
-  ({ assetId, daysTogether, petName, petAssetUri, publicUrl, style, locale = "en-US" }, ref) => {
+  ({ assetId, daysTogether, petName, petAssetUri, publicUrl, style, locale = "en-US", backgroundThemeId }, ref) => {
     const fontFamilies = useFontFamilies();
     const svgRef = useRef<Svg>(null);
     const imageReadyRef = useRef(false);
@@ -67,6 +91,11 @@ export const BrandedPetShareCard = forwardRef<BrandedPetShareCardHandle, Branded
 
     useImperativeHandle(ref, () => ({ capture }), [capture]);
     const petNameFontSize = copy.petName.length > 18 ? 52 : copy.petName.length > 12 ? 64 : 86;
+    const posterPetNameFontSize = copy.petName.length > 18 ? 60 : copy.petName.length > 12 ? 74 : 96;
+    const handlePetImageLoad = () => {
+      imageReadyRef.current = true;
+      imageReadyResolverRef.current?.(true);
+    };
 
     return (
       <View
@@ -76,110 +105,214 @@ export const BrandedPetShareCard = forwardRef<BrandedPetShareCardHandle, Branded
         style={[BRANDED_SHARE_CARD_SIZE, style]}
       >
         <Svg ref={svgRef} height="100%" viewBox={exportViewBox} width="100%">
-          <Defs>
-            <LinearGradient id="gardenSky" x1="0" x2="0" y1="0" y2="1">
-              <Stop offset="0" stopColor={colors.skySoft} />
-              <Stop offset="0.58" stopColor={colors.cream} />
-              <Stop offset="1" stopColor={colors.parchmentDeep} />
-            </LinearGradient>
-            <LinearGradient id="gardenGrass" x1="0" x2="1" y1="0" y2="1">
-              <Stop offset="0" stopColor={colors.leaf} />
-              <Stop offset="1" stopColor={colors.moss} />
-            </LinearGradient>
-          </Defs>
+          {backgroundThemeId ? (
+            <>
+              {/* Poster layout: the owned theme's real garden art full-bleed
+                  behind the pet -- see ShareCardCustomizeSheet. Top/bottom
+                  scrims keep the name and brand signature legible over any
+                  theme's art without needing per-theme color tuning. */}
+              <Defs>
+                <LinearGradient id="posterTopScrim" x1="0" x2="0" y1="0" y2="1">
+                  <Stop offset="0" stopColor={colors.overlay} />
+                  <Stop offset="1" stopColor={colors.overlay} stopOpacity="0" />
+                </LinearGradient>
+                <LinearGradient id="posterBottomScrim" x1="0" x2="0" y1="0" y2="1">
+                  <Stop offset="0" stopColor={colors.overlay} stopOpacity="0" />
+                  <Stop offset="1" stopColor={colors.overlay} />
+                </LinearGradient>
+                <ClipPath id="posterIconClip">
+                  <Rect height={posterIconSize} rx={16} width={posterIconSize} x={540 - posterIconSize / 2} y="1164" />
+                </ClipPath>
+              </Defs>
 
-          <Rect fill="url(#gardenSky)" height="1350" width="1080" />
-          <Circle cx="874" cy="190" fill={colors.honey} opacity="0.52" r="116" />
-          <Path d="M0 710 C180 600 330 650 515 735 C720 830 880 690 1080 620 V1350 H0 Z" fill="url(#gardenGrass)" />
-          <Path d="M0 812 C210 742 380 830 548 880 C725 934 890 810 1080 780 V1350 H0 Z" fill={colors.moss} opacity="0.72" />
+              <SvgImage
+                height="1350"
+                href={themeBackgroundSourceById[backgroundThemeId] ?? themeBackgroundSourceById[DEFAULT_THEME_ID]}
+                preserveAspectRatio="xMidYMid slice"
+                width="1080"
+                x="0"
+                y="0"
+              />
+              <Rect fill="url(#posterTopScrim)" height="300" width="1080" x="0" y="0" />
+              <Rect fill="url(#posterBottomScrim)" height="330" width="1080" x="0" y="1020" />
 
-          <Rect
-            fill={colors.cream}
-            height="1254"
-            opacity="0.94"
-            rx="72"
-            stroke={colors.parchmentDeep}
-            strokeWidth="12"
-            width="984"
-            x="48"
-            y="48"
-          />
-          <SvgText
-            fill={colors.wood}
-            fontFamily={fontFamilies.label}
-            fontSize="42"
-            fontWeight="900"
-            letterSpacing="5"
-            textAnchor="middle"
-            x="540"
-            y="154"
-          >
-            {copy.heading}
-          </SvgText>
+              <SvgText
+                fill={colors.white}
+                fontFamily={fontFamilies.display}
+                fontSize={posterPetNameFontSize}
+                fontWeight="900"
+                textAnchor="middle"
+                x="540"
+                y="150"
+              >
+                {copy.petName}
+              </SvgText>
+              <SvgText
+                fill="rgba(255,255,255,0.9)"
+                fontFamily={fontFamilies.body}
+                fontSize="34"
+                fontWeight="800"
+                textAnchor="middle"
+                x="540"
+                y="204"
+              >
+                {copy.warmLine}
+              </SvgText>
 
-          <Circle cx="540" cy="572" fill={colors.parchment} opacity="0.92" r="352" />
-          <Circle cx="540" cy="572" fill="none" r="352" stroke={colors.cream} strokeWidth="18" />
-          <SvgImage
-            height="670"
-            href={getGeneratedPetAssetSource(assetId, petAssetUri)}
-            onLoad={() => {
-              imageReadyRef.current = true;
-              imageReadyResolverRef.current?.(true);
-            }}
-            preserveAspectRatio="xMidYMid meet"
-            width="670"
-            x="205"
-            y="238"
-          />
+              <SvgImage
+                height="700"
+                href={getGeneratedPetAssetSource(assetId, petAssetUri)}
+                onLoad={handlePetImageLoad}
+                preserveAspectRatio="xMidYMid meet"
+                width="700"
+                x="190"
+                y="470"
+              />
 
-          <Rect fill={colors.parchment} height="244" rx="52" stroke={colors.cream} strokeWidth="14" width="870" x="105" y="868" />
-          <SvgText
-            fill={colors.ink}
-            fontFamily={fontFamilies.display}
-            fontSize={petNameFontSize}
-            fontWeight="900"
-            textAnchor="middle"
-            x="540"
-            y="978"
-          >
-            {copy.petName}
-          </SvgText>
-          <SvgText
-            fill={colors.mutedInk}
-            fontFamily={fontFamilies.body}
-            fontSize="42"
-            fontWeight="800"
-            textAnchor="middle"
-            x="540"
-            y="1054"
-          >
-            {copy.warmLine}
-          </SvgText>
+              <Rect
+                clipPath="url(#posterIconClip)"
+                fill={colors.cream}
+                height={posterIconSize}
+                width={posterIconSize}
+                x={540 - posterIconSize / 2}
+                y="1164"
+              />
+              <SvgImage
+                clipPath="url(#posterIconClip)"
+                height={posterIconSize}
+                href={appIconSource}
+                width={posterIconSize}
+                x={540 - posterIconSize / 2}
+                y="1164"
+              />
+              <SvgText
+                fill={colors.white}
+                fontFamily={fontFamilies.label}
+                fontSize="38"
+                fontWeight="900"
+                textAnchor="middle"
+                x="540"
+                y="1276"
+              >
+                {copy.wordmark}
+              </SvgText>
+              <SvgText
+                fill="rgba(255,255,255,0.82)"
+                fontFamily={fontFamilies.body}
+                fontSize="24"
+                fontWeight="700"
+                textAnchor="middle"
+                x="540"
+                y="1310"
+              >
+                {copy.tagline}
+              </SvgText>
+            </>
+          ) : (
+            <>
+              <Defs>
+                <LinearGradient id="gardenSky" x1="0" x2="0" y1="0" y2="1">
+                  <Stop offset="0" stopColor={colors.skySoft} />
+                  <Stop offset="0.58" stopColor={colors.cream} />
+                  <Stop offset="1" stopColor={colors.parchmentDeep} />
+                </LinearGradient>
+                <LinearGradient id="gardenGrass" x1="0" x2="1" y1="0" y2="1">
+                  <Stop offset="0" stopColor={colors.leaf} />
+                  <Stop offset="1" stopColor={colors.moss} />
+                </LinearGradient>
+              </Defs>
 
-          <SvgText
-            fill={colors.woodDark}
-            fontFamily={fontFamilies.label}
-            fontSize="44"
-            fontWeight="900"
-            textAnchor="middle"
-            x="540"
-            y={copy.publicUrl ? "1198" : "1228"}
-          >
-            {copy.attribution}
-          </SvgText>
-          {copy.publicUrl ? (
-            <SvgText
-              fill={colors.skyDeep}
-              fontFamily={fontFamilies.body}
-              fontSize="32"
-              fontWeight="800"
-              textAnchor="middle"
-              x="540"
-              y="1250"
-            >
-              {copy.publicUrl}
-            </SvgText>
-          ) : null}
+              <Rect fill="url(#gardenSky)" height="1350" width="1080" />
+              <Circle cx="874" cy="190" fill={colors.honey} opacity="0.52" r="116" />
+              <Path d="M0 710 C180 600 330 650 515 735 C720 830 880 690 1080 620 V1350 H0 Z" fill="url(#gardenGrass)" />
+              <Path d="M0 812 C210 742 380 830 548 880 C725 934 890 810 1080 780 V1350 H0 Z" fill={colors.moss} opacity="0.72" />
+
+              <Rect
+                fill={colors.cream}
+                height="1254"
+                opacity="0.94"
+                rx="72"
+                stroke={colors.parchmentDeep}
+                strokeWidth="12"
+                width="984"
+                x="48"
+                y="48"
+              />
+              <SvgText
+                fill={colors.wood}
+                fontFamily={fontFamilies.label}
+                fontSize="42"
+                fontWeight="900"
+                letterSpacing="5"
+                textAnchor="middle"
+                x="540"
+                y="154"
+              >
+                {copy.heading}
+              </SvgText>
+
+              <Circle cx="540" cy="572" fill={colors.parchment} opacity="0.92" r="352" />
+              <Circle cx="540" cy="572" fill="none" r="352" stroke={colors.cream} strokeWidth="18" />
+              <SvgImage
+                height="670"
+                href={getGeneratedPetAssetSource(assetId, petAssetUri)}
+                onLoad={handlePetImageLoad}
+                preserveAspectRatio="xMidYMid meet"
+                width="670"
+                x="205"
+                y="238"
+              />
+
+              <Rect fill={colors.parchment} height="244" rx="52" stroke={colors.cream} strokeWidth="14" width="870" x="105" y="868" />
+              <SvgText
+                fill={colors.ink}
+                fontFamily={fontFamilies.display}
+                fontSize={petNameFontSize}
+                fontWeight="900"
+                textAnchor="middle"
+                x="540"
+                y="978"
+              >
+                {copy.petName}
+              </SvgText>
+              <SvgText
+                fill={colors.mutedInk}
+                fontFamily={fontFamilies.body}
+                fontSize="42"
+                fontWeight="800"
+                textAnchor="middle"
+                x="540"
+                y="1054"
+              >
+                {copy.warmLine}
+              </SvgText>
+
+              <SvgText
+                fill={colors.woodDark}
+                fontFamily={fontFamilies.label}
+                fontSize="44"
+                fontWeight="900"
+                textAnchor="middle"
+                x="540"
+                y={copy.publicUrl ? "1198" : "1228"}
+              >
+                {copy.attribution}
+              </SvgText>
+              {copy.publicUrl ? (
+                <SvgText
+                  fill={colors.skyDeep}
+                  fontFamily={fontFamilies.body}
+                  fontSize="32"
+                  fontWeight="800"
+                  textAnchor="middle"
+                  x="540"
+                  y="1250"
+                >
+                  {copy.publicUrl}
+                </SvgText>
+              ) : null}
+            </>
+          )}
         </Svg>
       </View>
     );

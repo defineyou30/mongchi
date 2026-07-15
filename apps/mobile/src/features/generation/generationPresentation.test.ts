@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { playSfx } = vi.hoisted(() => ({ playSfx: vi.fn() }));
+const { duckBgmForMs, playSfx, playSuccessHaptic } = vi.hoisted(() => ({
+  duckBgmForMs: vi.fn(),
+  playSfx: vi.fn(),
+  playSuccessHaptic: vi.fn()
+}));
 
-vi.mock("../../shared/audio", () => ({ playSfx }));
+vi.mock("../../shared/audio", () => ({ duckBgmForMs, playSfx, playSuccessHaptic }));
 
 import {
   getGenerationPresentation,
-  playGenerationStartCueOnce,
+  playGenerationArrivalCueOnce,
   resetGenerationPresentationForTests
 } from "./generationPresentation";
 
@@ -34,15 +38,28 @@ describe("generation presentation", () => {
     });
   });
 
-  it("plays the licensed discovery cue once per generation job, not on repeated renders", () => {
+  it("plays the arrival jingle once per generation job, not on repeated renders", () => {
     resetGenerationPresentationForTests();
+    playSfx.mockClear();
+    playSuccessHaptic.mockClear();
+    duckBgmForMs.mockClear();
 
-    expect(playGenerationStartCueOnce("job_001")).toBe(true);
-    expect(playGenerationStartCueOnce("job_001")).toBe(false);
-    expect(playGenerationStartCueOnce("job_002")).toBe(true);
+    expect(playGenerationArrivalCueOnce("job_001")).toBe(true);
+    expect(playGenerationArrivalCueOnce("job_001")).toBe(false);
+    expect(playGenerationArrivalCueOnce("job_002")).toBe(true);
 
     expect(playSfx).toHaveBeenCalledTimes(2);
-    expect(playSfx).toHaveBeenNthCalledWith(1, "jingle_discovery");
-    expect(playSfx).toHaveBeenNthCalledWith(2, "jingle_discovery");
+    expect(playSfx).toHaveBeenNthCalledWith(1, "jingle_arrival");
+    expect(playSfx).toHaveBeenNthCalledWith(2, "jingle_arrival");
+    expect(playSuccessHaptic).toHaveBeenCalledTimes(2);
+    expect(duckBgmForMs).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not play the arrival jingle for an undefined job id", () => {
+    resetGenerationPresentationForTests();
+    playSfx.mockClear();
+
+    expect(playGenerationArrivalCueOnce(undefined)).toBe(false);
+    expect(playSfx).not.toHaveBeenCalled();
   });
 });
