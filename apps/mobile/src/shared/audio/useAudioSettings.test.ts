@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUDIO_SETTINGS_STORAGE_KEY,
   defaultAudioSettings,
+  ensureAudioSettingsHydrated,
   getActiveAudioSettings,
   readStoredAudioSettings,
+  resetAudioSettingsHydrationForTests,
   setActiveAudioSettings,
   writeStoredAudioSettings
 } from "./useAudioSettings";
@@ -26,6 +28,7 @@ describe("useAudioSettings", () => {
   beforeEach(() => {
     // Reset module-level active settings between tests since it's a shared singleton.
     setActiveAudioSettings(defaultAudioSettings);
+    resetAudioSettingsHydrationForTests();
   });
 
   describe("defaultAudioSettings", () => {
@@ -147,6 +150,62 @@ describe("useAudioSettings", () => {
       setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
 
       expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
+    });
+  });
+
+  // Regression coverage: BGM used to be able to start (from app/_layout.tsx's
+  // onboarding call or TerrariumSessionProvider's theme-sync effect) while
+  // getActiveAudioSettings() was still the in-memory default, because that
+  // only ever hydrated from storage once SettingsScreen's useAudioSettings()
+  // hook happened to mount. ensureAudioSettingsHydrated lets those call sites
+  // await the real persisted value first.
+  describe("ensureAudioSettingsHydrated", () => {
+    it("hydrates getActiveAudioSettings() from the given storage", async () => {
+      const storage = createMemoryStorage();
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false }, storage);
+
+      await ensureAudioSettingsHydrated(storage);
+
+      expect(getActiveAudioSettings()).toEqual({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false });
+    });
+
+    it("resolves to the hydrated settings", async () => {
+      const storage = createMemoryStorage();
+      await writeStoredAudioSettings({ soundsEnabled: true, musicEnabled: false, hapticsEnabled: true }, storage);
+
+      await expect(ensureAudioSettingsHydrated(storage)).resolves.toEqual({
+        soundsEnabled: true,
+        musicEnabled: false,
+        hapticsEnabled: true
+      });
+    });
+
+    it("is single-flight: a second call doesn't re-read storage, even if storage changes in between", async () => {
+      const storage = createMemoryStorage();
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false }, storage);
+
+      await ensureAudioSettingsHydrated(storage);
+      expect(getActiveAudioSettings().musicEnabled).toBe(false);
+
+      // Storage changes after the first hydration -- a second call should
+      // reuse the already-resolved promise rather than reading again.
+      await writeStoredAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true }, storage);
+      await ensureAudioSettingsHydrated(storage);
+
+      expect(getActiveAudioSettings().musicEnabled).toBe(false);
+    });
+
+    it("re-reads after resetAudioSettingsHydrationForTests", async () => {
+      const storage = createMemoryStorage();
+      await writeStoredAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: false }, storage);
+      await ensureAudioSettingsHydrated(storage);
+      expect(getActiveAudioSettings().musicEnabled).toBe(false);
+
+      resetAudioSettingsHydrationForTests();
+      await writeStoredAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true }, storage);
+      await ensureAudioSettingsHydrated(storage);
+
+      expect(getActiveAudioSettings().musicEnabled).toBe(true);
     });
   });
 });

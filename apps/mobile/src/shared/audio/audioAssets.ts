@@ -10,9 +10,11 @@ export type SfxId =
   | "jingle_levelup"
   | "jingle_discovery"
   | "jingle_letter"
+  | "jingle_arrival"
   | "sfx_reveal"
   | "sfx_clean"
   | "sfx_walk_return"
+  | "sfx_walk_start"
   | "sfx_purchase";
 
 export const sfxAssetSources: Record<SfxId, number> = {
@@ -27,9 +29,11 @@ export const sfxAssetSources: Record<SfxId, number> = {
   jingle_levelup: require("../../../assets/audio/jingle_levelup.m4a"),
   jingle_discovery: require("../../../assets/audio/jingle_discovery.m4a"),
   jingle_letter: require("../../../assets/audio/jingle_letter.m4a"),
+  jingle_arrival: require("../../../assets/audio/jingle_arrival.m4a"),
   sfx_reveal: require("../../../assets/audio/sfx_reveal.m4a"),
   sfx_clean: require("../../../assets/audio/sfx_clean.m4a"),
   sfx_walk_return: require("../../../assets/audio/sfx_walk_return.m4a"),
+  sfx_walk_start: require("../../../assets/audio/sfx_walk_start.m4a"),
   sfx_purchase: require("../../../assets/audio/sfx_purchase.m4a")
 };
 
@@ -40,7 +44,8 @@ export const careActionSfxById: Partial<Record<string, SfxId>> = {
   affection: "sfx_affection",
   rest: "sfx_rest",
   treat: "sfx_treat",
-  clean: "sfx_clean"
+  clean: "sfx_clean",
+  walk: "sfx_walk_start"
 };
 
 export const sfxIds: SfxId[] = Object.keys(sfxAssetSources) as SfxId[];

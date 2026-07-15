@@ -35,12 +35,12 @@ describe("haptics", () => {
       expect(impactAsync).toHaveBeenCalledWith("light");
     });
 
-    it("still triggers when Sounds is off but Haptics remains on", () => {
+    it("does not trigger when Sounds is off, even if Haptics remains on", () => {
       setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true, hapticsEnabled: true });
 
       playLightImpactHaptic();
 
-      expect(impactAsync).toHaveBeenCalledWith("light");
+      expect(impactAsync).not.toHaveBeenCalled();
     });
 
     it("does not trigger when Haptics is off", () => {
@@ -66,12 +66,12 @@ describe("haptics", () => {
       expect(notificationAsync).toHaveBeenCalledWith("success");
     });
 
-    it("still triggers when Sounds is off but Haptics remains on", () => {
+    it("does not trigger when Sounds is off, even if Haptics remains on", () => {
       setActiveAudioSettings({ soundsEnabled: false, musicEnabled: true, hapticsEnabled: true });
 
       playSuccessHaptic();
 
-      expect(notificationAsync).toHaveBeenCalledWith("success");
+      expect(notificationAsync).not.toHaveBeenCalled();
     });
 
     it("does not trigger when Haptics is off", () => {

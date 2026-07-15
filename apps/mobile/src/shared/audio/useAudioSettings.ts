@@ -90,6 +90,44 @@ const subscribeToAudioSettings = (listener: (settings: AudioSettings) => void): 
   return () => listeners.delete(listener);
 };
 
+// Bugfix (see the real-device report this fixed): getActiveAudioSettings()
+// used to only ever reflect the real persisted settings once SettingsScreen
+// happened to mount its useAudioSettings() hook -- until then (e.g. the
+// whole rest of a session that never opens Settings, or the first several
+// seconds of a fresh app launch), it silently returned the in-memory
+// defaultAudioSettings (soundsEnabled/musicEnabled both true) regardless of
+// what the user had actually turned off last time. That let BGM ignore a
+// persisted "off" toggle whenever it was triggered early -- notably
+// app/_layout.tsx's onboarding-start BGM call and
+// TerrariumSessionProvider's theme-sync effect, both of which can fire
+// before the user ever visits Settings.
+//
+// ensureAudioSettingsHydrated lets those two call sites explicitly await the
+// real persisted value before deciding whether to start playback, without
+// making every importer of this module (including plain unit tests that
+// never touch AsyncStorage) inherit an automatic background read -- it only
+// runs when a caller opts in, and only performs the actual read once
+// (single-flight; concurrent/later callers get the same in-flight promise).
+let hydrationPromise: Promise<AudioSettings> | null = null;
+
+export const ensureAudioSettingsHydrated = (storage: AudioSettingsStorage = defaultAudioSettingsStorage): Promise<AudioSettings> => {
+  if (!hydrationPromise) {
+    hydrationPromise = readStoredAudioSettings(storage)
+      .then((stored) => {
+        setActiveAudioSettings(stored);
+        return stored;
+      })
+      .catch(() => getActiveAudioSettings());
+  }
+
+  return hydrationPromise;
+};
+
+/** Test-only: lets a fresh test re-trigger ensureAudioSettingsHydrated's read instead of reusing a previous test's cached promise. */
+export const resetAudioSettingsHydrationForTests = (): void => {
+  hydrationPromise = null;
+};
+
 /**
  * Reads the active audio settings and re-renders the caller when they
  * change. On mount, hydrates settings from storage once.

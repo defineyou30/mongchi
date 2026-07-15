@@ -11,18 +11,30 @@ vi.mock("expo-audio", () => ({
 vi.mock("./bgmAssets", () => ({
   bgmAssetSources: {
     bgm_garden_day: 1,
-    bgm_garden_night: 2
+    bgm_garden_night: 2,
+    bgm_theme_fairy_garden: 3
   },
-  bgmTrackForTimeOfDay: (isDaytime: boolean) => (isDaytime ? "bgm_garden_day" : "bgm_garden_night")
+  // Mirrors the real getBgmTrackForTheme's shape (night always plain,
+  // unrecognized/undefined theme falls back to the plain day track) with one
+  // representative theme mapped to its own track -- full coverage of the
+  // real theme->track map lives in bgmAssets.test.ts.
+  getBgmTrackForTheme: (themeId: string | undefined, isDaytime: boolean) => {
+    if (!isDaytime) {
+      return "bgm_garden_night";
+    }
+    return themeId === "theme-fairy-garden" ? "bgm_theme_fairy_garden" : "bgm_garden_day";
+  }
 }));
 
 import { setActiveAudioSettings } from "./useAudioSettings";
 import {
   duckBgm,
   duckBgmForMs,
+  getActiveBgmThemeIdForTests,
   getActiveBgmTrackIdForTests,
   pauseBgmForBackground,
   playBgm,
+  playBgmForThemeAndTimeOfDay,
   playBgmForTimeOfDay,
   preloadBgm,
   resetBgmPlayerForTests,
@@ -75,7 +87,7 @@ describe("bgmPlayer", () => {
     it("creates one looping player per BGM track", () => {
       preloadBgm();
 
-      expect(createAudioPlayer).toHaveBeenCalledTimes(2);
+      expect(createAudioPlayer).toHaveBeenCalledTimes(3);
       const players = createAudioPlayer.mock.results.map((r) => r.value as FakePlayer);
       expect(players.every((p) => p.loop)).toBe(true);
     });
@@ -84,7 +96,7 @@ describe("bgmPlayer", () => {
       preloadBgm();
       preloadBgm();
 
-      expect(createAudioPlayer).toHaveBeenCalledTimes(2);
+      expect(createAudioPlayer).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -168,6 +180,136 @@ describe("bgmPlayer", () => {
       playBgmForTimeOfDay(false);
 
       expect(getActiveBgmTrackIdForTests()).toBe("bgm_garden_night");
+    });
+
+    it("resolves against whatever theme was last set by playBgmForThemeAndTimeOfDay", () => {
+      // Mirrors TerrariumSessionProvider's theme-sync effect running before
+      // TerrariumHomeScreen's own bare playBgmForTimeOfDay(isDaytimeNow())
+      // mount effect -- the bare call must stay theme-aware without the
+      // theme being passed through again.
+      playBgmForThemeAndTimeOfDay("theme-fairy-garden", true);
+
+      playBgmForTimeOfDay(true);
+
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_theme_fairy_garden");
+    });
+  });
+
+  describe("playBgmForThemeAndTimeOfDay", () => {
+    it("crossfades into the given theme's day track", () => {
+      playBgmForThemeAndTimeOfDay("theme-fairy-garden", true);
+
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_theme_fairy_garden");
+      expect(getActiveBgmThemeIdForTests()).toBe("theme-fairy-garden");
+    });
+
+    it("resolves to the shared night track regardless of theme", () => {
+      playBgmForThemeAndTimeOfDay("theme-fairy-garden", false);
+
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_garden_night");
+    });
+
+    it("falls back to the plain garden day track for an unrecognized/default theme", () => {
+      playBgmForThemeAndTimeOfDay("theme-default-garden" as never, true);
+
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_garden_day");
+    });
+
+    it("crossfades away from a previous theme track when the theme changes", async () => {
+      playBgmForThemeAndTimeOfDay("theme-fairy-garden", true);
+      const themePlayer = createAudioPlayer.mock.results[2]!.value as FakePlayer;
+      await flushRamp();
+      expect(themePlayer.volume).toBeGreaterThan(0);
+
+      playBgmForThemeAndTimeOfDay(undefined, true);
+      await flushRamp();
+
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_garden_day");
+      expect(themePlayer.volume).toBe(0);
+      expect(themePlayer.pause).toHaveBeenCalled();
+    });
+  });
+
+  // Regression coverage for a real-device report: turning both "Sounds" and
+  // "Music & ambience" off in Settings left BGM audibly playing. Root causes
+  // (both fixed above, see playBgm/syncBgmWithSettings's doc comments):
+  // (1) playBgm used to return early when Music was off *without* stopping
+  // whatever the previous desiredTrackId's player was, orphaning it forever;
+  // (2) getActiveAudioSettings() could still read the stale in-memory
+  // default (both enabled) for a while after a real cold start, since it
+  // only ever hydrated from storage once SettingsScreen mounted -- see
+  // useAudioSettings.ts's ensureAudioSettingsHydrated.
+  describe("regression: turning Music off always stops BGM, even mid-crossfade or via the theme-sync effect", () => {
+    it("stops both the outgoing and incoming track when Music is turned off mid-crossfade", async () => {
+      playBgm("bgm_garden_day");
+      const dayPlayer = createAudioPlayer.mock.results[0]!.value as FakePlayer;
+      await flushRamp();
+      expect(dayPlayer.volume).toBeGreaterThan(0);
+
+      // Start a crossfade to night and stop partway through it, so both
+      // players are simultaneously non-silent (day fading out, night fading
+      // in) -- the "이중 플레이어" state the regression was reported in.
+      playBgm("bgm_garden_night");
+      const nightPlayer = createAudioPlayer.mock.results[1]!.value as FakePlayer;
+      await vi.advanceTimersByTimeAsync(500);
+      expect(dayPlayer.volume).toBeGreaterThan(0);
+      expect(nightPlayer.volume).toBeGreaterThan(0);
+
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: true });
+      syncBgmWithSettings();
+
+      // The non-desired (outgoing) player is hard-silenced synchronously.
+      expect(dayPlayer.volume).toBe(0);
+      expect(dayPlayer.pause).toHaveBeenCalled();
+
+      await flushRamp();
+
+      // The desired (incoming) player fades out on its own schedule and
+      // ends silent too.
+      expect(nightPlayer.volume).toBe(0);
+      expect(nightPlayer.pause).toHaveBeenCalled();
+    });
+
+    it("never starts audible playback via playBgmForThemeAndTimeOfDay while Music is off, even across a theme change", async () => {
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: true });
+
+      playBgmForThemeAndTimeOfDay("theme-fairy-garden", true);
+      await flushRamp();
+      const themePlayer = createAudioPlayer.mock.results[2]!.value as FakePlayer;
+      expect(themePlayer.play).not.toHaveBeenCalled();
+
+      // Simulates TerrariumSessionProvider's theme-sync effect firing again
+      // (e.g. session hydration resolving to a different theme) while Music
+      // is still off -- must stay silent, not just "not start the new
+      // track" but also never leave anything else audible.
+      playBgmForThemeAndTimeOfDay(undefined, true);
+      await flushRamp();
+
+      const dayPlayer = createAudioPlayer.mock.results[0]!.value as FakePlayer;
+      expect(dayPlayer.play).not.toHaveBeenCalled();
+      expect(themePlayer.play).not.toHaveBeenCalled();
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_garden_day");
+    });
+
+    it("resumes the currently active theme's track when Music is turned back on", async () => {
+      playBgmForThemeAndTimeOfDay("theme-fairy-garden", true);
+      const themePlayer = createAudioPlayer.mock.results[2]!.value as FakePlayer;
+      await flushRamp();
+      expect(themePlayer.volume).toBeGreaterThan(0);
+
+      setActiveAudioSettings({ soundsEnabled: false, musicEnabled: false, hapticsEnabled: true });
+      syncBgmWithSettings();
+      await flushRamp();
+      expect(themePlayer.volume).toBe(0);
+      expect(themePlayer.pause).toHaveBeenCalled();
+
+      setActiveAudioSettings({ soundsEnabled: true, musicEnabled: true, hapticsEnabled: true });
+      syncBgmWithSettings();
+      await flushRamp();
+
+      expect(themePlayer.play).toHaveBeenCalled();
+      expect(themePlayer.volume).toBeGreaterThan(0);
+      expect(getActiveBgmTrackIdForTests()).toBe("bgm_theme_fairy_garden");
     });
   });
 

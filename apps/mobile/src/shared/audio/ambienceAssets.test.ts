@@ -12,9 +12,17 @@ type WeatherCondition =
   | "hot"
   | "cold";
 
-const weatherToAmbienceTrack = (condition: WeatherCondition): "amb_birds" | "amb_rain" => {
+const weatherToAmbienceTrack = (condition: WeatherCondition): "amb_birds" | "amb_rain" | "amb_wind" | "amb_snow" => {
   if (condition === "rain" || condition === "storm") {
     return "amb_rain";
+  }
+
+  if (condition === "wind") {
+    return "amb_wind";
+  }
+
+  if (condition === "snow") {
+    return "amb_snow";
   }
 
   return "amb_birds";
@@ -30,19 +38,18 @@ describe("ambienceAssets logic (see ambiencePlayer.test.ts for require(...)-safe
       expect(weatherToAmbienceTrack("storm")).toBe("amb_rain");
     });
 
-    it("maps every other weather condition to the birds ambience track", () => {
-      const nonRainConditions: WeatherCondition[] = [
-        "clear",
-        "partly_cloudy",
-        "cloudy",
-        "snow",
-        "fog",
-        "wind",
-        "hot",
-        "cold"
-      ];
+    it("maps wind to its own wind ambience track", () => {
+      expect(weatherToAmbienceTrack("wind")).toBe("amb_wind");
+    });
 
-      for (const condition of nonRainConditions) {
+    it("maps snow to its own snow ambience track", () => {
+      expect(weatherToAmbienceTrack("snow")).toBe("amb_snow");
+    });
+
+    it("maps every remaining weather condition to the birds ambience track", () => {
+      const birdsConditions: WeatherCondition[] = ["clear", "partly_cloudy", "cloudy", "fog", "hot", "cold"];
+
+      for (const condition of birdsConditions) {
         expect(weatherToAmbienceTrack(condition)).toBe("amb_birds");
       }
     });
