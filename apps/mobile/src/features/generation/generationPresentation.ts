@@ -59,6 +59,27 @@ export const playGenerationArrivalCueOnce = (generationJobId: string | undefined
   return true;
 };
 
+const generationFailureCueDedupeKeys = new Set<string>();
+
+/**
+ * Analytics-only counterpart to playGenerationArrivalCueOnce: marks a
+ * generation failure as "already reported" exactly once per occurrence, so a
+ * screen remount or a re-render while status stays "failed" never double
+ * fires generation_failed. Dedupe key is the failure's own failedAt
+ * timestamp (a fresh ISO string every time generation.status flips to
+ * failed, including retries), not the job id -- some failures (e.g.
+ * source_photo_required) happen before a job even exists.
+ */
+export const recordGenerationFailureCueOnce = (dedupeKey: string | undefined): boolean => {
+  if (!dedupeKey || generationFailureCueDedupeKeys.has(dedupeKey)) {
+    return false;
+  }
+
+  generationFailureCueDedupeKeys.add(dedupeKey);
+  return true;
+};
+
 export const resetGenerationPresentationForTests = (): void => {
   generationArrivalCueJobIds.clear();
+  generationFailureCueDedupeKeys.clear();
 };

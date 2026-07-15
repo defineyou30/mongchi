@@ -11,6 +11,7 @@ vi.mock("../../shared/audio", () => ({ duckBgmForMs, playSfx, playSuccessHaptic 
 import {
   getGenerationPresentation,
   playGenerationArrivalCueOnce,
+  recordGenerationFailureCueOnce,
   resetGenerationPresentationForTests
 } from "./generationPresentation";
 
@@ -61,5 +62,19 @@ describe("generation presentation", () => {
 
     expect(playGenerationArrivalCueOnce(undefined)).toBe(false);
     expect(playSfx).not.toHaveBeenCalled();
+  });
+
+  it("reports a generation failure exactly once per failedAt occurrence", () => {
+    resetGenerationPresentationForTests();
+
+    expect(recordGenerationFailureCueOnce("2026-07-15T09:00:00.000Z")).toBe(true);
+    expect(recordGenerationFailureCueOnce("2026-07-15T09:00:00.000Z")).toBe(false);
+    expect(recordGenerationFailureCueOnce("2026-07-15T09:05:00.000Z")).toBe(true);
+  });
+
+  it("never reports a generation failure with no dedupe key", () => {
+    resetGenerationPresentationForTests();
+
+    expect(recordGenerationFailureCueOnce(undefined)).toBe(false);
   });
 });

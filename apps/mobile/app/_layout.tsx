@@ -59,12 +59,20 @@ import {
 } from "../src/shared/audio";
 import { ErrorBoundary } from "../src/shared/errors/ErrorBoundary";
 import { installGlobalErrorHooks } from "../src/shared/errors/globalErrorHooks";
+import { initAnalyticsMonitoring } from "../src/shared/monitoring/analytics";
+import { initSentryMonitoring, Sentry } from "../src/shared/monitoring/sentry";
 
 // Wired at module scope so uncaught JS errors/unhandled rejections are
 // captured from the very first tick, before RootLayout even mounts (see
 // docs/readiness-diagnosis.md item 5). Idempotent -- safe if this module
 // re-evaluates (e.g. fast refresh).
 installGlobalErrorHooks();
+// Crash reporting (Sentry, crash-only -- see sentry.ts) and light product
+// analytics (PostHog, see analytics.ts) -- both idempotent and both disabled
+// under __DEV__ internally, so this is safe to call unconditionally here,
+// same as installGlobalErrorHooks above.
+initSentryMonitoring();
+initAnalyticsMonitoring();
 
 const rootBackground = "#9FDBFF";
 // Blanket fallback face for any Text/TextInput that hasn't been migrated to
@@ -123,7 +131,7 @@ const applyDefaultFont = (Component: typeof Text | typeof TextInput, fontFamily:
   component.defaultProps.style = [defaultFontBaselines.get(component), { fontFamily }];
 };
 
-export default function RootLayout() {
+function RootLayout() {
   const [languagePreferenceLoaded, setLanguagePreferenceLoaded] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     PixelifySans_400Regular,
@@ -270,3 +278,9 @@ export default function RootLayout() {
     </View>
   );
 }
+
+// Sentry.wrap adds a root-level error boundary + touch-event breadcrumbs
+// around the whole app -- on top of, not instead of, this file's own
+// ErrorBoundary above (which owns the actual fallback UI); Sentry's wrapper
+// only observes and reports, it doesn't replace the app's error screen.
+export default Sentry.wrap(RootLayout);

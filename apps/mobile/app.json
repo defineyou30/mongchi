@@ -58,8 +58,11 @@
     "android": {
       "package": "com.defineyou.mongchi",
       "permissions": [
-        "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
@@ -130,7 +133,20 @@
             ]
           }
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "mongchi",
+          "project": "mongchi"
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c25e9c87-4455-4722-99e0-b4a560cd0338"
+      }
+    }
   }
 }

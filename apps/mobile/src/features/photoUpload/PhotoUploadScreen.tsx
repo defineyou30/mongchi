@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image, Pressable, Text, View } from "react-native";
@@ -5,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { validateLocalPhotoCandidate } from "@mongchi/shared";
 
+import { recordMobileEvent } from "../../shared/analytics/mobileAnalytics";
 import { GeneratedPetAssetImage, getFallbackGeneratedPetAssetId } from "../../shared/assets/generatedPetAssets";
 import { useFontFamilies } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
@@ -24,6 +26,13 @@ export function PhotoUploadScreen() {
 
   const selectedPhotoUri = photo.selectedPhotoUri?.startsWith("sample://") ? null : photo.selectedPhotoUri;
   const selected = photo.selectedMockPhoto || !!photo.selectedPhotoUri;
+
+  // Onboarding funnel start: fires on every entry to this screen (including
+  // a return visit after "Choose another photo" from a generation failure),
+  // not just the very first ever. Fire-and-forget; never affects render.
+  useEffect(() => {
+    recordMobileEvent("onboarding_started", {});
+  }, []);
 
   const acceptPickedAsset = (asset: ImagePicker.ImagePickerAsset, source: "library" | "camera") => {
     const validation = validateLocalPhotoCandidate({

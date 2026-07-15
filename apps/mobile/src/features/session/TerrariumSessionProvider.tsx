@@ -35,6 +35,7 @@ import {
   getActivePetBundle,
   getActivePrototypePet,
   getBondProgressValue,
+  getCalendarDaysBetween,
   getCareSatisfactionSummary,
   getCreditItemPrice,
   getCreditRewardAmount,
@@ -100,6 +101,7 @@ import type {
 } from "@mongchi/shared";
 import { homeWalkDurationMs } from "../terrarium/terrariumHomeInteractionContract";
 import type { MobileApiError } from "../../shared/api";
+import { recordMobileEvent } from "../../shared/analytics/mobileAnalytics";
 import { reporter } from "../../shared/errors/reporter";
 import { getActiveAppLocale, getActiveTimeZone } from "../../localization/config";
 import { ensureAudioSettingsHydrated, isDaytimeNow, playBgmForThemeAndTimeOfDay } from "../../shared/audio";
@@ -790,6 +792,17 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     attemptKey: "",
     maxProgress: 0
   });
+  // session_opened analytics: fires exactly once per provider mount (app
+  // open), the first time hydration finishes -- see the effect near
+  // activePet below.
+  const sessionOpenedAnalyticsRecordedRef = useRef(false);
+  // first_care_action analytics: seeds itself with whatever care-streak day
+  // key the session already had at hydration (so reopening the app on a day
+  // care already happened doesn't look like a "first care"), then only fires
+  // when that day key later changes live during this session -- see the
+  // effect near activeBundle below.
+  const firstCareOfDaySeededRef = useRef(false);
+  const lastSeenCareDayKeyRef = useRef<string | null>(null);
   const [initialQaApiState] = useState(() => getQaScreenApiState(qaScreenPreset));
   const [apiSyncStatus, setApiSyncStatus] = useState<"idle" | "syncing" | "ready" | "error">(
     initialQaApiState?.status ?? (apiRuntime.error || generationApiRuntime.error ? "error" : "idle")
@@ -983,6 +996,51 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   // place that bridges old shape <-> new shape.
   const activeBundle = useMemo(() => getActivePetBundle(state), [state]);
   const catalogItems = useMemo(() => getRuntimeCatalogItems(apiRuntime.mode, apiCatalogItems), [apiCatalogItems, apiRuntime.mode]);
+
+  // session_opened: a lightweight "app was opened, here's a returning
+  // player's retention signal" event, fired once per provider mount right
+  // after local/session hydration finishes (isHydrated flips true) --
+  // whether or not onboarding is complete (days_together reads 0 for a
+  // brand-new player, which is itself useful signal).
+  useEffect(() => {
+    if (!isHydrated || sessionOpenedAnalyticsRecordedRef.current) {
+      return;
+    }
+
+    sessionOpenedAnalyticsRecordedRef.current = true;
+    recordMobileEvent("session_opened", {
+      days_together: getCalendarDaysBetween(activePet.createdAt, nowIso())
+    });
+  }, [activePet.createdAt, isHydrated]);
+
+  // first_care_action: seeds lastSeenCareDayKeyRef with whatever day key the
+  // streak already had at hydration (so a session that opens on a day care
+  // already happened never looks like a fresh "first care"), then reports
+  // exactly once per calendar day the moment that key changes live --
+  // updateCareStreakOnCare (careStreak.ts) only ever advances lastCareDayKey
+  // to "today", so any change here is always a genuine first care of a new
+  // day, never a re-fire for the same day. careStreak is account-wide (a
+  // top-level PrototypeSessionState field, not part of PetBundle), so this
+  // reads state.careStreak directly rather than activeBundle.
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    const currentCareDayKey = state.careStreak.lastCareDayKey;
+
+    if (!firstCareOfDaySeededRef.current) {
+      firstCareOfDaySeededRef.current = true;
+      lastSeenCareDayKeyRef.current = currentCareDayKey;
+      return;
+    }
+
+    if (currentCareDayKey !== null && currentCareDayKey !== lastSeenCareDayKeyRef.current) {
+      lastSeenCareDayKeyRef.current = currentCareDayKey;
+      recordMobileEvent("first_care_action", {});
+    }
+  }, [isHydrated, state.careStreak.lastCareDayKey]);
+
   const activeGeneratedAssetId = activeBundle.acceptedAsset?.id ?? activePet.activeAssetId ?? null;
   const generatedAssetIdsToResolve = useMemo(
     () =>
@@ -1991,6 +2049,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const claimPendingReward = useCallback(async (item: RewardClaimQueueItem): Promise<{ ok: boolean }> => {
     if (item.kind === "treat") {
       // Already granted at enqueue time -- see enqueueDailyTreatRewardClaim.
+      recordMobileEvent("reward_claimed", { reward_kind: item.copyCategory });
       return { ok: true };
     }
 
@@ -2007,6 +2066,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         setState((current) => ({ ...current, wallet: grantCreditWalletValue(current.wallet, { bonusCredits: amount }, nowIso()) }));
       }
 
+      recordMobileEvent("reward_claimed", { reward_kind: item.copyCategory });
       return { ok: true };
     }
 
@@ -2033,6 +2093,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       }
     }));
 
+    recordMobileEvent("reward_claimed", { reward_kind: item.copyCategory });
     return { ok: true };
   }, []);
 
@@ -2098,6 +2159,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           return granted.state;
         });
         setApiSyncStatus("ready");
+        recordMobileEvent("theme_purchased", {});
 
         return {
           ok: true,
@@ -2124,6 +2186,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       }
 
       setState(result.state);
+      recordMobileEvent("theme_purchased", {});
 
       return {
         ok: true,
@@ -2292,6 +2355,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
         setState(mergePrototypeGeneratedAssets(confirmed.state, mockAssets));
         clearExpressionPackStatus(pack.id);
+        recordMobileEvent("expression_pack_purchased", {});
 
         return { ok: true, messageSafe: `New moments unlocked: ${pack.nameEn}!`, started: true };
       }
@@ -2399,6 +2463,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         }));
       });
 
+      recordMobileEvent("expression_pack_purchased", {});
       return { ok: true, messageSafe: "New moments are on their way...", started: true };
     },
     [
@@ -2500,6 +2565,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       const price = getCreditItemPrice(itemId);
       const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
       const supabaseClient = getSupabaseClient();
+      // Analytics-only lookup: credit_item_purchased's `category` property
+      // must stay a closed ItemCategory enum value (see
+      // mobileAnalyticsWhitelist.ts), never a free-form label -- if the item
+      // somehow isn't in this runtime's catalog, the purchase still proceeds
+      // as normal, it just goes unlogged rather than fabricating a category.
+      const purchasedItemCategory = catalogItems.find((catalogItem) => catalogItem.id === itemId)?.category;
 
       if (!price) {
         return {
@@ -2556,6 +2627,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
           });
           setApiSyncStatus("ready");
 
+          if (purchasedItemCategory) {
+            recordMobileEvent("credit_item_purchased", { category: purchasedItemCategory });
+          }
+
           return {
             ok: true,
             mode: apiRuntime.mode,
@@ -2580,6 +2655,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
             purchasedAt
           )
         );
+
+        if (purchasedItemCategory) {
+          recordMobileEvent("credit_item_purchased", { category: purchasedItemCategory });
+        }
 
         return {
           ok: true,
@@ -2610,6 +2689,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       }));
       setApiSyncStatus("ready");
 
+      if (purchasedItemCategory) {
+        recordMobileEvent("credit_item_purchased", { category: purchasedItemCategory });
+      }
+
       return {
         ok: true,
         mode: "api",
@@ -2617,7 +2700,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
         placed: false
       };
     },
-    [apiRuntime, setApiError, state.wallet]
+    [apiRuntime, catalogItems, setApiError, state.wallet]
   );
 
   const reportGenerationIssue = useCallback((category: GenerationIssueCategory) => {

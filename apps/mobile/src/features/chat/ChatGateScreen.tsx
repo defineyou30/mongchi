@@ -20,6 +20,7 @@ import {
 import type { ConversationMessage } from "@mongchi/shared";
 import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
+import { recordMobileEvent } from "../../shared/analytics/mobileAnalytics";
 import { playSfx } from "../../shared/audio";
 import { GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
 import { getWeatherBackgroundSource } from "../../shared/assets/weatherSceneAssets";
@@ -499,6 +500,13 @@ export function ChatGateScreen() {
     setDayPassActive(true);
     setDayPassPurchasing(false);
     playSfx("sfx_purchase");
+
+    // Only a fresh charge counts as a purchase -- confirming a pass the
+    // player already held costs nothing new (see result.alreadyActive's doc
+    // comment on PurchaseChatDayPassResult).
+    if (!result.alreadyActive) {
+      recordMobileEvent("day_pass_purchased", {});
+    }
   };
 
   const sendPremiumMessage = async (retryTurn?: OptimisticChatTurn) => {
@@ -577,6 +585,7 @@ export function ChatGateScreen() {
         setDayPassActive(false);
         setDayPassExpiresAt(null);
       }
+      recordMobileEvent("chat_turn_sent", { charge_kind: sent.chargeKind });
     } catch (cause) {
       const error = cause instanceof Error ? cause : new Error("Unexpected chat send failure");
       const latency = buildChatLatencySample({ pressedAtMs, optimisticAtMs, completedAtMs: Date.now() });

@@ -7,6 +7,7 @@ import type { GenerationJobStatus } from "@mongchi/shared";
 
 import { getLocalizedText, normalizeAppLocale } from "../../localization/locale";
 import { useReducedMotionPreference } from "../../shared/accessibility/useReducedMotionPreference";
+import { recordMobileEvent } from "../../shared/analytics/mobileAnalytics";
 import { colors, radii, shadows, spacing } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
 import { BackButton } from "../../shared/ui/BackButton";
@@ -14,8 +15,13 @@ import { TerrariumArt } from "../../shared/ui/GameIllustrations";
 import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+import { classifyGenerationFailureReason } from "./generationFailureReason";
 import { getGenerationMotionPolicy } from "./generationMotionPolicy";
-import { getGenerationPresentation, playGenerationArrivalCueOnce } from "./generationPresentation";
+import {
+  getGenerationPresentation,
+  playGenerationArrivalCueOnce,
+  recordGenerationFailureCueOnce
+} from "./generationPresentation";
 
 // Rotating personalized narration keeps the wait feeling like the pet is being
 // hand-crafted rather than a spinner running.
@@ -157,9 +163,12 @@ export function GenerationScreen() {
   // beat for this flow: PetRevealScreen's own sfx_reveal on mount is a
   // separate, later moment the player reaches only after deliberately
   // tapping "Reveal" below, not an automatic follow-on from this screen.
+  // generation_completed rides the same per-job dedupe (playSfx/haptics and
+  // the analytics event should fire exactly once, together, for the same
+  // arrival) rather than tracking its own job-id set.
   useEffect(() => {
-    if (completed) {
-      playGenerationArrivalCueOnce(petProfile?.activeGenerationJobId);
+    if (completed && playGenerationArrivalCueOnce(petProfile?.activeGenerationJobId)) {
+      recordMobileEvent("generation_completed", {});
     }
   }, [completed, petProfile?.activeGenerationJobId]);
 
@@ -175,6 +184,18 @@ export function GenerationScreen() {
       setRetryTapDisabled(false);
     }
   }, [failed, generation.retryCount, generation.failedAt, generation.failureCode]);
+
+  // generation_failed, deduped by failedAt (a fresh timestamp on every
+  // terminal failure, retried or not -- see recordGenerationFailureCueOnce's
+  // doc comment) so a re-render while status stays "failed" never double
+  // reports the same occurrence. `reason` is bucketed into a small closed
+  // set (see classifyGenerationFailureReason) rather than passing the raw,
+  // server-evolvable failureCode string through as free text.
+  useEffect(() => {
+    if (failed && recordGenerationFailureCueOnce(generation.failedAt)) {
+      recordMobileEvent("generation_failed", { reason: classifyGenerationFailureReason(generation.failureCode) });
+    }
+  }, [failed, generation.failedAt, generation.failureCode]);
 
   useEffect(() => {
     if (completed || failed) {
