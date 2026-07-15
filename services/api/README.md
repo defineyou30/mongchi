@@ -1,5 +1,11 @@
 # API Placeholder
 
+> **Status: legacy.** This is the 2026-07-03-era prototype backend. Production
+> traffic is served by `supabase/functions`, not this service. Removal is
+> planned as a separate post-launch PR (bundled with a pipeline rework) —
+> `validate:db-migrations` and `typecheck:api` still depend on this tree
+> today, so it stays in place until that rework lands.
+
 Backend/API boundary for Mongchi.
 
 Implemented locally:

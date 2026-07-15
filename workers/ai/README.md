@@ -1,5 +1,11 @@
 # AI Worker Boundary
 
+> **Status: legacy.** This is the 2026-07-03-era prototype backend. Production
+> generation traffic is served by `supabase/functions` (`generate-avatar`),
+> not this worker. Removal is planned as a separate post-launch PR (bundled
+> with a pipeline rework) — `typecheck:worker` still depends on this tree
+> today, so it stays in place until that rework lands.
+
 AI generation worker boundary for Mongchi.
 
 Implemented locally:

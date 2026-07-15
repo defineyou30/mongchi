@@ -32,3 +32,10 @@ docs/design/app-store/outputs/v1/
 
 # Supabase CLI connection and runtime cache.
 supabase/.temp/
+
+# Scratch working directories: local generation previews, audio candidate
+# takes, and raw simulator captures. Not referenced by the app or tests.
+tmp/
+scripts/audio/candidates/
+scripts/store-screenshots/raw/
+.lazyweb/

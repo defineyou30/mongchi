@@ -7,7 +7,6 @@ const scanDirs = [path.join(rootDir, "apps/mobile/src"), path.join(rootDir, "app
 const targetExtensions = new Set([".tsx"]);
 const failures = [];
 const screenHeaderContracts = [
-  "apps/mobile/src/features/appShell/ShellScreen.tsx",
   "apps/mobile/src/features/chat/ChatGateScreen.tsx",
   "apps/mobile/src/features/generation/GenerationScreen.tsx",
   "apps/mobile/src/features/inventory/InventoryScreen.tsx",

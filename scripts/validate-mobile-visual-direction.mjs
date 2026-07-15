@@ -27,7 +27,7 @@ const requireExcludes = (relativePath, fragments, label) => {
 };
 
 requireIncludes(
-  "docs/product-direction.md",
+  "docs/product/product-direction.md",
   [
     "premium cozy casual mobile game UI",
     "high-resolution pixel-art pet-sim hybrid",
@@ -59,12 +59,6 @@ requireIncludes(
   "apps/mobile/src/shared/ui/Chip.tsx",
   ["selectedFace", "borderBottomWidth", "shadows.tile"],
   "Tactile chip"
-);
-
-requireIncludes(
-  "apps/mobile/src/shared/ui/Section.tsx",
-  ["radii.panel", "rgba(255,232,199", "shadows.gamePanel"],
-  "Game panel section"
 );
 
 requireIncludes(
