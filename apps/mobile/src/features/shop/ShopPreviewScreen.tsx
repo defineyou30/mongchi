@@ -581,7 +581,7 @@ export function ShopPreviewScreen() {
   ];
 
   const handlePurchase = (product: CommerceProduct) => {
-    void purchaseProduct(product).then((result) => {
+    void purchaseProduct(product.productId).then((result) => {
       if (!result.ok) {
         showDialog({
           title: t("shop.dialogs.checkout"),

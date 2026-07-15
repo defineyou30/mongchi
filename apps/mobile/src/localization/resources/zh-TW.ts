@@ -631,13 +631,17 @@ export const zhTW = {
       popular: "適合姿勢套組與主題",
       large: "長期收集與裝飾"
     },
-    actions: { buy: "購買", purchasing: "確認中...", preparing: "商店準備中" },
+    actions: { buy: "購買", purchasing: "確認中...", arriving: "送達中...", preparing: "商店準備中" },
     storeNotice: "付款由 App Store 處理，只有完成驗證的寶石會加入餘額。",
     dialogs: {
       failedTitle: "未能完成購買",
       failedBody: "請檢查連線後再試一次。",
       successTitle: "寶石已送達",
-      successBody: "已驗證的寶石已加入餘額。"
+      successBody: "已驗證的寶石已加入餘額。",
+      pendingTitle: "就快好了",
+      pendingBody: "購買正在等待商店確認，核准後寶石就會送達。",
+      delayedTitle: "寶石正在路上",
+      delayedBody: "購買已完成！寶石入帳可能需要多一點時間，請稍後再確認一次。"
     }
   },
   inventory: {

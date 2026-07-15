@@ -650,6 +650,7 @@ export const frFR = {
     actions: {
       buy: "Acheter",
       purchasing: "Vérification...",
+      arriving: "En chemin...",
       preparing: "Boutique en préparation"
     },
     storeNotice: "Les paiements sont gérés par l’App Store. Seules les gemmes vérifiées sont ajoutées.",
@@ -657,7 +658,11 @@ export const frFR = {
       failedTitle: "Achat non terminé",
       failedBody: "Vérifiez votre connexion et réessayez.",
       successTitle: "Les gemmes sont arrivées",
-      successBody: "Les gemmes vérifiées ont été ajoutées."
+      successBody: "Les gemmes vérifiées ont été ajoutées.",
+      pendingTitle: "Presque terminé",
+      pendingBody: "Votre achat attend la confirmation de la boutique. Les gemmes arriveront dès qu'il sera approuvé.",
+      delayedTitle: "Les gemmes arrivent",
+      delayedBody: "Votre achat a bien été effectué ! Les gemmes peuvent mettre un peu plus de temps à apparaître — revenez bientôt."
     }
   },
   inventory: {

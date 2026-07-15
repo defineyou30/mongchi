@@ -1,8 +1,19 @@
-import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
-import type { CommerceProduct, PurchaseVerificationRequest, RestorePurchasesRequest } from "@mongchi/shared";
-import type { Purchase } from "expo-iap";
+import { classifyRevenueCatPurchaseError } from "./creditPackCheckout";
+import type { StoreProductPricing } from "./creditPackCheckout";
+
+// react-native-purchases wraps native StoreKit/Play Billing bindings and
+// cannot be imported at module scope here -- like expo-iap before it (see
+// this file's git history) and @sentry/react-native (shared/monitoring/
+// sentry.ts's header comment), it is not safe to load under vitest's
+// transform. Every export below that needs the real SDK loads it lazily via
+// loadRevenueCatModule, so nativeStorePurchases.test.ts can import this file
+// and exercise its pure helpers without ever triggering that import. See
+// creditPackCheckout.ts for the pure product-mapping/error-classification/
+// poll-termination logic this file wires the SDK into.
+type RevenueCatModule = typeof import("react-native-purchases");
+type RevenueCatPurchases = RevenueCatModule["default"];
 
 declare const process:
   | {
@@ -12,37 +23,49 @@ declare const process:
 
 export type NativePurchasePlatform = "ios" | "android";
 
-export type NativeStorePurchaseConnection = {
-  requestPurchase: (product: CommerceProduct) => Promise<void>;
-  restorePurchases: () => Promise<Purchase[]>;
-  finishPurchase: (purchase: Purchase, isConsumable: boolean) => Promise<void>;
-  close: () => Promise<void>;
-};
-
-export type NativeStoreConnectionResult =
-  | {
-      ok: true;
-      connection: NativeStorePurchaseConnection;
-    }
-  | {
-      ok: false;
-      messageSafe: string;
-    };
-
-type ExpoIapModule = typeof import("expo-iap");
-
-let expoIapModulePromise: Promise<ExpoIapModule> | null = null;
-
-export const isNativeStoreCheckoutEnabled = (): boolean =>
-  typeof process !== "undefined" && process.env?.EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT === "true";
-
 export const getNativePurchasePlatform = (): NativePurchasePlatform | null =>
   Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : null;
 
-const loadExpoIapModule = (): Promise<ExpoIapModule> => {
-  expoIapModulePromise ??= import("expo-iap");
+/**
+ * Native checkout stays off unless EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT
+ * is explicitly "true" for this build (see apps/mobile/.env.example) --
+ * originally gated on "server-side receipt verification already deployed",
+ * which is now satisfied by the revenuecat-credit-webhook Edge Function (see
+ * docs/engineering/current/credit-store-foundation.md). Kept as an explicit
+ * opt-in (rather than removed) so it still doubles as an operator-controlled
+ * kill switch per build/environment.
+ */
+export const isNativeStoreCheckoutEnabled = (): boolean =>
+  getNativePurchasePlatform() !== null &&
+  typeof process !== "undefined" &&
+  process.env?.EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT === "true";
 
-  return expoIapModulePromise;
+// RevenueCat iOS Public SDK Key (see
+// docs/engineering/current/credit-store-foundation.md's confirmed facts).
+const REVENUECAT_IOS_SDK_KEY = "appl_vcqaVXPMgBRmsuMSCTadOJUQolA";
+
+const readEnvVar = (key: string): string | null => {
+  const value = typeof process === "undefined" ? undefined : process.env?.[key];
+  const trimmed = value?.trim();
+
+  return trimmed ? trimmed : null;
+};
+
+/**
+ * Android has no RevenueCat public SDK key provisioned yet. Rather than
+ * configuring the SDK with a missing/wrong key, checkout on Android stays
+ * gracefully unavailable until EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY is set
+ * (an operator/config action, not a code change).
+ */
+const getRevenueCatApiKey = (platform: NativePurchasePlatform): string | null =>
+  platform === "ios" ? REVENUECAT_IOS_SDK_KEY : readEnvVar("EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY");
+
+let revenueCatModulePromise: Promise<RevenueCatModule> | null = null;
+
+const loadRevenueCatModule = (): Promise<RevenueCatModule> => {
+  revenueCatModulePromise ??= import("react-native-purchases");
+
+  return revenueCatModulePromise;
 };
 
 const safeStoreErrorMessage = (error: unknown): string => {
@@ -53,185 +76,173 @@ const safeStoreErrorMessage = (error: unknown): string => {
   return "Store checkout is unavailable right now.";
 };
 
-const getPurchaseTransactionId = (purchase: Purchase): string | null => {
-  const transactionId = "transactionId" in purchase ? purchase.transactionId : null;
+let configuredApiKey: string | null = null;
 
-  return transactionId || purchase.id || null;
-};
+type EnsureRevenueCatConfiguredResult =
+  | { ok: true; purchases: RevenueCatPurchases }
+  | { ok: false; messageSafe: string };
 
-export const buildStorePurchaseVerificationRequest = async (
-  platform: NativePurchasePlatform,
-  product: CommerceProduct,
-  purchase: Purchase
-): Promise<
-  | {
-      ok: true;
-      request: PurchaseVerificationRequest;
-    }
-  | {
-      ok: false;
-      messageSafe: string;
-    }
-> => {
-  if (purchase.productId !== product.productId) {
-    return {
-      ok: false,
-      messageSafe: "The store returned a different product than requested."
-    };
-  }
-
-  if (purchase.purchaseState !== "purchased") {
-    return {
-      ok: false,
-      messageSafe: "The purchase is still pending."
-    };
-  }
-
-  const storeVerificationToken = purchase.purchaseToken ?? null;
-  const transactionId = getPurchaseTransactionId(purchase);
-
-  if (!storeVerificationToken || !transactionId) {
-    return {
-      ok: false,
-      messageSafe: "The store did not return purchase details."
-    };
-  }
-
-  const receiptHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, storeVerificationToken);
-
-  return {
-    ok: true,
-    request: {
-      platform,
-      productId: product.productId,
-      transactionId,
-      receiptHash: `sha256:${receiptHash}`,
-      storeVerificationToken
-    }
-  };
-};
-
-export const buildStoreRestorePurchasesRequest = async (
-  platform: NativePurchasePlatform,
-  products: readonly CommerceProduct[],
-  purchases: readonly Purchase[]
-): Promise<{
-  request: RestorePurchasesRequest;
-  eligibleCount: number;
-  skippedCount: number;
-}> => {
-  const productById = new Map(products.map((product) => [product.productId, product]));
-  const purchasesByTransactionId = new Map<string, NonNullable<RestorePurchasesRequest["purchases"]>[number]>();
-  let skippedCount = 0;
-
-  for (const purchase of purchases) {
-    const product = productById.get(purchase.productId);
-
-    if (!product || purchase.purchaseState !== "purchased") {
-      skippedCount += 1;
-      continue;
-    }
-
-    const verification = await buildStorePurchaseVerificationRequest(platform, product, purchase);
-
-    if (!verification.ok) {
-      skippedCount += 1;
-      continue;
-    }
-
-    purchasesByTransactionId.set(verification.request.transactionId, {
-      productId: verification.request.productId,
-      transactionId: verification.request.transactionId,
-      receiptHash: verification.request.receiptHash,
-      storeVerificationToken: verification.request.storeVerificationToken as string
-    });
-  }
-
-  const restorePurchases = [...purchasesByTransactionId.values()];
-
-  return {
-    request: {
-      platform,
-      transactionIds: restorePurchases.map((purchase) => purchase.transactionId),
-      ...(restorePurchases.length > 0 ? { purchases: restorePurchases } : {})
-    },
-    eligibleCount: restorePurchases.length,
-    skippedCount
-  };
-};
-
-export const startNativeStorePurchaseConnection = async ({
-  onPurchase,
-  onError
-}: {
-  onPurchase: (purchase: Purchase) => void;
-  onError: (messageSafe: string) => void;
-}): Promise<NativeStoreConnectionResult> => {
+/** Lazily configures RevenueCat at most once per apiKey (safe to call before
+ * every store operation below -- re-configuring with the same key is a
+ * no-op). */
+const ensureRevenueCatConfigured = async (): Promise<EnsureRevenueCatConfiguredResult> => {
   const platform = getNativePurchasePlatform();
 
   if (!platform) {
-    return {
-      ok: false,
-      messageSafe: "Store checkout is only available on iOS or Android."
-    };
+    return { ok: false, messageSafe: "Store checkout is only available on iOS or Android." };
   }
 
-  if (!isNativeStoreCheckoutEnabled()) {
-      return {
-        ok: false,
-        messageSafe: "Store checkout is unavailable right now."
-      };
+  const apiKey = getRevenueCatApiKey(platform);
+
+  if (!apiKey) {
+    return { ok: false, messageSafe: "Store checkout is unavailable right now." };
   }
 
   try {
-    const iap = await loadExpoIapModule();
-    await iap.initConnection();
+    const { default: Purchases } = await loadRevenueCatModule();
 
-    const purchaseSubscription = iap.purchaseUpdatedListener(onPurchase);
-    const errorSubscription = iap.purchaseErrorListener((error) => {
-      onError(safeStoreErrorMessage(error));
-    });
+    if (configuredApiKey !== apiKey) {
+      Purchases.configure({ apiKey });
+      configuredApiKey = apiKey;
+    }
+
+    return { ok: true, purchases: Purchases };
+  } catch (error) {
+    return { ok: false, messageSafe: safeStoreErrorMessage(error) };
+  }
+};
+
+export type LogInStoreUserResult = { ok: true } | { ok: false; messageSafe: string };
+
+/**
+ * Links the RevenueCat identity to this device's Supabase user id, so the
+ * revenuecat-credit-webhook's `app_user_id` matches a real Supabase user
+ * (docs/engineering/current/credit-store-foundation.md's "RevenueCat
+ * Webhook" section, point 4) -- without this, a purchase verifies fine but
+ * grants nobody. Safe to call before every purchase attempt: RevenueCat's
+ * logIn is a fast no-op once the current app user id already matches.
+ */
+export const logInStoreUser = async (supabaseUserId: string): Promise<LogInStoreUserResult> => {
+  const configured = await ensureRevenueCatConfigured();
+
+  if (!configured.ok) {
+    return configured;
+  }
+
+  try {
+    await configured.purchases.logIn(supabaseUserId);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, messageSafe: safeStoreErrorMessage(error) };
+  }
+};
+
+export type FetchStoreProductsResult =
+  | { ok: true; products: StoreProductPricing[] }
+  | { ok: false; messageSafe: string };
+
+// Cache of the raw store product objects RevenueCat returned, keyed by
+// productId -- purchaseStoreProduct needs the full product object (not just
+// its id) to start a purchase, so it reuses whatever the most recent fetch
+// cached instead of re-fetching on every attempt.
+const storeProductCache = new Map<string, Awaited<ReturnType<RevenueCatPurchases["getProducts"]>>[number]>();
+
+export const fetchStoreProducts = async (productIds: readonly string[]): Promise<FetchStoreProductsResult> => {
+  const configured = await ensureRevenueCatConfigured();
+
+  if (!configured.ok) {
+    return configured;
+  }
+
+  try {
+    const products = await configured.purchases.getProducts([...productIds]);
+
+    for (const product of products) {
+      storeProductCache.set(product.identifier, product);
+    }
 
     return {
       ok: true,
-      connection: {
-        requestPurchase: async (product) => {
-          if (product.grantType === "subscription") {
-            if (platform === "ios") {
-              await iap.requestPurchase({ type: "subs", request: { apple: { sku: product.productId } } });
-              return;
-            }
-
-            await iap.requestPurchase({ type: "subs", request: { google: { skus: [product.productId] } } });
-            return;
-          }
-
-          if (platform === "ios") {
-            await iap.requestPurchase({ type: "in-app", request: { apple: { sku: product.productId } } });
-            return;
-          }
-
-          await iap.requestPurchase({ type: "in-app", request: { google: { skus: [product.productId] } } });
-        },
-        restorePurchases: async () =>
-          iap.getAvailablePurchases({
-            includeSuspendedAndroid: false,
-            onlyIncludeActiveItemsIOS: true
-          }),
-        finishPurchase: async (purchase, isConsumable) => {
-          await iap.finishTransaction({ purchase, isConsumable });
-        },
-        close: async () => {
-          purchaseSubscription.remove();
-          errorSubscription.remove();
-          await iap.endConnection();
-        }
-      }
+      products: products.map((product) => ({ productId: product.identifier, priceString: product.priceString }))
     };
   } catch (error) {
-    return {
-      ok: false,
-      messageSafe: safeStoreErrorMessage(error)
-    };
+    return { ok: false, messageSafe: safeStoreErrorMessage(error) };
+  }
+};
+
+export type PurchaseStoreProductOutcome =
+  | { ok: true; status: "purchased" }
+  | { ok: true; status: "pending" }
+  | { ok: true; status: "cancelled" }
+  | { ok: false; messageSafe: string };
+
+/**
+ * Purchases a single store product by id. Resolves `ok: true` for all three
+ * non-error outcomes (purchased/pending/cancelled) -- see
+ * classifyRevenueCatPurchaseError's doc comment for why a user cancel and a
+ * pending (e.g. Ask to Buy) purchase are not treated as failures. Callers
+ * decide what to do next per status: `purchased` should kick off a credit-
+ * balance poll (see creditPackCheckout.ts), `pending`/`cancelled` need no
+ * further action here.
+ */
+export const purchaseStoreProduct = async (productId: string): Promise<PurchaseStoreProductOutcome> => {
+  const configured = await ensureRevenueCatConfigured();
+
+  if (!configured.ok) {
+    return configured;
+  }
+
+  let product = storeProductCache.get(productId);
+
+  if (!product) {
+    const fetched = await fetchStoreProducts([productId]);
+
+    if (!fetched.ok) {
+      return fetched;
+    }
+
+    product = storeProductCache.get(productId);
+  }
+
+  if (!product) {
+    return { ok: false, messageSafe: "This item is not available in the store right now." };
+  }
+
+  try {
+    await configured.purchases.purchaseStoreProduct(product);
+    return { ok: true, status: "purchased" };
+  } catch (error) {
+    const classification = classifyRevenueCatPurchaseError(error);
+
+    if (classification === "cancelled" || classification === "pending") {
+      return { ok: true, status: classification };
+    }
+
+    return { ok: false, messageSafe: safeStoreErrorMessage(error) };
+  }
+};
+
+export type RestoreStoreEntitlementsResult = { ok: true } | { ok: false; messageSafe: string };
+
+/**
+ * Reconciles this device against RevenueCat's record of the current user's
+ * purchases. Note this does not re-grant already-consumed credit packs --
+ * consumables are not restorable on either store, by design (the balance
+ * itself, hydrated via hydrateServerCreditBalance, is the durable record).
+ * This exists for completeness/future non-consumable entitlements; nothing
+ * in the credit store's own UI currently calls it.
+ */
+export const restoreStoreEntitlements = async (): Promise<RestoreStoreEntitlementsResult> => {
+  const configured = await ensureRevenueCatConfigured();
+
+  if (!configured.ok) {
+    return configured;
+  }
+
+  try {
+    await configured.purchases.restorePurchases();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, messageSafe: safeStoreErrorMessage(error) };
   }
 };

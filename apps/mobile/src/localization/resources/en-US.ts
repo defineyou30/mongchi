@@ -642,6 +642,7 @@ export const enUS = {
     actions: {
       buy: "Buy",
       purchasing: "Checking...",
+      arriving: "On the way...",
       preparing: "Store setup pending"
     },
     storeNotice: "Payments are handled by the App Store. Only verified gems are added to your balance.",
@@ -649,7 +650,11 @@ export const enUS = {
       failedTitle: "Purchase not completed",
       failedBody: "Check your connection and try again.",
       successTitle: "Gems arrived",
-      successBody: "Verified gems were added to your balance."
+      successBody: "Verified gems were added to your balance.",
+      pendingTitle: "Almost there",
+      pendingBody: "Your purchase is waiting for the store to confirm it. Gems will arrive once it's approved.",
+      delayedTitle: "Gems are on the way",
+      delayedBody: "Your purchase went through! Gems can take a little longer to show up — check back soon."
     }
   },
   inventory: {

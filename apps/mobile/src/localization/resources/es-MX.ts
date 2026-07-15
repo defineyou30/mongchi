@@ -645,6 +645,7 @@ export const esMX = {
     actions: {
       buy: "Comprar",
       purchasing: "Verificando...",
+      arriving: "En camino...",
       preparing: "Tienda en preparación"
     },
     storeNotice: "Los pagos se procesan en App Store. Solo las gemas verificadas se agregan al saldo.",
@@ -652,7 +653,11 @@ export const esMX = {
       failedTitle: "Compra no completada",
       failedBody: "Revisa tu conexión e inténtalo de nuevo.",
       successTitle: "Llegaron tus gemas",
-      successBody: "Las gemas verificadas se agregaron a tu saldo."
+      successBody: "Las gemas verificadas se agregaron a tu saldo.",
+      pendingTitle: "Ya casi",
+      pendingBody: "Tu compra está esperando la confirmación de la tienda. Las gemas llegarán en cuanto se apruebe.",
+      delayedTitle: "Tus gemas están en camino",
+      delayedBody: "¡Tu compra se completó! Las gemas pueden tardar un poco más en aparecer — vuelve a revisar en un momento."
     }
   },
   inventory: {

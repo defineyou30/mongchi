@@ -92,7 +92,6 @@ import type {
   PetBundle,
   PetSetupDraft,
   PrototypeSessionState,
-  RestorePurchasesRequest,
   RewardClaimCopyCategory,
   RewardClaimQueueItem,
   RewardClaimQueueState,
@@ -116,6 +115,13 @@ import {
 import { createAsyncActionGuard } from "./asyncActionGuard";
 import { requestAppleCredential } from "./appleAuthSession";
 import { clearAvatarGenerationRequestId, getOrCreateAvatarGenerationRequestId, rotateAvatarGenerationRequestId } from "./avatarGenerationRequestIdStore";
+import {
+  CREDIT_BALANCE_POLL_INTERVAL_MS,
+  CREDIT_BALANCE_POLL_MAX_ATTEMPTS,
+  creditPackProductIds,
+  mapStoreProductsToPricingById,
+  shouldStopCreditBalancePolling
+} from "./creditPackCheckout";
 import { getDevelopmentStoreCreditPresentation, getExpressionPackValidationWallet } from "./developmentStoreCredits";
 import { createExpressionPackPurchaseCoordinator } from "./expressionPackPurchaseCoordinator";
 import { clearExpressionPackRequestId, getOrCreateExpressionPackRequestId, rotateExpressionPackRequestId } from "./expressionPackRequestIdStore";
@@ -129,6 +135,7 @@ import type { AccountIdentitySummary } from "./supabaseAccountLinkSession";
 import { downloadSessionSnapshot, uploadSessionSnapshot } from "./supabaseSessionSnapshotSession";
 import { deleteSupabaseChatHistory } from "./supabasePremiumChatSession";
 import {
+  ensureSupabaseSession,
   hydrateServerCreditBalance,
   pollSupabaseExpressionPackFlow,
   pollSupabaseGenerationFlow,
@@ -155,13 +162,13 @@ import {
 import type { GeneratedAssetReadUrlCacheEntry } from "./generatedAssetReadUrl";
 import { buildGeneratedAssetUriMap } from "./generatedAssetUriMap";
 import {
-  buildStoreRestorePurchasesRequest,
-  buildStorePurchaseVerificationRequest,
+  fetchStoreProducts,
   getNativePurchasePlatform,
   isNativeStoreCheckoutEnabled,
-  startNativeStorePurchaseConnection
+  logInStoreUser,
+  purchaseStoreProduct,
+  restoreStoreEntitlements
 } from "./nativeStorePurchases";
-import type { NativeStorePurchaseConnection } from "./nativeStorePurchases";
 import { createQaScreenSession, getConfiguredQaScreenPreset, getQaScreenApiState } from "./qaScreenSession";
 import { getRuntimeActiveEntitlements, getRuntimeCatalogItems } from "./runtimePresentationData";
 import { createStoreScreenshotSession, getConfiguredStoreScreenshotPreset } from "./storeScreenshotSession";
@@ -178,7 +185,6 @@ import { claimSupabaseCreditReward } from "./supabaseRewardSession";
 import { purchaseSupabaseInventoryItem, purchaseSupabaseThemeBundle } from "./supabaseShopSession";
 import { submitSupportFeedbackToSupabase } from "./supabaseSupportSession";
 import { purchaseSupabaseWalkEarlyReturn } from "./supabaseWalkSession";
-import type { Purchase } from "expo-iap";
 
 type RestorePurchasesResult =
   | {
@@ -192,11 +198,24 @@ type RestorePurchasesResult =
       messageSafe: string;
     };
 
+/**
+ * `status` distinguishes the four ways a RevenueCat purchase attempt can end
+ * up `ok: true`: `cancelled` (user backed out -- callers must show no error
+ * UI) and `pending` (e.g. iOS Ask to Buy) both resolve immediately with
+ * nothing charged yet; `purchased` means the post-purchase credit-balance
+ * poll (see CREDIT_BALANCE_POLL_MAX_ATTEMPTS below) actually observed the
+ * webhook's grant land; `purchased_delayed` means the store purchase itself
+ * succeeded but the poll window elapsed before the balance moved -- still a
+ * real purchase, just one whose confirmation UI should say "on the way"
+ * instead of "arrived" (the revenuecat-credit-webhook is durable and will
+ * eventually land regardless).
+ */
 type PurchaseProductResult =
   | {
       ok: true;
       mode: TerrariumRuntimeMode;
       messageSafe: string;
+      status: "purchased" | "purchased_delayed" | "pending" | "cancelled";
     }
   | {
       ok: false;
@@ -306,7 +325,11 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   apiSyncStatus: "idle" | "syncing" | "ready" | "error";
   apiErrorMessage: string | null;
   nativeCheckoutReady: boolean;
+  /** productId -> localized store price string, from RevenueCat's getProducts (see nativeStorePurchases.ts). Empty until the bootstrap fetch below resolves. */
+  creditPackPricingById: Partial<Record<string, string>>;
   purchaseInProgressProductId: string | null;
+  /** Set only during the post-purchase credit-balance poll phase (see purchaseProduct's doc comment) -- lets the credit store show a distinct "on the way" label instead of the generic "checking" one. */
+  purchaseArrivingProductId: string | null;
   purchaseStatusMessage: string | null;
   devStoreUnlocked: boolean;
   devStoreCreditsAvailable: boolean;
@@ -346,7 +369,8 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   deleteOriginalPhoto: () => void;
   deleteChatHistory: () => void;
   purchaseCatalogItem: (itemId: ItemId) => Promise<PurchaseCatalogItemResult>;
-  purchaseProduct: (product: CommerceProduct) => Promise<PurchaseProductResult>;
+  /** Buys a single store product by id via RevenueCat (see purchaseProduct's doc comment for the full purchase+poll flow). Takes just the productId -- unlike the old expo-iap flow, RevenueCat's own webhook grants credits server-side, so no CommerceProduct catalog entry is required to start a purchase. */
+  purchaseProduct: (productId: string) => Promise<PurchaseProductResult>;
   restorePurchases: () => Promise<RestorePurchasesResult>;
   syncWallet: (wallet: CreditWallet) => void;
   /** Refreshes wallet.credits from the server (credit_wallets via get_credit_balance) -- see hydrateCreditBalance's doc comment. No-op without a Supabase client or on a failed fetch. */
@@ -430,6 +454,10 @@ const SLEEP_POSE_NIGHT_UNLOCK_MAX_ATTEMPTS = 5;
 const SNAPSHOT_AUTO_UPLOAD_DEBOUNCE_MS = 15_000;
 
 const nowIso = () => new Date().toISOString();
+
+// Used only by purchaseProduct's post-purchase credit-balance poll (see its
+// doc comment) to space out hydrateServerCreditBalance calls.
+const sleep = (durationMs: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, durationMs));
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
@@ -711,9 +739,10 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   // on-device file -- see the local-asset-hydration effect below and
   // generatedAssetUriById's local-uri precedence.
   const [localGeneratedAssetUris, setLocalGeneratedAssetUris] = useState<Partial<Record<GeneratedAssetId, string>>>({});
-  const nativeStoreConnection = useRef<NativeStorePurchaseConnection | null>(null);
   const [nativeCheckoutReady, setNativeCheckoutReady] = useState(false);
+  const [creditPackPricingById, setCreditPackPricingById] = useState<Partial<Record<string, string>>>({});
   const [purchaseInProgressProductId, setPurchaseInProgressProductId] = useState<string | null>(null);
+  const [purchaseArrivingProductId, setPurchaseArrivingProductId] = useState<string | null>(null);
   const [purchaseStatusMessage, setPurchaseStatusMessage] = useState<string | null>(null);
   const [weatherLocationStatus, setWeatherLocationStatus] = useState<LocationWeatherRefreshStatus>("idle");
   const [weatherLocationMessage, setWeatherLocationMessage] = useState<string | null>(null);
@@ -1193,70 +1222,6 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     setApiSyncStatus("error");
     setApiErrorMessage(messageSafe);
   }, []);
-
-  const handleNativePurchase = useCallback(
-    async (purchase: Purchase) => {
-      if (apiRuntime.mode !== "api") {
-        setPurchaseError("Checkout confirmation is required before purchases can unlock.");
-        return;
-      }
-
-      const platform = getNativePurchasePlatform();
-
-      if (!platform) {
-        setPurchaseError("Purchases can only be verified on iOS or Android.");
-        return;
-      }
-
-      const product = apiCommerceProducts?.find((candidate) => candidate.productId === purchase.productId);
-
-      if (!product) {
-        setPurchaseError("This item is not available in the current store catalog.");
-        return;
-      }
-
-      setApiSyncStatus("syncing");
-      setPurchaseStatusMessage("Verifying purchase.");
-
-      const verification = await buildStorePurchaseVerificationRequest(platform, product, purchase);
-
-      if (!verification.ok) {
-        setPurchaseError(verification.messageSafe);
-        return;
-      }
-
-      const result = await apiRuntime.client.verifyPurchase(verification.request);
-
-      if (!result.ok) {
-        setApiError(result.error);
-        setPurchaseInProgressProductId(null);
-        setPurchaseStatusMessage(result.error.messageSafe);
-        return;
-      }
-
-      setApiEntitlements((current) => mergeEntitlements(current ?? [], result.data.entitlements));
-      if (result.data.wallet) {
-        setState((current) => ({
-          ...current,
-          wallet: result.data.wallet as CreditWallet
-        }));
-      }
-
-      try {
-        await nativeStoreConnection.current?.finishPurchase(purchase, product.grantType === "consumable");
-      } catch {
-        setPurchaseStatusMessage("Purchase was verified, but the store transaction still needs to finish.");
-        setPurchaseInProgressProductId(null);
-        setApiSyncStatus("ready");
-        return;
-      }
-
-      setPurchaseInProgressProductId(null);
-      setPurchaseStatusMessage("Purchase verified.");
-      setApiSyncStatus("ready");
-    },
-    [apiCommerceProducts, apiRuntime, setApiError, setPurchaseError]
-  );
 
   const setApiGenerationError = useCallback(
     (error: MobileApiError) => {
@@ -2847,111 +2812,178 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     });
   }, [apiRuntime, setApiError]);
 
+  // Credit store bootstrap: fetches localized pricing for the credit packs
+  // from RevenueCat as soon as a Supabase-backed build is running on a
+  // supported platform. Deliberately independent of apiRuntime.mode -- the
+  // credit store is Supabase-backed in production (services/api's own,
+  // separate commerce catalog is a dev/test-only concern; see
+  // docs/engineering/current/credit-store-foundation.md). Does not require a
+  // signed-in uid yet (getProducts doesn't need one) -- logInStoreUser only
+  // happens right before an actual purchase, in purchaseProduct below.
   useEffect(() => {
     let cancelled = false;
 
-    if (apiRuntime.mode !== "api" || !isNativeStoreCheckoutEnabled()) {
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient || !getNativePurchasePlatform() || !isNativeStoreCheckoutEnabled()) {
       setNativeCheckoutReady(false);
       return;
     }
 
-    void startNativeStorePurchaseConnection({
-      onPurchase: (purchase) => {
-        void handleNativePurchase(purchase);
-      },
-      onError: setPurchaseError
-    }).then((result) => {
+    void fetchStoreProducts(creditPackProductIds).then((result) => {
       if (cancelled) {
-        if (result.ok) {
-          void result.connection.close();
-        }
         return;
       }
 
       if (!result.ok) {
-        nativeStoreConnection.current = null;
         setNativeCheckoutReady(false);
-        setPurchaseStatusMessage(result.messageSafe);
         return;
       }
 
-      nativeStoreConnection.current = result.connection;
+      setCreditPackPricingById(mapStoreProductsToPricingById(result.products));
       setNativeCheckoutReady(true);
-      setPurchaseStatusMessage(null);
     });
 
     return () => {
       cancelled = true;
-      const connection = nativeStoreConnection.current;
-      nativeStoreConnection.current = null;
-      setNativeCheckoutReady(false);
-
-      if (connection) {
-        void connection.close();
-      }
     };
-  }, [apiRuntime.mode, handleNativePurchase, setPurchaseError]);
+  }, []);
 
+  /**
+   * Buys a single store product (currently always one of the credit packs;
+   * see CreditStoreScreen) through RevenueCat. Unlike the pre-pivot
+   * expo-iap/services/api flow, no client-side receipt verification call
+   * happens here -- RevenueCat itself verifies the receipt and calls the
+   * revenuecat-credit-webhook Edge Function, which grants credits directly
+   * against Supabase (docs/engineering/current/credit-store-foundation.md's
+   * "RevenueCat Webhook" section). This function's job is therefore just:
+   * make sure the purchase is attributed to the right Supabase user
+   * (logInStoreUser), start the purchase, and -- once RevenueCat confirms it
+   * -- poll the server-authoritative balance until the webhook's grant is
+   * observed or the poll budget runs out (see CREDIT_BALANCE_POLL_MAX_ATTEMPTS
+   * in creditPackCheckout.ts). A poll timeout is not a failure: the webhook
+   * is durable and will land regardless, so the result is `purchased_delayed`
+   * rather than `ok: false` -- see PurchaseProductResult's doc comment.
+   */
   const purchaseProduct = useCallback(
-    async (product: CommerceProduct): Promise<PurchaseProductResult> => {
-      if (apiRuntime.mode !== "api") {
+    async (productId: string): Promise<PurchaseProductResult> => {
+      if (!getNativePurchasePlatform() || !isNativeStoreCheckoutEnabled()) {
         return {
           ok: false,
           messageSafe: "Store checkout is unavailable right now."
         };
       }
 
-      if (!getNativePurchasePlatform()) {
-        return {
-          ok: false,
-          messageSafe: "Checkout is only available on iOS or Android."
-        };
-      }
+      const supabaseClient = getSupabaseClient();
 
-      if (!isNativeStoreCheckoutEnabled()) {
+      if (!supabaseClient) {
         return {
           ok: false,
           messageSafe: "Store checkout is unavailable right now."
         };
       }
 
-      const connection = nativeStoreConnection.current;
+      const session = await ensureSupabaseSession(supabaseClient);
 
-      if (!nativeCheckoutReady || !connection) {
+      if (!session.ok) {
         return {
           ok: false,
-          messageSafe: purchaseStatusMessage ?? "Store checkout is still connecting."
+          messageSafe: "We need a moment to connect your account. Try again in a bit."
         };
       }
 
-      setPurchaseInProgressProductId(product.productId);
+      setPurchaseInProgressProductId(productId);
+      setPurchaseArrivingProductId(null);
       setPurchaseStatusMessage("Opening secure checkout.");
       setApiSyncStatus("syncing");
       setApiErrorMessage(null);
 
-      try {
-        await connection.requestPurchase(product);
-      } catch (error) {
-        const messageSafe = error instanceof Error ? error.message : "Store checkout could not be started.";
-        setPurchaseError(messageSafe);
+      const loggedIn = await logInStoreUser(session.userId);
 
-        return {
-          ok: false,
-          messageSafe
-        };
+      if (!loggedIn.ok) {
+        setPurchaseError(loggedIn.messageSafe);
+        return { ok: false, messageSafe: loggedIn.messageSafe };
       }
 
-      return {
-        ok: true,
-        mode: "api",
-        messageSafe: "Checkout started."
-      };
+      const previousBalance = state.wallet.credits;
+      const purchaseOutcome = await purchaseStoreProduct(productId);
+
+      if (!purchaseOutcome.ok) {
+        setPurchaseError(purchaseOutcome.messageSafe);
+        return { ok: false, messageSafe: purchaseOutcome.messageSafe };
+      }
+
+      if (purchaseOutcome.status === "cancelled") {
+        // Silent by design -- a user-initiated cancel is not an error.
+        setPurchaseInProgressProductId(null);
+        setPurchaseStatusMessage(null);
+        setApiSyncStatus("ready");
+        return { ok: true, mode: "api", status: "cancelled", messageSafe: "Checkout was cancelled." };
+      }
+
+      if (purchaseOutcome.status === "pending") {
+        setPurchaseInProgressProductId(null);
+        setPurchaseStatusMessage("Your purchase is waiting for approval. Gems will arrive once it's confirmed.");
+        setApiSyncStatus("ready");
+        return { ok: true, mode: "api", status: "pending", messageSafe: "Purchase is pending approval." };
+      }
+
+      // Purchased: RevenueCat confirmed the transaction, but the credit grant
+      // itself arrives asynchronously via the webhook -- poll the
+      // server-authoritative balance until it moves or the budget runs out.
+      setPurchaseArrivingProductId(productId);
+      setPurchaseStatusMessage("Your gems are on their way to the garden...");
+
+      let balanceConfirmed = false;
+
+      for (let attempt = 1; attempt <= CREDIT_BALANCE_POLL_MAX_ATTEMPTS; attempt += 1) {
+        await sleep(CREDIT_BALANCE_POLL_INTERVAL_MS);
+
+        const hydrated = await hydrateServerCreditBalance(supabaseClient);
+        const currentBalance = hydrated.ok ? hydrated.credits : previousBalance;
+
+        if (hydrated.ok) {
+          setState((current) => ({
+            ...current,
+            wallet: { ...current.wallet, credits: hydrated.credits, updatedAt: nowIso() }
+          }));
+
+          if (currentBalance > previousBalance) {
+            balanceConfirmed = true;
+          }
+        }
+
+        if (shouldStopCreditBalancePolling({ attempt, maxAttempts: CREDIT_BALANCE_POLL_MAX_ATTEMPTS, previousBalance, currentBalance })) {
+          break;
+        }
+      }
+
+      setPurchaseArrivingProductId(null);
+      setPurchaseInProgressProductId(null);
+      setApiSyncStatus("ready");
+
+      if (balanceConfirmed) {
+        setPurchaseStatusMessage("Gems arrived.");
+        return { ok: true, mode: "api", status: "purchased", messageSafe: "Purchase verified." };
+      }
+
+      setPurchaseStatusMessage("Gems are still on their way.");
+      return { ok: true, mode: "api", status: "purchased_delayed", messageSafe: "Purchase completed; balance sync is still catching up." };
     },
-    [apiRuntime.mode, nativeCheckoutReady, purchaseStatusMessage, setPurchaseError]
+    [setPurchaseError, state.wallet.credits]
   );
 
+  /**
+   * Reconciles this device's RevenueCat purchase history against the
+   * current Supabase-linked identity, then re-hydrates the credit balance.
+   * Note this does not re-grant already-consumed credit packs -- consumables
+   * are not restorable on either store by design (the balance itself is the
+   * durable record). Nothing in the credit store's UI currently calls this;
+   * kept for completeness/future non-consumable entitlements (see
+   * restoreStoreEntitlements's doc comment in nativeStorePurchases.ts).
+   */
   const restorePurchases = useCallback(async (): Promise<RestorePurchasesResult> => {
-    if (apiRuntime.mode !== "api") {
+    if (!getNativePurchasePlatform() || !isNativeStoreCheckoutEnabled()) {
       return {
         ok: true,
         mode: "local",
@@ -2960,12 +2992,21 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       };
     }
 
-    const platform = getNativePurchasePlatform();
+    const supabaseClient = getSupabaseClient();
 
-    if (!platform) {
+    if (!supabaseClient) {
       return {
         ok: false,
-        messageSafe: "Purchases can only be restored on iOS or Android."
+        messageSafe: "Purchases can only be restored when signed in."
+      };
+    }
+
+    const session = await ensureSupabaseSession(supabaseClient);
+
+    if (!session.ok) {
+      return {
+        ok: false,
+        messageSafe: "We need a moment to connect your account. Try again in a bit."
       };
     }
 
@@ -2973,70 +3014,39 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     setApiErrorMessage(null);
     setPurchaseStatusMessage("Checking store purchases.");
 
-    let restoreRequest: RestorePurchasesRequest = {
-      platform,
-      transactionIds: []
-    };
+    const loggedIn = await logInStoreUser(session.userId);
 
-    if (isNativeStoreCheckoutEnabled()) {
-      const connection = nativeStoreConnection.current;
-
-      if (!nativeCheckoutReady || !connection) {
-        const messageSafe = purchaseStatusMessage ?? "Store checkout is still connecting.";
-        setApiSyncStatus("ready");
-        setPurchaseStatusMessage(messageSafe);
-
-        return {
-          ok: false,
-          messageSafe
-        };
-      }
-
-      try {
-        const storePurchases = await connection.restorePurchases();
-        const restorePayload = await buildStoreRestorePurchasesRequest(platform, apiCommerceProducts ?? [], storePurchases);
-        restoreRequest = restorePayload.request;
-        setPurchaseStatusMessage(
-          restorePayload.eligibleCount > 0 ? "Verifying restored purchases." : "No store purchases found."
-        );
-      } catch (error) {
-        const messageSafe = error instanceof Error ? error.message : "Store purchases could not be restored.";
-        setPurchaseError(messageSafe);
-
-        return {
-          ok: false,
-          messageSafe
-        };
-      }
+    if (!loggedIn.ok) {
+      setPurchaseError(loggedIn.messageSafe);
+      return { ok: false, messageSafe: loggedIn.messageSafe };
     }
 
-    const result = await apiRuntime.client.restorePurchases(restoreRequest);
+    const restored = await restoreStoreEntitlements();
 
-    if (!result.ok) {
-      setApiError(result.error);
-      return {
-        ok: false,
-        messageSafe: result.error.messageSafe
-      };
+    if (!restored.ok) {
+      setPurchaseError(restored.messageSafe);
+      return { ok: false, messageSafe: restored.messageSafe };
     }
 
-    setApiEntitlements((current) => mergeEntitlements(current ?? [], result.data.entitlements));
-    if (result.data.wallet) {
+    const hydrated = await hydrateServerCreditBalance(supabaseClient);
+
+    if (hydrated.ok) {
       setState((current) => ({
         ...current,
-        wallet: result.data.wallet as CreditWallet
+        wallet: { ...current.wallet, credits: hydrated.credits, updatedAt: nowIso() }
       }));
     }
+
     setApiSyncStatus("ready");
     setPurchaseStatusMessage("Purchases restored.");
 
     return {
       ok: true,
       mode: "api",
-      restoredCount: result.data.entitlements.length,
-      serverVerified: result.data.serverVerified
+      restoredCount: 0,
+      serverVerified: hydrated.ok
     };
-  }, [apiRuntime, apiCommerceProducts, nativeCheckoutReady, purchaseStatusMessage, setApiError, setPurchaseError]);
+  }, [setPurchaseError]);
 
   const resetSession = useCallback(async (): Promise<ResetSessionResult> => {
     if (apiRuntime.mode === "api" && activeBundle.petProfile?.id) {
@@ -3512,7 +3522,9 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     apiSyncStatus,
     apiErrorMessage,
     nativeCheckoutReady,
+    creditPackPricingById,
     purchaseInProgressProductId,
+    purchaseArrivingProductId,
     purchaseStatusMessage,
     devStoreUnlocked,
     devStoreCreditsAvailable: storeCreditPresentation.devStoreCreditsAvailable,

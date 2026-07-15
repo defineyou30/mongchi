@@ -640,6 +640,7 @@ export const koKR = {
     actions: {
       buy: "구매하기",
       purchasing: "확인 중...",
+      arriving: "도착하는 중...",
       preparing: "스토어 준비 중"
     },
     storeNotice: "결제는 App Store에서 처리되고, 확인된 보석만 잔액에 추가돼요.",
@@ -647,7 +648,11 @@ export const koKR = {
       failedTitle: "구매를 마치지 못했어요",
       failedBody: "연결 상태를 확인하고 다시 시도해 주세요.",
       successTitle: "보석이 도착했어요",
-      successBody: "확인된 보석이 잔액에 추가됐어요."
+      successBody: "확인된 보석이 잔액에 추가됐어요.",
+      pendingTitle: "거의 다 됐어요",
+      pendingBody: "결제 승인을 기다리고 있어요. 승인되는 대로 보석이 도착할 거예요.",
+      delayedTitle: "보석이 오고 있어요",
+      delayedBody: "구매가 완료됐어요! 보석 반영이 조금 늦어질 수 있으니 잠시 후 다시 확인해 주세요."
     }
   },
   inventory: {

@@ -644,6 +644,7 @@ export const jaJP = {
     actions: {
       buy: "購入する",
       purchasing: "確認中...",
+      arriving: "届いています...",
       preparing: "ストア準備中"
     },
     storeNotice: "決済はApp Storeで処理され、確認済みのジェムだけが残高に追加されます。",
@@ -651,7 +652,11 @@ export const jaJP = {
       failedTitle: "購入を完了できませんでした",
       failedBody: "接続を確認してもう一度お試しください。",
       successTitle: "ジェムが届きました",
-      successBody: "確認済みのジェムが残高に追加されました。"
+      successBody: "確認済みのジェムが残高に追加されました。",
+      pendingTitle: "もう少しです",
+      pendingBody: "購入の承認をお待ちしています。承認され次第ジェムが届きます。",
+      delayedTitle: "ジェムが届く途中です",
+      delayedBody: "購入は完了しました！反映まで少し時間がかかることがあります。しばらくしてから確認してください。"
     }
   },
   inventory: {

@@ -648,6 +648,7 @@ export const deDE = {
     actions: {
       buy: "Kaufen",
       purchasing: "Wird geprüft...",
+      arriving: "Ist unterwegs...",
       preparing: "Store wird vorbereitet"
     },
     storeNotice: "Zahlungen laufen über den App Store. Nur bestätigte Juwelen werden gutgeschrieben.",
@@ -655,7 +656,11 @@ export const deDE = {
       failedTitle: "Kauf nicht abgeschlossen",
       failedBody: "Prüfe deine Verbindung und versuche es erneut.",
       successTitle: "Juwelen angekommen",
-      successBody: "Bestätigte Juwelen wurden gutgeschrieben."
+      successBody: "Bestätigte Juwelen wurden gutgeschrieben.",
+      pendingTitle: "Gleich geschafft",
+      pendingBody: "Dein Kauf wartet noch auf die Bestätigung des Stores. Sobald er bestätigt ist, kommen deine Juwelen an.",
+      delayedTitle: "Juwelen sind unterwegs",
+      delayedBody: "Dein Kauf war erfolgreich! Es kann etwas dauern, bis die Juwelen ankommen — schau gleich noch mal vorbei."
     }
   },
   inventory: {

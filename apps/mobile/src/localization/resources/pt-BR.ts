@@ -645,6 +645,7 @@ export const ptBR = {
     actions: {
       buy: "Comprar",
       purchasing: "Verificando...",
+      arriving: "A caminho...",
       preparing: "Loja em preparação"
     },
     storeNotice: "Os pagamentos são processados pela App Store. Só gemas verificadas entram no saldo.",
@@ -652,7 +653,11 @@ export const ptBR = {
       failedTitle: "Compra não concluída",
       failedBody: "Verifique a conexão e tente novamente.",
       successTitle: "As gemas chegaram",
-      successBody: "As gemas verificadas foram adicionadas ao saldo."
+      successBody: "As gemas verificadas foram adicionadas ao saldo.",
+      pendingTitle: "Quase lá",
+      pendingBody: "Sua compra está aguardando a confirmação da loja. As gemas chegam assim que for aprovada.",
+      delayedTitle: "As gemas estão a caminho",
+      delayedBody: "Sua compra foi concluída! As gemas podem demorar um pouco mais para aparecer — confira novamente em instantes."
     }
   },
   inventory: {

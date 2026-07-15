@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { ImageBackground, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -24,19 +24,15 @@ export function CreditStoreScreen() {
   const fontFamilies = useFontFamilies();
   const { showDialog } = useAppDialog();
   const {
-    commerceProducts,
     creditBalance,
+    creditPackPricingById,
     hydrateCreditBalance,
     nativeCheckoutReady,
+    purchaseArrivingProductId,
     purchaseInProgressProductId,
-    purchaseProduct,
-    runtimeMode
+    purchaseProduct
   } = useTerrariumSession();
-  const productsById = useMemo(
-    () => new Map(commerceProducts.map((product) => [product.productId, product])),
-    [commerceProducts]
-  );
-  const checkoutAvailable = runtimeMode === "api" && nativeCheckoutReady;
+  const checkoutAvailable = nativeCheckoutReady;
 
   useEffect(() => {
     void hydrateCreditBalance();
@@ -85,10 +81,18 @@ export function CreditStoreScreen() {
 
           <View style={styles.packShelf}>
             {creditPacks.map((pack) => {
-              const product = productsById.get(pack.productId);
+              const priceString = creditPackPricingById[pack.productId];
               const purchasing = purchaseInProgressProductId === pack.productId;
-              const canPurchase = checkoutAvailable && product !== undefined && purchaseInProgressProductId === null;
+              const arriving = purchaseArrivingProductId === pack.productId;
+              const canPurchase = checkoutAvailable && priceString !== undefined && purchaseInProgressProductId === null;
               const featured = pack.tier === "popular";
+              const actionLabel = arriving
+                ? t("creditsStore.actions.arriving")
+                : purchasing
+                  ? t("creditsStore.actions.purchasing")
+                  : canPurchase
+                    ? t("creditsStore.actions.buy")
+                    : t("creditsStore.actions.preparing");
 
               return (
                 <View key={pack.productId} style={[styles.packCard, featured ? styles.packCardFeatured : null]}>
@@ -106,26 +110,41 @@ export function CreditStoreScreen() {
                         {t("creditsStore.packAmount", { credits: pack.credits })}
                       </Text>
                       <Text style={[styles.packDetail, typography.body]}>{t(`creditsStore.packs.${pack.tier}`)}</Text>
-                      <Text style={[styles.storePrice, typography.label]}>{t("creditsStore.storePrice")}</Text>
+                      <Text style={[styles.storePrice, typography.label]}>{priceString ?? t("creditsStore.storePrice")}</Text>
                     </View>
                   </View>
                   <ActionButton
                     accessibilityLabel={t("creditsStore.purchaseAccessibilityLabel", { credits: pack.credits })}
                     disabled={!canPurchase}
                     iconId={canPurchase ? "gem" : "lock"}
-                    label={purchasing ? t("creditsStore.actions.purchasing") : canPurchase ? t("creditsStore.actions.buy") : t("creditsStore.actions.preparing")}
+                    label={actionLabel}
                     size="compact"
                     style={styles.packAction}
                     onPress={() => {
-                      if (!product) return;
+                      if (!canPurchase) return;
 
-                      void purchaseProduct(product).then((result) => {
+                      void purchaseProduct(pack.productId).then((result) => {
                         if (!result.ok) {
                           showDialog({ title: t("creditsStore.dialogs.failedTitle"), message: t("creditsStore.dialogs.failedBody") });
                           return;
                         }
 
+                        if (result.status === "cancelled") {
+                          return;
+                        }
+
+                        if (result.status === "pending") {
+                          showDialog({ title: t("creditsStore.dialogs.pendingTitle"), message: t("creditsStore.dialogs.pendingBody") });
+                          return;
+                        }
+
                         playSfx("sfx_purchase");
+
+                        if (result.status === "purchased_delayed") {
+                          showDialog({ title: t("creditsStore.dialogs.delayedTitle"), message: t("creditsStore.dialogs.delayedBody") });
+                          return;
+                        }
+
                         showDialog({ title: t("creditsStore.dialogs.successTitle"), message: t("creditsStore.dialogs.successBody") });
                       });
                     }}
