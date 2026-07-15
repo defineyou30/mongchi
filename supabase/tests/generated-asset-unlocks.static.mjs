@@ -14,7 +14,9 @@ const edgeFunction = fs.readFileSync(path.join(root, "supabase/functions/generat
 assert.match(columnMigration, /ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMPTZ DEFAULT now\(\)/);
 assert.match(columnMigration, /generated_assets_storage_path_idx/);
 assert.match(enforcementMigration, /ALTER COLUMN unlocked_at DROP DEFAULT/);
+assert.match(enforcementMigration, /DROP POLICY IF EXISTS generated_assets_select_unlocked_own/);
 assert.match(enforcementMigration, /generated_assets_select_unlocked_own/);
+assert.match(enforcementMigration, /DROP POLICY IF EXISTS pet_media_select_unlocked_own/);
 assert.match(enforcementMigration, /pet_media_select_unlocked_own/);
 assert.match(enforcementMigration, /asset\.unlocked_at IS NOT NULL/);
 assert.match(enforcementMigration, /p_state NOT IN \('happy', 'sleep'\)/);

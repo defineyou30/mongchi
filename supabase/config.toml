@@ -311,6 +311,9 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 1
 
+[functions.revenuecat-credit-webhook]
+verify_jwt = false
+
 # generate-avatar reads OPENAI_API_KEY and (optionally) OPENAI_IMAGE_MODEL from
 # function secrets. Set them with `supabase secrets set OPENAI_API_KEY=...` —
 # do not commit real keys here. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are

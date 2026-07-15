@@ -36,22 +36,18 @@
 //      'premium_ai_chat') conversation, or look up conversationId directly
 //      when the client already has one. First-turn disclosure acceptance is
 //      recorded here (docs/chat-live-design.md §6.3).
-//   4. Fetch a recent-message window (bounded by RECENT_MESSAGE_FETCH_LIMIT)
-//      once, reused for both the per-conversation rate-limit count (ported
-//      from premiumChatPolicy.ts's checkPremiumChatRateLimit: 10 user
-//      messages / 60s default) and the recent-8 short-term context slice
-//      buildProviderContext needs (chatProvider.ts).
+//   4. Fetch a recent-message window for the recent-8 short-term context.
 //   5. Input moderation (moderation.ts). A crisis-referral match short-
 //      circuits here: no OpenAI call, no charge, the reply is saved as a
 //      `sender: "system"` message -- see moderation.ts's module doc comment
 //      and docs/chat-live-design.md §5.2 layer 1.
-//   6. Otherwise: call the chat provider (chatProvider.ts; CHAT_DRY_RUN swaps
-//      in a local mock, see below), moderate its reply (layer 2 backstop),
-//      charge credits *after* provider success and *before* saving messages
-//      when charge === "credit" (docs/chat-live-design.md §4.2 -- avoids a
-//      refund round-trip on provider failure, since a failed provider call
-//      never reaches the charge step at all), and persist both the user and
-//      pet_ai messages.
+//   6. Otherwise: reserve the request through reserve_chat_turn. That RPC
+//      owns the user-global rate limit, replay/idempotency state, entitlement
+//      decision, starter/daily allowance, and credit debit atomically before
+//      any provider call. Provider/save failures call fail_chat_turn to
+//      restore the server-owned allowance or credit debit.
+//   7. Call the provider, moderate its reply, save both messages, and mark the
+//      request completed with the response payload used for future replays.
 //   7. Long-term memory (summary.ts, B안 hybrid, §3.2, Chat Live Wave C3):
 //      after either message-save above, evaluate shouldTriggerChatSummary
 //      against the messages that have fallen out of the recent-8 window
@@ -95,6 +91,7 @@ import {
 import { moderatePremiumChatInput, moderatePremiumChatProviderReply } from "./moderation.ts";
 import { parseChatLocale } from "./locale.ts";
 import type { ChatLocale } from "./locale.ts";
+import { computeFreeChatTurnsRemaining, DEFAULT_STARTER_FREE_REMAINING } from "./freeAllowance.ts";
 import {
   type ChatSummaryRecentMessage,
   createLocalChatSummaryProvider,
@@ -114,18 +111,9 @@ import {
 // client's charge mode is never trusted for pricing.
 const CHAT_TURN_CREDIT_COST = 1;
 
-// Rate limit: ported from services/api/src/premiumChatPolicy.ts's
-// defaultPremiumChatPolicy (maxUserMessagesPerWindow=10, rateLimitWindowMs=
-// 60_000), scoped per-conversation rather than the generation_rate_limits
-// table's global-per-user bucket -- reusing that table/RPC would share one
-// abuse budget between avatar generation and chat, which is a different
-// resource with a different cost profile. checkPremiumChatRateLimit's exact
-// "oldest counted message" Retry-After math is simplified to a flat window-
-// length Retry-After here (matches generate-avatar's RATE_LIMIT_MAX_ATTEMPTS/
-// RATE_LIMIT_WINDOW_SECONDS style) rather than being ported message-for-
-// message.
+// User-global provider budget. reserve_chat_turn applies this independently
+// of pet and conversation identifiers.
 const RATE_LIMIT_WINDOW_SECONDS = 60;
-const RATE_LIMIT_WINDOW_MS = RATE_LIMIT_WINDOW_SECONDS * 1000;
 const RATE_LIMIT_MAX_USER_MESSAGES = 10;
 
 // How many of the most recent messages to fetch per turn. Covers both the
@@ -153,6 +141,7 @@ const MAX_MESSAGE_TEXT_LENGTH = 500; // enforced again inside moderatePremiumCha
 // ---------------------------------------------------------------------------
 
 const DRY_RUN = Deno.env.get("CHAT_DRY_RUN") === "true" && !Deno.env.get("OPENAI_API_KEY");
+const CHAT_LIVE_ENABLED = Deno.env.get("CHAT_LIVE_ENABLED") === "true" || DRY_RUN;
 
 if (DRY_RUN) {
   console.warn(
@@ -167,6 +156,7 @@ if (DRY_RUN) {
 // ---------------------------------------------------------------------------
 
 const failureMessages = {
+  chatDisabled: "Long chat is resting for now. Your tiny friend can still respond to care and quick talks.",
   insufficientCredits: "You're out of credits for this chat. Grab more credits and let's talk again soon.",
   disclosureRequired: "Accept the chat disclosure first so we can start talking.",
   providerUnavailable: "Premium chat is not available right now.",
@@ -215,12 +205,22 @@ interface ValidatedChatTurnRequest {
   text: string;
   disclosureAccepted: boolean;
   requestId: string;
-  charge: "free" | "credit";
   locale: ChatLocale;
   timezone: string;
   petProfile: ValidatedPetProfile;
   memoryContext?: ChatMemoryContext;
   careContext?: PremiumChatCareContext;
+}
+
+type ChatChargeKind = "plus" | "day_pass" | "starter_free" | "daily_free" | "credit";
+
+interface ChatTurnReservation {
+  outcome: "reserved" | "replay" | "in_progress" | "conflict" | "rate_limited" | "insufficient_credits";
+  chargeKind: ChatChargeKind | null;
+  balance: number;
+  freeTurnsRemaining: number;
+  retryAfterSeconds: number;
+  responsePayload: Record<string, unknown> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +236,44 @@ const jsonResponse = (body: unknown, status: number, extraHeaders?: Record<strin
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object";
+
+const parseChatChargeKind = (value: unknown): ChatChargeKind | null =>
+  value === "plus" || value === "day_pass" || value === "starter_free" || value === "daily_free" || value === "credit"
+    ? value
+    : null;
+
+const parseChatTurnReservation = (value: unknown): ChatTurnReservation | null => {
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])) {
+    return null;
+  }
+
+  const row = value[0];
+  const outcome = row.outcome;
+
+  if (
+    outcome !== "reserved" &&
+    outcome !== "replay" &&
+    outcome !== "in_progress" &&
+    outcome !== "conflict" &&
+    outcome !== "rate_limited" &&
+    outcome !== "insufficient_credits"
+  ) {
+    return null;
+  }
+
+  const responsePayload = isRecord(row.response_payload) ? row.response_payload : null;
+
+  return {
+    outcome,
+    chargeKind: parseChatChargeKind(row.charge_kind),
+    balance: isFiniteNumber(row.balance) ? row.balance : 0,
+    freeTurnsRemaining: isFiniteNumber(row.free_turns_remaining) ? row.free_turns_remaining : 0,
+    retryAfterSeconds: isFiniteNumber(row.retry_after_seconds) ? row.retry_after_seconds : 0,
+    responsePayload
+  };
+};
 
 const validatePetProfile = (value: unknown): ValidatedPetProfile | null => {
   if (!value || typeof value !== "object") {
@@ -288,7 +326,8 @@ const validateCareContext = (value: unknown): PremiumChatCareContext | undefined
     affection: record.affection as number,
     cleanliness: record.cleanliness as number,
     gardenHealth: record.gardenHealth as number,
-    ...(isFiniteNumber(record.daysAway) ? { daysAway: record.daysAway } : {})
+    ...(isFiniteNumber(record.daysAway) ? { daysAway: record.daysAway } : {}),
+    ...(record.localTimeOfDay === "day" || record.localTimeOfDay === "night" ? { localTimeOfDay: record.localTimeOfDay } : {})
   };
 };
 
@@ -339,10 +378,6 @@ const validateChatTurnRequestBody = (value: unknown): ValidatedChatTurnRequest |
     return null;
   }
 
-  if (record.charge !== "free" && record.charge !== "credit") {
-    return null;
-  }
-
   const petProfile = validatePetProfile(record.petProfile);
   const locale = parseChatLocale(record.locale);
 
@@ -360,7 +395,6 @@ const validateChatTurnRequestBody = (value: unknown): ValidatedChatTurnRequest |
     text: record.text,
     disclosureAccepted: record.disclosureAccepted,
     requestId: record.requestId.trim(),
-    charge: record.charge,
     locale,
     timezone: isNonEmptyString(record.timezone) ? record.timezone : "UTC",
     petProfile,
@@ -427,6 +461,48 @@ const fetchCreditBalance = async (admin: SupabaseClient, userId: string): Promis
   }
 
   return data;
+};
+
+// Server truth for the "free chats remaining" count the mobile chip/pip UI
+// shows: chat_access carries two independent free-allowance sources
+// (0014_chat_turn_guardrails.sql) -- a lifetime starter_free_remaining
+// counter and a once-per-UTC-day daily_free_on marker. This used to select
+// only starter_free_remaining, so once that lifetime allowance ran low the
+// chip undercounted by exactly the still-available daily turn (e.g. showing
+// "1 chat left" when a fresh daily turn made 2 actually available). The
+// day-boundary math itself lives in freeAllowance.ts, which mirrors
+// packages/shared/src/domain/chatFreeAllowance.ts and
+// reserve_chat_turn's `daily_free_on IS DISTINCT FROM current_date` gate --
+// see that file's module doc comment for the UTC-timezone rationale.
+const fetchFreeChatTurns = async (admin: SupabaseClient, userId: string, now: string): Promise<number> => {
+  const { data, error } = await admin
+    .from("chat_access")
+    .select("starter_free_remaining, daily_free_on")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !isRecord(data) || !isFiniteNumber(data.starter_free_remaining)) {
+    return computeFreeChatTurnsRemaining({ starterFreeRemaining: DEFAULT_STARTER_FREE_REMAINING, dailyFreeOn: null }, now);
+  }
+
+  const dailyFreeOn = typeof data.daily_free_on === "string" ? data.daily_free_on : null;
+
+  return computeFreeChatTurnsRemaining({ starterFreeRemaining: data.starter_free_remaining, dailyFreeOn }, now);
+};
+
+const failReservedChatTurn = async (
+  admin: SupabaseClient,
+  userId: string,
+  requestId: string,
+  failureCode: string
+): Promise<boolean> => {
+  const { error } = await admin.rpc("fail_chat_turn", {
+    p_user: userId,
+    p_request_id: requestId,
+    p_failure_code: failureCode
+  });
+
+  return !error;
 };
 
 const toSummaryMessage = (row: MessageRow): ChatSummaryRecentMessage => ({
@@ -521,6 +597,10 @@ const maybeCompactConversationSummary = async (
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonResponse({ error: "method_not_allowed" }, 405);
+  }
+
+  if (!CHAT_LIVE_ENABLED) {
+    return jsonResponse({ error: "chat_disabled", message: failureMessages.chatDisabled }, 503);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -665,17 +745,6 @@ Deno.serve(async (req: Request) => {
   }
 
   const recentDesc = (recentRows ?? []) as MessageRow[];
-  const nowMs = new Date(now).getTime();
-  const windowStartMs = nowMs - RATE_LIMIT_WINDOW_MS;
-  const recentUserMessagesInWindow = recentDesc.filter((row) => {
-    const createdAtMs = new Date(row.created_at).getTime();
-    return row.sender === "user" && Number.isFinite(createdAtMs) && createdAtMs >= windowStartMs;
-  }).length;
-
-  if (recentUserMessagesInWindow >= RATE_LIMIT_MAX_USER_MESSAGES) {
-    return jsonResponse({ error: "rate_limited" }, 429, { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) });
-  }
-
   const recentAsc = [...recentDesc].reverse();
 
   // Most recent message that existed *before* this turn, if any -- used only
@@ -743,10 +812,55 @@ Deno.serve(async (req: Request) => {
         safetyFlags: moderation.safetyFlags,
         serverBalance: await fetchCreditBalance(admin, userId),
         chargedCredit: 0,
+        chargeKind: "crisis",
+        freeTurnsRemaining: await fetchFreeChatTurns(admin, userId, now),
         crisisReferral: true
       },
       200
     );
+  }
+
+  const { data: reservationData, error: reservationError } = await admin.rpc("reserve_chat_turn", {
+    p_user: userId,
+    p_request_id: body.requestId,
+    p_conversation_id: conversation.id,
+    p_pet_id: body.petId,
+    p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+    p_max_requests: RATE_LIMIT_MAX_USER_MESSAGES,
+    p_credit_cost: CHAT_TURN_CREDIT_COST
+  });
+  const reservation = parseChatTurnReservation(reservationData);
+
+  if (reservationError || !reservation) {
+    return jsonResponse({ error: "chat_reservation_failed", message: failureMessages.providerUnavailable }, 503);
+  }
+
+  if (reservation.outcome === "replay" && reservation.responsePayload) {
+    return jsonResponse(reservation.responsePayload, 200);
+  }
+
+  if (reservation.outcome === "rate_limited") {
+    return jsonResponse(
+      { error: "rate_limited" },
+      429,
+      { "Retry-After": String(Math.max(1, reservation.retryAfterSeconds)) }
+    );
+  }
+
+  if (reservation.outcome === "insufficient_credits") {
+    return jsonResponse({ error: "insufficient_credits", message: failureMessages.insufficientCredits }, 402);
+  }
+
+  if (reservation.outcome === "in_progress") {
+    return jsonResponse(
+      { error: "request_in_progress", message: failureMessages.providerUnavailable },
+      409,
+      { "Retry-After": String(Math.max(1, reservation.retryAfterSeconds)) }
+    );
+  }
+
+  if (reservation.outcome !== "reserved" || !reservation.chargeKind) {
+    return jsonResponse({ error: "request_conflict", message: failureMessages.providerUnavailable }, 409);
   }
 
   // 7. Provider call. CHAT_DRY_RUN swaps in the local mock (module doc
@@ -788,6 +902,12 @@ Deno.serve(async (req: Request) => {
       ...(conversation.summary ? { conversationSummary: conversation.summary } : {})
     });
   } catch {
+    const restored = await failReservedChatTurn(admin, userId, body.requestId, "provider_unavailable");
+
+    if (!restored) {
+      return jsonResponse({ error: "chat_reconciliation_required" }, 500);
+    }
+
     return jsonResponse({ error: "premium_chat_provider_unavailable", message: failureMessages.providerUnavailable }, 503);
   }
 
@@ -795,92 +915,73 @@ Deno.serve(async (req: Request) => {
   const providerOutput = moderatePremiumChatProviderReply(providerReply, body.locale);
 
   if (!providerOutput.ok) {
+    const restored = await failReservedChatTurn(admin, userId, body.requestId, providerOutput.code);
+
+    if (!restored) {
+      return jsonResponse({ error: "chat_reconciliation_required" }, 500);
+    }
+
     return jsonResponse({ error: providerOutput.code, message: providerOutput.messageSafe }, providerOutput.status);
   }
 
-  // 9. Charge -- after provider success, before message save
-  // (docs/chat-live-design.md §4.2). charge === "free" means the client
-  // already spent a local ticket/Plus entitlement (§4.1's truth-source
-  // split); the server touches nothing in that case beyond reading the
-  // balance back for the client to reconcile.
-  let chargedCredit = 0;
-  let serverBalance = 0;
+  // 9. Persist both messages and the replay payload in one database
+  // transaction. A partial "messages saved, request still reserved" state
+  // would otherwise strand the request after a network/RPC failure.
+  //
+  // freeTurnsRemaining is read fresh via fetchFreeChatTurns rather than taken
+  // from reservation.freeTurnsRemaining: reserve_chat_turn's own return value
+  // only ever reflects starter_free_remaining (see its RPC body in
+  // 0014_chat_turn_guardrails.sql/0018_chat_day_pass.sql, unchanged here per
+  // the "don't touch the RPC" constraint), which is exactly the bug this
+  // fetchFreeChatTurns update fixes. reserve_chat_turn already committed its
+  // transaction before returning, so this fresh SELECT sees the authoritative
+  // post-charge chat_access row (including any starter decrement or
+  // daily_free_on stamp this very turn just made).
+  const responseBase = {
+    conversation: mapConversationRow(conversation),
+    safetyFlags: providerOutput.safetyFlags,
+    serverBalance: reservation.balance,
+    chargedCredit: reservation.chargeKind === "credit" ? CHAT_TURN_CREDIT_COST : 0,
+    chargeKind: reservation.chargeKind,
+    freeTurnsRemaining: await fetchFreeChatTurns(admin, userId, now),
+    crisisReferral: false
+  };
+  const { data: responsePayload, error: completionError } = await admin.rpc("complete_chat_turn", {
+    p_user: userId,
+    p_request_id: body.requestId,
+    p_conversation_id: conversation.id,
+    p_user_text: moderation.normalizedText,
+    p_user_safety_flags: moderation.safetyFlags,
+    p_pet_text: providerOutput.text,
+    p_pet_safety_flags: providerOutput.safetyFlags,
+    p_response_base: responseBase
+  });
 
-  if (body.charge === "credit") {
-    const { data: newBalance, error: consumeError } = await admin.rpc("consume_credits", {
-      p_user: userId,
-      p_cost: CHAT_TURN_CREDIT_COST,
-      p_reason: "consume_premium_chat",
-      p_ref_type: "credit_request",
-      p_ref_id: body.requestId
-    });
+  if (completionError || !isRecord(responsePayload)) {
+    const restored = await failReservedChatTurn(admin, userId, body.requestId, "completion_failed");
 
-    if (consumeError) {
-      return jsonResponse({ error: "credit_check_failed" }, 500);
+    if (!restored) {
+      return jsonResponse({ error: "chat_reconciliation_required" }, 500);
     }
 
-    if (newBalance === -1) {
-      // Insufficient credits: the provider call already happened (sunk cost,
-      // see docs/chat-live-design.md §4.2's accepted tradeoff for avoiding a
-      // refund round-trip), but nothing is persisted and nothing is charged.
-      return jsonResponse({ error: "insufficient_credits", message: failureMessages.insufficientCredits }, 402);
-    }
-
-    chargedCredit = CHAT_TURN_CREDIT_COST;
-    serverBalance = newBalance as number;
-  } else {
-    serverBalance = await fetchCreditBalance(admin, userId);
+    return jsonResponse({ error: "chat_completion_failed", message: failureMessages.providerUnavailable }, 500);
   }
-
-  // 10. Save both turn messages.
-  const { data: savedMessages, error: saveError } = await admin
-    .from("conversation_messages")
-    .insert([
-      {
-        conversation_id: conversation.id,
-        user_id: userId,
-        sender: "user",
-        text: moderation.normalizedText,
-        safety_flags: moderation.safetyFlags
-      },
-      {
-        conversation_id: conversation.id,
-        user_id: userId,
-        sender: "pet_ai",
-        text: providerOutput.text,
-        safety_flags: providerOutput.safetyFlags
-      }
-    ])
-    .select(messageSelectColumns);
-
-  if (saveError || !savedMessages || savedMessages.length !== 2) {
-    return jsonResponse({ error: "message_save_failed" }, 500);
-  }
-
-  await admin.from("conversations").update({ updated_at: now }).eq("id", conversation.id);
 
   // 11. Long-term memory (module doc comment step 7) -- best-effort, never
   // fails this response (see maybeCompactConversationSummary's doc comment).
   await maybeCompactConversationSummary(
     admin,
     conversation,
-    [...recentAsc.map(toSummaryMessage), ...(savedMessages as MessageRow[]).map(toSummaryMessage)],
+    [
+      ...recentAsc.map(toSummaryMessage),
+      { sender: "user", text: moderation.normalizedText, createdAt: now },
+      { sender: "pet_ai", text: providerOutput.text, createdAt: now }
+    ],
     previousLastMessageCreatedAt,
     now,
     body.locale,
     openAiApiKey
   );
 
-  return jsonResponse(
-    {
-      conversation: mapConversationRow(conversation),
-      userMessage: mapMessageRow(savedMessages[0] as MessageRow),
-      petMessage: mapMessageRow(savedMessages[1] as MessageRow),
-      safetyFlags: providerOutput.safetyFlags,
-      serverBalance,
-      chargedCredit,
-      crisisReferral: false
-    },
-    200
-  );
+  return jsonResponse(responsePayload, 200);
 });

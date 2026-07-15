@@ -36,9 +36,21 @@
 // Deno / Supabase Edge Runtime. TypeScript strict.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { type ChromaKeyOutcome, removeChromaKeyBackground } from "./chromakey.ts";
+import { type ChromaKeyOutcome } from "./chromakey.ts";
 import { readOpenAiErrorDetail } from "./openAiError.ts";
-import { buildPoseSheetLayoutPrompt, splitPoseSheet, validatePoseSheetPanels } from "./spriteSheet.ts";
+import {
+  applyChromaKeyToRgbaPanel,
+  buildPoseSheetLayoutPrompt,
+  decodePosePanelToRgba,
+  encodePosePanelToPng,
+  generateValidatedPosePanels,
+  normalizePosePanelsForSafeAreaRgba,
+  type PoseSheetKeyedRgbaPanel,
+  removeSmallEdgeFragmentsRgba,
+  splitPoseSheetToRgbaPanels,
+  validatePoseSheetPanelsRgba,
+  validatePoseSheetSourceEdgesRgba,
+} from "./spriteSheet.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -159,6 +171,17 @@ const GENERATION_MAINTENANCE_MODE = /^(1|true|yes)$/i.test(
   Deno.env.get("GENERATION_MAINTENANCE_MODE") ?? ""
 );
 const MAX_GENERATION_ATTEMPTS = 3;
+const MAX_POSE_SHEET_LAYOUT_ATTEMPTS = 2;
+
+// Pre-launch tuning aid: upload the raw sheet PNG from any attempt that fails
+// layout validation (source_edge_clipping etc.) so a production failure can
+// be inspected visually instead of guessing from the failure string alone.
+// Defaults ON (unset means enabled) -- set GENERATION_DEBUG_SHEET_UPLOAD to
+// "0"/"false"/"no" to disable. TODO(launch): turn this off before launch
+// (see docs/launch-plan.md) once layout failures are no longer being tuned.
+const DEBUG_SHEET_UPLOAD_ENABLED = !/^(0|false|no)$/i.test(
+  Deno.env.get("GENERATION_DEBUG_SHEET_UPLOAD") ?? ""
+);
 
 // Server-authoritative expression pack cost in credit_wallets credits (see
 // supabase/migrations/0004_credit_ledger.sql). Deliberately a server
@@ -166,6 +189,7 @@ const MAX_GENERATION_ATTEMPTS = 3;
 // never trusted for pricing (see docs/credit-phase1-design.md §4.1), so a
 // tampered request can't buy a paid generation for less than this.
 const EXPRESSION_PACK_CREDIT_COST = 12;
+const STARTER_CREDIT_GRANT = 12;
 
 // Every generation is one fixed three-slot sheet. Expression packs must match
 // one server-owned three-state bundle exactly; clients cannot change its size,
@@ -397,15 +421,21 @@ const contractPromptLines: string[] = [
 
 const stylePromptLines: string[] = [
   "Scene-fit contract: the pet will be composited onto a garden scene later, so light the pet itself with warm daylight, but keep the canvas background empty of scenery.",
-  "Style contract: cute 2D low-resolution pixel-art sprite, chunky readable silhouette, thick dark 1-2px outline, limited 16-24 color palette, flat cel shading, crisp stepped pixel edges — centered, occupying about 75% of the square canvas height.",
+  // Geometry (size, centering, baseline) is owned entirely by the sprite
+  // sheet layout prompt (see buildPoseSheetLayoutPrompt in spriteSheet.ts) --
+  // this line used to also claim "occupying about 75% of the square canvas
+  // height", which contradicted the sheet's bottom-baseline/top-margin
+  // layout and gave the model two conflicting size instructions.
+  "Style contract: cute 2D low-resolution pixel-art sprite, chunky readable silhouette, thick dark 1-2px outline, limited 16-24 color palette, flat cel shading, crisp stepped pixel edges.",
   "Avoid photorealism, soft painterly shading, gradient fur, pure retro 8-bit or blocky low-res mush (this is a clean 16-24 color cel-shaded sprite, not chunky 8-bit), flat vector mascot styling, clay or plastic 3D rendering, extra animals, scenery, floor, shadow, frame, text, watermark, speech bubble, duplicate subject, source-photo fragment.",
   // Chroma-key contract: background=transparent (both the FormData field and
   // prompt-only instructions) does not reliably work on /images/edits with
   // gpt-image-1 or gpt-image-1.5 — the model paints a background regardless.
   // Instead we force a uniform pure-green canvas here and key it out in
-  // postprocessing (see removeChromaKeyBackground below). Verified: border
-  // pixels come back within +/-3 of the requested green, which is uniform
-  // enough for a clean distance-based key.
+  // postprocessing (see applyChromaKeyToRgbaPanel in spriteSheet.ts, which
+  // wraps chromakey.ts's applyChromaKey). Verified: border pixels come back
+  // within +/-3 of the requested green, which is uniform enough for a clean
+  // distance-based key.
   "CRITICAL: Fill the entire background with one perfectly uniform solid pure green color RGB(0,255,0). Every pixel outside the pet's outline must be exactly that flat green with no gradient, no vignette, no shadow, no floor, no texture. Do not paint any shadow, glow, or reflection beneath or around the pet on the green background — the green must stay perfectly flat everywhere. The character must not contain green key colors anywhere on the pet itself."
 ];
 
@@ -1077,6 +1107,44 @@ const cleanupSupersededAttemptAssets = async (
   }
 };
 
+// Best-effort upload of one attempt's raw sheet PNG bytes, exactly as
+// received from OpenAI (no re-encode), for offline inspection after a
+// layout-validation failure. Gated by DEBUG_SHEET_UPLOAD_ENABLED (see above)
+// and never allowed to affect the pipeline outcome -- an upload failure here
+// is logged and swallowed, not thrown, since this is a diagnostics-only aid.
+const uploadDebugAttemptSheet = async (
+  admin: SupabaseClient,
+  job: GenerationJobRow,
+  attemptIndex: number,
+  sheetBytes: Uint8Array
+): Promise<void> => {
+  if (!DEBUG_SHEET_UPLOAD_ENABLED) {
+    return;
+  }
+
+  try {
+    const path = `debug-sheets/${job.id}/attempt-${attemptIndex}.png`;
+    const upload = await admin.storage.from(BUCKET).upload(path, sheetBytes, {
+      contentType: "image/png",
+      upsert: true
+    });
+
+    if (upload.error) {
+      console.error("[generate-avatar] debug sheet upload failed", {
+        jobId: job.id,
+        attemptIndex,
+        error: upload.error.message
+      });
+    }
+  } catch (cause) {
+    console.error("[generate-avatar] debug sheet upload threw", {
+      jobId: job.id,
+      attemptIndex,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
@@ -1234,58 +1302,85 @@ const runPipeline = async (input: {
     const requiredStates = job.required_states.length > 0 ? job.required_states : ["idle", "happy", "sleep"];
     let generated: Array<{ state: string; result: GeneratedImageResult }>;
 
+    // c. Generate, split, chroma-key, and fragment-filter -- all in RGBA.
+    // Previously each attempt decoded/encoded the sheet and its panels
+    // repeatedly (split -> PNG-encode 3 panels; edge-validation callback ->
+    // decode+key+encode 3 panels, then discard; step d -> decode+key+encode
+    // the same 3 panels again; normalize -> decode+encode 3 panels; final
+    // quality gate -> decode 3 panels again), which routinely exceeded the
+    // Edge Function's CPU time limit and left jobs stuck in "generating" when
+    // the isolate was killed mid-attempt. Now: the sheet is decoded exactly
+    // once (splitPoseSheetToRgbaPanels, using content-aware slot cuts -- see
+    // its doc comment in spriteSheet.ts -- instead of a fixed 512/1024 split),
+    // each panel is chroma-keyed exactly once per attempt
+    // (applyChromaKeyToRgbaPanel) and immediately fragment-filtered
+    // (removeSmallEdgeFragmentsRgba, which drops any small leftover sliver of
+    // a neighboring pet that a content-aware cut left touching this panel's
+    // edge), and that same keyed+filtered RGBA buffer is reused for edge
+    // validation here, then for normalization and the quality gate below --
+    // PNG encoding happens exactly once per panel, right before upload
+    // (encodePosePanelToPng).
+    let keyedPanels: PoseSheetKeyedRgbaPanel[];
+
     try {
       if (dryRun) {
-        // DRY RUN: skip the paid OpenAI /images/edits calls entirely and
-        // decode the baked-in fixture PNGs instead. A sleep stands in for
-        // real generation latency so the client's polling UI (progress bar,
-        // "Creating the first tiny companion" copy) still gets to render the
-        // generating step for a moment rather than flashing straight
-        // through it. Duration is configurable via
-        // GENERATION_DRY_RUN_DELAY_MS (see DRY_RUN_DELAY_MS above) -- set it
-        // to something like 60000 to rehearse the real-world client UX
-        // (background completion during setup input, long polling,
-        // app-switch/return) at $0.
+        // DRY RUN: skip the paid OpenAI /images/edits call entirely and
+        // decode the baked-in fixture PNGs instead, then run them through
+        // the same chroma-key step as the real path so the rest of the
+        // pipeline (normalize, quality gate, final encode) exercises its
+        // real code path unchanged. A sleep stands in for real generation
+        // latency so the client's polling UI (progress bar, "Creating the
+        // first tiny companion" copy) still gets to render the generating
+        // step for a moment rather than flashing straight through it.
+        // Duration is configurable via GENERATION_DRY_RUN_DELAY_MS (see
+        // DRY_RUN_DELAY_MS above) -- set it to something like 60000 to
+        // rehearse the real-world client UX (background completion during
+        // setup input, long polling, app-switch/return) at $0.
         await sleep(DRY_RUN_DELAY_MS);
 
-        generated = requiredStates.map((state) => {
-          const bytes = dryRunPngBytesForState(state);
-          const dimensions = readPngDimensions(bytes);
-
-          return {
-            state,
-            result: {
-              bytes,
-              width: dimensions?.width ?? MIN_ASSET_SIDE_PX,
-              height: dimensions?.height ?? MIN_ASSET_SIDE_PX
-            }
-          };
-        });
+        keyedPanels = requiredStates.map((state) =>
+          removeSmallEdgeFragmentsRgba(
+            applyChromaKeyToRgbaPanel(decodePosePanelToRgba(state, dryRunPngBytesForState(state)))
+          )
+        );
       } else {
-        const sheet = await generatePoseSheet({
-          apiKey: openAiApiKey,
-          model: imageModel,
-          sourceImageBytes: sourceBytes,
-          sourceContentType,
-          states: requiredStates,
-          species: job.input_snapshot.species,
-          petName: job.input_snapshot.petName,
-          personalityTags: job.input_snapshot.personalityTags,
-          talkingStyle: job.input_snapshot.talkingStyle,
-          promptMode: isExpressionPackMode ? "expression_pack" : "photo"
-        });
+        let attemptIndex = 0;
 
-        const panels = splitPoseSheet(sheet.bytes, requiredStates);
-        const sheetValidation = validatePoseSheetPanels(panels);
+        keyedPanels = await generateValidatedPosePanels<PoseSheetKeyedRgbaPanel>(async () => {
+          attemptIndex += 1;
+          const currentAttempt = attemptIndex;
 
-        if (!sheetValidation.valid) {
-          throw new Error(`Pose sheet quality failed: ${sheetValidation.failures.join(", ")}`);
-        }
+          const sheet = await generatePoseSheet({
+            apiKey: openAiApiKey,
+            model: imageModel,
+            sourceImageBytes: sourceBytes,
+            sourceContentType,
+            states: requiredStates,
+            species: job.input_snapshot.species,
+            petName: job.input_snapshot.petName,
+            personalityTags: job.input_snapshot.personalityTags,
+            talkingStyle: job.input_snapshot.talkingStyle,
+            promptMode: isExpressionPackMode ? "expression_pack" : "photo"
+          });
 
-        generated = panels.map((panel) => ({
-          state: panel.state,
-          result: { bytes: panel.bytes, width: panel.width, height: panel.height }
-        }));
+          const panels = splitPoseSheetToRgbaPanels(sheet.bytes, requiredStates)
+            .map(applyChromaKeyToRgbaPanel)
+            .map(removeSmallEdgeFragmentsRgba);
+
+          // Debug aid (see uploadDebugAttemptSheet/DEBUG_SHEET_UPLOAD_ENABLED
+          // above): upload this attempt's raw sheet bytes whenever its layout
+          // fails, so a repeated production failure can be inspected visually
+          // instead of only through the failure string. This re-runs the same
+          // (cheap, border-only) edge scan that generateValidatedPosePanels
+          // performs again just below via its own validatePanels argument --
+          // duplicating that scan is negligible next to the decode/key/encode
+          // work already done once per attempt.
+          if (!validatePoseSheetSourceEdgesRgba(panels).valid) {
+            await uploadDebugAttemptSheet(admin, job, currentAttempt, sheet.bytes);
+          }
+
+          return panels;
+        }, MAX_POSE_SHEET_LAYOUT_ATTEMPTS, validatePoseSheetSourceEdgesRgba);
       }
     } catch (cause) {
       await markJobFailed(
@@ -1298,30 +1393,51 @@ const runPipeline = async (input: {
       return;
     }
 
-    // d. Chroma-key background removal. Runs before the quality gate so the
-    // gate inspects the same PNG bytes that get uploaded. Never throws (see
-    // removeChromaKeyBackground) — a keying failure falls back to the
-    // original opaque asset rather than failing the job.
+    // d. Batch safe-area normalization, still in RGBA. Chroma-keying already
+    // ran exactly once per panel above (inside the generation/validation
+    // loop), so it must not run again here -- chromaKeyTags is read off the
+    // already-tagged panels instead of re-keying. Normalization runs across
+    // all three panels at once (not per-panel) so the whole bundle shares
+    // one scale -- see normalizePosePanelsForSafeAreaRgba in spriteSheet.ts
+    // for why per-panel scaling would break relative size between states
+    // (e.g. a curled-up sleep pose vs. a standing one).
     const chromaKeyTags: Record<string, ChromaKeyOutcome["quality"]> = {};
 
-    generated = generated.map(({ state, result }) => {
-      const outcome = removeChromaKeyBackground(result.bytes);
-      chromaKeyTags[state] = outcome.quality;
+    for (const panel of keyedPanels) {
+      chromaKeyTags[panel.state] = panel.chromaKeyQuality;
+    }
 
-      const dimensions = readPngDimensions(outcome.bytes);
+    const normalizedPanels = normalizePosePanelsForSafeAreaRgba(keyedPanels);
 
-      return {
-        state,
-        result: {
-          bytes: outcome.bytes,
-          width: dimensions?.width ?? result.width,
-          height: dimensions?.height ?? result.height
-        }
-      };
-    });
-
-    // e. Lightweight quality gate, run against the post-chroma-key PNGs.
+    // e. Lightweight quality gate, run against the post-chroma-key RGBA
+    // panels, followed by the one-and-only PNG encode of this attempt.
     await updateJobStatus(admin, job, { status: "quality_checking" });
+
+    const poseValidation = validatePoseSheetPanelsRgba(normalizedPanels);
+
+    if (!poseValidation.valid) {
+      await markJobFailed(
+        admin,
+        job,
+        "generated_asset_quality_failed",
+        failureMessages.qualityFailed,
+        {
+          failedStage: "quality_checking",
+          internalError: truncateInternalError(
+            `Pose sheet quality failed after chroma key: ${poseValidation.failures.join(", ")}; chroma=${JSON.stringify(chromaKeyTags)}`
+          )
+        }
+      );
+      return;
+    }
+
+    // The only PNG encode for this attempt: once per panel, right before the
+    // dimension/signature quality gate and upload below.
+    generated = normalizedPanels.map((panel) => {
+      const encoded = encodePosePanelToPng(panel);
+
+      return { state: panel.state, result: { bytes: encoded.bytes, width: encoded.width, height: encoded.height } };
+    });
 
     const failedStates = generated.filter(({ result }) => !passesLightweightQualityGate(result));
 
@@ -1438,6 +1554,24 @@ const runPipeline = async (input: {
 
       if (!completionWasCommitted) {
         throw new Error(`Generation completion was not committed: ${completionError?.message ?? "not completed"}`);
+      }
+    }
+
+    if (!isExpressionPackMode) {
+      const { error: starterGrantError } = await admin.rpc("grant_credits", {
+        p_user: job.user_id,
+        p_amount: STARTER_CREDIT_GRANT,
+        p_reason: "grant_starter",
+        p_ref_type: "user",
+        p_ref_id: "starter_v1",
+        p_metadata: { source: "initial_avatar_generation", job_id: job.id }
+      });
+
+      if (starterGrantError) {
+        console.error("[generate-avatar] starter credit grant failed", {
+          jobId: job.id,
+          error: starterGrantError.message
+        });
       }
     }
 

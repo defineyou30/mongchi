@@ -4,6 +4,7 @@ ALTER TABLE public.generated_assets
   ALTER COLUMN unlocked_at DROP DEFAULT;
 
 DROP POLICY IF EXISTS generated_assets_select_own ON public.generated_assets;
+DROP POLICY IF EXISTS generated_assets_select_unlocked_own ON public.generated_assets;
 
 CREATE POLICY generated_assets_select_unlocked_own
   ON public.generated_assets
@@ -20,6 +21,7 @@ CREATE POLICY generated_assets_select_unlocked_own
   );
 
 DROP POLICY IF EXISTS pet_media_select_own ON storage.objects;
+DROP POLICY IF EXISTS pet_media_select_unlocked_own ON storage.objects;
 
 CREATE POLICY pet_media_select_unlocked_own
   ON storage.objects

@@ -12,6 +12,7 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import {
   buildProviderContext,
+  buildRequestInstructions,
   createLocalPremiumChatProvider,
   createOpenAiPremiumChatProvider,
   normalizeReplyText,
@@ -104,6 +105,62 @@ Deno.test("buildProviderContext: forwards conversationSummary when present, omit
 
   const withoutSummary = buildProviderContext(baseInput());
   assertEquals("conversationSummary" in withoutSummary, false);
+});
+
+Deno.test("buildProviderContext: forwards careContext.localTimeOfDay when present, omits when absent", () => {
+  const night = buildProviderContext(
+    baseInput({
+      careContext: { satiety: 50, energy: 50, happiness: 50, affection: 50, cleanliness: 50, gardenHealth: 50, localTimeOfDay: "night" }
+    })
+  );
+  assertEquals((night.careContext as Record<string, unknown>).localTimeOfDay, "night");
+
+  const day = buildProviderContext(
+    baseInput({
+      careContext: { satiety: 50, energy: 50, happiness: 50, affection: 50, cleanliness: 50, gardenHealth: 50, localTimeOfDay: "day" }
+    })
+  );
+  assertEquals((day.careContext as Record<string, unknown>).localTimeOfDay, "day");
+
+  const withoutTimeOfDay = buildProviderContext(
+    baseInput({ careContext: { satiety: 50, energy: 50, happiness: 50, affection: 50, cleanliness: 50, gardenHealth: 50 } })
+  );
+  assertEquals("localTimeOfDay" in (withoutTimeOfDay.careContext as Record<string, unknown>), false);
+});
+
+// ---------------------------------------------------------------------------
+// buildRequestInstructions -- the night-time "sleepy tone" system-prompt addition
+// ---------------------------------------------------------------------------
+
+Deno.test("buildRequestInstructions: appends the night-time tone line only when careContext.localTimeOfDay is night", () => {
+  const base = "Base instructions.";
+
+  assertEquals(buildRequestInstructions(base), base);
+  assertEquals(
+    buildRequestInstructions(base, {
+      satiety: 50,
+      energy: 50,
+      happiness: 50,
+      affection: 50,
+      cleanliness: 50,
+      gardenHealth: 50,
+      localTimeOfDay: "day"
+    }),
+    base
+  );
+
+  const night = buildRequestInstructions(base, {
+    satiety: 50,
+    energy: 50,
+    happiness: 50,
+    affection: 50,
+    cleanliness: 50,
+    gardenHealth: 50,
+    localTimeOfDay: "night"
+  });
+  assert(night.startsWith(base));
+  assert(night.includes("drowsy"));
+  assert(night.includes("never guilt the user for the hour"));
 });
 
 // ---------------------------------------------------------------------------
@@ -208,6 +265,56 @@ Deno.test("createOpenAiPremiumChatProvider: sends the model/instructions/schema 
   const inputText: unknown = requestBody.input?.[0]?.content?.[0]?.text;
   assert(typeof inputText === "string");
   assert(inputText.includes("Hi Mochi!"));
+});
+
+Deno.test("createOpenAiPremiumChatProvider: appends the night-time tone line to instructions when careContext.localTimeOfDay is night", async () => {
+  const captured: { url?: string; init?: RequestInit } = {};
+  const provider = createOpenAiPremiumChatProvider({
+    apiKey: "sk-test",
+    fetchImpl: fakeFetch(200, { output_text: JSON.stringify({ replyText: "Mmh, hi.", safetyFlags: [] }) }, captured)
+  });
+
+  await provider.generateReply(
+    baseInput({
+      careContext: { satiety: 50, energy: 30, happiness: 60, affection: 70, cleanliness: 80, gardenHealth: 90, localTimeOfDay: "night" }
+    })
+  );
+
+  const requestBody = JSON.parse(captured.init?.body as string);
+  const instructions: unknown = requestBody.instructions;
+  assert(typeof instructions === "string");
+  assert(instructions.includes("drowsy"));
+  assert(instructions.includes("never guilt the user for the hour"));
+});
+
+Deno.test("createOpenAiPremiumChatProvider: leaves instructions unchanged when careContext.localTimeOfDay is day or absent", async () => {
+  const capturedDay: { url?: string; init?: RequestInit } = {};
+  const providerDay = createOpenAiPremiumChatProvider({
+    apiKey: "sk-test",
+    fetchImpl: fakeFetch(200, { output_text: JSON.stringify({ replyText: "Hi!", safetyFlags: [] }) }, capturedDay)
+  });
+
+  await providerDay.generateReply(
+    baseInput({
+      careContext: { satiety: 50, energy: 30, happiness: 60, affection: 70, cleanliness: 80, gardenHealth: 90, localTimeOfDay: "day" }
+    })
+  );
+
+  const dayInstructions: unknown = JSON.parse(capturedDay.init?.body as string).instructions;
+  assert(typeof dayInstructions === "string");
+  assert(!dayInstructions.includes("drowsy"));
+
+  const capturedNoContext: { url?: string; init?: RequestInit } = {};
+  const providerNoContext = createOpenAiPremiumChatProvider({
+    apiKey: "sk-test",
+    fetchImpl: fakeFetch(200, { output_text: JSON.stringify({ replyText: "Hi!", safetyFlags: [] }) }, capturedNoContext)
+  });
+
+  await providerNoContext.generateReply(baseInput());
+
+  const noContextInstructions: unknown = JSON.parse(capturedNoContext.init?.body as string).instructions;
+  assert(typeof noContextInstructions === "string");
+  assert(!noContextInstructions.includes("drowsy"));
 });
 
 Deno.test("createOpenAiPremiumChatProvider: preserves the actual Japanese locale code in the prompt", async () => {

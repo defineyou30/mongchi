@@ -75,6 +75,8 @@ export interface PremiumChatCareContext {
   cleanliness: number;
   gardenHealth: number;
   daysAway?: number;
+  /** Mirrors packages/shared/src/api/mobileContracts.ts's ChatCareContext.localTimeOfDay -- client-computed from device local time, see buildProviderContext and nightModeInstructionLine below. */
+  localTimeOfDay?: "day" | "night";
 }
 
 /** Mirrors packages/shared/src/api/mobileContracts.ts's ChatMemoryContextEntry. */
@@ -192,6 +194,24 @@ const defaultInstructions = [
   "When a request is unsafe or professional-advice seeking, set a concise safety flag and give a gentle boundary while staying kind.",
   "Return structured JSON only."
 ].join(" ");
+
+// Night-time chat tone (Chat Live "sleepy tone" wave, docs/chat-live-design.md
+// world-flavor decision: never lock or gate chat at night, just narrate it).
+// Appended to defaultInstructions -- never replaces it -- only when the
+// client-computed careContext.localTimeOfDay reads "night" (see
+// PremiumChatCareContext.localTimeOfDay / buildRequestInstructions below).
+const nightModeInstructionLine =
+  "It is late at night and the pet was just sleeping -- reply in a drowsy, extra-soft, affectionate tone; slightly shorter sentences; maybe a sleepy sound; never guilt the user for the hour.";
+
+// Appends the night-time tone line to whatever instructions this provider
+// call was configured with, only when this turn's careContext says it's
+// night for the pet's owner. Kept as its own step (rather than folded into
+// buildProviderContext, which only assembles the JSON *context* the model
+// reads, not the `instructions` field of the request) since instructions are
+// a separate top-level field on the OpenAI Responses API request body -- see
+// buildChatRequestBody below.
+export const buildRequestInstructions = (baseInstructions: string, careContext?: PremiumChatCareContext): string =>
+  careContext?.localTimeOfDay === "night" ? `${baseInstructions} ${nightModeInstructionLine}` : baseInstructions;
 
 const premiumChatReplySchema = {
   type: "object",
@@ -390,7 +410,8 @@ export const buildProviderContext = (input: PremiumChatProviderInput): Record<st
         affection: meterBand(input.careContext.affection),
         cleanliness: meterBand(input.careContext.cleanliness),
         gardenHealth: meterBand(input.careContext.gardenHealth),
-        ...(input.careContext.daysAway !== undefined ? { daysAway: input.careContext.daysAway } : {})
+        ...(input.careContext.daysAway !== undefined ? { daysAway: input.careContext.daysAway } : {}),
+        ...(input.careContext.localTimeOfDay ? { localTimeOfDay: input.careContext.localTimeOfDay } : {})
       }
     : undefined;
 
@@ -442,7 +463,7 @@ const buildChatRequestBody = (input: {
 }): string =>
   JSON.stringify({
     model: input.model,
-    instructions: input.instructions,
+    instructions: buildRequestInstructions(input.instructions, input.providerInput.careContext),
     input: [
       {
         role: "user",
