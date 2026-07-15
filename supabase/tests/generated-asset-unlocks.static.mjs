@@ -31,7 +31,9 @@ assert.match(hardeningMigration, /GRANT EXECUTE ON FUNCTION public\.unlock_start
 assert.match(hardeningMigration, /REVOKE ALL ON FUNCTION public\.unlock_starter_poses_for_care_action\(UUID, TEXT\) FROM anon/);
 assert.match(edgeFunction, /unlocked_at: isExpressionPackMode \|\| state === "idle" \? unlockedAt : null/);
 assert.match(edgeFunction, /\.eq\("state", "idle"\)\s*\.not\("unlocked_at", "is", null\)/);
-assert.match(edgeFunction, /generatePoseSheet\([\s\S]*splitPoseSheet\(sheet\.bytes, requiredStates\)/);
+// The RGBA-first pipeline decodes the sheet once and splits it into RGBA
+// panels (splitPoseSheetToRgbaPanels replaced the old splitPoseSheet call).
+assert.match(edgeFunction, /generatePoseSheet\([\s\S]*splitPoseSheetToRgbaPanels\(sheet\.bytes, requiredStates\)/);
 assert.match(atomicPackMigration, /CREATE OR REPLACE FUNCTION public\.create_expression_pack_job/);
 assert.match(atomicPackMigration, /pg_advisory_xact_lock/);
 assert.match(atomicPackMigration, /FROM public\.credit_wallets[\s\S]*FOR UPDATE/);

@@ -168,6 +168,7 @@ export const frFR = {
     failureTitle: "Emménagement en pause",
     quotaFailure: "Votre petit compagnon pourra bientôt emménager. Revenez dans un petit moment.",
     retryFailure: "La petite porte est coincée. Essayons de recréer {{petName}}.",
+    safetyFailure: "Cette photo ne nous a pas permis d'aider votre compagnon à emménager. Essayez avec une autre photo où votre animal est bien visible.",
     reveal: "Découvrir le compagnon",
     steps: {
       preparing: "Préparation de la photo",
@@ -953,7 +954,18 @@ export const frFR = {
       saved: "Enregistré",
       lastReport: "Dernier signalement : {{label}}",
       savedTitle: "Signalement enregistré",
-      savedMessage: "Seule la catégorie du problème a été enregistrée. Aucune photo brute ni aucun texte de discussion n’a été joint."
+      savedMessage: "Seule la catégorie du problème a été enregistrée. Aucune photo brute ni aucun texte de discussion n’a été joint.",
+      feedback: {
+        title: "Dites-nous tout",
+        prompt: "Dites-nous tout — ce qui vous a semblé étrange, ou ce qui vous a fait sourire.",
+        messagePlaceholder: "Écrivez tout ce qui vous passe par la tête…",
+        messageAccessibilityLabel: "Message de retour",
+        contactPlaceholder: "Un contact si vous souhaitez une réponse (facultatif)",
+        contactAccessibilityLabel: "Contact facultatif pour une réponse",
+        send: "Envoyer",
+        savedTitle: "Merci",
+        savedMessage: "Nous lisons chaque message avec attention. Merci de l'avoir partagé."
+      }
     },
     terms: {
       accessibilityLabel: "Conditions et valeur payante",

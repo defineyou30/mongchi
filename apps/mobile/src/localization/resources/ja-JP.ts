@@ -164,6 +164,7 @@ export const jaJP = {
     failureTitle: "お引っ越しはひと休み中",
     quotaFailure: "小さなお友だちはもうすぐお引っ越しできます。少し時間をおいて、また見にきてください。",
     retryFailure: "小さな扉が引っかかったようです。{{petName}}をもう一度作ってみましょう。",
+    safetyFailure: "この写真ではお迎えをお手伝いできませんでした。ペットがはっきり見える別の写真でもう一度お試しください。",
     reveal: "ペットに会う",
     steps: {
       preparing: "写真を準備中",
@@ -922,7 +923,18 @@ export const jaJP = {
       saved: "保存済み",
       lastReport: "前回の報告：{{label}}",
       savedTitle: "報告を保存しました",
-      savedMessage: "問題の分類だけを保存しました。元の写真やチャット本文は添付していません。"
+      savedMessage: "問題の分類だけを保存しました。元の写真やチャット本文は添付していません。",
+      feedback: {
+        title: "なんでも聞かせてください",
+        prompt: "気になったことでも、嬉しかった瞬間でも、なんでも聞かせてください。",
+        messagePlaceholder: "思ったことを自由に書いてください…",
+        messageAccessibilityLabel: "フィードバックメッセージ",
+        contactPlaceholder: "返信をご希望の場合は連絡先を（任意）",
+        contactAccessibilityLabel: "返信用の連絡先（任意）",
+        send: "フィードバックを送る",
+        savedTitle: "ありがとうございます",
+        savedMessage: "いただいたお声はすべて大切に読ませていただいています。"
+      }
     },
     terms: {
       accessibilityLabel: "利用規約と有料価値",

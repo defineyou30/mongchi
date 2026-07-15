@@ -168,6 +168,7 @@ export const deDE = {
     failureTitle: "Einzug pausiert",
     quotaFailure: "Dein kleiner Freund kann bald einziehen. Schau in einer kleinen Weile wieder vorbei.",
     retryFailure: "Die kleine Tür klemmt. Versuchen wir noch einmal, {{petName}} zu erschaffen.",
+    safetyFailure: "Mit diesem Foto konnten wir deinem Haustier leider nicht beim Einzug helfen. Bitte versuch es mit einem anderen Foto, auf dem dein Haustier gut zu erkennen ist.",
     reveal: "Liebling enthüllen",
     steps: {
       preparing: "Foto wird vorbereitet",
@@ -946,7 +947,18 @@ export const deDE = {
       saved: "Gespeichert",
       lastReport: "Letzte Meldung: {{label}}",
       savedTitle: "Meldung gespeichert",
-      savedMessage: "Es wurde nur die Problemkategorie gespeichert. Es wurden weder ein Originalfoto noch Chattexte angehängt."
+      savedMessage: "Es wurde nur die Problemkategorie gespeichert. Es wurden weder ein Originalfoto noch Chattexte angehängt.",
+      feedback: {
+        title: "Erzähl uns alles",
+        prompt: "Erzähl uns alles – was sich komisch angefühlt hat oder was dich zum Lächeln gebracht hat.",
+        messagePlaceholder: "Schreib einfach, was dir in den Sinn kommt …",
+        messageAccessibilityLabel: "Feedback-Nachricht",
+        contactPlaceholder: "Kontakt für eine Antwort (optional)",
+        contactAccessibilityLabel: "Optionaler Kontakt für eine Antwort",
+        send: "Feedback senden",
+        savedTitle: "Danke dir",
+        savedMessage: "Wir lesen jede Nachricht aufmerksam. Danke fürs Teilen."
+      }
     },
     terms: {
       accessibilityLabel: "Bedingungen und bezahlte Werte",

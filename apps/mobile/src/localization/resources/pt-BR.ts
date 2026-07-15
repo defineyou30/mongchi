@@ -168,6 +168,7 @@ export const ptBR = {
     failureTitle: "Chegada pausada",
     quotaFailure: "Seu amiguinho estará pronto para chegar em breve. Volte daqui a pouquinho.",
     retryFailure: "A portinha emperrou. Vamos tentar criar {{petName}} de novo.",
+    safetyFailure: "Não conseguimos ajudar seu bichinho a se mudar com essa foto. Tente outra foto em que seu pet apareça bem nitidamente.",
     reveal: "Conhecer bichinho",
     steps: {
       preparing: "Preparando a foto",
@@ -941,7 +942,18 @@ export const ptBR = {
       saved: "Salvo",
       lastReport: "Último relato: {{label}}",
       savedTitle: "Relato salvo",
-      savedMessage: "Apenas a categoria do problema foi salva. Nenhuma foto original ou texto de conversa foi anexado."
+      savedMessage: "Apenas a categoria do problema foi salva. Nenhuma foto original ou texto de conversa foi anexado.",
+      feedback: {
+        title: "Conta pra gente",
+        prompt: "Conta pra gente — o que pareceu estranho, ou o que te fez sorrir.",
+        messagePlaceholder: "Escreva o que quiser aqui…",
+        messageAccessibilityLabel: "Mensagem de feedback",
+        contactPlaceholder: "Contato, se quiser uma resposta (opcional)",
+        contactAccessibilityLabel: "Contato opcional para resposta",
+        send: "Enviar feedback",
+        savedTitle: "Obrigado",
+        savedMessage: "Lemos cada mensagem com carinho. Obrigado por compartilhar."
+      }
     },
     terms: {
       accessibilityLabel: "Termos e valor pago",

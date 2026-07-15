@@ -164,6 +164,7 @@ export const zhTW = {
     failureTitle: "入住暫停了",
     quotaFailure: "你的小小朋友很快就能準備好。請稍後再回來看看。",
     retryFailure: "小門卡住了。讓我們再試一次，創造 {{petName}}。",
+    safetyFailure: "這張照片沒辦法幫助你的寵物入住呢。請換一張能清楚看到寵物的照片再試一次。",
     reveal: "揭曉寵物",
     steps: {
       preparing: "準備照片",
@@ -900,7 +901,18 @@ export const zhTW = {
       saved: "已儲存",
       lastReport: "上次回報：{{label}}",
       savedTitle: "回報已儲存",
-      savedMessage: "只儲存了問題分類，未附上原始照片或聊天文字。"
+      savedMessage: "只儲存了問題分類，未附上原始照片或聊天文字。",
+      feedback: {
+        title: "跟我們說說看",
+        prompt: "不管是覺得哪裡怪怪的，還是哪個瞬間讓你會心一笑，都歡迎告訴我們。",
+        messagePlaceholder: "想到什麼都可以寫下來…",
+        messageAccessibilityLabel: "意見回饋內容",
+        contactPlaceholder: "如果希望我們回覆，可以留下聯絡方式（選填）",
+        contactAccessibilityLabel: "選填的回覆聯絡方式",
+        send: "送出意見",
+        savedTitle: "謝謝你",
+        savedMessage: "我們會仔細看每一則訊息，謝謝你的分享。"
+      }
     },
     terms: {
       accessibilityLabel: "條款與付費價值",

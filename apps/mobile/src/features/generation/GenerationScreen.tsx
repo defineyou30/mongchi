@@ -45,6 +45,18 @@ const eggWarmKeys = [
   "generation.warmLines.fourth"
 ] as const;
 
+// Server-side safety-rejection failure codes (supabase/functions/generate-avatar's
+// safety-check step -- see markJobFailed's callers there). These get their own
+// localized copy in every locale (generation.safetyFailure) instead of the
+// generic generation.retryFailure, since "try again" on the *same* photo is
+// never going to help here -- see the safety-failure CTA reorder below, which
+// makes "Choose another photo" the primary action for exactly this reason.
+const safetyFailureCodes = new Set([
+  "source_photo_safety_failed",
+  "source_photo_safety_unavailable",
+  "source_photo_manual_review_required"
+]);
+
 const hatchingStatusKeys = {
   created: "generation.statuses.created",
   queued: "generation.statuses.queued",
@@ -82,6 +94,7 @@ export function GenerationScreen() {
   const completed = generation.status === "completed";
   const failed = generationPresentation.showsPausedFailure;
   const isQuotaFailure = failed && generation.failureCode === "generation_quota_exceeded";
+  const isSafetyFailure = failed && !!generation.failureCode && safetyFailureCodes.has(generation.failureCode);
   const [observationIndex, setObservationIndex] = useState(0);
   const [warmTapCount, setWarmTapCount] = useState(0);
   // Local, render-driven disable for the "Try again" button, on top of the
@@ -113,15 +126,24 @@ export function GenerationScreen() {
   })();
   const whosOnTheWayTeaser = t(teaserKey);
   const localizedRetryFailure = t("generation.retryFailure", { petName: activePet.name });
+  // Non-English locales previously showed this same generic retryFailure
+  // line no matter why generation failed. A safety rejection needs its own
+  // copy (generation.safetyFailure) that nudges toward a different photo
+  // rather than "let's try again" -- see the CTA reorder below for the same
+  // reasoning applied to the buttons. en-US is unchanged: it keeps showing
+  // the server's own messageSafe (already reason-specific) with retryFailure
+  // only as a fallback if the server didn't send one.
+  const localizedSafetyFailure = t("generation.safetyFailure");
+  const nonEnglishFailureMessage = isSafetyFailure ? localizedSafetyFailure : localizedRetryFailure;
   const safeFailureMessage = getLocalizedText(locale, {
     "en-US": generation.failureMessageSafe ?? localizedRetryFailure,
-    "ko-KR": localizedRetryFailure,
-    "ja-JP": localizedRetryFailure,
-    "zh-TW": localizedRetryFailure,
-    "de-DE": localizedRetryFailure,
-    "fr-FR": localizedRetryFailure,
-    "pt-BR": localizedRetryFailure,
-    "es-MX": localizedRetryFailure
+    "ko-KR": nonEnglishFailureMessage,
+    "ja-JP": nonEnglishFailureMessage,
+    "zh-TW": nonEnglishFailureMessage,
+    "de-DE": nonEnglishFailureMessage,
+    "fr-FR": nonEnglishFailureMessage,
+    "pt-BR": nonEnglishFailureMessage,
+    "es-MX": nonEnglishFailureMessage
   });
   const reduceMotionEnabled = useReducedMotionPreference();
   const motionPolicy = getGenerationMotionPolicy({
@@ -270,18 +292,43 @@ export function GenerationScreen() {
         />
       ) : null}
       {failed && !isQuotaFailure ? (
-        <>
-          <ActionButton
-            label={t("common.actions.tryAgain")}
-            iconId="refresh"
-            disabled={retryTapDisabled}
-            onPress={() => {
-              setRetryTapDisabled(true);
-              retryMockGeneration();
-            }}
-          />
-          <ActionButton label={t("common.actions.chooseAnotherPhoto")} iconId="refresh" variant="secondary" onPress={() => router.push("/photo-upload")} />
-        </>
+        isSafetyFailure ? (
+          // Safety rejections need a different default CTA than an ordinary
+          // failure: retrying with the *same* photo will just fail the same
+          // safety check again, so "Choose another photo" leads here instead
+          // of "Try again" (still offered, just demoted to secondary) --
+          // avoids nudging the player into a retry loop.
+          <>
+            <ActionButton
+              label={t("common.actions.chooseAnotherPhoto")}
+              iconId="refresh"
+              onPress={() => router.push("/photo-upload")}
+            />
+            <ActionButton
+              label={t("common.actions.tryAgain")}
+              iconId="refresh"
+              variant="secondary"
+              disabled={retryTapDisabled}
+              onPress={() => {
+                setRetryTapDisabled(true);
+                retryMockGeneration();
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <ActionButton
+              label={t("common.actions.tryAgain")}
+              iconId="refresh"
+              disabled={retryTapDisabled}
+              onPress={() => {
+                setRetryTapDisabled(true);
+                retryMockGeneration();
+              }}
+            />
+            <ActionButton label={t("common.actions.chooseAnotherPhoto")} iconId="refresh" variant="secondary" onPress={() => router.push("/photo-upload")} />
+          </>
+        )
       ) : null}
       {isQuotaFailure ? (
         <Pressable accessibilityRole="button" hitSlop={8} style={styles.homeLinkRow} onPress={() => router.replace("/")}>

@@ -162,6 +162,7 @@ export const enUS = {
     failureTitle: "Move-in paused",
     quotaFailure: "Your tiny friend will be ready to move in soon. Check back in a little while.",
     retryFailure: "The tiny door got stuck. Let's try creating {{petName}} again.",
+    safetyFailure: "We couldn't help your pet move in with this photo. Please try a different photo where your pet is clearly visible.",
     reveal: "Reveal pet",
     steps: {
       preparing: "Preparing photo",
@@ -929,7 +930,18 @@ export const enUS = {
       saved: "Saved",
       lastReport: "Last report: {{label}}",
       savedTitle: "Report saved",
-      savedMessage: "Only the issue category was saved. No raw photo or chat text was attached."
+      savedMessage: "Only the issue category was saved. No raw photo or chat text was attached.",
+      feedback: {
+        title: "Tell us anything",
+        prompt: "Tell us anything — what felt off, or what made you smile.",
+        messagePlaceholder: "Share whatever's on your mind...",
+        messageAccessibilityLabel: "Feedback message",
+        contactPlaceholder: "Contact, if you'd like a reply (optional)",
+        contactAccessibilityLabel: "Optional contact for a reply",
+        send: "Send feedback",
+        savedTitle: "Thank you",
+        savedMessage: "We read every note. Thanks for sharing."
+      }
     },
     terms: {
       accessibilityLabel: "Terms and paid value",

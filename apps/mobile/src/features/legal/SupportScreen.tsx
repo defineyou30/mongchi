@@ -1,6 +1,7 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, LifeBuoy, Mail, PawPrint, ShieldAlert } from "lucide-react-native";
+import { AlertTriangle, ArrowLeft, CheckCircle2, LifeBuoy, Mail, MessageCircle, PawPrint, ShieldAlert } from "lucide-react-native";
 import { router } from "expo-router";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Linking, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import type { GenerationIssueCategory } from "@mongchi/shared";
@@ -26,7 +27,9 @@ export function SupportScreen() {
   const releaseConfig = getPublicReleaseConfig();
   const { showDialog } = useAppDialog();
   const { t } = useTranslation();
-  const { generationIssueReport, reportGenerationIssue } = useTerrariumSession();
+  const { generationIssueReport, reportGenerationIssue, submitSupportFeedback } = useTerrariumSession();
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackContact, setFeedbackContact] = useState("");
   const generationIssueCopyByCategory: Record<GenerationIssueCategory, { label: string; description: string }> = {
     wrong_pet: { label: t("legal.support.options.wrong.label"), description: t("legal.support.options.wrong.description") },
     unsafe_or_scary: { label: t("legal.support.options.unsafe.label"), description: t("legal.support.options.unsafe.description") },
@@ -42,6 +45,24 @@ export function SupportScreen() {
     reportGenerationIssue(category);
     recordMobileEvent("generation_issue_reported", { category });
     showDialog({ title: t("legal.support.savedTitle"), message: t("legal.support.savedMessage") });
+  };
+
+  // Fire-and-forget, same soft-success shape as handleReport above: the
+  // confirmation and input reset happen immediately, without waiting on the
+  // network round-trip, so sharing feedback always feels received.
+  const handleSendFeedback = () => {
+    const message = feedbackMessage.trim();
+
+    if (message.length === 0) {
+      return;
+    }
+
+    const contact = feedbackContact.trim();
+
+    submitSupportFeedback({ message, ...(contact ? { contact } : {}) });
+    setFeedbackMessage("");
+    setFeedbackContact("");
+    showDialog({ title: t("legal.support.feedback.savedTitle"), message: t("legal.support.feedback.savedMessage") });
   };
 
   return (
@@ -120,6 +141,39 @@ export function SupportScreen() {
             {t("legal.support.lastReport", { label: generationIssueCopyByCategory[generationIssueReport.category].label })}
           </Text>
         ) : null}
+      </View>
+
+      <View style={styles.panel}>
+        <MessageCircle color={colors.skyDeep} size={26} strokeWidth={2.5} />
+        <Text style={styles.panelTitle}>{t("legal.support.feedback.title")}</Text>
+        <Text style={styles.panelText}>{t("legal.support.feedback.prompt")}</Text>
+        <TextInput
+          value={feedbackMessage}
+          onChangeText={setFeedbackMessage}
+          placeholder={t("legal.support.feedback.messagePlaceholder")}
+          placeholderTextColor={colors.mutedInk}
+          multiline
+          maxLength={2000}
+          style={styles.feedbackMessageInput}
+          accessibilityLabel={t("legal.support.feedback.messageAccessibilityLabel")}
+        />
+        <TextInput
+          value={feedbackContact}
+          onChangeText={setFeedbackContact}
+          placeholder={t("legal.support.feedback.contactPlaceholder")}
+          placeholderTextColor={colors.mutedInk}
+          maxLength={200}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.feedbackContactInput}
+          accessibilityLabel={t("legal.support.feedback.contactAccessibilityLabel")}
+        />
+        <ActionButton
+          label={t("legal.support.feedback.send")}
+          Icon={Mail}
+          disabled={feedbackMessage.trim().length === 0}
+          onPress={handleSendFeedback}
+        />
       </View>
 
       <ActionButton label={t("legal.back")} Icon={ArrowLeft} onPress={() => router.push("/settings")} />
@@ -220,5 +274,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontWeight: "900"
+  },
+  feedbackMessageInput: {
+    minHeight: 96,
+    maxHeight: 200,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.cream,
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    padding: spacing.md,
+    textAlignVertical: "top"
+  },
+  feedbackContactInput: {
+    height: 48,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.cream,
+    color: colors.ink,
+    fontSize: 14,
+    paddingHorizontal: spacing.md
   }
 });

@@ -168,6 +168,7 @@ export const esMX = {
     failureTitle: "Mudanza en pausa",
     quotaFailure: "Tu pequeño amigo pronto estará listo para mudarse. Vuelve en un ratito.",
     retryFailure: "La puertita se atoró. Intentemos crear a {{petName}} de nuevo.",
+    safetyFailure: "No pudimos ayudar a tu mascota a mudarse con esta foto. Intenta con otra foto donde se vea claramente a tu mascota.",
     reveal: "Descubrir mascota",
     steps: {
       preparing: "Preparando la foto",
@@ -944,7 +945,18 @@ export const esMX = {
       saved: "Guardado",
       lastReport: "Último reporte: {{label}}",
       savedTitle: "Reporte guardado",
-      savedMessage: "Solo se guardó la categoría del problema. No se adjuntaron la foto original ni el texto del chat."
+      savedMessage: "Solo se guardó la categoría del problema. No se adjuntaron la foto original ni el texto del chat.",
+      feedback: {
+        title: "Cuéntanos lo que sea",
+        prompt: "Cuéntanos lo que sea — qué se sintió raro, o qué te sacó una sonrisa.",
+        messagePlaceholder: "Escribe lo que se te ocurra…",
+        messageAccessibilityLabel: "Mensaje de comentarios",
+        contactPlaceholder: "Un contacto si quieres que te respondamos (opcional)",
+        contactAccessibilityLabel: "Contacto opcional para una respuesta",
+        send: "Enviar comentarios",
+        savedTitle: "Gracias",
+        savedMessage: "Leemos cada mensaje con cariño. Gracias por compartirlo."
+      }
     },
     terms: {
       accessibilityLabel: "Términos y valor pagado",

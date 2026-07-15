@@ -23,6 +23,9 @@ assert.match(migration, /GRANT EXECUTE[\s\S]*TO authenticated/);
 assert.match(mobileTransport, /reportSupabaseChatMessage/);
 assert.match(mobileTransport, /client\.rpc\("report_chat_message"/);
 assert.match(history, /onReport/);
-assert.match(history, /Flag/);
+// The redesigned history surfaces the report entry point as the shield-alert
+// icon button labelled via the chat.report.* i18n keys (formerly a "Flag" text button).
+assert.match(history, /chat\.report\.button/);
+assert.match(history, /shield-alert/);
 
 process.stdout.write("Chat message reporting contract passed.\n");

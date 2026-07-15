@@ -116,6 +116,7 @@ import { createExpressionPackPurchaseCoordinator } from "./expressionPackPurchas
 import { clearExpressionPackRequestId, getOrCreateExpressionPackRequestId, rotateExpressionPackRequestId } from "./expressionPackRequestIdStore";
 import { hasActiveGenerationJob } from "./generationJobGuards";
 import { ensureLocalGeneratedAssets } from "./localGeneratedAssetStore";
+import { deleteOriginalPhotoFile } from "./originalPhotoFileDeletion";
 import { getSupabaseClient } from "./supabaseClient";
 import { deleteSupabaseAccountData } from "./supabaseAccountDeletion";
 import { deleteSupabaseChatHistory } from "./supabasePremiumChatSession";
@@ -167,6 +168,7 @@ import {
 } from "./careActionCooldownSession";
 import { claimSupabaseCreditReward } from "./supabaseRewardSession";
 import { purchaseSupabaseInventoryItem, purchaseSupabaseThemeBundle } from "./supabaseShopSession";
+import { submitSupportFeedbackToSupabase } from "./supabaseSupportSession";
 import { purchaseSupabaseWalkEarlyReturn } from "./supabaseWalkSession";
 import type { Purchase } from "expo-iap";
 
@@ -301,6 +303,8 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   /** Starts (or confirms failure fast for) an expression pack purchase -- see purchaseExpressionPack's doc comment for the full state machine. */
   purchaseExpressionPack: (packId: string) => Promise<PurchaseExpressionPackResult>;
   reportGenerationIssue: (category: GenerationIssueCategory) => void;
+  /** SupportScreen's free-text feedback box -- fire-and-forget, same soft-success UX as reportGenerationIssue (see submitSupportFeedback's doc comment). */
+  submitSupportFeedback: (input: { message: string; contact?: string }) => void;
   deleteOriginalPhoto: () => void;
   deleteChatHistory: () => void;
   purchaseCatalogItem: (itemId: ItemId) => Promise<PurchaseCatalogItemResult>;
@@ -2539,6 +2543,25 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
     setState((current) => reportPrototypeGenerationIssue(current, category, reportedAt));
 
+    // Live Supabase collection for the generation-issue report, alongside
+    // the local record above -- fire-and-forget, same soft-success shape as
+    // submitSupportFeedback below: SupportScreen already shows its "Saved"
+    // confirmation from the local state update regardless of this call's
+    // outcome, so a network hiccup here must never surface as an error.
+    const supabaseClient = getSupabaseClient();
+
+    if (supabaseClient) {
+      void submitSupportFeedbackToSupabase(supabaseClient, {
+        category: "generation_issue",
+        subcategory: category,
+        context: {
+          category,
+          petId: activePet.id,
+          ...(activePet.activeGenerationJobId ? { generationJobId: activePet.activeGenerationJobId } : {})
+        }
+      });
+    }
+
     if (apiRuntime.mode !== "api") {
       return;
     }
@@ -2562,8 +2585,38 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       });
   }, [activePet.activeGenerationJobId, activePet.id, apiRuntime, setApiError]);
 
+  /**
+   * SupportScreen's free-text feedback box. Fire-and-forget by design, same
+   * as reportGenerationIssue above -- the caller (SupportScreen) shows its
+   * warm confirmation and clears the input the moment this is called,
+   * without waiting on the network round-trip, so feedback always feels
+   * received even on a flaky connection. A no-op without a Supabase client
+   * (nothing to send to in local/legacy-api modes).
+   */
+  const submitSupportFeedback = useCallback((input: { message: string; contact?: string }) => {
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    void submitSupportFeedbackToSupabase(supabaseClient, {
+      category: "feedback",
+      message: input.message,
+      ...(input.contact ? { contact: input.contact } : {}),
+      context: { petId: activePet.id }
+    });
+  }, [activePet.id]);
+
   const deleteOriginalPhoto = useCallback(() => {
     const deletedAt = nowIso();
+
+    // Best-effort, idempotent actual file delete -- fired before the local
+    // state clear below, never awaited (a slow or failing filesystem call
+    // must not hold up "Delete local photo copy" completing for the user).
+    // See deleteOriginalPhotoFile's doc comment: previously this callback
+    // only forgot the file's path, it never removed the bytes themselves.
+    void deleteOriginalPhotoFile(state.photo.selectedPhotoUri);
 
     if (apiRuntime.mode !== "api") {
       setState((current) => deletePrototypeOriginalPhoto(current, deletedAt));
@@ -2582,7 +2635,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       setState((current) => deletePrototypeOriginalPhoto(current, result.data.deletedAt));
       setApiSyncStatus("ready");
     });
-  }, [activePet.id, apiRuntime, setApiError]);
+  }, [activePet.id, apiRuntime, setApiError, state.photo.selectedPhotoUri]);
 
   const deleteChatHistory = useCallback(() => {
     const deletedAt = nowIso();
@@ -3123,6 +3176,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     expressionPackPurchaseStatusById,
     purchaseExpressionPack,
     reportGenerationIssue,
+    submitSupportFeedback,
     deleteOriginalPhoto,
     deleteChatHistory,
     purchaseCatalogItem,

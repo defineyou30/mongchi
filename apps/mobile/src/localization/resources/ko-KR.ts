@@ -164,6 +164,7 @@ export const koKR = {
     failureTitle: "입주가 잠시 멈췄어요",
     quotaFailure: "작은 친구가 곧 입주할 수 있어요. 잠시 후 다시 확인해 주세요.",
     retryFailure: "작은 문이 걸렸어요. {{petName}}를 다시 만들어 볼게요.",
+    safetyFailure: "이 사진으로는 입주를 도와줄 수 없었어요. 반려동물이 또렷하게 보이는 다른 사진으로 시도해 주세요.",
     reveal: "친구 만나기",
     steps: {
       preparing: "사진 준비",
@@ -927,7 +928,18 @@ export const koKR = {
       saved: "저장됨",
       lastReport: "최근 신고: {{label}}",
       savedTitle: "신고를 저장했어요",
-      savedMessage: "문제 분류만 저장했어요. 원본 사진이나 채팅 내용은 첨부하지 않았어요."
+      savedMessage: "문제 분류만 저장했어요. 원본 사진이나 채팅 내용은 첨부하지 않았어요.",
+      feedback: {
+        title: "무엇이든 들려주세요",
+        prompt: "불편했던 점이나 좋았던 순간, 무엇이든 들려주세요.",
+        messagePlaceholder: "떠오르는 대로 편하게 적어 주세요...",
+        messageAccessibilityLabel: "피드백 메시지",
+        contactPlaceholder: "답장을 원하시면 연락처를 남겨 주세요 (선택)",
+        contactAccessibilityLabel: "답장을 위한 선택 연락처",
+        send: "피드백 보내기",
+        savedTitle: "감사합니다",
+        savedMessage: "보내주신 모든 이야기를 소중히 읽고 있어요."
+      }
     },
     terms: {
       accessibilityLabel: "이용약관과 유료 가치",
