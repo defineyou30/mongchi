@@ -17,6 +17,7 @@ import {
   recordExpressionPackJobStart,
   recordExpressionPackUnlock,
   createPersistedSessionEnvelope,
+  createSessionSnapshotEnvelope,
   isValidPrototypeSessionShape,
   runSessionMigrations,
   purchasePrototypeThemeBundle,
@@ -50,6 +51,7 @@ import {
   normalizeRestoredGeneration,
   normalizeRestoredPetSetupDraft,
   parseSessionBackup,
+  parseSessionSnapshotEnvelope,
   peekRewardClaim,
   pollPrototypeGenerationJob,
   performPrototypeCareAction,
@@ -110,6 +112,7 @@ import {
   startApiGenerationFlow
 } from "./apiGenerationSession";
 import { createAsyncActionGuard } from "./asyncActionGuard";
+import { requestAppleCredential } from "./appleAuthSession";
 import { clearAvatarGenerationRequestId, getOrCreateAvatarGenerationRequestId, rotateAvatarGenerationRequestId } from "./avatarGenerationRequestIdStore";
 import { getDevelopmentStoreCreditPresentation, getExpressionPackValidationWallet } from "./developmentStoreCredits";
 import { createExpressionPackPurchaseCoordinator } from "./expressionPackPurchaseCoordinator";
@@ -119,6 +122,9 @@ import { ensureLocalGeneratedAssets } from "./localGeneratedAssetStore";
 import { deleteOriginalPhotoFile } from "./originalPhotoFileDeletion";
 import { getSupabaseClient } from "./supabaseClient";
 import { deleteSupabaseAccountData } from "./supabaseAccountDeletion";
+import { getAccountIdentitySummary, linkAppleIdentity, recoverWithAppleIdentity } from "./supabaseAccountLinkSession";
+import type { AccountIdentitySummary } from "./supabaseAccountLinkSession";
+import { downloadSessionSnapshot, uploadSessionSnapshot } from "./supabaseSessionSnapshotSession";
 import { deleteSupabaseChatHistory } from "./supabasePremiumChatSession";
 import {
   hydrateServerCreditBalance,
@@ -235,6 +241,36 @@ export type ImportSessionBackupResult =
   | { ok: true }
   | { ok: false; reason: "empty_input" | "invalid_json" | "unmigratable_version" | "invalid_shape"; messageSafe: string };
 
+/**
+ * linkAppleAccount's result. `unavailable`/`canceled`/`failed` pass straight
+ * through from appleAuthSession.ts's requestAppleCredential (the native
+ * prompt itself never ran or was dismissed); `identity_already_linked`/
+ * `linking_disabled`/`request_failed` pass straight through from
+ * supabaseAccountLinkSession.ts's linkAppleIdentity (the prompt completed
+ * but the server-side link failed). Copy for each reason is Settings'
+ * responsibility -- this type only carries the branch.
+ */
+export type LinkAppleAccountResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "unavailable" | "canceled" | "failed" | "identity_already_linked" | "linking_disabled" | "request_failed";
+    };
+
+/**
+ * recoverAccountWithApple's result. `restored: true` means a server-side
+ * snapshot existed and this device's local garden was replaced with it;
+ * `restored: false` means the Apple identity recovery itself succeeded (this
+ * device is now signed into the recovered account) but there was no usable
+ * snapshot to restore, so the local garden was left untouched -- either way
+ * credit balance is rehydrated from the (now different) account. `ok: false`
+ * only covers a failure before the account swap itself (credential request
+ * or recoverWithAppleIdentity) -- see this callback's doc comment below.
+ */
+export type RecoverAccountWithAppleResult =
+  | { ok: true; restored: boolean }
+  | { ok: false; reason: "unavailable" | "canceled" | "failed" | "request_failed" };
+
 /** Per-pack lifecycle for the friend page's pose gallery -- "pending" covers both the job-start call and the poll loop that follows it. */
 export type ExpressionPackPurchaseStatus = "pending" | "failed";
 
@@ -318,6 +354,12 @@ interface TerrariumSessionContextValue extends PrototypeSessionState, PetBundle 
   exportSessionBackup: () => ExportSessionBackupResult;
   /** Validates, migrates, and restores a pasted backup (see ImportSessionBackupResult's doc comment). */
   importSessionBackup: (backupText: string) => Promise<ImportSessionBackupResult>;
+  /** Whether this device's Supabase session already carries a linked Apple identity -- see getAccountIdentitySummary's doc comment. `{ linked: false }` until the bootstrap fetch below resolves (or there's no Supabase client at all). */
+  accountIdentity: AccountIdentitySummary;
+  /** Links Sign in with Apple to this device's current session and uploads an immediate server-side snapshot -- see LinkAppleAccountResult's doc comment. */
+  linkAppleAccount: () => Promise<LinkAppleAccountResult>;
+  /** Signs this device into the Apple identity's owning account and restores its snapshot if one exists -- see RecoverAccountWithAppleResult's doc comment. */
+  recoverAccountWithApple: () => Promise<RecoverAccountWithAppleResult>;
   /** The reward-claim card that should be showing right now, or null -- see RewardClaimOverlay (mounted once near the app root). */
   pendingRewardClaim: RewardClaimQueueItem | null;
   /**
@@ -376,6 +418,14 @@ const GENERATED_ASSET_RESYNC_MAX_ATTEMPTS = 3;
 // handful of tries per app session instead of retrying forever on every
 // 30s sessionClock tick through the whole night window.
 const SLEEP_POSE_NIGHT_UNLOCK_MAX_ATTEMPTS = 5;
+
+// Debounce window for the automatic server-side session-snapshot upload
+// effect below -- long enough that a burst of care-action taps only
+// produces one upload instead of one per tap, short enough that the
+// snapshot is never far behind the real session (and the AppState
+// background listener flushes immediately regardless, so this window is
+// only ever "how long a snapshot can lag while the app stays foregrounded").
+const SNAPSHOT_AUTO_UPLOAD_DEBOUNCE_MS = 15_000;
 
 const nowIso = () => new Date().toISOString();
 
@@ -665,6 +715,12 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
   const [purchaseStatusMessage, setPurchaseStatusMessage] = useState<string | null>(null);
   const [weatherLocationStatus, setWeatherLocationStatus] = useState<LocationWeatherRefreshStatus>("idle");
   const [weatherLocationMessage, setWeatherLocationMessage] = useState<string | null>(null);
+  // Account recovery stack, package C: whether this device's Supabase
+  // session already carries a linked Apple identity -- see
+  // getAccountIdentitySummary's doc comment. Defaults unlinked and is
+  // fetched once at bootstrap (see the effect below); linkAppleAccount and
+  // recoverAccountWithApple also refresh it after a successful link/recover.
+  const [accountIdentity, setAccountIdentity] = useState<AccountIdentitySummary>({ linked: false });
   const [sessionClock, setSessionClock] = useState(() => Date.now());
   const [careCooldownUntilByAction, setCareCooldownUntilByAction] = useState<Partial<Record<CareActionType, number>>>({});
   // Reward-claim overlay queue (RewardClaimOverlay, mounted once near the app
@@ -823,6 +879,32 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       cancelled = true;
     };
   }, [qaScreenPreset, storeScreenshotPreset]);
+
+  // Account recovery stack, package C bootstrap: a single read of whether
+  // this device's Supabase session already carries a linked Apple identity,
+  // so Settings can render "Apple로 연결" vs. the already-linked status row
+  // without waiting on a user action first. Independent of the hydration
+  // effect above (accountIdentity is not part of PrototypeSessionState) --
+  // runs once per mount, a no-op without a Supabase client.
+  useEffect(() => {
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void getAccountIdentitySummary(supabaseClient).then((summary) => {
+      if (!cancelled) {
+        setAccountIdentity(summary);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isHydrated || storeScreenshotPreset || qaScreenPreset) {
@@ -3048,6 +3130,123 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     }));
   }, []);
 
+  /**
+   * Account recovery stack, package C: "Link Apple ID" from Settings.
+   * requestAppleCredential's own reason (unavailable/canceled/failed) passes
+   * straight through if the native prompt itself didn't complete -- no
+   * Supabase call is ever attempted in that case. Once linkAppleIdentity
+   * confirms the link, accountIdentity is refreshed (so Settings can flip
+   * from "Link" to the connected status row without waiting for the next
+   * app launch) and the current session is uploaded as an immediate
+   * server-side snapshot -- see uploadSessionSnapshot's doc comment -- so a
+   * device that links and is then lost the same day still has something to
+   * recover from. The upload is best-effort: its own failure doesn't turn a
+   * successful link into an error (the automatic debounce effect below will
+   * pick it up on the next session change regardless).
+   */
+  const linkAppleAccount = useCallback(async (): Promise<LinkAppleAccountResult> => {
+    const credential = await requestAppleCredential();
+
+    if (!credential.ok) {
+      return credential;
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return { ok: false, reason: "request_failed" };
+    }
+
+    const linked = await linkAppleIdentity(supabaseClient, credential);
+
+    if (!linked.ok) {
+      return linked;
+    }
+
+    const summary = await getAccountIdentitySummary(supabaseClient);
+    setAccountIdentity(summary);
+
+    await uploadSessionSnapshot(supabaseClient, {
+      envelope: createSessionSnapshotEnvelope(state),
+      clientUpdatedAt: nowIso()
+    });
+
+    return { ok: true };
+  }, [state]);
+
+  /**
+   * Account recovery stack, package C: "Recover garden" from Settings, for a
+   * fresh device/reinstall. recoverWithAppleIdentity replaces this device's
+   * session with the recovered account's -- once that succeeds there is no
+   * "nothing was changed" fallback left (the auth swap already happened), so
+   * everything past that point only chooses between restoring the
+   * downloaded snapshot (`restored: true`) or leaving this device's local
+   * garden as-is (`restored: false`, e.g. a recovered account that linked
+   * but never got far enough to upload a snapshot). Either way the
+   * (now different) account's credit balance is rehydrated. Reuses
+   * mergeRestoredSession/PRE_IMPORT_SNAPSHOT_KEY exactly as
+   * importSessionBackup above does, so a wrong-account recovery is just as
+   * recoverable as a wrong-file backup import.
+   */
+  const recoverAccountWithApple = useCallback(async (): Promise<RecoverAccountWithAppleResult> => {
+    const credential = await requestAppleCredential();
+
+    if (!credential.ok) {
+      return credential;
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return { ok: false, reason: "request_failed" };
+    }
+
+    const recovered = await recoverWithAppleIdentity(supabaseClient, credential);
+
+    if (!recovered.ok) {
+      return recovered;
+    }
+
+    const summary = await getAccountIdentitySummary(supabaseClient);
+    setAccountIdentity(summary);
+
+    const downloaded = await downloadSessionSnapshot(supabaseClient);
+
+    if (downloaded.ok && downloaded.snapshot) {
+      const parsed = parseSessionSnapshotEnvelope(downloaded.snapshot.payload);
+
+      if (parsed.ok) {
+        const restoredState = mergeRestoredSession(parsed.envelope.state as unknown as Record<string, unknown>);
+
+        try {
+          // Snapshot first, same reasoning as importSessionBackup above: if
+          // the write below is interrupted, the pre-recovery session is
+          // still recoverable from PRE_IMPORT_SNAPSHOT_KEY.
+          await AsyncStorage.setItem(PRE_IMPORT_SNAPSHOT_KEY, JSON.stringify(createPersistedSessionEnvelope(state)));
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(createPersistedSessionEnvelope(restoredState)));
+
+          setState(restoredState);
+          setCareCooldownUntilByAction({});
+          generatedAssetResyncDoneRef.current = false;
+          generatedAssetResyncAttemptsRef.current = 0;
+          attemptGeneratedAssetResync();
+          void hydrateCreditBalance();
+
+          return { ok: true, restored: true };
+        } catch {
+          // Couldn't safely commit the restored garden to this device --
+          // fall through to the "keep local, rehydrate credits only" branch
+          // below rather than reporting the whole recovery as failed (the
+          // account swap itself already succeeded).
+        }
+      }
+    }
+
+    void hydrateCreditBalance();
+
+    return { ok: true, restored: false };
+  }, [attemptGeneratedAssetResync, hydrateCreditBalance, state]);
+
   // Credit Phase 1c trigger point (a): app foreground resume (design doc
   // §6.2). Only fires on background/inactive -> active transitions, not on
   // the initial mount's "active" state (AppState's listener only reports
@@ -3067,6 +3266,89 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
     return () => subscription.remove();
   }, [attemptGeneratedAssetResync, hydrateCreditBalance]);
+
+  // Account recovery stack, package C: keeps this device's server-side
+  // session snapshot (see uploadSessionSnapshot's doc comment) roughly in
+  // sync with local play, without uploading on every single state change --
+  // a debounce (SNAPSHOT_AUTO_UPLOAD_DEBOUNCE_MS) coalesces a burst of care
+  // taps into one upload. Deliberately a separate effect from the
+  // AsyncStorage persistence effect near the top of this provider: that one
+  // is unconditional (every state change, every device), this one only
+  // fires with a live Supabase client AND auth session, on a much longer
+  // cadence. Fire-and-forget -- a failed upload (offline, RPC error) is
+  // silently dropped; the next session change re-arms the debounce and
+  // tries again, so a lost snapshot round-trip is never surfaced to the
+  // player. `flushSnapshotUploadRef` is reassigned every render (not inside
+  // an effect) so it always closes over the latest state/flags -- the same
+  // "always-current callback in a ref" pattern the debounce timer and the
+  // AppState background listener below both need, since neither can afford
+  // to re-subscribe/re-arm on every keystroke-sized state change.
+  const flushSnapshotUploadRef = useRef<() => void>(() => {});
+  const snapshotUploadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  flushSnapshotUploadRef.current = () => {
+    if (!isHydrated || storeScreenshotPreset || qaScreenPreset) {
+      return;
+    }
+
+    const supabaseClient = getSupabaseClient();
+
+    if (!supabaseClient) {
+      return;
+    }
+
+    const envelope = createSessionSnapshotEnvelope(state);
+
+    void supabaseClient.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        return;
+      }
+
+      void uploadSessionSnapshot(supabaseClient, { envelope, clientUpdatedAt: nowIso() });
+    });
+  };
+
+  useEffect(() => {
+    if (!isHydrated || storeScreenshotPreset || qaScreenPreset) {
+      return;
+    }
+
+    if (snapshotUploadTimerRef.current) {
+      clearTimeout(snapshotUploadTimerRef.current);
+    }
+
+    snapshotUploadTimerRef.current = setTimeout(() => {
+      snapshotUploadTimerRef.current = null;
+      flushSnapshotUploadRef.current();
+    }, SNAPSHOT_AUTO_UPLOAD_DEBOUNCE_MS);
+
+    return () => {
+      if (snapshotUploadTimerRef.current) {
+        clearTimeout(snapshotUploadTimerRef.current);
+        snapshotUploadTimerRef.current = null;
+      }
+    };
+  }, [isHydrated, qaScreenPreset, state, storeScreenshotPreset]);
+
+  // Ignores the debounce timer above and uploads immediately on
+  // foreground -> background: the debounce's own setTimeout can be
+  // suspended the instant the app backgrounds, so waiting for it to fire
+  // naturally would drop the last few seconds of play on a hard background
+  // (app switch, device lock) -- see flushSnapshotUploadRef's doc comment.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (nextState === "background") {
+        if (snapshotUploadTimerRef.current) {
+          clearTimeout(snapshotUploadTimerRef.current);
+          snapshotUploadTimerRef.current = null;
+        }
+
+        flushSnapshotUploadRef.current();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   const devStoreUnlocked = isDevelopmentStoreUnlockEnabled();
   const hasAuthoritativeWallet = getSupabaseClient() !== null || apiRuntime.mode === "api";
@@ -3187,6 +3469,9 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
     resetSession,
     exportSessionBackup,
     importSessionBackup,
+    accountIdentity,
+    linkAppleAccount,
+    recoverAccountWithApple,
     pendingRewardClaim,
     enqueueCreditRewardClaim,
     enqueueDailyTreatRewardClaim,

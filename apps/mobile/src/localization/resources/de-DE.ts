@@ -691,6 +691,7 @@ export const deDE = {
     sections: {
       reminders: "Kleine Erinnerungen",
       sound: "Klang & Gefühl",
+      account: "Konto",
       privacy: "Datenschutz & Fürsorge",
       support: "Hilfe & Rechtliches"
     },
@@ -738,6 +739,27 @@ export const deDE = {
       music: "Musik & Atmosphäre",
       musicDetail: "Sanfte Gartenmusik und Hintergrundgeräusche wie Vogelstimmen oder Regen."
     },
+    account: {
+      linkTitle: "Mit Apple verknüpfen",
+      linkDetail: "Schütze deinen Garten — dein Freund und eure Erinnerungen bleiben sicher, auch wenn du das Gerät wechselst.",
+      linkAction: "Verbinden",
+      linkActionInFlight: "Wird verbunden",
+      recoverTitle: "Garten wiederherstellen",
+      recoverDetail: "Hast du schon einmal einen Garten verknüpft? Hol ihn dir hier zurück.",
+      recoverAction: "Wiederherstellen",
+      recoverActionInFlight: "Wird wiederhergestellt",
+      connectedTitle: "Mit Apple verknüpft",
+      connectedDetail: "Dein Garten wird sicher aufbewahrt.",
+      connectedEmailDetail: "Verknüpft als {{email}}",
+      unavailableMessage: "Apple-Anmeldung ist auf diesem Gerät gerade nicht verfügbar.",
+      alreadyLinkedMessage: "Diese Apple-ID ist bereits mit einem anderen Garten verknüpft. Nutze unten „Garten wiederherstellen“, um ihn hierher zu holen.",
+      linkFailedMessage: "Deine Apple-ID konnte gerade nicht verbunden werden. Bitte versuche es gleich noch einmal.",
+      recoverConfirmTitle: "Diesen Garten wiederherstellen?",
+      recoverConfirmMessage: "Wenn du einen gespeicherten Garten wiederherstellst, ersetzt er den Garten auf diesem Gerät. Deinen jetzigen Freund verstauen wir währenddessen sicher. Fortfahren?",
+      recoverFailedMessage: "Dein Garten konnte gerade nicht wiederhergestellt werden. Bitte versuche es gleich noch einmal.",
+      recoveredMessage: "Dein Garten wurde wiederhergestellt.",
+      recoveredNoSnapshotMessage: "Es wurde kein gespeicherter Garten gefunden, aber die Bilder und das Guthaben deines Freundes sind zurück."
+    },
     privacy: {
       localPhoto: "Lokale Fotokopie",
       photoDeleted: "Von diesem Gerät gelöscht.",
@@ -774,6 +796,8 @@ export const deDE = {
       restoreConfirmMessage: "Dadurch wird dein aktueller Garten ersetzt. Zur Sicherheit wird dein jetziger Freund zuerst gesichert.",
       restoredTitle: "Willkommen zurück!",
       restoredMessage: "Dein Garten wurde aus der Sicherung wiederhergestellt.",
+      accountLink: "Mit Apple verknüpfen",
+      accountRecover: "Garten wiederherstellen",
       deleteAllTitle: "Alle deine Daten löschen?",
       deleteAllMessage:
         "Dadurch werden die Tiereinrichtung, das erstellte Tier, der Pflegestatus und das Inventar von diesem Gerät gelöscht. Außerdem bitten wir unsere Server, dein Foto, erstellte Avatare und Kontodaten zu löschen. Das lässt sich nicht rückgängig machen.",

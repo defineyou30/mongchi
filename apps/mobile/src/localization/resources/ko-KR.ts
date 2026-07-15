@@ -683,6 +683,7 @@ export const koKR = {
     sections: {
       reminders: "작은 알림",
       sound: "소리와 느낌",
+      account: "계정",
       privacy: "개인정보와 돌봄",
       support: "도움말과 약관"
     },
@@ -727,6 +728,27 @@ export const koKR = {
       music: "음악과 환경음",
       musicDetail: "새소리와 빗소리 같은 잔잔한 정원 소리예요."
     },
+    account: {
+      linkTitle: "Apple로 연결",
+      linkDetail: "내 정원 지키기 — 기기를 바꿔도 친구와 추억이 안전해요",
+      linkAction: "연결",
+      linkActionInFlight: "연결하는 중",
+      recoverTitle: "정원 불러오기",
+      recoverDetail: "이미 연결해 둔 정원이 있다면 여기로",
+      recoverAction: "불러오기",
+      recoverActionInFlight: "불러오는 중",
+      connectedTitle: "Apple로 연결됨",
+      connectedDetail: "정원이 안전하게 보관되고 있어요",
+      connectedEmailDetail: "{{email}}로 연결됨",
+      unavailableMessage: "이 기기에서는 지금 Apple 로그인을 사용할 수 없어요.",
+      alreadyLinkedMessage: "이 Apple ID는 이미 다른 정원과 연결돼 있어요. 아래 '정원 불러오기'로 데려올 수 있어요",
+      linkFailedMessage: "지금은 Apple 계정을 연결할 수 없어요. 잠시 후 다시 시도해 주세요.",
+      recoverConfirmTitle: "이 정원을 불러올까요?",
+      recoverConfirmMessage: "저장된 정원을 불러오면 이 폰의 정원은 그 정원으로 바뀌어요. 지금 친구는 한쪽에 소중히 둘게요. 계속할까요?",
+      recoverFailedMessage: "지금은 정원을 불러올 수 없어요. 잠시 후 다시 시도해 주세요.",
+      recoveredMessage: "정원을 불러왔어요.",
+      recoveredNoSnapshotMessage: "저장된 정원은 못 찾았지만, 친구의 그림과 크레딧은 돌아왔어요"
+    },
     privacy: {
       localPhoto: "기기 속 원본 사진",
       photoDeleted: "이 기기에서 삭제했어요.",
@@ -763,6 +785,8 @@ export const koKR = {
       restoreConfirmMessage: "현재 정원이 교체돼요. 혹시 모르니 지금 친구는 먼저 백업할게요.",
       restoredTitle: "다시 만나 반가워요!",
       restoredMessage: "백업에서 정원을 복원했어요.",
+      accountLink: "Apple로 연결",
+      accountRecover: "정원 불러오기",
       deleteAllTitle: "모든 데이터를 삭제할까요?",
       deleteAllMessage:
         "이 기기의 반려동물 설정, 생성된 친구, 돌봄 상태와 보관함을 삭제하고 서버에도 사진, 아바타와 계정 데이터 삭제를 요청해요. 되돌릴 수 없어요.",

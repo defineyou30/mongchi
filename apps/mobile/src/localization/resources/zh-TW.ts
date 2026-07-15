@@ -673,6 +673,7 @@ export const zhTW = {
     sections: {
       reminders: "貼心小提醒",
       sound: "聲音與觸感",
+      account: "帳號",
       privacy: "隱私與照顧",
       support: "支援與法律資訊"
     },
@@ -707,6 +708,27 @@ export const zhTW = {
       effectsDetail: "輕巧鈴聲和點按聲，搭配柔和震動。",
       music: "音樂與環境音",
       musicDetail: "輕柔的花園音樂和背景聲，例如鳥鳴或雨聲。"
+    },
+    account: {
+      linkTitle: "與 Apple 連結",
+      linkDetail: "守護你的花園 — 就算換手機，朋友和回憶也依然安全。",
+      linkAction: "連結",
+      linkActionInFlight: "連結中",
+      recoverTitle: "找回花園",
+      recoverDetail: "如果你之前連結過花園，這裡可以把它找回來。",
+      recoverAction: "找回",
+      recoverActionInFlight: "找回中",
+      connectedTitle: "已與 Apple 連結",
+      connectedDetail: "你的花園正被安全地保管著。",
+      connectedEmailDetail: "已連結：{{email}}",
+      unavailableMessage: "這台裝置目前無法使用 Apple 登入。",
+      alreadyLinkedMessage: "這個 Apple ID 已經連結到另一座花園。可以用下方的「找回花園」把它帶過來。",
+      linkFailedMessage: "目前無法連結你的 Apple ID。請稍後再試一次。",
+      recoverConfirmTitle: "要找回這座花園嗎？",
+      recoverConfirmMessage: "找回已儲存的花園後，這台手機的花園會被換成那一座。現在的朋友，我們會先妥善收好。要繼續嗎？",
+      recoverFailedMessage: "目前無法找回你的花園。請稍後再試一次。",
+      recoveredMessage: "已找回你的花園。",
+      recoveredNoSnapshotMessage: "沒有找到已儲存的花園，不過朋友的畫作和點數已經找回來了。"
     },
     privacy: {
       localPhoto: "本機照片副本",
@@ -744,6 +766,8 @@ export const zhTW = {
       restoreConfirmMessage: "這會取代你目前的花園。為了保險起見，我們會先備份現在的朋友。",
       restoredTitle: "歡迎回來！",
       restoredMessage: "你的花園已從備份還原。",
+      accountLink: "與 Apple 連結",
+      accountRecover: "找回花園",
       deleteAllTitle: "刪除所有資料？",
       deleteAllMessage: "這會刪除此裝置上的寵物設定、生成寵物、照顧狀態與物品欄，也會要求伺服器刪除你的照片、生成頭像和帳號資料。此操作無法復原。",
       serverRetry: "需要重試伺服器刪除",

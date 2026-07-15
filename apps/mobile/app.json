@@ -31,6 +31,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.defineyou.mongchi",
+      "usesAppleSignIn": true,
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -70,6 +71,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
       [
         "expo-dev-client",
         {

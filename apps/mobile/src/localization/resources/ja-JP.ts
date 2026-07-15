@@ -687,6 +687,7 @@ export const jaJP = {
     sections: {
       reminders: "小さなリマインダー",
       sound: "音と感触",
+      account: "アカウント",
       privacy: "プライバシーとケア",
       support: "サポートと法的情報"
     },
@@ -721,6 +722,27 @@ export const jaJP = {
       effectsDetail: "小さなチャイムやタップ音に、やさしい振動を添えます。",
       music: "音楽と環境音",
       musicDetail: "鳥のさえずりや雨音など、やわらかな庭の音楽と環境音。"
+    },
+    account: {
+      linkTitle: "Appleで連携",
+      linkDetail: "庭を守る一歩 — 端末を変えても、お友だちと思い出はそのまま守られます。",
+      linkAction: "連携する",
+      linkActionInFlight: "連携中",
+      recoverTitle: "庭を呼び戻す",
+      recoverDetail: "以前つないだ庭があれば、ここから呼び戻せます。",
+      recoverAction: "呼び戻す",
+      recoverActionInFlight: "呼び戻し中",
+      connectedTitle: "Appleと連携済み",
+      connectedDetail: "庭は安全に大切に保管されています。",
+      connectedEmailDetail: "{{email}} で連携中",
+      unavailableMessage: "この端末では今、Appleサインインを利用できません。",
+      alreadyLinkedMessage: "このApple IDはすでに別の庭と連携しています。下の「庭を呼び戻す」で、こちらに連れてこられます。",
+      linkFailedMessage: "今はApple IDを連携できません。しばらくしてからもう一度お試しください。",
+      recoverConfirmTitle: "この庭を呼び戻しますか？",
+      recoverConfirmMessage: "保存された庭を呼び戻すと、この端末の庭はその庭に置き換わります。今のお友だちは、まず大切にしまっておきますね。続けますか？",
+      recoverFailedMessage: "今は庭を呼び戻せません。しばらくしてからもう一度お試しください。",
+      recoveredMessage: "庭を呼び戻しました。",
+      recoveredNoSnapshotMessage: "保存された庭は見つかりませんでしたが、お友だちの絵とクレジットは戻ってきました。"
     },
     privacy: {
       localPhoto: "端末内の写真コピー",
@@ -758,6 +780,8 @@ export const jaJP = {
       restoreConfirmMessage: "現在の庭と置き換えます。念のため、今のお友だちを先にバックアップします。",
       restoredTitle: "おかえりなさい！",
       restoredMessage: "バックアップから庭を復元しました。",
+      accountLink: "Appleで連携",
+      accountRecover: "庭を呼び戻す",
       deleteAllTitle: "すべてのデータを削除しますか？",
       deleteAllMessage:
         "この端末のペット設定、生成したペット、お世話の状態、持ちものを削除し、サーバーにも写真、生成したアバター、アカウントデータの削除を依頼します。元に戻すことはできません。",

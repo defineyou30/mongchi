@@ -685,6 +685,7 @@ export const enUS = {
     sections: {
       reminders: "Little reminders",
       sound: "Sound & feel",
+      account: "Account",
       privacy: "Privacy & care",
       support: "Support & legal"
     },
@@ -726,6 +727,27 @@ export const enUS = {
       music: "Music & ambience",
       musicDetail: "Soft garden music and background sounds, like birdsong or rain."
     },
+    account: {
+      linkTitle: "Link with Apple",
+      linkDetail: "Keep your garden safe — friends and memories stay yours, even if you switch phones.",
+      linkAction: "Connect",
+      linkActionInFlight: "Connecting",
+      recoverTitle: "Recover a garden",
+      recoverDetail: "Already linked a garden before? Bring it back here.",
+      recoverAction: "Recover",
+      recoverActionInFlight: "Recovering",
+      connectedTitle: "Linked with Apple",
+      connectedDetail: "Your garden is safely tucked away.",
+      connectedEmailDetail: "Linked as {{email}}",
+      unavailableMessage: "Apple sign-in isn't available on this device right now.",
+      alreadyLinkedMessage: "This Apple ID is already linked to a different garden. Use \"Recover a garden\" below to bring it here.",
+      linkFailedMessage: "Couldn't connect your Apple ID right now. Please try again in a bit.",
+      recoverConfirmTitle: "Recover this garden?",
+      recoverConfirmMessage: "Restoring a saved garden will replace this phone's garden with it. We'll tuck away your current friend safely first. Continue?",
+      recoverFailedMessage: "Couldn't recover your garden right now. Please try again in a bit.",
+      recoveredMessage: "Your garden has been restored.",
+      recoveredNoSnapshotMessage: "No saved garden was found, but your friend's artwork and credits are back."
+    },
     privacy: {
       localPhoto: "Local photo copy",
       photoDeleted: "Deleted from this device.",
@@ -762,6 +784,8 @@ export const enUS = {
       restoreConfirmMessage: "This will replace your current garden. Your current friend will be backed up first, just in case.",
       restoredTitle: "Welcome back!",
       restoredMessage: "Your garden has been restored from the backup.",
+      accountLink: "Link with Apple",
+      accountRecover: "Recover a garden",
       deleteAllTitle: "Delete all your data?",
       deleteAllMessage:
         "This deletes this device's pet setup, generated pet, care state, and inventory, and also asks our servers to delete your photo, generated avatars, and account data. This can't be undone.",

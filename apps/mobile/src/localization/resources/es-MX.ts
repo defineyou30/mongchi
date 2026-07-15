@@ -688,6 +688,7 @@ export const esMX = {
     sections: {
       reminders: "Pequeños recordatorios",
       sound: "Sonido y sensación",
+      account: "Cuenta",
       privacy: "Privacidad y cuidado",
       support: "Ayuda y asuntos legales"
     },
@@ -735,6 +736,27 @@ export const esMX = {
       music: "Música y ambiente",
       musicDetail: "Música suave de jardín y sonidos de fondo, como el canto de aves o la lluvia."
     },
+    account: {
+      linkTitle: "Vincular con Apple",
+      linkDetail: "Protege tu jardín — tu amigo y sus recuerdos siguen seguros, aunque cambies de teléfono.",
+      linkAction: "Conectar",
+      linkActionInFlight: "Conectando",
+      recoverTitle: "Recuperar un jardín",
+      recoverDetail: "¿Ya vinculaste un jardín antes? Tráelo de vuelta aquí.",
+      recoverAction: "Recuperar",
+      recoverActionInFlight: "Recuperando",
+      connectedTitle: "Vinculado con Apple",
+      connectedDetail: "Tu jardín se guarda de forma segura.",
+      connectedEmailDetail: "Vinculado como {{email}}",
+      unavailableMessage: "El inicio de sesión con Apple no está disponible en este dispositivo por ahora.",
+      alreadyLinkedMessage: "Este ID de Apple ya está vinculado a otro jardín. Usa \"Recuperar un jardín\" abajo para traerlo aquí.",
+      linkFailedMessage: "No pudimos vincular tu ID de Apple en este momento. Inténtalo de nuevo en un rato.",
+      recoverConfirmTitle: "¿Recuperar este jardín?",
+      recoverConfirmMessage: "Si recuperas un jardín guardado, reemplazará el jardín de este teléfono. Antes, guardaremos con cariño a tu amigo actual. ¿Quieres continuar?",
+      recoverFailedMessage: "No pudimos recuperar tu jardín en este momento. Inténtalo de nuevo en un rato.",
+      recoveredMessage: "Tu jardín se recuperó.",
+      recoveredNoSnapshotMessage: "No encontramos un jardín guardado, pero los dibujos y créditos de tu amigo ya están de vuelta."
+    },
     privacy: {
       localPhoto: "Copia local de la foto",
       photoDeleted: "Eliminada de este dispositivo.",
@@ -771,6 +793,8 @@ export const esMX = {
       restoreConfirmMessage: "Esto reemplazará tu jardín actual. Primero respaldaremos a tu amigo actual, por si acaso.",
       restoredTitle: "¡Qué gusto tenerte de vuelta!",
       restoredMessage: "Tu jardín se restauró desde el respaldo.",
+      accountLink: "Vincular con Apple",
+      accountRecover: "Recuperar un jardín",
       deleteAllTitle: "¿Eliminar todos tus datos?",
       deleteAllMessage:
         "Esto elimina de este dispositivo la configuración de la mascota, la mascota generada, el estado de sus cuidados y el inventario. También solicita a nuestros servidores que eliminen tu foto, los avatares generados y los datos de la cuenta. Esta acción no se puede deshacer.",

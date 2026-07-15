@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { syncAmbienceWithSettings, syncBgmWithSettings, useAudioSettings } from "../../shared/audio";
@@ -64,7 +64,13 @@ export function SettingsScreen() {
     weatherLocationStatus,
     resetSession,
     exportSessionBackup,
-    importSessionBackup
+    importSessionBackup,
+    accountIdentity,
+    linkAppleAccount,
+    recoverAccountWithApple,
+    petProfile,
+    memories,
+    careStreak
   } = useTerrariumSession();
   const privacyActionInProgress = apiSyncStatus === "syncing";
   const privacyActionError = apiSyncStatus === "error" ? apiErrorMessage : null;
@@ -72,6 +78,18 @@ export function SettingsScreen() {
   const [languageSelectorVisible, setLanguageSelectorVisible] = useState(false);
   const [restoreInputText, setRestoreInputText] = useState("");
   const [restoreInFlight, setRestoreInFlight] = useState(false);
+  // Account recovery stack, package C: guards both Apple actions below
+  // against a double-tap while a native prompt / Supabase round-trip is
+  // already in flight -- same "disable + relabel" pattern as
+  // privacyActionInProgress above, just scoped to this one section instead
+  // of the whole screen.
+  const [accountActionInFlight, setAccountActionInFlight] = useState(false);
+  // "정원 불러오기" (recover a garden) only needs its own confirm dialog when
+  // there's something on this device worth warning about first -- an active
+  // pet with at least one remembered moment or a live care streak. A brand
+  // new/empty local garden has nothing to lose, so recovery proceeds
+  // straight away in that case.
+  const hasMeaningfulLocalProgress = petProfile !== null && (memories.length > 0 || careStreak.current > 0);
   const weatherLocationInProgress = weatherLocationStatus === "requesting";
   const localizedWeatherLocationMessage = weatherLocationStatus === "idle"
     ? weatherLocationMessage
@@ -239,6 +257,97 @@ export function SettingsScreen() {
           })
           .finally(() => setRestoreInFlight(false));
       }
+    });
+  };
+
+  // "Link with Apple": canceled is a silent no-op (the owner just backed out
+  // of the native prompt, nothing to say), identity_already_linked gets its
+  // own dialog pointing at "Recover a garden" below since that's the actual
+  // next step, and every other failure (unavailable/linking_disabled/
+  // request_failed) gets a warm generic retry message. On success,
+  // accountIdentity updates on its own (see TerrariumSessionProvider's
+  // linkAppleAccount) and this row flips to the connected status row below
+  // -- no extra dialog needed for the happy path.
+  const handleLinkAppleAccount = () => {
+    if (accountActionInFlight) {
+      return;
+    }
+
+    setAccountActionInFlight(true);
+
+    void linkAppleAccount()
+      .then((result) => {
+        if (result.ok || result.reason === "canceled") {
+          return;
+        }
+
+        if (result.reason === "unavailable") {
+          showDialog({ title: t("settings.dialogs.accountLink"), message: t("settings.account.unavailableMessage") });
+          return;
+        }
+
+        if (result.reason === "identity_already_linked") {
+          showDialog({ title: t("settings.dialogs.accountLink"), message: t("settings.account.alreadyLinkedMessage") });
+          return;
+        }
+
+        showDialog({ title: t("settings.dialogs.accountLink"), message: t("settings.account.linkFailedMessage") });
+      })
+      .finally(() => setAccountActionInFlight(false));
+  };
+
+  // The actual Apple recovery call, shared by both the "nothing to lose"
+  // fast path and the "confirm first" path below -- see
+  // hasMeaningfulLocalProgress's doc comment for which one a given tap
+  // takes. restored:true and restored:false both count as success (the
+  // account swap itself worked either way, see
+  // RecoverAccountWithAppleResult's doc comment) and just get different
+  // welcome-back copy.
+  const runRecoverAccountWithApple = () => {
+    setAccountActionInFlight(true);
+
+    void recoverAccountWithApple()
+      .then((result) => {
+        if (!result.ok) {
+          if (result.reason === "canceled") {
+            return;
+          }
+
+          if (result.reason === "unavailable") {
+            showDialog({ title: t("settings.dialogs.accountRecover"), message: t("settings.account.unavailableMessage") });
+            return;
+          }
+
+          showDialog({ title: t("settings.dialogs.accountRecover"), message: t("settings.account.recoverFailedMessage") });
+          return;
+        }
+
+        if (result.restored) {
+          showDialog({ title: t("settings.dialogs.restoredTitle"), message: t("settings.account.recoveredMessage") });
+          return;
+        }
+
+        showDialog({ title: t("settings.dialogs.accountRecover"), message: t("settings.account.recoveredNoSnapshotMessage") });
+      })
+      .finally(() => setAccountActionInFlight(false));
+  };
+
+  const handleRecoverAccountWithApple = () => {
+    if (accountActionInFlight) {
+      return;
+    }
+
+    if (!hasMeaningfulLocalProgress) {
+      runRecoverAccountWithApple();
+      return;
+    }
+
+    showDialog({
+      title: t("settings.account.recoverConfirmTitle"),
+      message: t("settings.account.recoverConfirmMessage"),
+      primaryLabel: t("common.actions.restore"),
+      secondaryLabel: t("common.actions.cancel"),
+      onPrimary: runRecoverAccountWithApple
     });
   };
 
@@ -522,6 +631,80 @@ export function SettingsScreen() {
           />
         </View>
       </View>
+
+      {/*
+        Account recovery stack, package C: iOS-only for now -- Sign in with
+        Apple (appleAuthSession.ts) is the only identity provider wired up,
+        and AppleAuthentication.isAvailableAsync() itself is iOS-only, so an
+        Android build would only ever see the "unavailable" branch. Gate at
+        render time rather than inside linkAppleAccount/recoverAccountWithApple
+        so Android never shows a section with nothing it can do.
+      */}
+      {Platform.OS === "ios" ? (
+        <View style={styles.settingsSection}>
+          <View style={styles.sectionHeader}>
+            <MongchiIcon id="lock" size={22} />
+            <Text style={[styles.sectionTitle, { fontFamily: fontFamilies.label }]}>{t("settings.sections.account")}</Text>
+          </View>
+
+          {accountIdentity.linked ? (
+            <View style={styles.compactRow}>
+              <View style={styles.compactIconFrame}>
+                <MongchiIcon id="shield-check" size={22} />
+              </View>
+              <View style={styles.compactCopy}>
+                <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.account.connectedTitle")}</Text>
+                <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.account.connectedDetail")}</Text>
+                {accountIdentity.email ? (
+                  <Text style={[styles.accountEmailText, { fontFamily: fontFamilies.body }]}>
+                    {t("settings.account.connectedEmailDetail", { email: accountIdentity.email })}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : (
+            <>
+              <View style={styles.compactRow}>
+                <View style={styles.compactIconFrame}>
+                  <MongchiIcon id="shield-check" size={22} />
+                </View>
+                <View style={styles.compactCopy}>
+                  <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.account.linkTitle")}</Text>
+                  <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.account.linkDetail")}</Text>
+                </View>
+                <ActionButton
+                  label={accountActionInFlight ? t("settings.account.linkActionInFlight") : t("settings.account.linkAction")}
+                  variant="secondary"
+                  size="compact"
+                  style={styles.compactAction}
+                  disabled={accountActionInFlight}
+                  onPress={handleLinkAppleAccount}
+                />
+              </View>
+
+              <View style={styles.rowDivider} />
+
+              <View style={styles.compactRow}>
+                <View style={styles.compactIconFrame}>
+                  <MongchiIcon id="download" size={22} />
+                </View>
+                <View style={styles.compactCopy}>
+                  <Text style={[styles.compactTitle, { fontFamily: fontFamilies.title }]}>{t("settings.account.recoverTitle")}</Text>
+                  <Text style={[styles.compactText, { fontFamily: fontFamilies.body }]}>{t("settings.account.recoverDetail")}</Text>
+                </View>
+                <ActionButton
+                  label={accountActionInFlight ? t("settings.account.recoverActionInFlight") : t("settings.account.recoverAction")}
+                  variant="secondary"
+                  size="compact"
+                  style={styles.compactAction}
+                  disabled={accountActionInFlight}
+                  onPress={handleRecoverAccountWithApple}
+                />
+              </View>
+            </>
+          )}
+        </View>
+      ) : null}
 
       <View style={styles.settingsSection}>
         <View style={styles.sectionHeader}>
@@ -976,6 +1159,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "700"
+  },
+  accountEmailText: {
+    color: colors.mutedInk,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    opacity: 0.72
   },
   compactAction: {
     flexShrink: 0

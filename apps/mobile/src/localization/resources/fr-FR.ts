@@ -693,6 +693,7 @@ export const frFR = {
     sections: {
       reminders: "Petits rappels",
       sound: "Sons et sensations",
+      account: "Compte",
       privacy: "Confidentialité et protection",
       support: "Assistance et mentions légales"
     },
@@ -740,6 +741,27 @@ export const frFR = {
       music: "Musique et ambiance",
       musicDetail: "Une douce musique de jardin et des sons d’ambiance, comme les oiseaux ou la pluie."
     },
+    account: {
+      linkTitle: "Se connecter avec Apple",
+      linkDetail: "Protégez votre jardin — votre compagnon et vos souvenirs restent en sécurité, même si vous changez de téléphone.",
+      linkAction: "Connecter",
+      linkActionInFlight: "Connexion",
+      recoverTitle: "Retrouver un jardin",
+      recoverDetail: "Vous avez déjà connecté un jardin ? Retrouvez-le ici.",
+      recoverAction: "Retrouver",
+      recoverActionInFlight: "Récupération",
+      connectedTitle: "Connecté avec Apple",
+      connectedDetail: "Votre jardin est conservé en toute sécurité.",
+      connectedEmailDetail: "Connecté avec {{email}}",
+      unavailableMessage: "La connexion Apple n’est pas disponible sur cet appareil pour le moment.",
+      alreadyLinkedMessage: "Cet identifiant Apple est déjà associé à un autre jardin. Utilisez « Retrouver un jardin » ci-dessous pour le récupérer ici.",
+      linkFailedMessage: "Impossible de connecter votre identifiant Apple pour le moment. Veuillez réessayer dans un instant.",
+      recoverConfirmTitle: "Retrouver ce jardin ?",
+      recoverConfirmMessage: "Si vous retrouvez un jardin enregistré, il remplacera celui de ce téléphone. Votre compagnon actuel sera mis à l’abri en attendant. Continuer ?",
+      recoverFailedMessage: "Impossible de retrouver votre jardin pour le moment. Veuillez réessayer dans un instant.",
+      recoveredMessage: "Votre jardin a été retrouvé.",
+      recoveredNoSnapshotMessage: "Aucun jardin enregistré n’a été trouvé, mais les dessins et les crédits de votre compagnon sont de retour."
+    },
     privacy: {
       localPhoto: "Copie locale de la photo",
       photoDeleted: "Supprimée de cet appareil.",
@@ -780,6 +802,8 @@ export const frFR = {
       restoreConfirmMessage: "Votre jardin actuel sera remplacé. Votre compagnon actuel sera d’abord sauvegardé, par précaution.",
       restoredTitle: "Heureux de vous revoir !",
       restoredMessage: "Votre jardin a été restauré depuis la sauvegarde.",
+      accountLink: "Se connecter avec Apple",
+      accountRecover: "Retrouver un jardin",
       deleteAllTitle: "Supprimer toutes vos données ?",
       deleteAllMessage:
         "Cette action supprime de cet appareil la configuration du compagnon, le compagnon généré, l’état des soins et l’inventaire. Elle demande aussi à nos serveurs de supprimer votre photo, les avatars générés et les données du compte. Cette action est irréversible.",

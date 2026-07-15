@@ -688,6 +688,7 @@ export const ptBR = {
     sections: {
       reminders: "Pequenos lembretes",
       sound: "Som e sensação",
+      account: "Conta",
       privacy: "Privacidade e cuidado",
       support: "Ajuda e termos legais"
     },
@@ -735,6 +736,27 @@ export const ptBR = {
       music: "Música e ambiente",
       musicDetail: "Música suave do jardim e sons ambientes, como pássaros ou chuva."
     },
+    account: {
+      linkTitle: "Conectar com a Apple",
+      linkDetail: "Proteja seu jardim — seu amiguinho e suas memórias continuam seguros, mesmo se você trocar de aparelho.",
+      linkAction: "Conectar",
+      linkActionInFlight: "Conectando",
+      recoverTitle: "Recuperar um jardim",
+      recoverDetail: "Já conectou um jardim antes? Traga-o de volta aqui.",
+      recoverAction: "Recuperar",
+      recoverActionInFlight: "Recuperando",
+      connectedTitle: "Conectado com a Apple",
+      connectedDetail: "Seu jardim está guardado em segurança.",
+      connectedEmailDetail: "Conectado como {{email}}",
+      unavailableMessage: "O login com a Apple não está disponível neste aparelho agora.",
+      alreadyLinkedMessage: "Este ID Apple já está conectado a outro jardim. Use \"Recuperar um jardim\" abaixo para trazê-lo para cá.",
+      linkFailedMessage: "Não foi possível conectar seu ID Apple agora. Tente de novo daqui a pouco.",
+      recoverConfirmTitle: "Recuperar este jardim?",
+      recoverConfirmMessage: "Recuperar um jardim salvo vai substituir o jardim deste aparelho por ele. Vamos guardar seu amiguinho atual com carinho antes. Continuar?",
+      recoverFailedMessage: "Não foi possível recuperar seu jardim agora. Tente de novo daqui a pouco.",
+      recoveredMessage: "Seu jardim foi recuperado.",
+      recoveredNoSnapshotMessage: "Não encontramos um jardim salvo, mas os desenhos e créditos do seu amiguinho já estão de volta."
+    },
     privacy: {
       localPhoto: "Cópia local da foto",
       photoDeleted: "Excluída deste dispositivo.",
@@ -771,6 +793,8 @@ export const ptBR = {
       restoreConfirmMessage: "Isso substituirá seu jardim atual. Antes, faremos uma cópia dele por segurança.",
       restoredTitle: "Que bom ter você de volta!",
       restoredMessage: "Seu jardim foi restaurado da cópia de segurança.",
+      accountLink: "Conectar com a Apple",
+      accountRecover: "Recuperar um jardim",
       deleteAllTitle: "Excluir todos os seus dados?",
       deleteAllMessage:
         "Isso exclui deste dispositivo a configuração do bichinho, o bichinho gerado, o estado dos cuidados e o inventário. Também solicita aos nossos servidores a exclusão da sua foto, dos avatares gerados e dos dados da conta. Esta ação não pode ser desfeita.",
