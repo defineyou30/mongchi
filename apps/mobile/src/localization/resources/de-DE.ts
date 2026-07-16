@@ -106,8 +106,6 @@ export const deDE = {
     photoSelected: "Tierfoto ausgewählt",
     purpose: "Damit entsteht der kleine Freund, der in deinem Garten lebt.",
     library: "Fotomediathek",
-    sampleAction: "Kein Foto zur Hand? Lerne einen Beispielfreund kennen",
-    sampleAccessibilityLabel: "Beispielfreund kennenlernen",
     privacy: "Wird nur verwendet, um deinen kleinen Freund zu erschaffen. Nach dem Einzug kannst du das Original löschen.",
     errors: {
       invalidTitle: "Foto kann nicht verwendet werden",
@@ -225,7 +223,6 @@ export const deDE = {
     accessibilityLabel: "Enthüllung von {{petName}}",
     back: "Zurück zum Einzug",
     artAccessibilityLabel: "Fröhliche Enthüllungsfeier von {{petName}}",
-    plaque: "Neuer Freund",
     eyebrow: "Dein Liebling ist da",
     title: "Lerne {{petName}} kennen",
     enter: "Ab in den Garten",
@@ -358,6 +355,12 @@ export const deDE = {
       speech: "Die Sprechblase zeigt dir, was {{petName}} gerade braucht.",
       streak: "Komm jeden Tag zurück und lass deine Pflegeserie wachsen.",
       action: "Pflege starten"
+    },
+    notificationPrePermission: {
+      title: "Nachrichten von {{petName}} erhalten?",
+      body: "Nur eine leise Nachricht, wenn du fehlst — höchstens einmal am Tag.",
+      accept: "Klingt gut",
+      decline: "Vielleicht später"
     }
   },
   chat: {
@@ -461,7 +464,8 @@ export const deDE = {
       position: "Pose {{current}} von {{total}} · {{pose}}",
       moreAccessibilityLabel: "Weitere Dreier-Posenpakete im Momente-Shop ansehen",
       more: "Mehr Posen ansehen",
-      labels: { everyday: "Alltag", happy: "Fröhlich", sleepy: "Verschlafen" }
+      labels: { everyday: "Alltag", happy: "Fröhlich", sleepy: "Verschlafen" },
+      sleepLockedHint: "Schau nachts vorbei, um die Schlafpose zu entdecken."
     },
     shareMessages: {
       days: "{{petName}} ist seit {{count}} Tagen mein kleiner Gartenfreund. Erschaffen mit Mongchi.",

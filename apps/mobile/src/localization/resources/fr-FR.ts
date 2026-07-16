@@ -106,8 +106,6 @@ export const frFR = {
     photoSelected: "Photo du compagnon sélectionnée",
     purpose: "Utilisée pour créer le petit compagnon qui vit dans votre jardin.",
     library: "Photothèque",
-    sampleAction: "Pas de photo sous la main ? Rencontrez un compagnon d’exemple",
-    sampleAccessibilityLabel: "Rencontrer un compagnon d’exemple",
     privacy: "Utilisée uniquement pour créer votre petit compagnon. Vous pourrez supprimer l’original après son emménagement.",
     errors: {
       invalidTitle: "Cette photo ne peut pas être utilisée",
@@ -225,7 +223,6 @@ export const frFR = {
     accessibilityLabel: "Découverte de {{petName}}",
     back: "Retour à l’emménagement",
     artAccessibilityLabel: "Joyeuse célébration de la découverte de {{petName}}",
-    plaque: "Nouveau compagnon",
     eyebrow: "Découverte du compagnon",
     title: "Voici {{petName}}",
     enter: "Entrer dans le jardin",
@@ -358,6 +355,12 @@ export const frFR = {
       speech: "La bulle vous indique ce dont {{petName}} a besoin en ce moment.",
       streak: "Revenez chaque jour pour prolonger votre série de soins.",
       action: "Commencer à prendre soin"
+    },
+    notificationPrePermission: {
+      title: "Recevoir des nouvelles de {{petName}} ?",
+      body: "Juste un petit mot discret quand vous lui manquez — une fois par jour maximum.",
+      accept: "Avec plaisir",
+      decline: "Plus tard peut-être"
     }
   },
   chat: {
@@ -463,7 +466,8 @@ export const frFR = {
       position: "Pose {{current}} sur {{total}} · {{pose}}",
       moreAccessibilityLabel: "Voir plus de packs de trois poses dans la boutique Moments",
       more: "Voir plus de poses",
-      labels: { everyday: "Quotidien", happy: "Heureux", sleepy: "Endormi" }
+      labels: { everyday: "Quotidien", happy: "Heureux", sleepy: "Endormi" },
+      sleepLockedHint: "Revenez la nuit pour découvrir la pose endormie."
     },
     shareMessages: {
       days: "{{petName}} est mon petit compagnon de jardin depuis {{count}} jours. Créé avec Mongchi.",

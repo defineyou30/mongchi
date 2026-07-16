@@ -106,8 +106,6 @@ export const ptBR = {
     photoSelected: "Foto do bichinho selecionada",
     purpose: "Usada para criar o amiguinho que vai morar no seu jardim.",
     library: "Galeria de fotos",
-    sampleAction: "Sem foto por perto? Conheça um amiguinho de exemplo",
-    sampleAccessibilityLabel: "Conhecer um amiguinho de exemplo",
     privacy: "Usada apenas para criar seu amiguinho. Você pode excluir a original depois que ele chegar.",
     errors: {
       invalidTitle: "Esta foto não pode ser usada",
@@ -225,7 +223,6 @@ export const ptBR = {
     accessibilityLabel: "Apresentação de {{petName}}",
     back: "Voltar à chegada",
     artAccessibilityLabel: "Comemoração alegre da apresentação de {{petName}}",
-    plaque: "Novo amiguinho",
     eyebrow: "Apresentação do bichinho",
     title: "Conheça {{petName}}",
     enter: "Entrar no jardim",
@@ -358,6 +355,12 @@ export const ptBR = {
       speech: "O balão de fala mostra do que {{petName}} precisa agora.",
       streak: "Volte todos os dias para aumentar sua sequência de cuidados.",
       action: "Começar a cuidar"
+    },
+    notificationPrePermission: {
+      title: "Quer receber notícias de {{petName}}?",
+      body: "Só um avisinho discreto quando sentir sua falta — no máximo uma vez por dia.",
+      accept: "Combinado",
+      decline: "Talvez depois"
     }
   },
   chat: {
@@ -458,7 +461,8 @@ export const ptBR = {
       position: "Pose {{current}} de {{total}} · {{pose}}",
       moreAccessibilityLabel: "Ver mais pacotes de três poses na loja de Momentos",
       more: "Ver mais poses",
-      labels: { everyday: "Dia a dia", happy: "Feliz", sleepy: "Com sono" }
+      labels: { everyday: "Dia a dia", happy: "Feliz", sleepy: "Com sono" },
+      sleepLockedHint: "Volte à noite para descobrir a pose de soninho."
     },
     shareMessages: {
       days: "{{petName}} é meu amiguinho do jardim há {{count}} dias. Feito com Mongchi.",

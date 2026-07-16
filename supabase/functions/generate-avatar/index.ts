@@ -1770,6 +1770,10 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
   const imageModel = Deno.env.get("OPENAI_IMAGE_MODEL") ?? DEFAULT_IMAGE_MODEL;
+  // Reinstall-abuse backstop secret (see
+  // supabase/migrations/0028_generation_ip_throttle.sql). Unset in an
+  // environment means the IP throttle check below is skipped entirely.
+  const generationIpSalt = Deno.env.get("GENERATION_IP_SALT");
 
   // OPENAI_API_KEY is only required outside DRY_RUN -- DRY_RUN itself already
   // requires OPENAI_API_KEY to be absent (see the DRY_RUN definition above),
@@ -2024,6 +2028,45 @@ Deno.serve(async (req: Request) => {
       await removeUnclaimedSourcePhoto(admin, userId, ordinaryOriginalPhotoPath, "rate_limited");
     }
     return jsonResponse({ error: "rate_limited" }, 429, { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) });
+  }
+
+  // 3b. IP throttle: a coarse backstop against reinstall abuse (delete app ->
+  // fresh anonymous account -> starter credits/free quota reset -- see
+  // supabase/migrations/0028_generation_ip_throttle.sql). Distinct from the
+  // per-user rate limit above: this caps how many *new* generations can
+  // start from one network address per day, so cycling through anonymous
+  // accounts on the same device/network eventually hits this cap even
+  // though each fresh account's own quota looks untouched. Only the first
+  // hop of x-forwarded-for is used (the client-facing edge, not a
+  // downstream proxy hop a client could otherwise spoof to pick a
+  // different bucket) and it is hashed with a server-only salt before ever
+  // touching storage or logs -- the raw IP is never persisted or logged.
+  // GENERATION_IP_SALT unset skips this check entirely (fails open on a
+  // missing secret rather than blocking every generation); see this
+  // migration's deploy notes for provisioning the secret.
+  if (generationIpSalt) {
+    const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
+    const callerIp = forwardedFor.split(",")[0]?.trim() ?? "";
+
+    if (callerIp) {
+      const ipHash = await sha256Hex(new TextEncoder().encode(`${generationIpSalt}:${callerIp}`));
+      const { data: ipThrottleResult, error: ipThrottleError } = await admin.rpc("register_generation_start_for_ip", {
+        p_ip_hash: ipHash
+      });
+
+      if (ipThrottleError) {
+        // Fails open -- same reasoning as the per-user rate limit's
+        // RPC-error branch above. This is a defense-in-depth backstop, not
+        // the primary guard, so its own unavailability should never block
+        // every generation.
+        console.warn("[generate-avatar] ip throttle check failed, failing open:", ipThrottleError.message);
+      } else if ((ipThrottleResult as { outcome?: string } | null)?.outcome === "throttled") {
+        if (ordinaryOriginalPhotoPath) {
+          await removeUnclaimedSourcePhoto(admin, userId, ordinaryOriginalPhotoPath, "ip_throttled");
+        }
+        return jsonResponse({ error: "quota_exhausted", message: failureMessages.quotaExhausted }, 402);
+      }
+    }
   }
 
   let jobId: string;

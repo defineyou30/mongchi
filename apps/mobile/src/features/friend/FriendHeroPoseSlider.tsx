@@ -9,7 +9,8 @@ import { normalizeAppLocale } from "../../localization/localeNormalization";
 import { getFallbackGeneratedPetAssetId, GeneratedPetAssetImage } from "../../shared/assets/generatedPetAssets";
 import { colors, spacing } from "../../shared/design/tokens";
 import { ActionButton } from "../../shared/ui/ActionButton";
-import { buildHeroPoseSlides, getHeroPoseLabel } from "./friendHeroPosePresentation";
+import { MongchiIcon } from "../../shared/ui/MongchiIcon";
+import { buildHeroPoseSlidesWithSleepHint, getHeroPoseLabel } from "./friendHeroPosePresentation";
 import type { FriendPoseCell } from "./friendProfilePresentation";
 
 const SLIDE_SIZE = 200;
@@ -79,6 +80,23 @@ function OwnedPoseSlide({ cell, petName, assetUri, isNewlyRevealed, staggerIndex
   );
 }
 
+/**
+ * The one locked slide the hero pager ever shows: a "sleep" placeholder
+ * teasing the pose the pet hasn't earned yet (see buildHeroPoseSlidesWithSleepHint).
+ * The icon is decorative -- the hint text right below it already carries the
+ * whole meaning, so a screen reader only needs to read that once.
+ */
+function LockedSleepPoseSlide({ hint }: { readonly hint: string }) {
+  return (
+    <View style={styles.lockedWrap}>
+      <View style={styles.lockedIconFrame}>
+        <MongchiIcon decorative id="sleep" size={36} style={styles.lockedIcon} />
+      </View>
+      <Text style={styles.lockedHintText}>{hint}</Text>
+    </View>
+  );
+}
+
 export function HeroPoseSlider({
   cells,
   petName,
@@ -92,7 +110,7 @@ export function HeroPoseSlider({
 }: HeroPoseSliderProps) {
   const { i18n, t } = useTranslation();
   const locale = normalizeAppLocale(i18n.resolvedLanguage);
-  const slides = useMemo(() => buildHeroPoseSlides(cells), [cells]);
+  const slides = useMemo(() => buildHeroPoseSlidesWithSleepHint(cells), [cells]);
   const pagerRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const activeState = slides[activeIndex]?.cell.state ?? "idle";
@@ -136,6 +154,14 @@ export function HeroPoseSlider({
           onMomentumScrollEnd={handleMomentumScrollEnd}
         >
           {slides.map((slide, index) => {
+            if (slide.cell.status === "locked") {
+              return (
+                <View key={slide.cell.state} style={styles.slide}>
+                  <LockedSleepPoseSlide hint={t("friend.pose.sleepLockedHint")} />
+                </View>
+              );
+            }
+
             const assetId = slide.cell.assetId ?? getFallbackGeneratedPetAssetId(petSpecies, slide.cell.state);
 
             return (
@@ -226,6 +252,32 @@ const styles = StyleSheet.create({
   sprite: {
     width: SPRITE_SIZE,
     height: SPRITE_SIZE
+  },
+  lockedWrap: {
+    width: SLIDE_SIZE,
+    height: SLIDE_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg
+  },
+  lockedIconFrame: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(122,110,102,0.14)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  lockedIcon: {
+    opacity: 0.55
+  },
+  lockedHintText: {
+    color: colors.mutedInk,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    textAlign: "center"
   },
   posePositionLabel: {
     color: colors.mutedInk,

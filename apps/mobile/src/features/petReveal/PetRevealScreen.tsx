@@ -97,13 +97,7 @@ export function PetRevealScreen() {
         showAmbientItems={false}
         variant="pet"
         style={styles.revealScene}
-      >
-        <View style={styles.namePlaque}>
-          <Text numberOfLines={1} style={[styles.namePlaqueText, { fontFamily: fontFamilies.label }]}>
-            {t("reveal.plaque")}
-          </Text>
-        </View>
-      </TerrariumArt>
+      />
 
       <View style={styles.copy}>
         <Text style={[styles.eyebrow, { fontFamily: fontFamilies.label }]}>{t("reveal.eyebrow")}</Text>
@@ -149,29 +143,6 @@ const styles = StyleSheet.create({
   },
   revealScene: {
     minHeight: 398
-  },
-  namePlaque: {
-    position: "absolute",
-    bottom: 22,
-    alignSelf: "center",
-    minWidth: 152,
-    minHeight: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,245,222,0.94)",
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.88)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    ...shadows.tile
-  },
-  namePlaqueText: {
-    color: colors.woodDark,
-    fontSize: 13,
-    fontWeight: "900",
-    textTransform: "uppercase"
   },
   copy: {
     gap: spacing.xs,

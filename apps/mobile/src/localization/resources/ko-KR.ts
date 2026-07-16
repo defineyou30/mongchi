@@ -102,8 +102,6 @@ export const koKR = {
     photoSelected: "반려동물 사진을 선택했어요",
     purpose: "정원에 사는 작은 친구를 만드는 데 사용해요.",
     library: "사진 보관함",
-    sampleAction: "사진이 없나요? 샘플 친구 만나기",
-    sampleAccessibilityLabel: "샘플 친구 만나기",
     privacy: "작은 친구를 만드는 데만 사용돼요. 입주 후 원본을 삭제할 수 있어요.",
     errors: {
       invalidTitle: "이 사진은 사용할 수 없어요",
@@ -221,7 +219,6 @@ export const koKR = {
     accessibilityLabel: "{{petName}} 공개",
     back: "입주 과정으로 돌아가기",
     artAccessibilityLabel: "{{petName}}를 처음 만나는 즐거운 축하 장면",
-    plaque: "새 친구",
     eyebrow: "친구 공개",
     title: "{{petName}}를 만나보세요",
     enter: "정원으로 들어가기",
@@ -354,6 +351,12 @@ export const koKR = {
       speech: "말풍선을 보면 지금 {{petName}}에게 필요한 것을 알 수 있어요.",
       streak: "매일 돌아와 연속 돌봄 기록을 키워보세요.",
       action: "돌보기 시작"
+    },
+    notificationPrePermission: {
+      title: "{{petName}}의 소식을 받아볼까요?",
+      body: "하루 한 번, 배고프거나 보고 싶을 때만 조용히 알려드려요.",
+      accept: "좋아요",
+      decline: "나중에요"
     }
   },
   chat: {
@@ -457,7 +460,8 @@ export const koKR = {
       position: "포즈 {{total}}개 중 {{current}}번째 · {{pose}}",
       moreAccessibilityLabel: "순간 상점에서 포즈 3개 팩 더 보기",
       more: "포즈 더 보기",
-      labels: { everyday: "일상", happy: "행복", sleepy: "졸림" }
+      labels: { everyday: "일상", happy: "행복", sleepy: "졸림" },
+      sleepLockedHint: "밤에 만나러 오면 자는 모습을 볼 수 있어요"
     },
     shareMessages: {
       days: "{{petName}}와 작은 정원에서 함께한 지 {{count}}일 됐어요. Mongchi에서 만들었어요.",

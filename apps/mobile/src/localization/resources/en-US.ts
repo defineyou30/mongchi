@@ -100,8 +100,6 @@ export const enUS = {
     photoSelected: "Pet photo selected",
     purpose: "Used to create the tiny friend who lives in your garden.",
     library: "Photo library",
-    sampleAction: "No photo handy? Meet a sample friend",
-    sampleAccessibilityLabel: "Meet a sample friend",
     privacy: "Only used to create your tiny friend. You can delete the original after move-in.",
     errors: {
       invalidTitle: "Photo cannot be used",
@@ -219,7 +217,6 @@ export const enUS = {
     accessibilityLabel: "{{petName}}'s reveal",
     back: "Back to moving-in",
     artAccessibilityLabel: "{{petName}}'s joyful pet reveal celebration",
-    plaque: "New friend",
     eyebrow: "Pet reveal",
     title: "Meet {{petName}}",
     enter: "Step into the garden",
@@ -352,6 +349,12 @@ export const enUS = {
       speech: "The speech bubble tells you what {{petName}} needs right now.",
       streak: "Come back every day to grow your care streak.",
       action: "Start caring"
+    },
+    notificationPrePermission: {
+      title: "Hear from {{petName}}?",
+      body: "Just a quiet note when they miss you — once a day at most.",
+      accept: "Sounds good",
+      decline: "Maybe later"
     }
   },
   chat: {
@@ -455,7 +458,8 @@ export const enUS = {
       position: "Pose {{current}} of {{total}} · {{pose}}",
       moreAccessibilityLabel: "See more three-pose packs in the Moments shop",
       more: "See more poses",
-      labels: { everyday: "Everyday", happy: "Happy", sleepy: "Sleepy" }
+      labels: { everyday: "Everyday", happy: "Happy", sleepy: "Sleepy" },
+      sleepLockedHint: "Come back at night to catch a sleepy pose."
     },
     shareMessages: {
       days: "{{petName}} has been my tiny garden friend for {{count}} days. Made with Mongchi.",

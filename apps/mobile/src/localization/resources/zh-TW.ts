@@ -102,8 +102,6 @@ export const zhTW = {
     photoSelected: "已選擇寵物照片",
     purpose: "用來創造住在花園裡的小小朋友。",
     library: "照片圖庫",
-    sampleAction: "手邊沒有照片？先認識範例朋友",
-    sampleAccessibilityLabel: "認識範例朋友",
     privacy: "只會用來創造你的小小朋友。牠搬進來後，就能刪除原始照片。",
     errors: {
       invalidTitle: "無法使用這張照片",
@@ -221,7 +219,6 @@ export const zhTW = {
     accessibilityLabel: "揭曉 {{petName}}",
     back: "返回入住流程",
     artAccessibilityLabel: "{{petName}} 開心亮相的慶祝畫面",
-    plaque: "新朋友",
     eyebrow: "寵物揭曉",
     title: "來認識 {{petName}}",
     enter: "走進花園",
@@ -354,6 +351,12 @@ export const zhTW = {
       speech: "對話泡泡會告訴你 {{petName}} 現在需要什麼。",
       streak: "每天回來，讓你的照顧連續紀錄繼續成長。",
       action: "開始照顧"
+    },
+    notificationPrePermission: {
+      title: "要接收 {{petName}} 的消息嗎？",
+      body: "只有在牠肚子餓或想你的時候才會輕輕通知你，一天最多一次。",
+      accept: "好呀",
+      decline: "之後再說"
     }
   },
   chat: {
@@ -454,7 +457,8 @@ export const zhTW = {
       position: "第 {{current}} 個姿勢，共 {{total}} 個 · {{pose}}",
       moreAccessibilityLabel: "到回憶商店查看更多三姿勢套組",
       more: "查看更多姿勢",
-      labels: { everyday: "日常", happy: "開心", sleepy: "想睡" }
+      labels: { everyday: "日常", happy: "開心", sleepy: "想睡" },
+      sleepLockedHint: "晚上來看看，就能發現熟睡的樣子"
     },
     shareMessages: {
       days: "{{petName}} 已經當我的迷你花園朋友 {{count}} 天了。由 Mongchi 創造。",

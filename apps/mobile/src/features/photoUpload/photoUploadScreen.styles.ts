@@ -73,15 +73,6 @@ export const photoUploadScreenStyles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "600"
   },
-  sampleLinkRow: {
-    alignSelf: "center"
-  },
-  sampleLinkText: {
-    color: colors.skyDeep,
-    fontSize: 13,
-    fontWeight: "800",
-    textDecorationLine: "underline"
-  },
   privacyNotice: {
     color: colors.mutedInk,
     fontSize: 12,

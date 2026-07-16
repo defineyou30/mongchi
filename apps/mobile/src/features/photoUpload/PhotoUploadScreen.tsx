@@ -22,7 +22,7 @@ export function PhotoUploadScreen() {
   const { showDialog } = useAppDialog();
   const { t } = useTranslation();
   const fontFamilies = useFontFamilies();
-  const { activePet, photo, canContinuePhotoStep, setConsentAccepted, setMockPhotoSelected, setSelectedPhotoUri } = useTerrariumSession();
+  const { activePet, photo, canContinuePhotoStep, setConsentAccepted, setSelectedPhotoUri } = useTerrariumSession();
 
   const selectedPhotoUri = photo.selectedPhotoUri?.startsWith("sample://") ? null : photo.selectedPhotoUri;
   const selected = photo.selectedMockPhoto || !!photo.selectedPhotoUri;
@@ -101,11 +101,6 @@ export function PhotoUploadScreen() {
     acceptPickedAsset(result.assets[0], "camera");
   };
 
-  const handleSamplePick = () => {
-    setMockPhotoSelected(true);
-    setConsentAccepted(true);
-  };
-
   const photoActionControls = (
     <View style={styles.photoActions}>
       <ActionButton
@@ -182,15 +177,6 @@ export function PhotoUploadScreen() {
 
       {photoActionControls}
       {createPetButton}
-      <Pressable
-        accessibilityLabel={t("photoUpload.sampleAccessibilityLabel")}
-        accessibilityRole="button"
-        hitSlop={8}
-        style={styles.sampleLinkRow}
-        onPress={handleSamplePick}
-      >
-        <Text style={[styles.sampleLinkText, { fontFamily: fontFamilies.label }]}>{t("photoUpload.sampleAction")}</Text>
-      </Pressable>
       <Text style={[styles.privacyNotice, { fontFamily: fontFamilies.body }]}>{t("photoUpload.privacy")}</Text>
     </GardenSceneFrame>
   );

@@ -38,6 +38,31 @@ export const buildHeroPoseSlides = (cells: readonly FriendPoseCell[]): HeroPoseS
   return visibleCells.map((cell) => ({ cell }));
 };
 
+/** A synthetic locked cell for the one pose the pager teases before it's owned -- see buildHeroPoseSlidesWithSleepHint. */
+const lockedSleepPoseCell: FriendPoseCell = { state: "sleep", status: "locked", assetId: null };
+
+/**
+ * Same trailing slides as buildHeroPoseSlides, plus one extra locked "sleep"
+ * placeholder at the very end when the pet hasn't earned that pose yet.
+ * Sleep is one of the free idle/happy/sleep trio, but unlike idle/happy it
+ * isn't granted at move-in -- it only appears once the owner visits during
+ * the night (see deriveAmbientPetAssetState) -- so until then this gives
+ * FriendHeroPoseSlider a natural spot to hint how to unlock it.
+ *
+ * Deliberately NOT folded into buildHeroPoseSlides itself: getShareCardPoseOptions
+ * reuses that function for the share-card pose picker and must never offer a
+ * pose the player doesn't actually own yet.
+ */
+export const buildHeroPoseSlidesWithSleepHint = (cells: readonly FriendPoseCell[]): HeroPoseSlide[] => {
+  const ownedSlides = buildHeroPoseSlides(cells);
+
+  if (ownedSlides.some((slide) => slide.cell.state === "sleep")) {
+    return ownedSlides;
+  }
+
+  return [...ownedSlides, { cell: lockedSleepPoseCell }];
+};
+
 const paidPoseLabelByState = {
   base: { "en-US": "Base pose", "ko-KR": "기본 포즈", "ja-JP": "ベースポーズ", "zh-TW": "基本姿勢", "de-DE": "Grundpose", "fr-FR": "Pose de base", "pt-BR": "Pose base", "es-MX": "Pose base" },
   play: { "en-US": "Playful", "ko-KR": "신나게", "ja-JP": "あそびたい", "zh-TW": "愛玩", "de-DE": "Verspielt", "fr-FR": "Joueur", "pt-BR": "Brincalhão", "es-MX": "Juguetón" },

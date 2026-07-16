@@ -30,15 +30,16 @@ export const configureGardenNotificationChannel = async (): Promise<void> => {
 };
 
 /**
- * Requests local notification permission, but only in a way that never nags the user.
+ * Requests the native OS notification permission, but only in a way that never nags
+ * the user.
  *
- * Intended to be called from UI code once, right after the player finishes their FIRST
- * care action - not during onboarding - so the ask is grounded in something they already
- * chose to do, rather than a cold pre-permission prompt. If the user already granted or
- * already denied permission in the past, this is a no-op: we never re-prompt someone who
- * made a choice.
+ * Intended to be called from UI code once the player has already said yes to the
+ * app's own warm, in-app pre-permission card (see TerrariumHomeScreen's home-entry
+ * notification prompt) - never as a cold OS prompt during onboarding, and never a
+ * second time. If the user already granted or already denied permission in the past,
+ * this is a no-op: we never re-prompt someone who made a choice.
  */
-export const requestNotificationPermissionAfterFirstCareAction = async (): Promise<NotificationPermissionGateResult> => {
+export const requestNotificationPermission = async (): Promise<NotificationPermissionGateResult> => {
   const current = await Notifications.getPermissionsAsync();
 
   if (current.status === "granted") {

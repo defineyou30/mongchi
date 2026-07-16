@@ -106,8 +106,6 @@ export const esMX = {
     photoSelected: "Foto de la mascota seleccionada",
     purpose: "Se usa para crear al pequeño amigo que vive en tu jardín.",
     library: "Galería de fotos",
-    sampleAction: "¿No tienes una foto a la mano? Conoce a un amigo de muestra",
-    sampleAccessibilityLabel: "Conocer a un amigo de muestra",
     privacy: "Solo se usa para crear a tu pequeño amigo. Puedes eliminar la original después de su mudanza.",
     errors: {
       invalidTitle: "No se puede usar la foto",
@@ -225,7 +223,6 @@ export const esMX = {
     accessibilityLabel: "Presentación de {{petName}}",
     back: "Volver a la mudanza",
     artAccessibilityLabel: "Celebración alegre de la presentación de {{petName}}",
-    plaque: "Nuevo amigo",
     eyebrow: "Presentación de la mascota",
     title: "Conoce a {{petName}}",
     enter: "Entrar al jardín",
@@ -358,6 +355,12 @@ export const esMX = {
       speech: "El globo de diálogo te dice qué necesita {{petName}} en este momento.",
       streak: "Vuelve cada día para aumentar tu racha de cuidados.",
       action: "Empezar a cuidar"
+    },
+    notificationPrePermission: {
+      title: "¿Quieres recibir noticias de {{petName}}?",
+      body: "Solo un avisito discreto cuando te extrañe, como máximo una vez al día.",
+      accept: "Suena bien",
+      decline: "Tal vez después"
     }
   },
   chat: {
@@ -458,7 +461,8 @@ export const esMX = {
       position: "Pose {{current}} de {{total}} · {{pose}}",
       moreAccessibilityLabel: "Ver más paquetes de tres poses en la tienda de Momentos",
       more: "Ver más poses",
-      labels: { everyday: "Cotidiana", happy: "Feliz", sleepy: "Dormilona" }
+      labels: { everyday: "Cotidiana", happy: "Feliz", sleepy: "Dormilona" },
+      sleepLockedHint: "Vuelve de noche para descubrir la pose dormidita."
     },
     shareMessages: {
       days: "{{petName}} ha sido mi pequeño amigo del jardín durante {{count}} días. Creado con Mongchi.",

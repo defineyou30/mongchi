@@ -102,8 +102,6 @@ export const jaJP = {
     photoSelected: "ペット写真を選びました",
     purpose: "庭で暮らす小さなお友だちを作るために使います。",
     library: "写真ライブラリ",
-    sampleAction: "写真が手元にない？ サンプルのお友だちに会う",
-    sampleAccessibilityLabel: "サンプルのお友だちに会う",
     privacy: "小さなお友だちを作るためだけに使います。お引っ越し後は元の写真を削除できます。",
     errors: {
       invalidTitle: "この写真は使えません",
@@ -221,7 +219,6 @@ export const jaJP = {
     accessibilityLabel: "{{petName}}のお披露目",
     back: "お引っ越しに戻る",
     artAccessibilityLabel: "{{petName}}を迎える楽しいお披露目のお祝い",
-    plaque: "新しいお友だち",
     eyebrow: "ペットのお披露目",
     title: "{{petName}}に会おう",
     enter: "庭へ入る",
@@ -354,6 +351,12 @@ export const jaJP = {
       speech: "吹き出しを見ると、今{{petName}}が何を求めているかわかります。",
       streak: "毎日会いに来て、お世話の連続記録を育てましょう。",
       action: "お世話を始める"
+    },
+    notificationPrePermission: {
+      title: "{{petName}}からのお知らせ、受け取りますか？",
+      body: "会いたいときだけ、1日1回そっとお知らせします。",
+      accept: "いいね",
+      decline: "またあとで"
     }
   },
   chat: {
@@ -457,7 +460,8 @@ export const jaJP = {
       position: "{{total}}件中{{current}}件目のポーズ · {{pose}}",
       moreAccessibilityLabel: "思い出ショップで3ポーズパックをもっと見る",
       more: "ポーズをもっと見る",
-      labels: { everyday: "いつもの", happy: "うれしい", sleepy: "ねむねむ" }
+      labels: { everyday: "いつもの", happy: "うれしい", sleepy: "ねむねむ" },
+      sleepLockedHint: "夜に会いに来ると、眠っている姿が見られます"
     },
     shareMessages: {
       days: "{{petName}}は{{count}}日間、私の小さな庭のお友だちです。Mongchiで作りました。",

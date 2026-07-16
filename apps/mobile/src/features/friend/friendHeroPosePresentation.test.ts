@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import { expressionPacks, makeMockGeneratedAsset } from "@mongchi/shared";
 import type { GeneratedAsset } from "@mongchi/shared";
 
-import { buildHeroPoseSlides, getHeroPoseLabel, orderHeroPoseCells } from "./friendHeroPosePresentation";
+import { buildHeroPoseSlides, buildHeroPoseSlidesWithSleepHint, getHeroPoseLabel, orderHeroPoseCells } from "./friendHeroPosePresentation";
 import { getFriendPoseGalleryPresentation } from "./friendProfilePresentation";
 
 const freeTrioAssets: GeneratedAsset[] = (["idle", "happy", "sleep"] as const).map((state) =>
+  makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_local_001" })
+);
+const beforeSleepUnlockedAssets: GeneratedAsset[] = (["idle", "happy"] as const).map((state) =>
   makeMockGeneratedAsset(state, { petId: "pet_local_001", generationJobId: "gen_local_001" })
 );
 const paidPackAssets: GeneratedAsset[] = expressionPacks.flatMap((pack) =>
@@ -76,6 +79,43 @@ describe("buildHeroPoseSlides", () => {
     const { cells } = getFriendPoseGalleryPresentation([], "Momo");
 
     expect(buildHeroPoseSlides(cells).map((slide) => slide.cell.state)).toEqual(["idle"]);
+  });
+});
+
+describe("buildHeroPoseSlidesWithSleepHint", () => {
+  it("appends a locked sleep placeholder when the pet hasn't earned that pose yet", () => {
+    const { cells } = getFriendPoseGalleryPresentation(beforeSleepUnlockedAssets, "Momo");
+
+    const slides = buildHeroPoseSlidesWithSleepHint(cells);
+
+    expect(slides.map((slide) => slide.cell.state)).toEqual(["idle", "happy", "sleep"]);
+    const lockedSlide = slides[slides.length - 1];
+    expect(lockedSlide?.cell.status).toBe("locked");
+    expect(lockedSlide?.cell.assetId).toBeNull();
+  });
+
+  it("does not duplicate a sleep slide once the pose is actually owned", () => {
+    const { cells } = getFriendPoseGalleryPresentation(freeTrioAssets, "Momo");
+
+    const slides = buildHeroPoseSlidesWithSleepHint(cells);
+
+    expect(slides.filter((slide) => slide.cell.state === "sleep")).toHaveLength(1);
+    expect(slides.every((slide) => slide.cell.status === "owned")).toBe(true);
+  });
+
+  it("still appends the locked hint even for the empty-assets fallback", () => {
+    const { cells } = getFriendPoseGalleryPresentation([], "Momo");
+
+    const slides = buildHeroPoseSlidesWithSleepHint(cells);
+
+    expect(slides.map((slide) => slide.cell.state)).toEqual(["idle", "sleep"]);
+    expect(slides[1]?.cell.status).toBe("locked");
+  });
+
+  it("never widens the share card's owned-only pose options", () => {
+    const { cells } = getFriendPoseGalleryPresentation(beforeSleepUnlockedAssets, "Momo");
+
+    expect(buildHeroPoseSlides(cells).some((slide) => slide.cell.state === "sleep")).toBe(false);
   });
 });
 

@@ -56,6 +56,7 @@ import { colors, radii, shadows, spacing, useFontFamilies } from "../../shared/d
 import { getHomeBackgroundSource } from "../../shared/assets/weatherSceneAssets";
 import { GameItemImage, gameItemAssetByCatalogId } from "../../shared/ui/GameIllustrations";
 import type { GameItemAssetKey } from "../../shared/ui/GameIllustrations";
+import { useAppDialog } from "../../shared/ui/AppDialog";
 import { LottieAnimation } from "../../shared/ui/LottieAnimation";
 import { MongchiIcon } from "../../shared/ui/MongchiIcon";
 import { WeatherSceneLayer } from "../../shared/ui/WeatherSceneLayer";
@@ -74,11 +75,8 @@ import {
   playSuccessHaptic
 } from "../../shared/audio";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
-import { requestNotificationPermissionAfterFirstCareAction } from "../notifications/notificationPermission";
-import {
-  cancelPersistedWalkReturnNotification,
-  synchronizeWalkReturnNotification
-} from "../notifications/walkReturnNotification";
+import { requestNotificationPermission } from "../notifications/notificationPermission";
+import { cancelPersistedWalkReturnNotification } from "../notifications/walkReturnNotification";
 import { getDaysTogether } from "../friend/friendProfilePresentation";
 import {
   createEmptyDailyCareProgress,
@@ -135,7 +133,6 @@ import {
   getHomeCarePressDecision,
   homeActionFeedbackMs,
   homeFloatingDockActions,
-  homeWalkDurationMs,
   type HomeFloatingDockAction,
   isHomeFloatingDockAction
 } from "./terrariumHomeInteractionContract";
@@ -219,6 +216,8 @@ const careActionTranslationKeyByAction = {
 
 const hudMeterSegments = [0, 1, 2, 3, 4] as const;
 const HOME_WELCOME_SEEN_KEY = "mongchi.home.welcome.v1";
+/** Guards the warm in-app notification pre-permission card to at most one showing, ever. */
+const HOME_NOTIFICATION_PRE_PERMISSION_SEEN_KEY = "mongchi.home.notificationPrePermission.v1";
 const HOME_EVENT_TOAST_SHOWN_KEYS_KEY = "mongchi.home.eventToast.shownKeys.v1";
 /** Same key the friend page writes when its 30-day letter is opened -- read here only to drive the badge dot. */
 const MONTHLY_LETTER_OPENED_KEY = "mongchi.friend.monthlyLetter.openedAt.v1";
@@ -988,6 +987,7 @@ function WalkPawsAnimation({ reduceMotionEnabled }: WalkPawsAnimationProps) {
 }
 
 export function TerrariumHomeScreen() {
+  const { showDialog } = useAppDialog();
   const {
     activeBuffs,
     activePet,
@@ -1536,10 +1536,38 @@ export function TerrariumHomeScreen() {
     playAmbienceForWeather(condition);
   }, [weatherState.settings.enabled, weatherState.context.condition]);
 
+  // Warm, in-app "ask before the OS asks" card -- shown at most once, right on
+  // the player's first-ever entry to the home screen (the same moment
+  // welcomeVisible/HOME_WELCOME_SEEN_KEY marks as "first entry" below), never
+  // during onboarding itself. The OS permission prompt only fires if the
+  // player accepts here; declining just quietly remembers the choice (the
+  // seen-flag below) so we never auto-ask again -- the Settings screen's
+  // "Care reminders"/"Walk updates" toggles stay available any time after.
+  const presentNotificationPrePermissionIfNeeded = () => {
+    void AsyncStorage.getItem(HOME_NOTIFICATION_PRE_PERMISSION_SEEN_KEY).then((seenAt) => {
+      if (seenAt) {
+        return;
+      }
+
+      void AsyncStorage.setItem(HOME_NOTIFICATION_PRE_PERMISSION_SEEN_KEY, new Date().toISOString());
+
+      showDialog({
+        title: t("home.notificationPrePermission.title", { petName: activePet.name }),
+        message: t("home.notificationPrePermission.body"),
+        primaryLabel: t("home.notificationPrePermission.accept"),
+        secondaryLabel: t("home.notificationPrePermission.decline"),
+        onPrimary: () => {
+          void requestNotificationPermission().catch(() => undefined);
+        }
+      });
+    });
+  };
+
   const dismissWelcome = () => {
     setWelcomeVisible(false);
     setFirstCareGuideVisible(true);
     void AsyncStorage.setItem(HOME_WELCOME_SEEN_KEY, new Date().toISOString());
+    presentNotificationPrePermissionIfNeeded();
   };
   const visibleCareMenuOptions = useMemo(
     () =>
@@ -1869,27 +1897,12 @@ export function TerrariumHomeScreen() {
     }
 
     setOpenCareMenu(null);
-
-    if (firstCareGuideVisible) {
-      // Ask for notification permission right after the player's very first care
-      // action - never during onboarding, and never again once they've made a
-      // choice. requestNotificationPermissionAfterFirstCareAction() already
-      // no-ops if permission was previously granted or permanently denied.
-      void requestNotificationPermissionAfterFirstCareAction()
-        .then((result) => {
-          if (action === "walk" && result.status === "granted") {
-            return synchronizeWalkReturnNotification({
-              petName: activePet.name,
-              returnAt: new Date(nowMs + homeWalkDurationMs).toISOString(),
-              now: new Date(nowMs).toISOString()
-            });
-          }
-
-          return undefined;
-        })
-        .catch(() => undefined);
-    }
-
+    // Notification permission is no longer asked for here -- it's already been
+    // resolved (or declined) by the warm home-entry pre-permission card, see
+    // dismissWelcome/presentNotificationPrePermissionIfNeeded above. A walk
+    // started here still gets its return notification scheduled the same way
+    // every other walk does, via useNotificationSync's standing effect on
+    // activeWalk's status.
     setFirstCareGuideVisible(false);
     performCareAction(action, decision.itemId);
     const careSfxId = careActionSfxById[action];

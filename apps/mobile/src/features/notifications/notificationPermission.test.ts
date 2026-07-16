@@ -28,7 +28,7 @@ vi.mock("react-native", () => ({
 
 import {
   configureGardenNotificationChannel,
-  requestNotificationPermissionAfterFirstCareAction
+  requestNotificationPermission
 } from "./notificationPermission";
 
 beforeEach(() => {
@@ -37,11 +37,11 @@ beforeEach(() => {
   runtimeLocale.current = "en-US";
 });
 
-describe("requestNotificationPermissionAfterFirstCareAction", () => {
+describe("requestNotificationPermission", () => {
   it("is a no-op and reports granted when permission is already granted", async () => {
     getPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
 
-    const result = await requestNotificationPermissionAfterFirstCareAction();
+    const result = await requestNotificationPermission();
 
     expect(result).toEqual({ status: "granted" });
     expect(requestPermissionsAsync).not.toHaveBeenCalled();
@@ -50,7 +50,7 @@ describe("requestNotificationPermissionAfterFirstCareAction", () => {
   it("is a no-op and does not re-prompt when the user already permanently denied", async () => {
     getPermissionsAsync.mockResolvedValue({ status: "denied", granted: false, canAskAgain: false });
 
-    const result = await requestNotificationPermissionAfterFirstCareAction();
+    const result = await requestNotificationPermission();
 
     expect(result).toEqual({ status: "denied" });
     expect(requestPermissionsAsync).not.toHaveBeenCalled();
@@ -60,7 +60,7 @@ describe("requestNotificationPermissionAfterFirstCareAction", () => {
     getPermissionsAsync.mockResolvedValue({ status: "undetermined", granted: false, canAskAgain: true });
     requestPermissionsAsync.mockResolvedValue({ status: "granted", granted: true, canAskAgain: true });
 
-    const result = await requestNotificationPermissionAfterFirstCareAction();
+    const result = await requestNotificationPermission();
 
     expect(requestPermissionsAsync).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ status: "granted" });
@@ -70,7 +70,7 @@ describe("requestNotificationPermissionAfterFirstCareAction", () => {
     getPermissionsAsync.mockResolvedValue({ status: "undetermined", granted: false, canAskAgain: true });
     requestPermissionsAsync.mockResolvedValue({ status: "denied", granted: false, canAskAgain: false });
 
-    const result = await requestNotificationPermissionAfterFirstCareAction();
+    const result = await requestNotificationPermission();
 
     expect(result).toEqual({ status: "denied" });
   });
