@@ -20,7 +20,10 @@
     "production": {
       "ios": {
         "ascAppId": "6791195148",
-        "appleTeamId": "H38HXLR558"
+        "appleTeamId": "H38HXLR558",
+        "ascApiKeyPath": "/Users/kohyun/Downloads/AuthKey_8UAWZ4CPNN.p8",
+        "ascApiKeyId": "8UAWZ4CPNN",
+        "ascApiKeyIssuerId": "ac0a62ce-9589-4d42-a4c8-26d9e40443c2"
       }
     }
   }
