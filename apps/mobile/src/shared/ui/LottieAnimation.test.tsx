@@ -60,4 +60,15 @@ describe("LottieAnimation", () => {
     expect(beforeStart.props.children.props.progress).toBe(0);
     expect(malformed.props.children.props.progress).toBe(0.5);
   });
+
+  it("forwards a ref to the native animation view so a caller can imperatively re-trigger playback", () => {
+    // Some release/New-Architecture builds have been observed to drop the
+    // native autoPlay kick (see WalkPawsAnimation in TerrariumHomeScreen) --
+    // callers work around that by grabbing this ref and calling .play()
+    // themselves once after mount, so it must reach the underlying LottieView.
+    const ref = { current: null };
+    const element = LottieAnimation({ decorative: true, ref, source, style });
+
+    expect(element.props.children.props.ref).toBe(ref);
+  });
 });

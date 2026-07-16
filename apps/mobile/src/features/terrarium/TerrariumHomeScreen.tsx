@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
+import type LottieView from "lottie-react-native";
 import { Droplets, Footprints, Gift, Heart, MessageCircle, Moon, Utensils, Zap } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Animated, Easing, Image, ImageBackground, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -953,6 +954,39 @@ function WalkCommentaryLine({ line, reduceMotionEnabled }: WalkCommentaryLinePro
   );
 }
 
+interface WalkPawsAnimationProps {
+  reduceMotionEnabled: boolean;
+}
+
+/**
+ * The looping paw-trail Lottie shown for the whole ~walk duration while the
+ * pet is away (see the `isPetOnWalk` branch below). lottie-react-native's
+ * autoPlay only fires once, synchronously, the instant its native ref
+ * attaches (see `captureRef` in lottie-react-native's LottieView) -- on
+ * release builds under the New Architecture (Fabric), that ref can attach
+ * before the native surface has actually finished mounting, so the play
+ * command it sends is dropped and the trail is left frozen on its first
+ * frame for the entire walk. Re-issuing .play() ourselves once after mount
+ * is a no-op when autoPlay already worked and a fix when it silently didn't.
+ * Reduced motion still wins here -- LottieAnimation itself already renders a
+ * static poster frame in that case, so this only ever plays when motion is
+ * allowed.
+ */
+function WalkPawsAnimation({ reduceMotionEnabled }: WalkPawsAnimationProps) {
+  const animationRef = useRef<LottieView>(null);
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      return;
+    }
+
+    animationRef.current?.play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <LottieAnimation decorative loop ref={animationRef} source={pawsAnimation} style={styles.walkPawsAnimation} />;
+}
+
 export function TerrariumHomeScreen() {
   const {
     activeBuffs,
@@ -1285,7 +1319,21 @@ export function TerrariumHomeScreen() {
 
     if (feedCount > previousFeedCountRef.current) {
       if (previousFeedCountRef.current === 0) {
-        enqueueCreditRewardClaim(settlementMissionRewardKeys.firstFeed, "settlement");
+        // Cross-session AsyncStorage guard, not just this 0->1 counter
+        // transition -- careStats.actionCounts.feed is assumed to only ever
+        // cross 0 once, but a broken/offline persistence path (e.g. the
+        // local-prototype fallback) can make it read back as 0 again on a
+        // later render, which would otherwise re-fire this reward-claim card
+        // on an unrelated later tap. Mirrors settle_first_chat_hello/
+        // settle_first_photo's own guard (see rewardClaimLocalFlags.ts).
+        void hasQueuedRewardLocally(settlementMissionRewardKeys.firstFeed).then((alreadyQueued) => {
+          if (alreadyQueued) {
+            return;
+          }
+
+          enqueueCreditRewardClaim(settlementMissionRewardKeys.firstFeed, "settlement");
+          void markRewardQueuedLocally(settlementMissionRewardKeys.firstFeed);
+        });
       }
 
       const recorded = recordCoreCareAction(progress, "feed", now);
@@ -1296,7 +1344,15 @@ export function TerrariumHomeScreen() {
 
     if (playCount > previousPlayCountRef.current) {
       if (previousPlayCountRef.current === 0) {
-        enqueueCreditRewardClaim(settlementMissionRewardKeys.firstPlay, "settlement");
+        // Same cross-session guard as settle_first_feed above.
+        void hasQueuedRewardLocally(settlementMissionRewardKeys.firstPlay).then((alreadyQueued) => {
+          if (alreadyQueued) {
+            return;
+          }
+
+          enqueueCreditRewardClaim(settlementMissionRewardKeys.firstPlay, "settlement");
+          void markRewardQueuedLocally(settlementMissionRewardKeys.firstPlay);
+        });
       }
 
       const recorded = recordCoreCareAction(progress, "play", now);
@@ -1740,7 +1796,20 @@ export function TerrariumHomeScreen() {
     }
 
     if (careStats.walkCount === 1) {
-      enqueueCreditRewardClaim(settlementMissionRewardKeys.firstWalk, "settlement");
+      // Cross-session AsyncStorage guard, same as settle_first_feed/
+      // settle_first_play above -- walkCount is assumed to only ever read as
+      // exactly 1 for the owner's first-ever walk claim, but a broken/offline
+      // persistence path can make it read back as 1 again on a later claim,
+      // which would otherwise re-fire this reward-claim card on every later
+      // walk. Mirrors settle_first_chat_hello/settle_first_photo's own guard.
+      void hasQueuedRewardLocally(settlementMissionRewardKeys.firstWalk).then((alreadyQueued) => {
+        if (alreadyQueued) {
+          return;
+        }
+
+        enqueueCreditRewardClaim(settlementMissionRewardKeys.firstWalk, "settlement");
+        void markRewardQueuedLocally(settlementMissionRewardKeys.firstWalk);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justClaimedWalkAt]);
@@ -2339,12 +2408,7 @@ export function TerrariumHomeScreen() {
                 }
               ]}
             >
-              <LottieAnimation
-                decorative
-                loop
-                source={pawsAnimation}
-                style={styles.walkPawsAnimation}
-              />
+              <WalkPawsAnimation reduceMotionEnabled={reduceMotionEnabled} />
               <WalkCommentaryLine line={walkCommentaryLine} reduceMotionEnabled={reduceMotionEnabled} />
             </View>
           ) : (

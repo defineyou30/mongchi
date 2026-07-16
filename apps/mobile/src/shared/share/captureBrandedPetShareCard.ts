@@ -7,8 +7,15 @@ interface SvgDataUrlSource {
   ) => void;
 }
 
-const exportWidth = 1080;
-const exportHeight = 1350;
+// Single source of truth for the exported PNG's pixel size (a 4:5 poster).
+// MongchiShareCard's hidden capture host must be laid out at this exact
+// size -- see its captureHostStyle -- because react-native-svg's toDataURL
+// renders content scaled to the SvgView's own on-screen bounds and only
+// resizes the output *canvas* to these width/height options (see
+// RNSVGSvgView#drawRect: in the native module, which reads self.bounds
+// rather than the size requested here).
+export const shareCardExportWidth = 1080;
+export const shareCardExportHeight = 1350;
 const exportTimeoutMs = 2500;
 
 export const captureBrandedPetShareCard = async (source: SvgDataUrlSource | null): Promise<string | null> => {
@@ -23,7 +30,7 @@ export const captureBrandedPetShareCard = async (source: SvgDataUrlSource | null
       source.toDataURL((result) => {
         clearTimeout(timeoutId);
         resolve(result);
-      }, { width: exportWidth, height: exportHeight });
+      }, { width: shareCardExportWidth, height: shareCardExportHeight });
     });
 
     if (!base64) {

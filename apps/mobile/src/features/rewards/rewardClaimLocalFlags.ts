@@ -7,9 +7,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
  * bothering the owner (or hammering the RPC) with a repeat claim card for a
  * mission whose trigger point can be revisited many times across a pet's
  * lifetime (settle_first_chat_hello: visiting the chat gate; settle_first_photo:
- * opening the share sheet) -- unlike settle_first_feed/settle_first_play/
- * settle_first_walk, which are naturally one-shot because they're gated by a
- * domain counter that only ever crosses 0 -> 1 once.
+ * opening the share sheet). settle_first_feed/settle_first_play/
+ * settle_first_walk use the same guard for a different reason: they're
+ * gated by a domain counter (careStats.actionCounts.feed/play,
+ * careStats.walkCount) that's *supposed* to only ever cross its one-shot
+ * threshold once, but a broken or offline persistence path (e.g. the
+ * local-prototype session falling back after a server/env misconfig) can
+ * make that counter read back at its pre-crossed value again on a later
+ * render -- without this guard that silently re-fires the same "moving-in
+ * gift" claim card on an unrelated later action.
  *
  * A single JSON array under one storage key, same shape as
  * TerrariumHomeScreen's persistedEventToastKeysRef -- the set of reward keys

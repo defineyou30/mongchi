@@ -1,4 +1,4 @@
-import type { ComponentProps, JSX } from "react";
+import type { ComponentProps, JSX, Ref } from "react";
 import LottieView from "lottie-react-native";
 import { StyleSheet, View } from "react-native";
 
@@ -12,6 +12,14 @@ interface LottieAnimationBaseProps {
   /** Fires when a non-looping (loop=false) playthrough completes -- lets callers fade out / unmount a one-shot animation instead of holding its last frame forever. */
   readonly onAnimationFinish?: (isCancelled: boolean) => void;
   readonly posterProgress?: number;
+  /**
+   * Imperative handle onto the underlying native LottieView (React 19 accepts
+   * `ref` as a plain prop on function components, no forwardRef needed) --
+   * lets a caller explicitly re-issue .play() after mount as a defensive
+   * fallback for cases where the native autoPlay kick was dropped. See its
+   * use on the walk paw-trail loop in TerrariumHomeScreen.
+   */
+  readonly ref?: Ref<LottieView>;
   readonly resizeMode?: "cover" | "contain" | "center";
   readonly source: LottieAnimationSource;
   readonly style: ComponentProps<typeof LottieView>["style"];
@@ -40,6 +48,7 @@ export function LottieAnimation({
   loop = true,
   onAnimationFinish,
   posterProgress = 0.5,
+  ref,
   resizeMode = "contain",
   source,
   style
@@ -67,6 +76,7 @@ export function LottieAnimation({
         loop={reduceMotionEnabled ? false : loop}
         onAnimationFinish={onAnimationFinish}
         progress={reduceMotionEnabled ? normalizedPosterProgress : undefined}
+        ref={ref}
         resizeMode={resizeMode}
         source={source}
         style={StyleSheet.absoluteFill}
