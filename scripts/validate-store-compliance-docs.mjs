@@ -48,7 +48,9 @@ const requirePattern = (pattern, description) => {
   "User Content - Other User Content",
   "Purchases",
   "Identifiers - User ID",
+  "Contact Info - Email Address",
   "Usage Data - Product Interaction",
+  "Diagnostics - Crash Data",
   "Photos and videos",
   "App activity - In-app messages",
   "Financial info - Purchase history",
@@ -63,7 +65,14 @@ const requirePattern = (pattern, description) => {
   "EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL"
 ].forEach((required) => requireText(required));
 
-requirePattern(/does not request or collect location, contacts, calendars, microphone\/audio/i, "explicit non-collected sensitive data statement");
+// Location gets its own real-time-processing-exception justification (it is read
+// and used, just never retained), separate from the flat non-collection statement
+// below for contacts/calendars/microphone -- keep both guardrails so neither claim
+// can quietly regress to an unsupported blanket "not collected".
+requirePattern(/does not request or collect contacts, calendars, or microphone\/audio/i, "explicit non-collected sensitive data statement (contacts/calendars/microphone)");
+requirePattern(/real-time processing that is not retained/i, "location real-time-processing exception justification");
+requirePattern(/weather-lookup/i, "location evidence reference to the weather-lookup Edge Function");
+requirePattern(/no voice-input or audio-recording feature/i, "no voice-input/recording feature statement");
 requirePattern(/Do not answer that data is shared for advertising/i, "advertising sharing guardrail");
 requirePattern(/answer yes only after.+encryption at rest/i, "encryption-at-rest final-provider caveat");
 requirePattern(/raw photo URIs.+raw message text.+receipt payloads/i, "raw sensitive payload minimization statement");
