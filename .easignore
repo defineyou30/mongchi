@@ -1,17 +1,39 @@
-# Excluded from EAS build uploads -- none of these participate in the app build.
-# (node_modules and gitignored paths are excluded automatically.)
+# EAS upload exclusions.
+# IMPORTANT: when .easignore exists it REPLACES .gitignore for EAS uploads,
+# so every relevant .gitignore rule must be repeated here.
 
-# Documentation, store assets, and release evidence (~290 MB)
+# --- from .gitignore (generated/local state; machine-specific paths live here) ---
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.omo/
+*.xcresult/
+supabase/.temp/
+tmp/
+.lazyweb/
+**/__pycache__/
+*.pyc
+
+# --- from apps/mobile/ios/.gitignore (Xcode/CocoaPods artifacts; contain absolute local paths) ---
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+apps/mobile/ios/.xcode.env.local
+apps/mobile/ios/DerivedData/
+apps/mobile/android/build/
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+
+# --- build-irrelevant trees (size + the legacy sharp dependency) ---
 docs/
-
-# Marketing landing page (separate Vercel deployment, ~60 MB)
 apps/landing/
-
-# Backend/legacy trees not used by the mobile bundle
 supabase/
 services/
 workers/
-
-# Tooling caches
-**/__pycache__/
-*.pyc
