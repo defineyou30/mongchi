@@ -22,12 +22,6 @@
       "pt-BR": "./locales/pt-BR.json",
       "es-MX": "./locales/es-MX.json"
     },
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#9FDBFF"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.defineyou.mongchi",

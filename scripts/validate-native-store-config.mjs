@@ -74,7 +74,11 @@ if (!expo) {
   }
 
   requireAsset(expo.icon, "Expo app icon");
-  requireAsset(expo.splash?.image, "Expo splash image");
+  // SDK 56 removed the root `splash` config key; on this bare project the
+  // splash source of truth is the native storyboard plus the bundled asset.
+  if (!existsSync(resolve(ROOT, "apps/mobile/ios/Mongchi/SplashScreen.storyboard")) || !existsSync(resolve(ROOT, "apps/mobile/assets/splash.png"))) {
+    failures.push("Native splash (ios/Mongchi/SplashScreen.storyboard + assets/splash.png) must be present.");
+  }
   requireAsset(expo.android?.adaptiveIcon?.foregroundImage, "Android adaptive icon foreground");
 
   if (!isNonPlaceholderIdentifier(expo.ios?.bundleIdentifier)) {
