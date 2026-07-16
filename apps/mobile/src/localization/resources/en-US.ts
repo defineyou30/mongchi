@@ -322,15 +322,15 @@ export const enUS = {
       bringHomeAccessibilityLabel: "Spend {{cost}} credit to bring {{petName}} home right now",
       cannotBringHomeAccessibilityLabel: "Not enough credits to bring {{petName}} home right now",
       coinAccessibilityLabel: "Coin currency",
-      openCreditStoreAccessibilityLabel: "Open the gem shop",
+      openCreditStoreAccessibilityLabel: "Open the credit shop",
       commentary: {
         early: "{{petName}} is following a very important scent...",
         mid: "{{petName}} stopped to greet a leaf.",
         late: "{{petName}} found something and is bringing it home!"
       },
       bringHome: "Bring home now · {{cost}}",
-      openCreditStore: "Get gems",
-      insufficientHint: "Get gems or wait for {{petName}} to return.",
+      openCreditStore: "Get credits",
+      insufficientHint: "Get credits or wait for {{petName}} to return.",
       waiting: "{{petName}} will be back soon — hang tight.",
       returned: "{{petName}} is back with a little gift!",
       claimAccessibilityLabel: "Greet {{petName}} and claim the walk gift",
@@ -479,8 +479,8 @@ export const enUS = {
     title: "Garden Shop",
     back: "Back home",
     walletAccessibilityLabel: "Shop wallet, {{credits}} credits and {{owned}} owned kit items",
-    creditGemAccessibilityLabel: "Shop credit gem icon",
-    openCreditStore: "Open the gem store",
+    creditGemAccessibilityLabel: "Shop credit icon",
+    openCreditStore: "Open the credit store",
     categories: {
       all: "All",
       treats: "Treats",
@@ -518,10 +518,10 @@ export const enUS = {
     largePreview: "{{name}} large preview",
     backgroundThumbnail: "{{name}} background thumbnail",
     itemIcon: "{{name}} icon",
-    pricesAccessibilityLabel: "Gem and coin prices accepted",
-    walletGemAccessibilityLabel: "Wallet credit gem",
+    pricesAccessibilityLabel: "Credit and coin prices accepted",
+    walletGemAccessibilityLabel: "Credit price",
     coinAccessibilityLabel: "Coin currency",
-    gemPriceAccessibilityLabel: "Gem price",
+    gemPriceAccessibilityLabel: "Credit price",
     actions: {
       unlockTheme: "Unlock theme",
       applyTheme: "Apply theme",
@@ -595,14 +595,14 @@ export const enUS = {
     expressionPacks: {
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, three-pose pack, {{price}}. {{status}}",
-      creditGemAccessibilityLabel: "Credit gem",
+      creditGemAccessibilityLabel: "Credit price",
       allOwned: "All 3 owned",
       allPrice: "All 3 · {{credits}}",
       actionAccessibilityLabel: "{{action}} from {{name}}",
       actions: {
         generate: "Generate all 3",
         retry: "Retry all 3",
-        needCredits: "Get gems",
+        needCredits: "Get credits",
         making: "Making poses...",
         owned: "Owned in profile"
       }
@@ -621,19 +621,19 @@ export const enUS = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "Gem store",
-    title: "Gem Store",
+    accessibilityLabel: "Credit Refill Station",
+    title: "Credit Refill Station",
     back: "Back to the garden shop",
-    balanceAccessibilityLabel: "Current balance: {{credits}} gems",
+    balanceAccessibilityLabel: "Current balance: {{credits}} credits",
     heroTitle: "Meet more little moments",
-    heroBody: "Use gems for pose packs, themes, and special care moments.",
+    heroBody: "Use credits for pose packs, themes, and special care moments.",
     starterTitle: "First-friend gift · {{credits}}",
     starterBody: "Added once after your first companion finishes moving in.",
-    choosePack: "Choose a gem pack",
+    choosePack: "Choose a credit pack",
     popular: "POPULAR",
-    packAmount: "{{credits}} gems",
+    packAmount: "{{credits}} credits",
     storePrice: "App Store price",
-    purchaseAccessibilityLabel: "Buy {{credits}} gems",
+    purchaseAccessibilityLabel: "Buy {{credits}} credits",
     packs: {
       small: "Open one pack and try it out",
       popular: "A comfortable pick for poses and themes",
@@ -645,16 +645,16 @@ export const enUS = {
       arriving: "On the way...",
       preparing: "Store setup pending"
     },
-    storeNotice: "Payments are handled by the App Store. Only verified gems are added to your balance.",
+    storeNotice: "Payments are handled by the App Store. Only verified credits are added to your balance.",
     dialogs: {
       failedTitle: "Purchase not completed",
       failedBody: "Check your connection and try again.",
-      successTitle: "Gems arrived",
-      successBody: "Verified gems were added to your balance.",
+      successTitle: "Credits arrived",
+      successBody: "Verified credits were added to your balance.",
       pendingTitle: "Almost there",
-      pendingBody: "Your purchase is waiting for the store to confirm it. Gems will arrive once it's approved.",
-      delayedTitle: "Gems are on the way",
-      delayedBody: "Your purchase went through! Gems can take a little longer to show up — check back soon."
+      pendingBody: "Your purchase is waiting for the store to confirm it. Credits will arrive once it's approved.",
+      delayedTitle: "Credits are on the way",
+      delayedBody: "Your purchase went through! Credits can take a little longer to show up — check back soon."
     }
   },
   inventory: {

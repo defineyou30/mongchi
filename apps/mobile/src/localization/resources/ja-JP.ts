@@ -324,15 +324,15 @@ export const jaJP = {
       bringHomeAccessibilityLabel: "{{cost}}クレジットを使って{{petName}}を今すぐ家に呼び戻す",
       cannotBringHomeAccessibilityLabel: "{{petName}}を今すぐ家に呼び戻すためのクレジットが足りません",
       coinAccessibilityLabel: "コイン通貨",
-      openCreditStoreAccessibilityLabel: "ジェムショップを開く",
+      openCreditStoreAccessibilityLabel: "クレジットショップを開く",
       commentary: {
         early: "{{petName}}はとても大切なにおいを追っています...",
         mid: "{{petName}}は葉っぱにあいさつするため立ち止まりました。",
         late: "{{petName}}が何かを見つけて、家へ持ち帰っています！"
       },
       bringHome: "今すぐ帰宅 · {{cost}}",
-      openCreditStore: "ジェムを補充",
-      insufficientHint: "ジェムを補充するか、{{petName}}の帰りを待ちましょう。",
+      openCreditStore: "クレジットを補充",
+      insufficientHint: "クレジットを補充するか、{{petName}}の帰りを待ちましょう。",
       waiting: "{{petName}}はもうすぐ戻ります。のんびり待っていてね。",
       returned: "{{petName}}が小さなおみやげを持って帰ってきました！",
       claimAccessibilityLabel: "{{petName}}を迎えて、お散歩のおみやげを受け取る",
@@ -481,8 +481,8 @@ export const jaJP = {
     title: "庭のショップ",
     back: "ホームに戻る",
     walletAccessibilityLabel: "ショップのお財布、{{credits}}クレジット、所持キットアイテム{{owned}}個",
-    creditGemAccessibilityLabel: "ショップのクレジットジェムアイコン",
-    openCreditStore: "ジェムストアを開く",
+    creditGemAccessibilityLabel: "ショップのクレジットアイコン",
+    openCreditStore: "クレジットストアを開く",
     categories: {
       all: "すべて",
       treats: "おやつ",
@@ -520,10 +520,10 @@ export const jaJP = {
     largePreview: "{{name}}の大きなプレビュー",
     backgroundThumbnail: "{{name}}の背景サムネイル",
     itemIcon: "{{name}}のアイコン",
-    pricesAccessibilityLabel: "ジェムまたはコインで購入できます",
-    walletGemAccessibilityLabel: "お財布のクレジットジェム",
+    pricesAccessibilityLabel: "クレジットまたはコインで購入できます",
+    walletGemAccessibilityLabel: "クレジット価格",
     coinAccessibilityLabel: "コイン通貨",
-    gemPriceAccessibilityLabel: "ジェム価格",
+    gemPriceAccessibilityLabel: "クレジット価格",
     actions: {
       unlockTheme: "テーマをアンロック",
       applyTheme: "テーマを適用",
@@ -597,14 +597,14 @@ export const jaJP = {
     expressionPacks: {
       poseCount: "3ポーズ",
       boardAccessibilityLabel: "{{name}}、3ポーズパック、{{price}}。{{status}}",
-      creditGemAccessibilityLabel: "クレジットジェム",
+      creditGemAccessibilityLabel: "クレジット価格",
       allOwned: "3つすべて所持済み",
       allPrice: "3つすべて · {{credits}}",
       actionAccessibilityLabel: "{{name}}で{{action}}",
       actions: {
         generate: "3つすべて生成",
         retry: "3つすべて再試行",
-        needCredits: "ジェムを追加",
+        needCredits: "クレジットを追加",
         making: "ポーズを作成中...",
         owned: "プロフィールで所持済み"
       }
@@ -623,19 +623,19 @@ export const jaJP = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "ジェムストア",
-    title: "ジェムストア",
+    accessibilityLabel: "クレジットストア",
+    title: "クレジットストア",
     back: "ガーデンショップに戻る",
-    balanceAccessibilityLabel: "現在のジェムは{{credits}}個",
+    balanceAccessibilityLabel: "現在のクレジットは{{credits}}個",
     heroTitle: "もっと小さな瞬間に出会おう",
-    heroBody: "ジェムはポーズパック、テーマ、特別なお世話に使えます。",
+    heroBody: "クレジットはポーズパック、テーマ、特別なお世話に使えます。",
     starterTitle: "最初の友だちギフト・{{credits}}個",
     starterBody: "最初の友だちの入居完了後に一度だけ追加されます。",
-    choosePack: "ジェムパックを選ぶ",
+    choosePack: "クレジットパックを選ぶ",
     popular: "人気",
-    packAmount: "ジェム{{credits}}個",
+    packAmount: "クレジット{{credits}}個",
     storePrice: "App Store価格",
-    purchaseAccessibilityLabel: "ジェム{{credits}}個を購入",
+    purchaseAccessibilityLabel: "クレジット{{credits}}個を購入",
     packs: {
       small: "まずは1パック試す",
       popular: "ポーズとテーマにちょうどいい",
@@ -647,15 +647,15 @@ export const jaJP = {
       arriving: "届いています...",
       preparing: "ストア準備中"
     },
-    storeNotice: "決済はApp Storeで処理され、確認済みのジェムだけが残高に追加されます。",
+    storeNotice: "決済はApp Storeで処理され、確認済みのクレジットだけが残高に追加されます。",
     dialogs: {
       failedTitle: "購入を完了できませんでした",
       failedBody: "接続を確認してもう一度お試しください。",
-      successTitle: "ジェムが届きました",
-      successBody: "確認済みのジェムが残高に追加されました。",
+      successTitle: "クレジットが届きました",
+      successBody: "確認済みのクレジットが残高に追加されました。",
       pendingTitle: "もう少しです",
-      pendingBody: "購入の承認をお待ちしています。承認され次第ジェムが届きます。",
-      delayedTitle: "ジェムが届く途中です",
+      pendingBody: "購入の承認をお待ちしています。承認され次第クレジットが届きます。",
+      delayedTitle: "クレジットが届く途中です",
       delayedBody: "購入は完了しました！反映まで少し時間がかかることがあります。しばらくしてから確認してください。"
     }
   },

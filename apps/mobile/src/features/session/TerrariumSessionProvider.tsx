@@ -2923,7 +2923,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
 
       if (purchaseOutcome.status === "pending") {
         setPurchaseInProgressProductId(null);
-        setPurchaseStatusMessage("Your purchase is waiting for approval. Gems will arrive once it's confirmed.");
+        setPurchaseStatusMessage("Your purchase is waiting for approval. Credits will arrive once it's confirmed.");
         setApiSyncStatus("ready");
         return { ok: true, mode: "api", status: "pending", messageSafe: "Purchase is pending approval." };
       }
@@ -2932,7 +2932,7 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       // itself arrives asynchronously via the webhook -- poll the
       // server-authoritative balance until it moves or the budget runs out.
       setPurchaseArrivingProductId(productId);
-      setPurchaseStatusMessage("Your gems are on their way to the garden...");
+      setPurchaseStatusMessage("Your credits are on their way to the garden...");
 
       let balanceConfirmed = false;
 
@@ -2963,11 +2963,11 @@ export function TerrariumSessionProvider({ children }: { children: ReactNode }) 
       setApiSyncStatus("ready");
 
       if (balanceConfirmed) {
-        setPurchaseStatusMessage("Gems arrived.");
+        setPurchaseStatusMessage("Credits arrived.");
         return { ok: true, mode: "api", status: "purchased", messageSafe: "Purchase verified." };
       }
 
-      setPurchaseStatusMessage("Gems are still on their way.");
+      setPurchaseStatusMessage("Credits are still on their way.");
       return { ok: true, mode: "api", status: "purchased_delayed", messageSafe: "Purchase completed; balance sync is still catching up." };
     },
     [setPurchaseError, state.wallet.credits]

@@ -328,15 +328,15 @@ export const deDE = {
       bringHomeAccessibilityLabel: "{{cost}} Credit ausgeben, um {{petName}} sofort nach Hause zu holen",
       cannotBringHomeAccessibilityLabel: "Nicht genug Credits, um {{petName}} sofort nach Hause zu holen",
       coinAccessibilityLabel: "Münzwährung",
-      openCreditStoreAccessibilityLabel: "Juwelenshop öffnen",
+      openCreditStoreAccessibilityLabel: "Credit-Shop öffnen",
       commentary: {
         early: "{{petName}} folgt einer sehr wichtigen Spur...",
         mid: "{{petName}} ist stehen geblieben, um ein Blatt zu begrüßen.",
         late: "{{petName}} hat etwas gefunden und bringt es mit nach Hause!"
       },
       bringHome: "Jetzt heimholen · {{cost}}",
-      openCreditStore: "Juwelen holen",
-      insufficientHint: "Hol Juwelen oder warte, bis {{petName}} zurückkommt.",
+      openCreditStore: "Credits holen",
+      insufficientHint: "Hol Credits oder warte, bis {{petName}} zurückkommt.",
       waiting: "{{petName}} ist bald zurück. Nur noch einen kleinen Moment.",
       returned: "{{petName}} ist mit einem kleinen Geschenk zurück!",
       claimAccessibilityLabel: "{{petName}} begrüßen und das Spaziergangsgeschenk abholen",
@@ -485,8 +485,8 @@ export const deDE = {
     title: "Gartenshop",
     back: "Zurück nach Hause",
     walletAccessibilityLabel: "Shop-Guthaben: {{credits}} Credits und {{owned}} eigene Set-Gegenstände",
-    creditGemAccessibilityLabel: "Credit-Edelstein des Shops",
-    openCreditStore: "Juwelenladen öffnen",
+    creditGemAccessibilityLabel: "Credit-Symbol des Shops",
+    openCreditStore: "Credit-Laden öffnen",
     categories: {
       all: "Alle",
       treats: "Leckerlis",
@@ -524,10 +524,10 @@ export const deDE = {
     largePreview: "Große Vorschau für {{name}}",
     backgroundThumbnail: "Hintergrundminiatur für {{name}}",
     itemIcon: "Symbol für {{name}}",
-    pricesAccessibilityLabel: "Edelstein- und Münzpreise werden akzeptiert",
-    walletGemAccessibilityLabel: "Credit-Edelstein im Guthaben",
+    pricesAccessibilityLabel: "Credit- und Münzpreise werden akzeptiert",
+    walletGemAccessibilityLabel: "Credit-Preis",
     coinAccessibilityLabel: "Münzwährung",
-    gemPriceAccessibilityLabel: "Edelsteinpreis",
+    gemPriceAccessibilityLabel: "Credit-Preis",
     actions: {
       unlockTheme: "Thema freischalten",
       applyTheme: "Thema anwenden",
@@ -601,14 +601,14 @@ export const deDE = {
     expressionPacks: {
       poseCount: "3 POSEN",
       boardAccessibilityLabel: "{{name}}, Dreier-Posenpaket, {{price}}. {{status}}",
-      creditGemAccessibilityLabel: "Credit-Edelstein",
+      creditGemAccessibilityLabel: "Credit-Preis",
       allOwned: "Alle 3 im Besitz",
       allPrice: "Alle 3 · {{credits}}",
       actionAccessibilityLabel: "{{action}} aus {{name}}",
       actions: {
         generate: "Alle 3 erstellen",
         retry: "Alle 3 erneut versuchen",
-        needCredits: "Juwelen holen",
+        needCredits: "Credits holen",
         making: "Posen entstehen...",
         owned: "Im Profil vorhanden"
       }
@@ -627,19 +627,19 @@ export const deDE = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "Juwelenladen",
-    title: "Juwelenladen",
+    accessibilityLabel: "Credit-Laden",
+    title: "Credit-Laden",
     back: "Zurück zum Gartenladen",
-    balanceAccessibilityLabel: "Aktueller Stand: {{credits}} Juwelen",
+    balanceAccessibilityLabel: "Aktueller Stand: {{credits}} Credits",
     heroTitle: "Entdecke mehr kleine Momente",
-    heroBody: "Nutze Juwelen für Posenpakete, Themen und besondere Fürsorge.",
+    heroBody: "Nutze Credits für Posenpakete, Themen und besondere Fürsorge.",
     starterTitle: "Geschenk für den ersten Freund · {{credits}}",
     starterBody: "Wird einmal gutgeschrieben, nachdem dein erster Freund eingezogen ist.",
-    choosePack: "Juwelenpaket wählen",
+    choosePack: "Credit-Paket wählen",
     popular: "BELIEBT",
-    packAmount: "{{credits}} Juwelen",
+    packAmount: "{{credits}} Credits",
     storePrice: "App-Store-Preis",
-    purchaseAccessibilityLabel: "{{credits}} Juwelen kaufen",
+    purchaseAccessibilityLabel: "{{credits}} Credits kaufen",
     packs: {
       small: "Ein Paket zum Ausprobieren",
       popular: "Ideal für Posen und Themen",
@@ -651,16 +651,16 @@ export const deDE = {
       arriving: "Ist unterwegs...",
       preparing: "Store wird vorbereitet"
     },
-    storeNotice: "Zahlungen laufen über den App Store. Nur bestätigte Juwelen werden gutgeschrieben.",
+    storeNotice: "Zahlungen laufen über den App Store. Nur bestätigte Credits werden gutgeschrieben.",
     dialogs: {
       failedTitle: "Kauf nicht abgeschlossen",
       failedBody: "Prüfe deine Verbindung und versuche es erneut.",
-      successTitle: "Juwelen angekommen",
-      successBody: "Bestätigte Juwelen wurden gutgeschrieben.",
+      successTitle: "Credits angekommen",
+      successBody: "Bestätigte Credits wurden gutgeschrieben.",
       pendingTitle: "Gleich geschafft",
-      pendingBody: "Dein Kauf wartet noch auf die Bestätigung des Stores. Sobald er bestätigt ist, kommen deine Juwelen an.",
-      delayedTitle: "Juwelen sind unterwegs",
-      delayedBody: "Dein Kauf war erfolgreich! Es kann etwas dauern, bis die Juwelen ankommen — schau gleich noch mal vorbei."
+      pendingBody: "Dein Kauf wartet noch auf die Bestätigung des Stores. Sobald er bestätigt ist, kommen deine Credits an.",
+      delayedTitle: "Credits sind unterwegs",
+      delayedBody: "Dein Kauf war erfolgreich! Es kann etwas dauern, bis die Credits ankommen — schau gleich noch mal vorbei."
     }
   },
   inventory: {

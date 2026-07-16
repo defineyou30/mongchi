@@ -328,15 +328,15 @@ export const esMX = {
       bringHomeAccessibilityLabel: "Gastar {{cost}} crédito para traer a {{petName}} a casa ahora",
       cannotBringHomeAccessibilityLabel: "No hay créditos suficientes para traer a {{petName}} a casa ahora",
       coinAccessibilityLabel: "Moneda",
-      openCreditStoreAccessibilityLabel: "Abrir la tienda de gemas",
+      openCreditStoreAccessibilityLabel: "Abrir la tienda de créditos",
       commentary: {
         early: "{{petName}} sigue un aroma muy importante...",
         mid: "{{petName}} se detuvo a saludar una hoja.",
         late: "¡{{petName}} encontró algo y lo lleva a casa!"
       },
       bringHome: "Traer a casa ahora · {{cost}}",
-      openCreditStore: "Conseguir gemas",
-      insufficientHint: "Consigue gemas o espera a que vuelva {{petName}}.",
+      openCreditStore: "Conseguir créditos",
+      insufficientHint: "Consigue créditos o espera a que vuelva {{petName}}.",
       waiting: "{{petName}} volverá pronto. Espera un poquito.",
       returned: "¡{{petName}} volvió con un regalito!",
       claimAccessibilityLabel: "Recibir a {{petName}} y reclamar el regalo del paseo",
@@ -482,8 +482,8 @@ export const esMX = {
     title: "Tienda",
     back: "Volver al inicio",
     walletAccessibilityLabel: "Cartera de la tienda: {{credits}} créditos y {{owned}} artículos del conjunto en propiedad",
-    creditGemAccessibilityLabel: "Ícono de gema de crédito de la tienda",
-    openCreditStore: "Abrir la tienda de gemas",
+    creditGemAccessibilityLabel: "Ícono de crédito de la tienda",
+    openCreditStore: "Abrir la tienda de créditos",
     categories: {
       all: "Todo",
       treats: "Premios",
@@ -521,10 +521,10 @@ export const esMX = {
     largePreview: "Vista previa grande de {{name}}",
     backgroundThumbnail: "Miniatura del fondo {{name}}",
     itemIcon: "Ícono de {{name}}",
-    pricesAccessibilityLabel: "Se aceptan precios en gemas y monedas",
-    walletGemAccessibilityLabel: "Gema de crédito de la cartera",
+    pricesAccessibilityLabel: "Se aceptan precios en créditos y monedas",
+    walletGemAccessibilityLabel: "Precio en créditos",
     coinAccessibilityLabel: "Moneda",
-    gemPriceAccessibilityLabel: "Precio en gemas",
+    gemPriceAccessibilityLabel: "Precio en créditos",
     actions: {
       unlockTheme: "Desbloquear tema",
       applyTheme: "Aplicar tema",
@@ -598,14 +598,14 @@ export const esMX = {
     expressionPacks: {
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, paquete de tres poses, {{price}}. {{status}}",
-      creditGemAccessibilityLabel: "Gema de crédito",
+      creditGemAccessibilityLabel: "Precio en créditos",
       allOwned: "Las 3 adquiridas",
       allPrice: "Las 3 · {{credits}}",
       actionAccessibilityLabel: "{{action}} de {{name}}",
       actions: {
         generate: "Generar las 3",
         retry: "Reintentar las 3",
-        needCredits: "Obtener gemas",
+        needCredits: "Obtener créditos",
         making: "Creando poses...",
         owned: "Adquiridas en el perfil"
       }
@@ -624,19 +624,19 @@ export const esMX = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "Tienda de gemas",
-    title: "Tienda de gemas",
+    accessibilityLabel: "Tienda de créditos",
+    title: "Tienda de créditos",
     back: "Volver a la tienda del jardín",
-    balanceAccessibilityLabel: "Saldo actual: {{credits}} gemas",
+    balanceAccessibilityLabel: "Saldo actual: {{credits}} créditos",
     heroTitle: "Descubre más pequeños momentos",
-    heroBody: "Usa gemas para paquetes de poses, temas y cuidados especiales.",
+    heroBody: "Usa créditos para paquetes de poses, temas y cuidados especiales.",
     starterTitle: "Regalo del primer amigo · {{credits}}",
     starterBody: "Se agrega una sola vez cuando tu primer compañero termina de mudarse.",
-    choosePack: "Elige un paquete de gemas",
+    choosePack: "Elige un paquete de créditos",
     popular: "POPULAR",
-    packAmount: "{{credits}} gemas",
+    packAmount: "{{credits}} créditos",
     storePrice: "Precio de App Store",
-    purchaseAccessibilityLabel: "Comprar {{credits}} gemas",
+    purchaseAccessibilityLabel: "Comprar {{credits}} créditos",
     packs: {
       small: "Prueba abriendo un paquete",
       popular: "Ideal para poses y temas",
@@ -648,16 +648,16 @@ export const esMX = {
       arriving: "En camino...",
       preparing: "Tienda en preparación"
     },
-    storeNotice: "Los pagos se procesan en App Store. Solo las gemas verificadas se agregan al saldo.",
+    storeNotice: "Los pagos se procesan en App Store. Solo los créditos verificados se agregan al saldo.",
     dialogs: {
       failedTitle: "Compra no completada",
       failedBody: "Revisa tu conexión e inténtalo de nuevo.",
-      successTitle: "Llegaron tus gemas",
-      successBody: "Las gemas verificadas se agregaron a tu saldo.",
+      successTitle: "Llegaron tus créditos",
+      successBody: "Los créditos verificados se agregaron a tu saldo.",
       pendingTitle: "Ya casi",
-      pendingBody: "Tu compra está esperando la confirmación de la tienda. Las gemas llegarán en cuanto se apruebe.",
-      delayedTitle: "Tus gemas están en camino",
-      delayedBody: "¡Tu compra se completó! Las gemas pueden tardar un poco más en aparecer — vuelve a revisar en un momento."
+      pendingBody: "Tu compra está esperando la confirmación de la tienda. Los créditos llegarán en cuanto se apruebe.",
+      delayedTitle: "Tus créditos están en camino",
+      delayedBody: "¡Tu compra se completó! Los créditos pueden tardar un poco más en aparecer — vuelve a revisar en un momento."
     }
   },
   inventory: {

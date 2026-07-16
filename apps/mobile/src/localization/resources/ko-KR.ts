@@ -324,15 +324,15 @@ export const koKR = {
       bringHomeAccessibilityLabel: "크레딧 {{cost}}개를 사용해 {{petName}}를 지금 데려오기",
       cannotBringHomeAccessibilityLabel: "크레딧이 부족해 {{petName}}를 지금 데려올 수 없어요",
       coinAccessibilityLabel: "코인 재화",
-      openCreditStoreAccessibilityLabel: "보석 상점 열기",
+      openCreditStoreAccessibilityLabel: "크레딧 상점 열기",
       commentary: {
         early: "{{petName}}가 아주 중요한 냄새를 따라가고 있어요...",
         mid: "{{petName}}가 나뭇잎 친구에게 인사했어요.",
         late: "{{petName}}가 무언가를 발견해 집으로 가져오고 있어요!"
       },
       bringHome: "지금 데려오기 · {{cost}}",
-      openCreditStore: "보석 충전하기",
-      insufficientHint: "보석을 충전하거나 {{petName}}가 돌아오길 기다려 주세요.",
+      openCreditStore: "크레딧 충전하기",
+      insufficientHint: "크레딧을 충전하거나 {{petName}}가 돌아오길 기다려 주세요.",
       waiting: "{{petName}}가 곧 돌아올 거예요. 조금만 기다려 주세요.",
       returned: "{{petName}}가 작은 선물을 들고 돌아왔어요!",
       claimAccessibilityLabel: "{{petName}}를 반기고 산책 선물 받기",
@@ -481,8 +481,8 @@ export const koKR = {
     title: "정원 상점",
     back: "홈으로 돌아가기",
     walletAccessibilityLabel: "상점 지갑, 크레딧 {{credits}}개와 보유 아이템 {{owned}}개",
-    creditGemAccessibilityLabel: "상점 크레딧 보석 아이콘",
-    openCreditStore: "보석 충전소 열기",
+    creditGemAccessibilityLabel: "상점 크레딧 아이콘",
+    openCreditStore: "크레딧 충전소 열기",
     categories: {
       all: "전체",
       treats: "간식",
@@ -520,10 +520,10 @@ export const koKR = {
     largePreview: "{{name}} 크게 미리보기",
     backgroundThumbnail: "{{name}} 배경 썸네일",
     itemIcon: "{{name}} 아이콘",
-    pricesAccessibilityLabel: "보석과 코인 가격을 사용할 수 있어요",
-    walletGemAccessibilityLabel: "지갑 크레딧 보석",
+    pricesAccessibilityLabel: "크레딧과 코인 가격을 사용할 수 있어요",
+    walletGemAccessibilityLabel: "크레딧 가격",
     coinAccessibilityLabel: "코인 재화",
-    gemPriceAccessibilityLabel: "보석 가격",
+    gemPriceAccessibilityLabel: "크레딧 가격",
     actions: {
       unlockTheme: "테마 열기",
       applyTheme: "테마 적용",
@@ -593,14 +593,14 @@ export const koKR = {
     expressionPacks: {
       poseCount: "포즈 3개",
       boardAccessibilityLabel: "{{name}}, 포즈 3개 팩, {{price}}. {{status}}",
-      creditGemAccessibilityLabel: "크레딧 보석",
+      creditGemAccessibilityLabel: "크레딧 가격",
       allOwned: "3개 모두 보유 중",
       allPrice: "3개 모두 · {{credits}}",
       actionAccessibilityLabel: "{{name}}에서 {{action}}",
       actions: {
         generate: "3개 모두 만들기",
         retry: "3개 모두 다시 시도",
-        needCredits: "보석 충전하기",
+        needCredits: "크레딧 충전하기",
         making: "포즈 만드는 중...",
         owned: "프로필에 보관 중"
       }
@@ -619,19 +619,19 @@ export const koKR = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "보석 충전소",
-    title: "보석 충전소",
+    accessibilityLabel: "크레딧 충전소",
+    title: "크레딧 충전소",
     back: "정원 상점으로 돌아가기",
-    balanceAccessibilityLabel: "현재 보석 {{credits}}개",
+    balanceAccessibilityLabel: "현재 크레딧 {{credits}}개",
     heroTitle: "새로운 순간을 더 만나보세요",
-    heroBody: "보석은 포즈 팩, 테마와 특별한 돌봄에 사용돼요.",
+    heroBody: "크레딧은 포즈 팩, 테마와 특별한 돌봄에 사용돼요.",
     starterTitle: "첫 친구 선물 · {{credits}}개",
     starterBody: "첫 친구가 입주를 마치면 계정에 한 번만 지급돼요.",
-    choosePack: "보석 팩 고르기",
+    choosePack: "크레딧 팩 고르기",
     popular: "인기",
-    packAmount: "보석 {{credits}}개",
+    packAmount: "크레딧 {{credits}}개",
     storePrice: "App Store 가격",
-    purchaseAccessibilityLabel: "보석 {{credits}}개 구매하기",
+    purchaseAccessibilityLabel: "크레딧 {{credits}}개 구매하기",
     packs: {
       small: "가볍게 한 팩을 열어보기",
       popular: "여러 포즈 팩과 테마에 알맞아요",
@@ -643,16 +643,16 @@ export const koKR = {
       arriving: "도착하는 중...",
       preparing: "스토어 준비 중"
     },
-    storeNotice: "결제는 App Store에서 처리되고, 확인된 보석만 잔액에 추가돼요.",
+    storeNotice: "결제는 App Store에서 처리되고, 확인된 크레딧만 잔액에 추가돼요.",
     dialogs: {
       failedTitle: "구매를 마치지 못했어요",
       failedBody: "연결 상태를 확인하고 다시 시도해 주세요.",
-      successTitle: "보석이 도착했어요",
-      successBody: "확인된 보석이 잔액에 추가됐어요.",
+      successTitle: "크레딧이 도착했어요",
+      successBody: "확인된 크레딧이 잔액에 추가됐어요.",
       pendingTitle: "거의 다 됐어요",
-      pendingBody: "결제 승인을 기다리고 있어요. 승인되는 대로 보석이 도착할 거예요.",
-      delayedTitle: "보석이 오고 있어요",
-      delayedBody: "구매가 완료됐어요! 보석 반영이 조금 늦어질 수 있으니 잠시 후 다시 확인해 주세요."
+      pendingBody: "결제 승인을 기다리고 있어요. 승인되는 대로 크레딧이 도착할 거예요.",
+      delayedTitle: "크레딧이 오고 있어요",
+      delayedBody: "구매가 완료됐어요! 크레딧 반영이 조금 늦어질 수 있으니 잠시 후 다시 확인해 주세요."
     }
   },
   inventory: {

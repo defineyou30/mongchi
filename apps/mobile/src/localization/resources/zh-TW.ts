@@ -324,15 +324,15 @@ export const zhTW = {
       bringHomeAccessibilityLabel: "花費 {{cost}} 點數，立即帶 {{petName}} 回家",
       cannotBringHomeAccessibilityLabel: "點數不足，現在無法帶 {{petName}} 回家",
       coinAccessibilityLabel: "金幣",
-      openCreditStoreAccessibilityLabel: "開啟寶石商店",
+      openCreditStoreAccessibilityLabel: "開啟點數商店",
       commentary: {
         early: "{{petName}} 正追著一個非常重要的氣味...",
         mid: "{{petName}} 停下來和一片葉子打招呼。",
         late: "{{petName}} 找到東西，正帶回家！"
       },
       bringHome: "立即帶回家 · {{cost}}",
-      openCreditStore: "補充寶石",
-      insufficientHint: "補充寶石，或等待 {{petName}} 回家。",
+      openCreditStore: "補充點數",
+      insufficientHint: "補充點數，或等待 {{petName}} 回家。",
       waiting: "{{petName}} 很快就回來，再等一下喔。",
       returned: "{{petName}} 帶著一份小禮物回來了！",
       claimAccessibilityLabel: "迎接 {{petName}} 並領取散步禮物",
@@ -478,8 +478,8 @@ export const zhTW = {
     title: "花園商店",
     back: "回到主畫面",
     walletAccessibilityLabel: "商店錢包，有 {{credits}} 點數和 {{owned}} 件已擁有的套組物品",
-    creditGemAccessibilityLabel: "商店點數寶石圖示",
-    openCreditStore: "開啟寶石商店",
+    creditGemAccessibilityLabel: "商店點數圖示",
+    openCreditStore: "開啟點數商店",
     categories: {
       all: "全部",
       treats: "點心",
@@ -517,10 +517,10 @@ export const zhTW = {
     largePreview: "{{name}} 大圖預覽",
     backgroundThumbnail: "{{name}} 背景縮圖",
     itemIcon: "{{name}} 圖示",
-    pricesAccessibilityLabel: "可使用寶石或金幣價格",
-    walletGemAccessibilityLabel: "錢包點數寶石",
+    pricesAccessibilityLabel: "可使用點數或金幣價格",
+    walletGemAccessibilityLabel: "點數價格",
     coinAccessibilityLabel: "金幣",
-    gemPriceAccessibilityLabel: "寶石價格",
+    gemPriceAccessibilityLabel: "點數價格",
     actions: {
       unlockTheme: "解鎖主題",
       applyTheme: "套用主題",
@@ -587,14 +587,14 @@ export const zhTW = {
     expressionPacks: {
       poseCount: "3 個姿勢",
       boardAccessibilityLabel: "{{name}}，三姿勢套組，{{price}}。{{status}}",
-      creditGemAccessibilityLabel: "點數寶石",
+      creditGemAccessibilityLabel: "點數價格",
       allOwned: "3 個全都擁有",
       allPrice: "全部 3 個 · {{credits}}",
       actionAccessibilityLabel: "在 {{name}} 執行{{action}}",
       actions: {
         generate: "生成全部 3 個",
         retry: "重試全部 3 個",
-        needCredits: "補充寶石",
+        needCredits: "補充點數",
         making: "正在製作姿勢...",
         owned: "檔案中已擁有"
       }
@@ -613,35 +613,35 @@ export const zhTW = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "寶石商店",
-    title: "寶石商店",
+    accessibilityLabel: "點數商店",
+    title: "點數商店",
     back: "返回花園商店",
-    balanceAccessibilityLabel: "目前有 {{credits}} 顆寶石",
+    balanceAccessibilityLabel: "目前有 {{credits}} 點數",
     heroTitle: "遇見更多小小時刻",
-    heroBody: "寶石可用於姿勢套組、主題和特別照顧時刻。",
-    starterTitle: "第一位夥伴禮物 · {{credits}} 顆",
+    heroBody: "點數可用於姿勢套組、主題和特別照顧時刻。",
+    starterTitle: "第一位夥伴禮物 · {{credits}} 點",
     starterBody: "第一位夥伴完成入住後，只會發放一次。",
-    choosePack: "選擇寶石包",
+    choosePack: "選擇點數包",
     popular: "熱門",
-    packAmount: "{{credits}} 顆寶石",
+    packAmount: "{{credits}} 點數",
     storePrice: "App Store 價格",
-    purchaseAccessibilityLabel: "購買 {{credits}} 顆寶石",
+    purchaseAccessibilityLabel: "購買 {{credits}} 點數",
     packs: {
       small: "先試著開一個套組",
       popular: "適合姿勢套組與主題",
       large: "長期收集與裝飾"
     },
     actions: { buy: "購買", purchasing: "確認中...", arriving: "送達中...", preparing: "商店準備中" },
-    storeNotice: "付款由 App Store 處理，只有完成驗證的寶石會加入餘額。",
+    storeNotice: "付款由 App Store 處理，只有完成驗證的點數會加入餘額。",
     dialogs: {
       failedTitle: "未能完成購買",
       failedBody: "請檢查連線後再試一次。",
-      successTitle: "寶石已送達",
-      successBody: "已驗證的寶石已加入餘額。",
+      successTitle: "點數已送達",
+      successBody: "已驗證的點數已加入餘額。",
       pendingTitle: "就快好了",
-      pendingBody: "購買正在等待商店確認，核准後寶石就會送達。",
-      delayedTitle: "寶石正在路上",
-      delayedBody: "購買已完成！寶石入帳可能需要多一點時間，請稍後再確認一次。"
+      pendingBody: "購買正在等待商店確認，核准後點數就會送達。",
+      delayedTitle: "點數正在路上",
+      delayedBody: "購買已完成！點數入帳可能需要多一點時間，請稍後再確認一次。"
     }
   },
   inventory: {

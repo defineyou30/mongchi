@@ -371,7 +371,7 @@ describe("expression pack shop presentation", () => {
     ).toMatchObject({
       status: "failed",
       canAct: false,
-      actionLabel: "Get gems"
+      actionLabel: "Get credits"
     });
   });
 
@@ -411,7 +411,7 @@ describe("expression pack shop presentation", () => {
       status: "locked",
       priceLabel: "12",
       statusLabel: "Verrouillé",
-      actionLabel: "Obtenir des gemmes"
+      actionLabel: "Obtenir des crédits"
     });
   });
 });

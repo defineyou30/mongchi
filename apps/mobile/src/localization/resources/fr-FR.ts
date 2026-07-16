@@ -328,15 +328,15 @@ export const frFR = {
       bringHomeAccessibilityLabel: "Dépenser {{cost}} crédit pour faire revenir {{petName}} maintenant",
       cannotBringHomeAccessibilityLabel: "Pas assez de crédits pour faire revenir {{petName}} maintenant",
       coinAccessibilityLabel: "Monnaie en pièces",
-      openCreditStoreAccessibilityLabel: "Ouvrir la boutique de gemmes",
+      openCreditStoreAccessibilityLabel: "Ouvrir la boutique de crédits",
       commentary: {
         early: "{{petName}} suit une odeur très importante...",
         mid: "{{petName}} s’est arrêté pour saluer une feuille.",
         late: "{{petName}} a trouvé quelque chose et le rapporte à la maison !"
       },
       bringHome: "Faire revenir · {{cost}}",
-      openCreditStore: "Obtenir des gemmes",
-      insufficientHint: "Obtenez des gemmes ou attendez le retour de {{petName}}.",
+      openCreditStore: "Obtenir des crédits",
+      insufficientHint: "Obtenez des crédits ou attendez le retour de {{petName}}.",
       waiting: "{{petName}} revient bientôt, encore un petit instant.",
       returned: "{{petName}} est de retour avec un petit cadeau !",
       claimAccessibilityLabel: "Accueillir {{petName}} et récupérer le cadeau de promenade",
@@ -487,8 +487,8 @@ export const frFR = {
     title: "Boutique",
     back: "Retour à l’accueil",
     walletAccessibilityLabel: "Portefeuille de la boutique, {{credits}} crédits et {{owned}} objets possédés",
-    creditGemAccessibilityLabel: "Icône de gemme de crédit de la boutique",
-    openCreditStore: "Ouvrir la boutique de gemmes",
+    creditGemAccessibilityLabel: "Icône de crédit de la boutique",
+    openCreditStore: "Ouvrir la boutique de crédits",
     categories: {
       all: "Tout",
       treats: "Friandises",
@@ -526,10 +526,10 @@ export const frFR = {
     largePreview: "Grand aperçu de {{name}}",
     backgroundThumbnail: "Miniature de l’arrière-plan {{name}}",
     itemIcon: "Icône de {{name}}",
-    pricesAccessibilityLabel: "Prix en gemmes et en pièces acceptés",
-    walletGemAccessibilityLabel: "Gemme de crédit du portefeuille",
+    pricesAccessibilityLabel: "Prix en crédits et en pièces acceptés",
+    walletGemAccessibilityLabel: "Prix en crédits",
     coinAccessibilityLabel: "Monnaie en pièces",
-    gemPriceAccessibilityLabel: "Prix en gemmes",
+    gemPriceAccessibilityLabel: "Prix en crédits",
     actions: {
       unlockTheme: "Débloquer le thème",
       applyTheme: "Appliquer le thème",
@@ -603,14 +603,14 @@ export const frFR = {
     expressionPacks: {
       poseCount: "3 POSES",
       boardAccessibilityLabel: "{{name}}, pack de trois poses, {{price}}. {{status}}",
-      creditGemAccessibilityLabel: "Gemme de crédit",
+      creditGemAccessibilityLabel: "Prix en crédits",
       allOwned: "Les 3 sont possédées",
       allPrice: "Les 3 · {{credits}}",
       actionAccessibilityLabel: "{{action}} depuis {{name}}",
       actions: {
         generate: "Créer les 3",
         retry: "Réessayer les 3",
-        needCredits: "Obtenir des gemmes",
+        needCredits: "Obtenir des crédits",
         making: "Création des poses...",
         owned: "Dans le profil"
       }
@@ -629,19 +629,19 @@ export const frFR = {
     }
   },
   creditsStore: {
-    accessibilityLabel: "Boutique de gemmes",
-    title: "Boutique de gemmes",
+    accessibilityLabel: "Boutique de crédits",
+    title: "Boutique de crédits",
     back: "Retour à la boutique du jardin",
-    balanceAccessibilityLabel: "Solde actuel : {{credits}} gemmes",
+    balanceAccessibilityLabel: "Solde actuel : {{credits}} crédits",
     heroTitle: "Découvrez plus de petits moments",
-    heroBody: "Utilisez les gemmes pour les packs de poses, les thèmes et les soins spéciaux.",
+    heroBody: "Utilisez les crédits pour les packs de poses, les thèmes et les soins spéciaux.",
     starterTitle: "Cadeau du premier ami · {{credits}}",
     starterBody: "Ajouté une seule fois après l’arrivée de votre premier compagnon.",
-    choosePack: "Choisir un pack de gemmes",
+    choosePack: "Choisir un pack de crédits",
     popular: "POPULAIRE",
-    packAmount: "{{credits}} gemmes",
+    packAmount: "{{credits}} crédits",
     storePrice: "Prix App Store",
-    purchaseAccessibilityLabel: "Acheter {{credits}} gemmes",
+    purchaseAccessibilityLabel: "Acheter {{credits}} crédits",
     packs: {
       small: "Essayer avec un premier pack",
       popular: "Idéal pour les poses et les thèmes",
@@ -653,16 +653,16 @@ export const frFR = {
       arriving: "En chemin...",
       preparing: "Boutique en préparation"
     },
-    storeNotice: "Les paiements sont gérés par l’App Store. Seules les gemmes vérifiées sont ajoutées.",
+    storeNotice: "Les paiements sont gérés par l’App Store. Seuls les crédits vérifiés sont ajoutés.",
     dialogs: {
       failedTitle: "Achat non terminé",
       failedBody: "Vérifiez votre connexion et réessayez.",
-      successTitle: "Les gemmes sont arrivées",
-      successBody: "Les gemmes vérifiées ont été ajoutées.",
+      successTitle: "Les crédits sont arrivés",
+      successBody: "Les crédits vérifiés ont été ajoutés.",
       pendingTitle: "Presque terminé",
-      pendingBody: "Votre achat attend la confirmation de la boutique. Les gemmes arriveront dès qu'il sera approuvé.",
-      delayedTitle: "Les gemmes arrivent",
-      delayedBody: "Votre achat a bien été effectué ! Les gemmes peuvent mettre un peu plus de temps à apparaître — revenez bientôt."
+      pendingBody: "Votre achat attend la confirmation de la boutique. Les crédits arriveront dès qu'il sera approuvé.",
+      delayedTitle: "Les crédits arrivent",
+      delayedBody: "Votre achat a bien été effectué ! Les crédits peuvent mettre un peu plus de temps à apparaître — revenez bientôt."
     }
   },
   inventory: {
