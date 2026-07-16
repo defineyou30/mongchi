@@ -189,7 +189,7 @@ const DEBUG_SHEET_UPLOAD_ENABLED = !/^(0|false|no)$/i.test(
 // never trusted for pricing (see docs/credit-phase1-design.md §4.1), so a
 // tampered request can't buy a paid generation for less than this.
 const EXPRESSION_PACK_CREDIT_COST = 12;
-const STARTER_CREDIT_GRANT = 12;
+const STARTER_CREDIT_GRANT = 5;
 
 // Every generation is one fixed three-slot sheet. Expression packs must match
 // one server-owned three-state bundle exactly; clients cannot change its size,

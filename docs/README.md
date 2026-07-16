@@ -45,7 +45,7 @@ locales (ko-KR, ja-JP, zh-TW, de-DE, fr-FR, pt-BR, es-MX).
 
 Single credit economy, no separate premium currency. Confirmed price ladder: treat/drink 2 credits,
 toy/bed 5 credits, chat day pass 5 credits, expression pack 12 credits, theme bundle 18 credits.
-Credit packs are 20/60/150 credits (IAP via RevenueCat); starter grant is 12 credits. Daily play
+Credit packs are 20/60/150 credits (IAP via RevenueCat); starter grant is 5 credits. Daily play
 (feeding, playing, saying hello) pays out in treat items, not credits — credits are reserved for
 milestones that don't repeat often (settling in, streaks, letters, walk collection, bond level). See
 `docs/product/economy.md` for the full price table and faucet budget, and

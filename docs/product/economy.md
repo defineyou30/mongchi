@@ -22,8 +22,8 @@ this document — see the referenced files if the numbers ever need to move.
 `services/api`'s purchase tests still exercise it; it is not part of the standard ladder above.
 
 Credit packs (IAP, consumable): `credit_pack_20`, `credit_pack_60`, `credit_pack_150`
-(`packages/shared/src/domain/creditPacks.ts`). Starter grant is 12 credits — exactly one
-three-pose expression pack (see `docs/engineering/current/credit-store-foundation.md`).
+(`packages/shared/src/domain/creditPacks.ts`). Starter grant is 5 credits — enough for one
+premium chat day pass (see `docs/engineering/current/credit-store-foundation.md`).
 
 ## 2. Faucet Budget — "Daily = Treat, Credits = Milestone"
 

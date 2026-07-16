@@ -1,4 +1,4 @@
-export const STARTER_CREDIT_GRANT = 12;
+export const STARTER_CREDIT_GRANT = 5;
 
 export const creditPacks = [
   { productId: "credit_pack_20", credits: 20, tier: "small" },

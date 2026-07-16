@@ -21,9 +21,10 @@ follow-up. The original design record is retired; the section below
 ## Current Source Of Truth
 
 - Visible gem balances in server-backed builds come from Supabase `credit_wallets` only.
-- The first completed photo-generation job grants 12 gems once through both the completion transaction's DB trigger and the Edge Function retry path, using `(grant_starter, user, starter_v1)` as the shared idempotency key. This exactly funds one three-pose expression pack.
+- The first completed photo-generation job grants 5 gems once through both the completion transaction's DB trigger and the Edge Function retry path, using `(grant_starter, user, starter_v1)` as the shared idempotency key. This funds one premium chat day pass rather than a full expression pack; the first free experience is intentionally on the day-pass/treats side of the economy now.
 - Migration `0016_credit_store_foundation.sql` records the historical 25-gem test grant and is kept immutable for environments where it already ran.
 - Migration `0017_adjust_starter_credit_grant.sql` changes future grants to 12 without clawing back balances already granted at the earlier test value. On a fresh migration chain, `0017` is active before any user generation completes.
+- Migration `0027_adjust_starter_grant_to_five.sql` changes future grants to 5, mirroring `0017`'s pattern (function body only, no wallet clawback). Balances already granted at 12 (or the earlier 25) are unaffected.
 - Credit packs are `credit_pack_20`, `credit_pack_60`, and `credit_pack_150`.
 - The mobile credit store is reachable from the Garden Shop balance HUD. Checkout remains disabled until RevenueCat products and the SDK identity mapping are configured.
 
