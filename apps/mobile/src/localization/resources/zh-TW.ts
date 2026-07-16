@@ -513,6 +513,7 @@ export const zhTW = {
     devOpen: "開發版開放",
     available: "可使用",
     locked: "已鎖定",
+    creditsNeeded: "還需要 {{count}} 點數",
     backgroundPreview: "{{name}} 背景預覽",
     largePreview: "{{name}} 大圖預覽",
     backgroundThumbnail: "{{name}} 背景縮圖",
@@ -525,7 +526,8 @@ export const zhTW = {
       unlockTheme: "解鎖主題",
       applyTheme: "套用主題",
       getItem: "購買",
-      unlockPack: "解鎖套組"
+      unlockPack: "解鎖套組",
+      topUpCredits: "補充點數"
     },
     grants: { consumable: "點數", durable: "永久擁有", subscription: "訂閱" },
     products: {
@@ -560,7 +562,8 @@ export const zhTW = {
       themeLocked: "{{name}} 已鎖定",
       applyTheme: "套用 {{name}}",
       themeApplied: "已套用 {{name}}",
-      buy: "購買 {{name}}"
+      buy: "購買 {{name}}",
+      topUpCredits: "為 {{name}} 補充點數"
     },
     summary: {
       accessibilityLabel: "已擁有 {{owned}} 件套組物品、{{locked}} 件鎖定的商店物品",
@@ -900,9 +903,11 @@ export const zhTW = {
       eyebrow: "支援",
       title: "協助與回報",
       updated: "最後更新：2026 年 7 月 7 日 · v1.0",
-      contact: "聯絡支援團隊",
-      contactFallback: "請使用下方的回報功能。電子郵件地址備妥後，即可透過電子郵件聯絡支援團隊。",
-      email: "寄信給支援團隊",
+      website: {
+        title: "Mongchi 官網",
+        description: "在官網上探索最新消息與使用說明。",
+        action: "開啟官網"
+      },
       faqTitle: "常見問題",
       faq: {
         photoQuestion: "我的寵物照片安全嗎？",

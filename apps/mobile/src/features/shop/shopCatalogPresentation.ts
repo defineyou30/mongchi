@@ -598,6 +598,10 @@ export interface LocalShopCatalogPresentation {
   purchaseLabel: string | null;
   statusKind: LocalShopCatalogStatusKind;
   statusLabel: string;
+  /** True when a purchase (or buy-more) action exists for this item but the wallet can't cover its price -- the shop screen swaps the buy button for a "top up credits" affordance instead of a dead-end lock. See ShopPreviewScreen's handleSelectedEntryAction. */
+  needsCreditTopUp: boolean;
+  /** How many more credits are needed (price - balance), 0 unless needsCreditTopUp is true. */
+  creditShortfall: number;
 }
 
 export interface ShopSummaryPresentation {
@@ -635,57 +639,93 @@ export const hasActiveProductEntitlement = (product: CommerceProduct, entitlemen
       (entitlement.productId === product.productId || entitlement.key === product.entitlementKey)
   );
 
-export const getLocalShopCatalogPresentation = (item: Item, inventory: Inventory, locale: AppLocale = "en-US"): LocalShopCatalogPresentation => {
+export const getLocalShopCatalogPresentation = (
+  item: Item,
+  inventory: Inventory,
+  locale: AppLocale = "en-US",
+  // Defaulting to "always affordable" keeps every existing call site (and every
+  // test written before credit-shortfall awareness) behaving exactly as before --
+  // only ShopPreviewScreen passes the player's real wallet state.
+  creditBalance: number = Number.POSITIVE_INFINITY,
+  devStoreUnlocked: boolean = false
+): LocalShopCatalogPresentation => {
   const copy = computedShopCopyByLocale[locale];
   const resources = getResourcesForLocale(locale);
   const ownedEntry = inventory.items.find((entry) => entry.itemId === item.id);
   const creditCost = getCreditItemPrice(item.id)?.creditCost ?? null;
   const repeatable = isConsumableCareItem(item);
 
+  // Shared by every branch below: a purchase (first buy or "buy more") is only
+  // possible when locked (not owned) or repeatable (owned but buyable again),
+  // and only ever needs a credit top-up -- never a dead-end lock -- when that
+  // purchase exists but the wallet can't currently cover it.
+  const getCreditGate = (locked: boolean, purchaseLabel: string | null) => {
+    const showCreditPurchase = purchaseLabel !== null && (locked || repeatable);
+    const affordable = creditCost === null || devStoreUnlocked || creditBalance >= creditCost;
+    const needsCreditTopUp = showCreditPurchase && !affordable;
+
+    return {
+      needsCreditTopUp,
+      creditShortfall: needsCreditTopUp && creditCost !== null ? creditCost - creditBalance : 0
+    };
+  };
+
   if (ownedEntry) {
+    const purchaseLabel = repeatable && creditCost !== null ? copy.buyMore : null;
+
     return {
       locked: false,
       ownedQuantity: ownedEntry.quantity,
       creditCost,
       repeatable,
-      purchaseLabel: repeatable && creditCost !== null ? copy.buyMore : null,
+      purchaseLabel,
       statusKind: "owned",
-      statusLabel: copy.ownedQuantity(ownedEntry.quantity)
+      statusLabel: copy.ownedQuantity(ownedEntry.quantity),
+      ...getCreditGate(false, purchaseLabel)
     };
   }
 
   if (item.isPremium) {
+    const purchaseLabel = creditCost !== null ? copy.buyAndPlace : null;
+
     return {
       locked: true,
       ownedQuantity: 0,
       creditCost,
       repeatable,
-      purchaseLabel: creditCost !== null ? copy.buyAndPlace : null,
+      purchaseLabel,
       statusKind: "premium",
-      statusLabel: copy.premiumPreview
+      statusLabel: copy.premiumPreview,
+      ...getCreditGate(true, purchaseLabel)
     };
   }
 
   if (item.rarity === "starter") {
+    const purchaseLabel = creditCost !== null ? copy.buyAndPlace : null;
+
     return {
       locked: true,
       ownedQuantity: 0,
       creditCost,
       repeatable,
-      purchaseLabel: creditCost !== null ? copy.buyAndPlace : null,
+      purchaseLabel,
       statusKind: "starter",
-      statusLabel: copy.starter
+      statusLabel: copy.starter,
+      ...getCreditGate(true, purchaseLabel)
     };
   }
+
+  const purchaseLabel = creditCost !== null ? copy.buyAndPlace : null;
 
   return {
     locked: true,
     ownedQuantity: 0,
     creditCost,
     repeatable,
-    purchaseLabel: creditCost !== null ? copy.buyAndPlace : null,
+    purchaseLabel,
     statusKind: "available",
-    statusLabel: creditCost !== null ? resources.shop.available : copy.preview
+    statusLabel: creditCost !== null ? resources.shop.available : copy.preview,
+    ...getCreditGate(true, purchaseLabel)
   };
 };
 
@@ -792,8 +832,12 @@ export interface ThemeCardPresentation {
   status: ThemeCardStatus;
   owned: boolean;
   applied: boolean;
-  /** True when tapping this card's action button should do something (buy or apply). False only for an already-applied card. */
+  /** True when tapping this card's action button should do something (buy, top up credits, or apply). False only for an already-applied card. */
   canAct: boolean;
+  /** True when this theme is unowned and the wallet can't cover its price -- the action button becomes a "top up credits" affordance (routing straight to the credit store) instead of a disabled dead-end lock. */
+  needsCreditTopUp: boolean;
+  /** How many more credits are needed (price - balance), 0 unless needsCreditTopUp is true. */
+  creditShortfall: number;
   priceLabel: string;
   statusLabel: string;
   actionLabel: string;
@@ -825,6 +869,8 @@ export const getThemeCardPresentation = (
       owned: true,
       applied,
       canAct: !applied,
+      needsCreditTopUp: false,
+      creditShortfall: 0,
       priceLabel: copy.free,
       statusLabel: applied ? resources.common.actions.applied : copy.free,
       actionLabel: applied ? resources.common.actions.applied : resources.common.actions.apply
@@ -837,6 +883,8 @@ export const getThemeCardPresentation = (
       owned: true,
       applied,
       canAct: !applied,
+      needsCreditTopUp: false,
+      creditShortfall: 0,
       priceLabel: applied ? resources.common.actions.applied : resources.shop.owned,
       statusLabel: applied ? resources.common.actions.applied : resources.shop.owned,
       actionLabel: applied ? resources.common.actions.applied : resources.common.actions.apply
@@ -844,15 +892,26 @@ export const getThemeCardPresentation = (
   }
 
   const affordable = devStoreUnlocked || creditBalance >= creditCost;
+  // A locked theme is always actionable now: affordable ones unlock straight
+  // away, and unaffordable ones route to the credit store instead of sitting
+  // behind a disabled "Locked" dead end (see ShopPreviewScreen's
+  // handleSelectedEntryAction and the "부족 시 막다른 잠금 제거" design note).
+  const needsCreditTopUp = !devStoreUnlocked && !affordable;
 
   return {
     status: "locked_for_purchase",
     owned: false,
     applied: false,
-    canAct: affordable,
+    canAct: true,
+    needsCreditTopUp,
+    creditShortfall: needsCreditTopUp ? creditCost - creditBalance : 0,
     priceLabel: copy.creditPrice(creditCost),
-    statusLabel: devStoreUnlocked ? resources.shop.devOpen : resources.shop.locked,
-    actionLabel: resources.common.actions.unlock
+    // Affordable + unowned hides its status chip entirely (the "Buy" action
+    // already speaks for it) -- ShopPreviewScreen fills in the parametrized
+    // "N more credits needed" copy when needsCreditTopUp is true, since that
+    // needs react-i18next's t() for {{count}} interpolation, unavailable here.
+    statusLabel: devStoreUnlocked ? resources.shop.devOpen : "",
+    actionLabel: devStoreUnlocked || affordable ? resources.common.actions.unlock : resources.shop.actions.topUpCredits
   };
 };
 

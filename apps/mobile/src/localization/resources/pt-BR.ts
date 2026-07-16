@@ -517,6 +517,7 @@ export const ptBR = {
     devOpen: "Aberto para desenvolvimento",
     available: "Disponível",
     locked: "Bloqueado",
+    creditsNeeded: "Faltam {{count}} créditos",
     backgroundPreview: "Prévia do cenário {{name}}",
     largePreview: "Prévia ampliada de {{name}}",
     backgroundThumbnail: "Miniatura do cenário {{name}}",
@@ -529,7 +530,8 @@ export const ptBR = {
       unlockTheme: "Desbloquear tema",
       applyTheme: "Aplicar tema",
       getItem: "Comprar",
-      unlockPack: "Desbloquear pacote"
+      unlockPack: "Desbloquear pacote",
+      topUpCredits: "Recarregar créditos"
     },
     grants: {
       consumable: "Crédito",
@@ -571,7 +573,8 @@ export const ptBR = {
       themeLocked: "{{name}} está bloqueado",
       applyTheme: "Aplicar {{name}}",
       themeApplied: "{{name}} está aplicado",
-      buy: "Comprar {{name}}"
+      buy: "Comprar {{name}}",
+      topUpCredits: "Recarregar créditos para {{name}}"
     },
     summary: {
       accessibilityLabel: "{{owned}} itens do conjunto adquiridos e {{locked}} itens bloqueados na loja",
@@ -936,9 +939,11 @@ export const ptBR = {
       eyebrow: "Ajuda",
       title: "Ajuda e relatos",
       updated: "Última atualização em 7 de julho de 2026 · v1.0",
-      contact: "Contato de ajuda",
-      contactFallback: "Use as opções de relato abaixo. O suporte por e-mail será aberto quando houver um endereço disponível.",
-      email: "Enviar e-mail ao suporte",
+      website: {
+        title: "Site do Mongchi",
+        description: "Encontre novidades e ajuda em nosso site.",
+        action: "Abrir site"
+      },
       faqTitle: "Perguntas frequentes",
       faq: {
         photoQuestion: "A foto do meu bichinho está segura?",

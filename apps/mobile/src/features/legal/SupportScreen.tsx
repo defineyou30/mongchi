@@ -1,11 +1,12 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, LifeBuoy, Mail, MessageCircle, PawPrint, ShieldAlert } from "lucide-react-native";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, LifeBuoy, Mail, MessageCircle, PawPrint, ShieldAlert } from "lucide-react-native";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Linking, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import type { GenerationIssueCategory } from "@mongchi/shared";
-import { getPublicReleaseConfig } from "../../shared/config/publicReleaseConfig";
+import { getActiveAppLocale } from "../../localization/config";
+import { buildLocalizedExternalUrl } from "../../shared/config/localizedExternalUrl";
 import { colors, radii, spacing } from "../../shared/design/tokens";
 import { recordMobileEvent } from "../../shared/analytics/mobileAnalytics";
 import { ActionButton } from "../../shared/ui/ActionButton";
@@ -13,6 +14,8 @@ import { useAppDialog } from "../../shared/ui/AppDialog";
 import { BackButton } from "../../shared/ui/BackButton";
 import { GardenSceneFrame } from "../appShell/GardenSceneFrame";
 import { useTerrariumSession } from "../session/TerrariumSessionProvider";
+
+const MONGCHI_WEBSITE_URL = "https://www.mongchi.app";
 
 const generationIssueIcons: Array<{
   category: GenerationIssueCategory;
@@ -24,7 +27,6 @@ const generationIssueIcons: Array<{
 ];
 
 export function SupportScreen() {
-  const releaseConfig = getPublicReleaseConfig();
   const { showDialog } = useAppDialog();
   const { t } = useTranslation();
   const { generationIssueReport, reportGenerationIssue, submitSupportFeedback } = useTerrariumSession();
@@ -79,19 +81,14 @@ export function SupportScreen() {
 
       <View style={styles.panel}>
         <LifeBuoy color={colors.skyDeep} size={28} strokeWidth={2.5} />
-        <Text style={styles.panelTitle}>{t("legal.support.contact")}</Text>
-        <Text style={styles.panelText}>
-          {releaseConfig.supportEmail ?? t("legal.support.contactFallback")}
-        </Text>
+        <Text style={styles.panelTitle}>{t("legal.support.website.title")}</Text>
+        <Text style={styles.panelText}>{t("legal.support.website.description")}</Text>
         <ActionButton
-          label={t("legal.support.email")}
-          Icon={Mail}
+          label={t("legal.support.website.action")}
+          Icon={ExternalLink}
           variant="secondary"
-          disabled={!releaseConfig.supportEmail}
           onPress={() => {
-            if (releaseConfig.supportEmail) {
-              void Linking.openURL(`mailto:${releaseConfig.supportEmail}`);
-            }
+            void Linking.openURL(buildLocalizedExternalUrl(MONGCHI_WEBSITE_URL, getActiveAppLocale()));
           }}
         />
       </View>

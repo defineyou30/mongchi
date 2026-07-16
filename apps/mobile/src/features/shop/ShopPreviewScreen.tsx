@@ -104,6 +104,8 @@ interface ShopEntry {
   ownedQuantity: number;
   canAct: boolean;
   kind: "local_item" | "commerce_product" | "theme" | "preview";
+  /** True when this entry (local_item or theme) has a purchase available but the wallet can't cover it -- the hero action becomes "top up credits" and routes to the credit store instead of a disabled dead-end lock. See handleSelectedEntryAction. */
+  needsCreditTopUp?: boolean;
   /** Repeatable (consumable) local items keep showing their buy-more credit price once owned, so the grid card's price pill can't also carry the owned quantity -- the owned badge shows a small "x{n}" instead. See handleSelectedEntryAction's local_item branch for the buy-more flow this supports. */
   repeatable?: boolean;
   itemId?: ItemId;
@@ -303,15 +305,12 @@ export function ShopPreviewScreen() {
   const localShopItems = catalogItems
     .filter((item) => getItemShopCategory(item) !== null)
     .map((item) => {
-      const presentation = getLocalShopCatalogPresentation(item, inventory, locale);
+      const presentation = getLocalShopCatalogPresentation(item, inventory, locale, creditBalance, devStoreUnlocked);
       const assetKey = gameItemAssetByCatalogId[item.id] ?? "flowerPot";
-      const canBuyWithCredits =
-        presentation.purchaseLabel !== null && presentation.creditCost !== null && (devStoreUnlocked || creditBalance >= presentation.creditCost);
       const showCreditPurchase = presentation.purchaseLabel !== null && (presentation.locked || presentation.repeatable);
 
       return {
         assetKey,
-        canBuyWithCredits,
         item,
         presentation,
         showCreditPurchase
@@ -337,6 +336,12 @@ export function ShopPreviewScreen() {
     () =>
       backgroundThemeEntries.map((theme) => {
         const presentation = getThemeCardPresentation(theme.id, theme.creditCost, inventory, devStoreUnlocked, creditBalance, locale);
+        // getThemeCardPresentation can't interpolate {{count}} itself (it has no
+        // react-i18next t()), so the parametrized "N more credits needed" copy
+        // is composed here from its raw creditShortfall instead.
+        const statusLabel = presentation.needsCreditTopUp
+          ? t("shop.creditsNeeded", { count: presentation.creditShortfall })
+          : presentation.statusLabel;
 
         return {
           id: `theme-${theme.id}`,
@@ -344,10 +349,11 @@ export function ShopPreviewScreen() {
           name: t(`shop.themes.${theme.copyKey}Name`),
           description: t(`shop.themes.${theme.copyKey}Description`),
           assetKey: "seasonalFlowers",
-          statusLabel: presentation.statusLabel,
+          statusLabel,
           priceLabel: presentation.priceLabel,
           ownedQuantity: presentation.owned ? 1 : 0,
           canAct: presentation.canAct,
+          needsCreditTopUp: presentation.needsCreditTopUp,
           kind: "theme",
           itemId: theme.id,
           themeBundleId: theme.bundleId,
@@ -360,7 +366,7 @@ export function ShopPreviewScreen() {
 
   const localShopEntries = useMemo<ShopEntry[]>(
     () =>
-      localShopItems.reduce<ShopEntry[]>((entries, { assetKey, canBuyWithCredits, item, presentation, showCreditPurchase }) => {
+      localShopItems.reduce<ShopEntry[]>((entries, { assetKey, item, presentation, showCreditPurchase }) => {
         const category = getItemShopCategory(item);
 
         if (!category) {
@@ -383,11 +389,16 @@ export function ShopPreviewScreen() {
             ? t("shop.owned")
             : owned
               ? t("shop.ownedQuantity", { count: presentation.ownedQuantity })
-              : devStoreUnlocked && showCreditPurchase
-                ? t("shop.devOpen")
-                : showCreditPurchase
-                  ? t("shop.available")
-                  : presentation.statusLabel,
+              : presentation.needsCreditTopUp
+                ? t("shop.creditsNeeded", { count: presentation.creditShortfall })
+                : devStoreUnlocked && showCreditPurchase
+                  ? t("shop.devOpen")
+                  : showCreditPurchase
+                    // Unowned and affordable: the buy action already speaks for
+                    // itself, so no "Available" chip is shown (see "구매 가능"
+                    // 칩 정리 in the credit-shortage UX design).
+                    ? ""
+                    : presentation.statusLabel,
           priceLabel:
             owned && !presentation.repeatable
               ? t("shop.ownedQuantity", { count: presentation.ownedQuantity })
@@ -395,7 +406,11 @@ export function ShopPreviewScreen() {
                 ? `${presentation.creditCost}`
                 : presentation.statusLabel,
           ownedQuantity: presentation.ownedQuantity,
-          canAct: ownedAndSettled ? false : showCreditPurchase && canBuyWithCredits,
+          // Always actionable once a purchase exists -- insufficient credits no
+          // longer disables the button, it routes to the credit store instead
+          // (see needsCreditTopUp on the pushed entry and handleSelectedEntryAction).
+          canAct: ownedAndSettled ? false : showCreditPurchase,
+          needsCreditTopUp: presentation.needsCreditTopUp,
           kind: "local_item",
           repeatable: presentation.repeatable,
           itemId: item.id
@@ -537,14 +552,32 @@ export function ShopPreviewScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carePreviewAction, selectedEntry.id]);
   const selectedEntryCanPress = selectedEntry.canAct;
+  // Local items and themes hide their status chip entirely once unowned and
+  // affordable -- the buy/unlock action already speaks for it (see "'구매 가능'
+  // 칩 정리" in the credit-shortage UX design). Every other state (owned, needs
+  // a credit top-up, or any other entry kind like commerce products/previews)
+  // keeps showing the chip as before.
+  const showFeaturedStatusPill =
+    selectedEntry.ownedQuantity > 0 ||
+    Boolean(selectedEntry.needsCreditTopUp) ||
+    (selectedEntry.kind !== "local_item" && selectedEntry.kind !== "theme");
   const selectedEntryActionPresentation = (() => {
+    // Insufficient credits never dead-ends the button anymore: whether it's a
+    // local item or a theme, an unaffordable-but-purchasable entry swaps its
+    // buy/unlock action for a "top up credits" affordance that routes straight
+    // to the credit store (see handleSelectedEntryAction).
+    if (selectedEntry.needsCreditTopUp) {
+      return {
+        accessibilityLabel: t("shop.actionAccessibility.topUpCredits", { name: selectedEntry.name }),
+        label: t("shop.actions.topUpCredits")
+      };
+    }
+
     if (selectedEntry.kind === "theme") {
       if (selectedEntry.themeStatus === "locked_for_purchase") {
         return {
-          accessibilityLabel: selectedEntry.canAct
-            ? t("shop.actionAccessibility.unlockTheme", { name: selectedEntry.name, price: selectedEntry.priceLabel })
-            : t("shop.actionAccessibility.themeLocked", { name: selectedEntry.name }),
-          label: selectedEntry.canAct ? t("shop.actions.unlockTheme") : t("shop.locked")
+          accessibilityLabel: t("shop.actionAccessibility.unlockTheme", { name: selectedEntry.name, price: selectedEntry.priceLabel }),
+          label: t("shop.actions.unlockTheme")
         };
       }
 
@@ -642,17 +675,28 @@ export function ShopPreviewScreen() {
   };
 
   const handleSelectedEntryAction = (entry: ShopEntry) => {
-    if (entry.kind === "local_item" && entry.itemId && entry.canAct) {
+    if (!entry.canAct) {
+      return;
+    }
+
+    // Insufficient credits: jump straight to the credit store, no alert in the
+    // way first (see "이동 전 알럿 없이 바로 이동" in the credit-shortage UX design).
+    if (entry.needsCreditTopUp) {
+      router.push("/credits");
+      return;
+    }
+
+    if (entry.kind === "local_item" && entry.itemId) {
       handleCreditItemPurchase(entry.itemId);
       return;
     }
 
-    if (entry.kind === "commerce_product" && entry.product && entry.canAct) {
+    if (entry.kind === "commerce_product" && entry.product) {
       handlePurchase(entry.product);
       return;
     }
 
-    if (entry.kind === "theme" && entry.itemId && entry.canAct) {
+    if (entry.kind === "theme" && entry.itemId) {
       const handleThemeResult = (result: ReturnType<typeof applyTheme>) => {
         if (!result.ok) {
           showDialog({
@@ -701,7 +745,7 @@ export function ShopPreviewScreen() {
           return (
             <Pressable
               key={entry.id}
-              accessibilityLabel={`${entry.name}. ${entry.statusLabel}.`}
+              accessibilityLabel={entry.statusLabel ? `${entry.name}. ${entry.statusLabel}.` : `${entry.name}.`}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               style={({ pressed }) => [
@@ -958,16 +1002,18 @@ export function ShopPreviewScreen() {
                 </Text>
               </View>
               <View style={styles.previewFooter}>
-                <View style={[styles.featuredOwnedPill, selectedEntry.ownedQuantity > 0 ? styles.featuredOwnedPillActive : null]}>
-                  {selectedEntry.ownedQuantity > 0 ? (
-                    <MongchiIcon id="owned" size={18} />
-                  ) : selectedEntryCanPress ? (
-                    <MongchiIcon id="gift" size={18} />
-                  ) : (
-                    <MongchiIcon id="lock" size={18} />
-                  )}
-                  <Text style={[styles.featuredOwnedText, typography.label]}>{selectedEntry.statusLabel}</Text>
-                </View>
+                {showFeaturedStatusPill ? (
+                  <View style={[styles.featuredOwnedPill, selectedEntry.ownedQuantity > 0 ? styles.featuredOwnedPillActive : null]}>
+                    {selectedEntry.ownedQuantity > 0 ? (
+                      <MongchiIcon id="owned" size={18} />
+                    ) : selectedEntryCanPress ? (
+                      <MongchiIcon id="gift" size={18} />
+                    ) : (
+                      <MongchiIcon id="lock" size={18} />
+                    )}
+                    <Text style={[styles.featuredOwnedText, typography.label]}>{selectedEntry.statusLabel}</Text>
+                  </View>
+                ) : null}
                 <View accessibilityLabel={t("shop.pricesAccessibilityLabel")} style={styles.previewPricePill}>
                   <GameItemImage
                     accessibilityLabel={t("shop.walletGemAccessibilityLabel")}

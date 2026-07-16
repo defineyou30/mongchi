@@ -514,6 +514,7 @@ export const enUS = {
     devOpen: "Dev open",
     available: "Available",
     locked: "Locked",
+    creditsNeeded: "{{count}} more credits needed",
     backgroundPreview: "{{name}} background preview",
     largePreview: "{{name}} large preview",
     backgroundThumbnail: "{{name}} background thumbnail",
@@ -526,7 +527,8 @@ export const enUS = {
       unlockTheme: "Unlock theme",
       applyTheme: "Apply theme",
       getItem: "Buy",
-      unlockPack: "Unlock pack"
+      unlockPack: "Unlock pack",
+      topUpCredits: "Top up credits"
     },
     grants: {
       consumable: "Credit",
@@ -568,7 +570,8 @@ export const enUS = {
       themeLocked: "{{name}} is locked",
       applyTheme: "Apply {{name}}",
       themeApplied: "{{name}} is applied",
-      buy: "Buy {{name}}"
+      buy: "Buy {{name}}",
+      topUpCredits: "Top up credits for {{name}}"
     },
     summary: {
       accessibilityLabel: "{{owned}} owned kit items and {{locked}} locked shop items",
@@ -926,9 +929,11 @@ export const enUS = {
       eyebrow: "Support",
       title: "Help and reports",
       updated: "Last updated July 7, 2026 · v1.0",
-      contact: "Support contact",
-      contactFallback: "Use the report controls below. Email support opens when an address is available.",
-      email: "Email support",
+      website: {
+        title: "Mongchi website",
+        description: "Find news and help on our website.",
+        action: "Open website"
+      },
       faqTitle: "Frequently asked",
       faq: {
         photoQuestion: "Is my pet's photo safe?",

@@ -516,6 +516,7 @@ export const koKR = {
     devOpen: "개발용 열림",
     available: "구매 가능",
     locked: "잠김",
+    creditsNeeded: "크레딧이 {{count}}개 더 필요해요",
     backgroundPreview: "{{name}} 배경 미리보기",
     largePreview: "{{name}} 크게 미리보기",
     backgroundThumbnail: "{{name}} 배경 썸네일",
@@ -528,7 +529,8 @@ export const koKR = {
       unlockTheme: "테마 열기",
       applyTheme: "테마 적용",
       getItem: "구매하기",
-      unlockPack: "팩 열기"
+      unlockPack: "팩 열기",
+      topUpCredits: "크레딧 충전하기"
     },
     grants: { consumable: "크레딧", durable: "1회 보유", subscription: "구독" },
     products: {
@@ -566,7 +568,8 @@ export const koKR = {
       themeLocked: "{{name}} 잠김",
       applyTheme: "{{name}} 적용하기",
       themeApplied: "{{name}} 적용됨",
-      buy: "{{name}} 구매하기"
+      buy: "{{name}} 구매하기",
+      topUpCredits: "{{name}} 크레딧 충전하기"
     },
     summary: {
       accessibilityLabel: "보유 아이템 {{owned}}개, 잠긴 상점 아이템 {{locked}}개",
@@ -925,9 +928,11 @@ export const koKR = {
       eyebrow: "도움말",
       title: "도움과 신고",
       updated: "2026년 7월 7일 업데이트 · v1.0",
-      contact: "문의하기",
-      contactFallback: "아래 신고 기능을 이용해 주세요. 이메일 주소가 준비되면 메일 문의도 열려요.",
-      email: "이메일 문의",
+      website: {
+        title: "몽치 홈페이지",
+        description: "소식과 도움말을 웹사이트에서 만나보세요.",
+        action: "웹사이트 열기"
+      },
       faqTitle: "자주 묻는 질문",
       faq: {
         photoQuestion: "반려동물 사진은 안전한가요?",

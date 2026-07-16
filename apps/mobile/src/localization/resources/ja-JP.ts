@@ -516,6 +516,7 @@ export const jaJP = {
     devOpen: "開発用に開放",
     available: "利用可能",
     locked: "ロック中",
+    creditsNeeded: "クレジットがあと{{count}}個必要です",
     backgroundPreview: "{{name}}の背景プレビュー",
     largePreview: "{{name}}の大きなプレビュー",
     backgroundThumbnail: "{{name}}の背景サムネイル",
@@ -528,7 +529,8 @@ export const jaJP = {
       unlockTheme: "テーマをアンロック",
       applyTheme: "テーマを適用",
       getItem: "購入する",
-      unlockPack: "パックをアンロック"
+      unlockPack: "パックをアンロック",
+      topUpCredits: "クレジットを補充"
     },
     grants: {
       consumable: "クレジット",
@@ -570,7 +572,8 @@ export const jaJP = {
       themeLocked: "{{name}}はロックされています",
       applyTheme: "{{name}}を適用",
       themeApplied: "{{name}}を適用済み",
-      buy: "{{name}}を購入"
+      buy: "{{name}}を購入",
+      topUpCredits: "{{name}}のクレジットを補充"
     },
     summary: {
       accessibilityLabel: "所持キットアイテム{{owned}}個、ロック中のショップアイテム{{locked}}個",
@@ -920,9 +923,11 @@ export const jaJP = {
       eyebrow: "サポート",
       title: "ヘルプと報告",
       updated: "最終更新：2026年7月7日 · v1.0",
-      contact: "サポート窓口",
-      contactFallback: "下の報告機能をご利用ください。メールアドレスの準備ができると、メールサポートを開けます。",
-      email: "サポートにメール",
+      website: {
+        title: "Mongchiのウェブサイト",
+        description: "お知らせやヘルプはウェブサイトでご覧いただけます。",
+        action: "ウェブサイトを開く"
+      },
       faqTitle: "よくある質問",
       faq: {
         photoQuestion: "ペットの写真は安全ですか？",

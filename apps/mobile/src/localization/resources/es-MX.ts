@@ -517,6 +517,7 @@ export const esMX = {
     devOpen: "Abrir en desarrollo",
     available: "Disponible",
     locked: "Bloqueado",
+    creditsNeeded: "Faltan {{count}} créditos",
     backgroundPreview: "Vista previa del fondo {{name}}",
     largePreview: "Vista previa grande de {{name}}",
     backgroundThumbnail: "Miniatura del fondo {{name}}",
@@ -529,7 +530,8 @@ export const esMX = {
       unlockTheme: "Desbloquear tema",
       applyTheme: "Aplicar tema",
       getItem: "Comprar",
-      unlockPack: "Desbloquear paquete"
+      unlockPack: "Desbloquear paquete",
+      topUpCredits: "Recargar créditos"
     },
     grants: {
       consumable: "Crédito",
@@ -571,7 +573,8 @@ export const esMX = {
       themeLocked: "{{name}} está bloqueado",
       applyTheme: "Aplicar {{name}}",
       themeApplied: "{{name}} está aplicado",
-      buy: "Comprar {{name}}"
+      buy: "Comprar {{name}}",
+      topUpCredits: "Recargar créditos para {{name}}"
     },
     summary: {
       accessibilityLabel: "{{owned}} artículos del conjunto en propiedad y {{locked}} artículos bloqueados en la tienda",
@@ -939,9 +942,11 @@ export const esMX = {
       eyebrow: "Ayuda",
       title: "Ayuda y reportes",
       updated: "Última actualización: 7 de julio de 2026 · v1.0",
-      contact: "Contacto de ayuda",
-      contactFallback: "Usa las opciones para reportar que aparecen abajo. La ayuda por correo electrónico se abrirá cuando haya una dirección disponible.",
-      email: "Enviar correo a soporte",
+      website: {
+        title: "Sitio web de Mongchi",
+        description: "Encuentra noticias y ayuda en nuestro sitio web.",
+        action: "Abrir sitio web"
+      },
       faqTitle: "Preguntas frecuentes",
       faq: {
         photoQuestion: "¿Está segura la foto de mi mascota?",

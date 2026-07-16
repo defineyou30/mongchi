@@ -81,7 +81,68 @@ describe("shop catalog presentation", () => {
       ownedQuantity: 0,
       creditCost: 5,
       statusKind: "available",
-      statusLabel: "Available"
+      statusLabel: "Available",
+      needsCreditTopUp: false,
+      creditShortfall: 0
+    });
+  });
+
+  it("flags a locked item as needing a credit top-up, not a dead-end lock, when the wallet can't afford it", () => {
+    const plushToy = mockItems.find((item) => item.id === "item_plush_toy_buddy");
+
+    expect(plushToy).toBeDefined();
+    if (!plushToy) {
+      return;
+    }
+
+    expect(getLocalShopCatalogPresentation(plushToy, mockInventory, "en-US", 2)).toMatchObject({
+      locked: true,
+      creditCost: 5,
+      needsCreditTopUp: true,
+      creditShortfall: 3
+    });
+  });
+
+  it("never needs a credit top-up once the dev store bypass is unlocked, regardless of balance", () => {
+    const plushToy = mockItems.find((item) => item.id === "item_plush_toy_buddy");
+
+    expect(plushToy).toBeDefined();
+    if (!plushToy) {
+      return;
+    }
+
+    expect(getLocalShopCatalogPresentation(plushToy, mockInventory, "en-US", 0, true)).toMatchObject({
+      needsCreditTopUp: false,
+      creditShortfall: 0
+    });
+  });
+
+  it("keeps needing a credit top-up for an owned repeatable item's buy-more purchase when the wallet can't cover it", () => {
+    const treatPlate = mockItems.find((item) => item.id === "item_treat_plate_biscuit");
+
+    expect(treatPlate).toBeDefined();
+    if (!treatPlate) {
+      return;
+    }
+
+    const inventory = {
+      ...mockInventory,
+      items: [
+        ...mockInventory.items,
+        {
+          itemId: "item_treat_plate_biscuit",
+          quantity: 2,
+          acquiredAt: "2026-06-27T08:00:00.000Z",
+          source: "purchase" as const
+        }
+      ]
+    };
+
+    expect(getLocalShopCatalogPresentation(treatPlate, inventory, "en-US", 0)).toMatchObject({
+      ownedQuantity: 2,
+      repeatable: true,
+      needsCreditTopUp: true,
+      creditShortfall: 2
     });
   });
 
@@ -446,7 +507,7 @@ describe("theme card presentation (3-state Themes tab)", () => {
     });
   });
 
-  it("presents an unpurchased theme as locked with its credit price when affordable", () => {
+  it("presents an unpurchased theme as buyable with its credit price and no status chip when affordable", () => {
     const presentation = getThemeCardPresentation("theme-fairy-garden", 18, mockInventory, false, 25);
 
     expect(presentation).toMatchObject({
@@ -454,19 +515,25 @@ describe("theme card presentation (3-state Themes tab)", () => {
       owned: false,
       applied: false,
       canAct: true,
+      needsCreditTopUp: false,
+      creditShortfall: 0,
       priceLabel: "18",
-      statusLabel: "Locked",
+      statusLabel: "",
       actionLabel: "Unlock"
     });
   });
 
-  it("presents an unpurchased theme as locked and non-actionable when the wallet can't afford it", () => {
+  it("keeps an unpurchased theme actionable and routes to a credit top-up when the wallet can't afford it, instead of a dead-end lock", () => {
     const presentation = getThemeCardPresentation("theme-fairy-garden", 18, mockInventory, false, 5);
 
     expect(presentation).toMatchObject({
       status: "locked_for_purchase",
-      canAct: false,
-      priceLabel: "18"
+      canAct: true,
+      needsCreditTopUp: true,
+      creditShortfall: 13,
+      priceLabel: "18",
+      statusLabel: "",
+      actionLabel: "Top up credits"
     });
   });
 
@@ -476,7 +543,10 @@ describe("theme card presentation (3-state Themes tab)", () => {
     expect(presentation).toMatchObject({
       status: "locked_for_purchase",
       canAct: true,
-      statusLabel: "Dev open"
+      needsCreditTopUp: false,
+      creditShortfall: 0,
+      statusLabel: "Dev open",
+      actionLabel: "Unlock"
     });
   });
 
@@ -504,7 +574,7 @@ describe("theme card presentation (3-state Themes tab)", () => {
     });
   });
 
-  it("localizes Japanese applied and Spanish locked theme states", () => {
+  it("localizes Japanese applied and Spanish affordable theme states", () => {
     expect(getThemeCardPresentation(DEFAULT_THEME_ID, 0, mockInventory, false, 0, "ja-JP")).toMatchObject({
       priceLabel: "無料",
       statusLabel: "適用済み",
@@ -512,8 +582,20 @@ describe("theme card presentation (3-state Themes tab)", () => {
     });
     expect(getThemeCardPresentation("theme-fairy-garden", 18, mockInventory, false, 25, "es-MX")).toMatchObject({
       priceLabel: "18",
-      statusLabel: "Bloqueado",
+      statusLabel: "",
       actionLabel: "Desbloquear"
+    });
+  });
+
+  it("localizes the Spanish credit top-up affordance when an unpurchased theme is unaffordable", () => {
+    expect(getThemeCardPresentation("theme-fairy-garden", 18, mockInventory, false, 5, "es-MX")).toMatchObject({
+      status: "locked_for_purchase",
+      canAct: true,
+      needsCreditTopUp: true,
+      creditShortfall: 13,
+      priceLabel: "18",
+      statusLabel: "",
+      actionLabel: "Recargar créditos"
     });
   });
 });

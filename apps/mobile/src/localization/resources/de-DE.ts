@@ -520,6 +520,7 @@ export const deDE = {
     devOpen: "Für Entwicklung geöffnet",
     available: "Verfügbar",
     locked: "Gesperrt",
+    creditsNeeded: "Noch {{count}} Credits nötig",
     backgroundPreview: "Hintergrundvorschau für {{name}}",
     largePreview: "Große Vorschau für {{name}}",
     backgroundThumbnail: "Hintergrundminiatur für {{name}}",
@@ -532,7 +533,8 @@ export const deDE = {
       unlockTheme: "Thema freischalten",
       applyTheme: "Thema anwenden",
       getItem: "Kaufen",
-      unlockPack: "Paket freischalten"
+      unlockPack: "Paket freischalten",
+      topUpCredits: "Credits aufladen"
     },
     grants: {
       consumable: "Credit",
@@ -574,7 +576,8 @@ export const deDE = {
       themeLocked: "{{name}} ist gesperrt",
       applyTheme: "{{name}} anwenden",
       themeApplied: "{{name}} ist angewendet",
-      buy: "{{name}} kaufen"
+      buy: "{{name}} kaufen",
+      topUpCredits: "Credits für {{name}} aufladen"
     },
     summary: {
       accessibilityLabel: "{{owned}} eigene Set-Gegenstände und {{locked}} gesperrte Shop-Gegenstände",
@@ -941,9 +944,11 @@ export const deDE = {
       eyebrow: "Hilfe",
       title: "Hilfe und Meldungen",
       updated: "Zuletzt aktualisiert am 7. Juli 2026 · v1.0",
-      contact: "Supportkontakt",
-      contactFallback: "Nutze die Meldefunktionen unten. Sobald eine Adresse verfügbar ist, kannst du den E-Mail-Support öffnen.",
-      email: "E-Mail an den Support",
+      website: {
+        title: "Mongchi-Website",
+        description: "Neuigkeiten und Hilfe findest du auf unserer Website.",
+        action: "Website öffnen"
+      },
       faqTitle: "Häufig gefragt",
       faq: {
         photoQuestion: "Ist das Foto meines Tieres sicher?",

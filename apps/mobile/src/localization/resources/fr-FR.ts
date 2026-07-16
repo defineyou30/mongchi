@@ -522,6 +522,7 @@ export const frFR = {
     devOpen: "Ouvert en développement",
     available: "Disponible",
     locked: "Verrouillé",
+    creditsNeeded: "Encore {{count}} crédits nécessaires",
     backgroundPreview: "Aperçu de l’arrière-plan {{name}}",
     largePreview: "Grand aperçu de {{name}}",
     backgroundThumbnail: "Miniature de l’arrière-plan {{name}}",
@@ -534,7 +535,8 @@ export const frFR = {
       unlockTheme: "Débloquer le thème",
       applyTheme: "Appliquer le thème",
       getItem: "Acheter",
-      unlockPack: "Débloquer le pack"
+      unlockPack: "Débloquer le pack",
+      topUpCredits: "Recharger des crédits"
     },
     grants: {
       consumable: "Crédit",
@@ -576,7 +578,8 @@ export const frFR = {
       themeLocked: "{{name}} est verrouillé",
       applyTheme: "Appliquer {{name}}",
       themeApplied: "{{name}} est appliqué",
-      buy: "Acheter {{name}}"
+      buy: "Acheter {{name}}",
+      topUpCredits: "Recharger des crédits pour {{name}}"
     },
     summary: {
       accessibilityLabel: "{{owned}} objets possédés et {{locked}} objets verrouillés dans la boutique",
@@ -948,9 +951,11 @@ export const frFR = {
       eyebrow: "Assistance",
       title: "Aide et signalements",
       updated: "Dernière mise à jour le 7 juillet 2026 · v1.0",
-      contact: "Contacter l’assistance",
-      contactFallback: "Utilisez les options de signalement ci-dessous. L’assistance par e-mail s’ouvrira lorsqu’une adresse sera disponible.",
-      email: "Écrire à l’assistance",
+      website: {
+        title: "Site de Mongchi",
+        description: "Retrouvez les actualités et l’aide sur notre site.",
+        action: "Ouvrir le site"
+      },
       faqTitle: "Questions fréquentes",
       faq: {
         photoQuestion: "La photo de mon compagnon est-elle en sécurité ?",
