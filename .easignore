@@ -1,0 +1,17 @@
+# Excluded from EAS build uploads -- none of these participate in the app build.
+# (node_modules and gitignored paths are excluded automatically.)
+
+# Documentation, store assets, and release evidence (~290 MB)
+docs/
+
+# Marketing landing page (separate Vercel deployment, ~60 MB)
+apps/landing/
+
+# Backend/legacy trees not used by the mobile bundle
+supabase/
+services/
+workers/
+
+# Tooling caches
+**/__pycache__/
+*.pyc
