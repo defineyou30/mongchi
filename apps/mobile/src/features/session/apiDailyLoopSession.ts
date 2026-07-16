@@ -53,12 +53,6 @@ import type {
   WalkSession
 } from "@mongchi/shared";
 
-declare const process:
-  | {
-      env?: Record<string, string | undefined>;
-    }
-  | undefined;
-
 export type TerrariumRuntimeMode = "local" | "api";
 
 export interface DailyLoopApiClient {
@@ -219,8 +213,13 @@ const buildLocalCareProgressPatch = (
   };
 };
 
-export const getConfiguredApiBaseUrl = (): string | null =>
-  typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_API_BASE_URL ?? null;
+// Read as a literal `process.env.EXPO_PUBLIC_...` member access -- a
+// computed/optional-chained lookup is never inlined by babel-preset-expo at
+// build time and comes back undefined in release bundles (see
+// scripts/validate-mobile-env-inlining.mjs).
+const API_BASE_URL = process.env.EXPO_PUBLIC_TINY_PET_API_BASE_URL;
+
+export const getConfiguredApiBaseUrl = (): string | null => API_BASE_URL ?? null;
 
 export const getConfiguredMockAuthToken = getConfiguredDevelopmentAuthToken;
 

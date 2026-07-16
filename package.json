@@ -70,6 +70,7 @@
     "typecheck:worker": "tsc -p workers/ai --pretty",
     "validate:mobile-accessibility": "node scripts/validate-mobile-accessibility.mjs",
     "validate:mobile-secret-boundaries": "node scripts/validate-mobile-secret-boundaries.mjs",
+    "validate:mobile-env-inlining": "node scripts/validate-mobile-env-inlining.mjs",
     "validate:db-migrations": "node scripts/validate-db-migrations.mjs",
     "validate:release-config": "node scripts/validate-release-config.mjs",
     "validate:production-release-config": "TINY_PET_RELEASE_PROFILE=production node scripts/validate-release-config.mjs",

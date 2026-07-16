@@ -59,8 +59,13 @@ export const normalizeQaScreenPreset = (value: string | null | undefined): QaScr
   return presetAliases[normalizePresetKey(value)] ?? null;
 };
 
-export const getConfiguredQaScreenPreset = (): QaScreenPreset | null =>
-  normalizeQaScreenPreset(typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_QA_SCREEN_PRESET);
+// Read as a literal `process.env.EXPO_PUBLIC_...` member access -- a
+// computed/optional-chained lookup is never inlined by babel-preset-expo at
+// build time and comes back undefined in release bundles (see
+// scripts/validate-mobile-env-inlining.mjs).
+const QA_SCREEN_PRESET = process.env.EXPO_PUBLIC_TINY_PET_QA_SCREEN_PRESET;
+
+export const getConfiguredQaScreenPreset = (): QaScreenPreset | null => normalizeQaScreenPreset(QA_SCREEN_PRESET);
 
 export const getConfiguredQaScreenPresetRoute = (): string | null => {
   const preset = getConfiguredQaScreenPreset();

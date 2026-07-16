@@ -1,9 +1,3 @@
-declare const process:
-  | {
-      env?: Record<string, string | undefined>;
-    }
-  | undefined;
-
 export interface PublicReleaseConfig {
   privacyPolicyUrl: string | null;
   termsUrl: string | null;
@@ -62,16 +56,18 @@ export const normalizeConfiguredEmail = (value: string | null | undefined): stri
 const DEFAULT_PRIVACY_POLICY_URL = "https://www.mongchi.app/privacy.html";
 const DEFAULT_TERMS_URL = "https://www.mongchi.app/terms.html";
 
+// Each var below is read as a literal `process.env.EXPO_PUBLIC_...` member
+// access directly inside this function body (not cached into a module-level
+// constant): babel-preset-expo only inlines a literal access like this one
+// at build time (a computed/optional-chained lookup comes back undefined in
+// release bundles -- see scripts/validate-mobile-env-inlining.mjs), and
+// reading it live here also lets publicReleaseConfig.test.ts's `withEnv`
+// helper flip these vars across assertions without needing to re-import the
+// module.
 export const getPublicReleaseConfig = (): PublicReleaseConfig => ({
-  privacyPolicyUrl: normalizeConfiguredUrl(
-    (typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_PRIVACY_URL) || DEFAULT_PRIVACY_POLICY_URL
-  ),
-  termsUrl: normalizeConfiguredUrl(
-    (typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_TERMS_URL) || DEFAULT_TERMS_URL
-  ),
-  supportEmail: normalizeConfiguredEmail(
-    typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL
-  )
+  privacyPolicyUrl: normalizeConfiguredUrl(process.env.EXPO_PUBLIC_TINY_PET_PRIVACY_URL || DEFAULT_PRIVACY_POLICY_URL),
+  termsUrl: normalizeConfiguredUrl(process.env.EXPO_PUBLIC_TINY_PET_TERMS_URL || DEFAULT_TERMS_URL),
+  supportEmail: normalizeConfiguredEmail(process.env.EXPO_PUBLIC_TINY_PET_SUPPORT_EMAIL)
 });
 
 export const getMissingPublicReleaseConfigKeys = (config: PublicReleaseConfig): Array<keyof PublicReleaseConfig> => {

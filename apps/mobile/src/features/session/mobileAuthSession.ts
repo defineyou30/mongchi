@@ -5,12 +5,6 @@ import {
   defaultMobileAuthSessionStorage
 } from "./mobileAuthSessionStorage";
 
-declare const process:
-  | {
-      env?: Record<string, string | undefined>;
-    }
-  | undefined;
-
 export type MobileAuthSessionSource = "development_mock" | "provider";
 
 export interface MobileAuthSession {
@@ -70,8 +64,16 @@ const normalizeOptionalIsoTimestamp = (value: unknown): string | null | undefine
   return value;
 };
 
+// Both vars below are read as a literal `process.env.EXPO_PUBLIC_...` member
+// access directly inside their function bodies (not cached into a
+// module-level constant): babel-preset-expo only inlines a literal access
+// like this one at build time (a computed/optional-chained lookup comes back
+// undefined in release bundles -- see
+// scripts/validate-mobile-env-inlining.mjs), and reading it live here also
+// lets mobileAuthSession.test.ts's `withDevelopmentAuthFallback` helper flip
+// the env var across assertions without needing to re-import the module.
 export const isDevelopmentAuthFallbackAllowed = (): boolean => {
-  const configured = typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_ALLOW_DEVELOPMENT_AUTH_FALLBACK;
+  const configured = process.env.EXPO_PUBLIC_TINY_PET_ALLOW_DEVELOPMENT_AUTH_FALLBACK;
   const normalized = configured?.trim().toLowerCase();
 
   return normalized !== "false" && normalized !== "0" && normalized !== "no";
@@ -82,10 +84,7 @@ export const getConfiguredDevelopmentAuthToken = (): string | null => {
     return null;
   }
 
-  return (
-    normalizeMobileAuthToken(typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_MOCK_AUTH_TOKEN) ??
-    defaultDevelopmentAuthToken
-  );
+  return normalizeMobileAuthToken(process.env.EXPO_PUBLIC_TINY_PET_MOCK_AUTH_TOKEN) ?? defaultDevelopmentAuthToken;
 };
 
 export const parseMobileAuthSession = (value: unknown): MobileAuthSession | null => {

@@ -88,10 +88,16 @@ const weatherScreenshotConditions = new Set<WeatherCondition>([
   "cold"
 ]);
 
+// Read as a literal `process.env.EXPO_PUBLIC_...` member access -- a
+// computed/optional-chained lookup is never inlined by babel-preset-expo at
+// build time and comes back undefined in release bundles (see
+// scripts/validate-mobile-env-inlining.mjs).
+const STORE_SCREENSHOT_WEATHER_CONDITION = process.env.EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_WEATHER_CONDITION;
+
 const getConfiguredStoreScreenshotWeatherCondition = (): WeatherCondition | null => {
-  const configured =
-    typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_WEATHER_CONDITION;
-  const condition = configured?.trim().toLowerCase().replace(/-/g, "_") as WeatherCondition | undefined;
+  const condition = STORE_SCREENSHOT_WEATHER_CONDITION?.trim().toLowerCase().replace(/-/g, "_") as
+    | WeatherCondition
+    | undefined;
 
   return condition && weatherScreenshotConditions.has(condition) ? condition : null;
 };
@@ -177,10 +183,12 @@ export const normalizeStoreScreenshotPreset = (value: string | null | undefined)
   return presetAliases[normalizePresetKey(value)] ?? null;
 };
 
+// Read as a literal `process.env.EXPO_PUBLIC_...` member access -- see
+// STORE_SCREENSHOT_WEATHER_CONDITION's comment above.
+const STORE_SCREENSHOT_PRESET = process.env.EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_PRESET;
+
 export const getConfiguredStoreScreenshotPreset = (): StoreScreenshotPreset | null =>
-  normalizeStoreScreenshotPreset(
-    typeof process === "undefined" ? null : process.env?.EXPO_PUBLIC_TINY_PET_STORE_SCREENSHOT_PRESET
-  );
+  normalizeStoreScreenshotPreset(STORE_SCREENSHOT_PRESET);
 
 export const getConfiguredStoreScreenshotPresetRoute = (): string | null => {
   const preset = getConfiguredStoreScreenshotPreset();

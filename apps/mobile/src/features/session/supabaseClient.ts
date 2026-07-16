@@ -2,22 +2,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-declare const process:
-  | {
-      env?: Record<string, string | undefined>;
-    }
-  | undefined;
+// babel-preset-expo's inline-env-vars plugin only recognizes a literal
+// `process.env.EXPO_PUBLIC_X` member access at build time -- a computed
+// lookup like `process.env[key]` (what this file used to do via a shared
+// `readEnvVar(key)` helper) is never inlined, so these two vars came back
+// `undefined` in every release build (see
+// scripts/validate-mobile-env-inlining.mjs for the guard that now catches
+// this class of bug). Each var therefore gets its own literal read.
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-const readEnvVar = (key: string): string | null => {
-  const value = typeof process === "undefined" ? undefined : process.env?.[key];
+const normalizeEnvVar = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
 
   return trimmed ? trimmed : null;
 };
 
-export const getConfiguredSupabaseUrl = (): string | null => readEnvVar("EXPO_PUBLIC_SUPABASE_URL");
+export const getConfiguredSupabaseUrl = (): string | null => normalizeEnvVar(SUPABASE_URL);
 
-export const getConfiguredSupabaseAnonKey = (): string | null => readEnvVar("EXPO_PUBLIC_SUPABASE_ANON_KEY");
+export const getConfiguredSupabaseAnonKey = (): string | null => normalizeEnvVar(SUPABASE_ANON_KEY);
 
 let cachedClient: SupabaseClient | null = null;
 let cachedClientKey: string | null = null;

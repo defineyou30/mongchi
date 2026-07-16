@@ -15,12 +15,6 @@ import type { StoreProductPricing } from "./creditPackCheckout";
 type RevenueCatModule = typeof import("react-native-purchases");
 type RevenueCatPurchases = RevenueCatModule["default"];
 
-declare const process:
-  | {
-      env?: Record<string, string | undefined>;
-    }
-  | undefined;
-
 export type NativePurchasePlatform = "ios" | "android";
 
 export const getNativePurchasePlatform = (): NativePurchasePlatform | null =>
@@ -34,31 +28,37 @@ export const getNativePurchasePlatform = (): NativePurchasePlatform | null =>
  * docs/engineering/current/credit-store-foundation.md). Kept as an explicit
  * opt-in (rather than removed) so it still doubles as an operator-controlled
  * kill switch per build/environment.
+ *
+ * Reads `process.env.EXPO_PUBLIC_...` as a literal member access (required
+ * for babel-preset-expo to inline it at build time -- see
+ * scripts/validate-mobile-env-inlining.mjs) directly in this function body
+ * rather than caching it into a module-level constant, so
+ * nativeStorePurchases.test.ts can flip the env var across assertions on an
+ * already-imported module and see each value take effect immediately.
  */
 export const isNativeStoreCheckoutEnabled = (): boolean =>
-  getNativePurchasePlatform() !== null &&
-  typeof process !== "undefined" &&
-  process.env?.EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT === "true";
+  getNativePurchasePlatform() !== null && process.env.EXPO_PUBLIC_TINY_PET_ENABLE_NATIVE_CHECKOUT === "true";
 
 // RevenueCat iOS Public SDK Key (see
 // docs/engineering/current/credit-store-foundation.md's confirmed facts).
 const REVENUECAT_IOS_SDK_KEY = "appl_vcqaVXPMgBRmsuMSCTadOJUQolA";
 
-const readEnvVar = (key: string): string | null => {
-  const value = typeof process === "undefined" ? undefined : process.env?.[key];
+// Android has no RevenueCat public SDK key provisioned yet. Rather than
+// configuring the SDK with a missing/wrong key, checkout on Android stays
+// gracefully unavailable until EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY is set
+// (an operator/config action, not a code change). Read as a literal
+// `process.env.EXPO_PUBLIC_...` access -- see isNativeStoreCheckoutEnabled's
+// doc comment and scripts/validate-mobile-env-inlining.mjs.
+const REVENUECAT_ANDROID_SDK_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY;
+
+const normalizeEnvVar = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
 
   return trimmed ? trimmed : null;
 };
 
-/**
- * Android has no RevenueCat public SDK key provisioned yet. Rather than
- * configuring the SDK with a missing/wrong key, checkout on Android stays
- * gracefully unavailable until EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY is set
- * (an operator/config action, not a code change).
- */
 const getRevenueCatApiKey = (platform: NativePurchasePlatform): string | null =>
-  platform === "ios" ? REVENUECAT_IOS_SDK_KEY : readEnvVar("EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY");
+  platform === "ios" ? REVENUECAT_IOS_SDK_KEY : normalizeEnvVar(REVENUECAT_ANDROID_SDK_KEY);
 
 let revenueCatModulePromise: Promise<RevenueCatModule> | null = null;
 
