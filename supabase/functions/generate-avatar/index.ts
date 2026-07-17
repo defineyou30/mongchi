@@ -1004,15 +1004,40 @@ const markJobFailed = async (
   }
 };
 
+type StorageRemoveResult = Awaited<ReturnType<ReturnType<SupabaseClient["storage"]["from"]>["remove"]>>;
+
+// Best-effort privacy cleanup (finalizeSourceCleanup and
+// removeUnclaimedSourcePhoto below) must not give up on the first transient
+// storage error -- a permanently orphaned original photo is a privacy
+// contract violation (see the module doc comment's "server-side cleanup
+// right after move-in" promise), not just a cosmetic one. One retry,
+// mirroring fetchWithRetry's single-retry pattern for OpenAI calls above.
+const STORAGE_REMOVE_RETRY_DELAY_MS = 500;
+
+const removeStorageObjectsWithRetry = async (
+  admin: SupabaseClient,
+  paths: string[]
+): Promise<StorageRemoveResult> => {
+  const first = await admin.storage.from(BUCKET).remove(paths);
+
+  if (!first.error) {
+    return first;
+  }
+
+  await sleep(STORAGE_REMOVE_RETRY_DELAY_MS);
+
+  return admin.storage.from(BUCKET).remove(paths);
+};
+
 const finalizeSourceCleanup = async (
   admin: SupabaseClient,
   job: GenerationJobRow,
   originalPhotoPath: string
 ): Promise<boolean> => {
-  let removal: Awaited<ReturnType<ReturnType<SupabaseClient["storage"]["from"]>["remove"]>>;
+  let removal: StorageRemoveResult;
 
   try {
-    removal = await admin.storage.from(BUCKET).remove([originalPhotoPath]);
+    removal = await removeStorageObjectsWithRetry(admin, [originalPhotoPath]);
   } catch (cause) {
     console.error("[generate-avatar] source cleanup threw", {
       jobId: job.id,
@@ -1506,6 +1531,17 @@ const runPipeline = async (input: {
         }
       }
     } catch (cause) {
+      // LeaseLostError is deliberately NOT a call to markJobFailed: it means
+      // some other invocation has already reclaimed this job (this
+      // attempt's lease expired mid-run), so this attempt no longer owns the
+      // job and must not refund its funding, delete its original photo, or
+      // otherwise finalize anything -- the job's lifecycle (including,
+      // eventually, its own final markJobFailed/complete_generation_job
+      // call and original-photo cleanup) belongs to whichever invocation
+      // holds the lease now. This is the one genuinely non-final "failure"
+      // in this pipeline; every other markJobFailed call below is final for
+      // this job and is expected to delete the original photo (see
+      // markJobFailed's cleanup_pending branch above).
       if (cause instanceof LeaseLostError) {
         return;
       }
@@ -1743,7 +1779,7 @@ const removeUnclaimedSourcePhoto = async (
       return;
     }
 
-    const removal = await admin.storage.from(BUCKET).remove([originalPhotoPath]);
+    const removal = await removeStorageObjectsWithRetry(admin, [originalPhotoPath]);
 
     if (removal.error) {
       console.error("[generate-avatar] unclaimed source cleanup failed", {
@@ -1758,6 +1794,73 @@ const removeUnclaimedSourcePhoto = async (
       reason,
       error: cause instanceof Error ? cause.message : String(cause)
     });
+  }
+};
+
+const STALE_CLEANUP_SWEEP_LIMIT = 3;
+
+// Safety net for the best-effort cleanup above: if one job's cleanup_pending
+// -> failed/completed transition gets interrupted (the Edge Function killed
+// mid-cleanup, a storage error that outlasts removeStorageObjectsWithRetry's
+// single retry, etc.), nothing normally revisits that exact job again once
+// the client stops polling it -- retrySupabaseGenerationFlow (mobile client)
+// always starts a fresh job with a new id/request_id on failure, so the old
+// job's activeGenerationJobId is abandoned and the resume_job_id path below
+// never fires for it again. Piggyback on every request from the same user
+// instead: opportunistically reclaim and finish cleanup for a small bounded
+// number of that user's own stale cleanup_pending jobs (lease already
+// expired, so nothing else can be concurrently working them) via the exact
+// same claim/runPipeline machinery every other job uses -- runPipeline's own
+// cleanup_pending branch (see its top) is what actually deletes the original
+// photo once claimed. Fire-and-forget: must never block or fail the caller's
+// own request.
+const sweepStaleCleanupPendingJobs = (
+  admin: SupabaseClient,
+  userId: string,
+  openAiApiKey: string,
+  imageModel: string,
+  dryRun: boolean
+): void => {
+  const runSweep = async (): Promise<void> => {
+    const { data: staleJobs, error } = await admin
+      .from("generation_jobs")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("status", "cleanup_pending")
+      .lt("lease_expires_at", new Date().toISOString())
+      .limit(STALE_CLEANUP_SWEEP_LIMIT);
+
+    if (error || !staleJobs) {
+      return;
+    }
+
+    for (const row of staleJobs as Array<{ id: string }>) {
+      try {
+        const claimed = await claimGenerationJob(admin, userId, row.id);
+
+        if (claimed) {
+          scheduleGenerationPipeline({ admin, job: claimed, openAiApiKey, imageModel, dryRun });
+        }
+      } catch (cause) {
+        console.error("[generate-avatar] stale cleanup sweep claim failed", {
+          jobId: row.id,
+          error: cause instanceof Error ? cause.message : String(cause)
+        });
+      }
+    }
+  };
+
+  const sweepPromise = runSweep().catch((cause) => {
+    console.error("[generate-avatar] stale cleanup sweep failed", {
+      userId,
+      error: cause instanceof Error ? cause.message : String(cause)
+    });
+  });
+
+  const runtime = (globalThis as EdgeRuntimeGlobal).EdgeRuntime;
+
+  if (runtime && typeof runtime.waitUntil === "function") {
+    runtime.waitUntil(sweepPromise);
   }
 };
 
@@ -1808,6 +1911,13 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false }
   });
+
+  // Opportunistic safety net (see sweepStaleCleanupPendingJobs above): runs
+  // on every request from this user, not just the one this request is
+  // actually about, so an old abandoned job's interrupted cleanup still
+  // eventually gets a chance to finish even after the client has moved on to
+  // a brand new job/request_id.
+  sweepStaleCleanupPendingJobs(admin, userId, openAiApiKey ?? "", imageModel, DRY_RUN);
 
   if (body.resume_job_id !== undefined) {
     if (typeof body.resume_job_id !== "string" || !UUID_PATTERN.test(body.resume_job_id)) {

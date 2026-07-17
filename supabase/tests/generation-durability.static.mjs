@@ -73,7 +73,7 @@ assert.match(edgeFunction, /p_request_id: requestId/);
 assert.match(edgeFunction, /p_max_attempts: MAX_GENERATION_ATTEMPTS/);
 assert.doesNotMatch(edgeFunction, /admin\.rpc\("refund_(?:credits|generation_quota|pet_generation_slot)"/);
 assert.doesNotMatch(edgeFunction, /\.from\("generation_jobs"\)\s*\.update\(/);
-assert.match(edgeFunction, /const removal = await admin\.storage\.from\(BUCKET\)\.remove\(\[originalPhotoPath\]\)/);
+assert.match(edgeFunction, /const removal = await removeStorageObjectsWithRetry\(admin, \[originalPhotoPath\]\)/);
 assert.match(edgeFunction, /if \(removal\.error\)/);
 assert.match(edgeFunction, /\.eq\("original_photo_path", originalPhotoPath\)[\s\S]*\.neq\("status", "failed"\)/);
 assert.match(edgeFunction, /if \(ownershipError\)[\s\S]*return;/);
@@ -83,5 +83,43 @@ assert.match(edgeFunction, /completion recovery lookup failed/);
 assert.match(edgeFunction, /cleanupSupersededAttemptAssets\(admin, job\)[\s\S]*job\.attempt_count > MAX_GENERATION_ATTEMPTS/);
 assert.match(edgeFunction, /removeUnclaimedSourcePhoto\(admin, userId, maintenanceOriginalPhotoPath, "maintenance"\)/);
 assert.match(edgeFunction, /error: "generation_maintenance"[\s\S]*503[\s\S]*"Retry-After": "60"/);
+
+// --- Failure-path original-photo cleanup (see markJobFailed's cleanup_pending
+// branch): every point where a generation job is finalized as failed must
+// still delete the user's original photo, exactly like the success path
+// does. These assertions guard the specific privacy bug where 169
+// original-photos/* files survived in production for jobs whose status had
+// already reached 'failed' (see docs/incident notes for context) -- the
+// fix keeps markJobFailed's existing cleanup_pending -> finalizeSourceCleanup
+// call, hardens the underlying storage delete against transient errors, and
+// adds an opportunistic sweep so an interrupted cleanup isn't stranded
+// forever once the client abandons that specific job.
+assert.match(
+  edgeFunction,
+  /if \(data === "cleanup_pending" && job\.original_photo_path\) \{\s*await finalizeSourceCleanup\(admin, job, job\.original_photo_path\);/
+);
+assert.match(edgeFunction, /const removeStorageObjectsWithRetry = async/);
+assert.match(edgeFunction, /removal = await removeStorageObjectsWithRetry\(admin, \[originalPhotoPath\]\)/);
+assert.match(
+  edgeFunction,
+  /const removeStorageObjectsWithRetry = async[\s\S]*if \(!first\.error\) \{\s*return first;\s*\}[\s\S]*await sleep\(STORAGE_REMOVE_RETRY_DELAY_MS\)/
+);
+// The one genuinely non-final failure (a superseded attempt whose lease was
+// lost mid-run) must keep returning without calling markJobFailed -- it does
+// not own the job anymore, so it must not delete anything on this job's
+// behalf.
+assert.match(
+  edgeFunction,
+  /LeaseLostError is deliberately NOT a call to markJobFailed[\s\S]*if \(cause instanceof LeaseLostError\) \{\s*return;\s*\}/
+);
+// Safety-net sweep: reclaims a bounded number of this user's own stale
+// cleanup_pending jobs on every request, independent of which job the
+// request itself concerns, and is wired up before any other request
+// handling in Deno.serve.
+assert.match(edgeFunction, /const STALE_CLEANUP_SWEEP_LIMIT = 3/);
+assert.match(edgeFunction, /const sweepStaleCleanupPendingJobs = \(/);
+assert.match(edgeFunction, /\.eq\("status", "cleanup_pending"\)\s*\.lt\("lease_expires_at", new Date\(\)\.toISOString\(\)\)/);
+assert.match(edgeFunction, /\.limit\(STALE_CLEANUP_SWEEP_LIMIT\)/);
+assert.match(edgeFunction, /sweepStaleCleanupPendingJobs\(admin, userId, openAiApiKey \?\? "", imageModel, DRY_RUN\)/);
 
 process.stdout.write("Generation durability static contract passed.\n");

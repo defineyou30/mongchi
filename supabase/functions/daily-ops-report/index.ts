@@ -2,8 +2,9 @@
 //
 // Sends one Slack message per day (09:00 KST) summarizing the previous KST
 // calendar day's activity: new pets ("입주"), generation success/failure,
-// new signups, payments, day passes, credit consumption, chat turns, and
-// support/feedback submissions. Invoked by
+// new signups, payments, day passes, credit consumption, chat turns,
+// support/feedback submissions, and a closing capacity line (current DB and
+// Storage usage, not yesterday-scoped like the rest). Invoked by
 // supabase/migrations/0029_daily_ops_report_schedule.sql's pg_cron schedule
 // (via invoke_daily_ops_report(), a pg_net POST -- see that migration's
 // header comment), not by any client.
@@ -60,6 +61,8 @@ type DailyOpsMetrics = {
   readonly topConsumptionReasons: readonly TopConsumptionReason[] | null;
   readonly chatTurns: number | null;
   readonly feedbackCount: number | null;
+  readonly dbSizeMb: number | null;
+  readonly storageSizeMb: number | null;
 };
 
 type ReportWindow = {
@@ -316,17 +319,58 @@ const fetchCreditLedgerSummary = async (
   }
 };
 
+type StorageSummaryRow = {
+  readonly db_bytes: number;
+  readonly storage_bytes: number;
+};
+
+const isStorageSummaryRow = (value: unknown): value is StorageSummaryRow =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as Record<string, unknown>).db_bytes === "number" &&
+  typeof (value as Record<string, unknown>).storage_bytes === "number";
+
+// "용량": current database size (pg_database_size) and total Supabase
+// Storage usage, bundled via the daily_ops_storage_summary RPC (added in
+// 0030_daily_ops_storage_summary.sql) -- unlike every other metric here,
+// this is a current-instant total, not scoped to yesterday's window (no
+// p_start/p_end args), so it takes no `window` argument.
+const fetchStorageSummary = async (admin: SupabaseClient): Promise<StorageSummaryRow | null> => {
+  try {
+    const { data, error } = await admin.rpc("daily_ops_storage_summary");
+
+    if (error) {
+      logQueryFailure("fetchStorageSummary", error.message);
+      return null;
+    }
+
+    return isStorageSummaryRow(data) ? data : null;
+  } catch (error) {
+    logQueryFailure("fetchStorageSummary", error);
+    return null;
+  }
+};
+
 const gatherMetrics = async (admin: SupabaseClient, window: ReportWindow): Promise<DailyOpsMetrics> => {
-  const [moveIns, generationSuccess, generationFailure, newSignups, chatTurns, feedbackCount, creditLedgerSummary] =
-    await Promise.all([
-      countMoveIns(admin, window),
-      countGenerationSuccess(admin, window),
-      countGenerationFailure(admin, window),
-      countNewSignups(admin, window),
-      countChatTurns(admin, window),
-      countFeedback(admin, window),
-      fetchCreditLedgerSummary(admin, window)
-    ]);
+  const [
+    moveIns,
+    generationSuccess,
+    generationFailure,
+    newSignups,
+    chatTurns,
+    feedbackCount,
+    creditLedgerSummary,
+    storageSummary
+  ] = await Promise.all([
+    countMoveIns(admin, window),
+    countGenerationSuccess(admin, window),
+    countGenerationFailure(admin, window),
+    countNewSignups(admin, window),
+    countChatTurns(admin, window),
+    countFeedback(admin, window),
+    fetchCreditLedgerSummary(admin, window),
+    fetchStorageSummary(admin)
+  ]);
 
   return {
     moveIns,
@@ -339,7 +383,9 @@ const gatherMetrics = async (admin: SupabaseClient, window: ReportWindow): Promi
     consumptionTotal: creditLedgerSummary?.consumption_total ?? null,
     topConsumptionReasons: creditLedgerSummary?.top_consumption_reasons ?? null,
     chatTurns,
-    feedbackCount
+    feedbackCount,
+    dbSizeMb: storageSummary ? Math.round(storageSummary.db_bytes / (1024 * 1024)) : null,
+    storageSizeMb: storageSummary ? Math.round(storageSummary.storage_bytes / (1024 * 1024)) : null
   };
 };
 
@@ -365,6 +411,10 @@ const buildSlackText = (window: ReportWindow, metrics: DailyOpsMetrics): string 
     const topLine = metrics.topConsumptionReasons.map((entry) => `${entry.reason} ${entry.amount}`).join(" · ");
     lines.push(`소비 상위: ${topLine}`);
   }
+
+  // Always the last line, regardless of whether the top-consumption line
+  // above was included -- see this function's callers/module doc comment.
+  lines.push(`용량: DB ${fmt(metrics.dbSizeMb)}MB · 스토리지 ${fmt(metrics.storageSizeMb)}MB`);
 
   return lines.join("\n");
 };

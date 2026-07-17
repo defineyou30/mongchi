@@ -6,6 +6,10 @@ import path from "node:path";
 
 const root = path.resolve(new URL("../..", import.meta.url).pathname);
 const migration = fs.readFileSync(path.join(root, "supabase/migrations/0029_daily_ops_report_schedule.sql"), "utf8");
+const storageMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/0030_daily_ops_storage_summary.sql"),
+  "utf8"
+);
 const edgeFunction = fs.readFileSync(path.join(root, "supabase/functions/daily-ops-report/index.ts"), "utf8");
 
 // ---------------------------------------------------------------------------
@@ -136,6 +140,12 @@ assert.match(edgeFunction, /\.from\("support_feedback"\)/);
 assert.match(edgeFunction, /const fetchCreditLedgerSummary = async/);
 assert.match(edgeFunction, /admin\.rpc\("daily_ops_credit_ledger_summary", \{\s*p_start: window\.startIso,\s*p_end: window\.endIso\s*\}\)/);
 
+// 용량: current DB size + total Storage usage, via daily_ops_storage_summary
+// -- unlike every other RPC above, this one takes no p_start/p_end window
+// (a current-instant total, not scoped to yesterday).
+assert.match(edgeFunction, /const fetchStorageSummary = async \(admin: SupabaseClient\): Promise<StorageSummaryRow \| null> => \{/);
+assert.match(edgeFunction, /admin\.rpc\("daily_ops_storage_summary"\)/);
+
 // Slack text: the 4-line template given by design, verbatim structure.
 assert.match(edgeFunction, /`🌱 \[Mongchi\] \$\{window\.dateLabel\} 일일 리포트`/);
 assert.match(
@@ -149,6 +159,21 @@ assert.match(
 assert.match(
   edgeFunction,
   /`채팅 \$\{fmt\(metrics\.chatTurns\)\}턴 · 피드백 \$\{fmt\(metrics\.feedbackCount\)\}건`/
+);
+
+// 용량 line: always the last line of the report, regardless of whether the
+// conditional top-consumption line above it was included.
+assert.match(
+  edgeFunction,
+  /`용량: DB \$\{fmt\(metrics\.dbSizeMb\)\}MB · 스토리지 \$\{fmt\(metrics\.storageSizeMb\)\}MB`/
+);
+
+const capacityLineIndex = edgeFunction.indexOf("`용량: DB ${fmt(metrics.dbSizeMb)}MB");
+const returnJoinIndex = edgeFunction.indexOf("return lines.join(\"\\n\");");
+assert.ok(capacityLineIndex > 0 && returnJoinIndex > 0);
+assert.ok(
+  capacityLineIndex < returnJoinIndex,
+  "the capacity line must be pushed before buildSlackText returns, so it is always the final line"
 );
 
 // ---------------------------------------------------------------------------
@@ -215,6 +240,34 @@ assert.match(
   migration,
   /GRANT EXECUTE ON FUNCTION public\.daily_ops_credit_ledger_summary\(TIMESTAMPTZ, TIMESTAMPTZ\)\s*TO service_role;/
 );
+
+// ---------------------------------------------------------------------------
+// RPC: daily_ops_storage_summary -- service_role-only, bundles current DB
+// size and total Supabase Storage usage (0030_daily_ops_storage_summary.sql,
+// a separate migration from 0029's two RPCs).
+// ---------------------------------------------------------------------------
+
+assert.match(storageMigration, /CREATE OR REPLACE FUNCTION public\.daily_ops_storage_summary\(\)/);
+assert.match(storageMigration, /RETURNS JSONB/);
+assert.match(storageMigration, /SELECT pg_database_size\(current_database\(\)\)/);
+assert.match(
+  storageMigration,
+  /SELECT COALESCE\(sum\(\(metadata->>'size'\)::BIGINT\), 0\)\s*INTO v_storage_bytes\s*FROM storage\.objects;/
+);
+assert.match(
+  storageMigration,
+  /RETURN jsonb_build_object\(\s*'db_bytes', v_db_bytes,\s*'storage_bytes', v_storage_bytes\s*\);/
+);
+assert.match(
+  storageMigration,
+  /REVOKE EXECUTE ON FUNCTION public\.daily_ops_storage_summary\(\)\s*FROM PUBLIC, anon, authenticated;/
+);
+assert.match(
+  storageMigration,
+  /GRANT EXECUTE ON FUNCTION public\.daily_ops_storage_summary\(\)\s*TO service_role;/
+);
+assert.match(storageMigration, /^BEGIN;$/m);
+assert.match(storageMigration, /^COMMIT;$/m);
 
 // ---------------------------------------------------------------------------
 // invoke_daily_ops_report(): mirrors 0028_support_feedback_notify.sql's
