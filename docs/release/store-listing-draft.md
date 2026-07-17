@@ -1,6 +1,7 @@
 # Store Listing Draft
 
 > 최신 대조: 2026-07-14 (커밋 49ee0121 기준)
+> 2026-07-16 ASO 개편: 키워드 서픽스 제목·교차색인 전략
 
 This draft is for App Store Connect and Google Play Console setup. It should stay aligned with the implemented native iOS/Android flow: Welcome -> Photo upload -> Pet setup -> Hatching -> Pet reveal -> Main terrarium -> AI chat / premium bond -> Shop.
 
@@ -19,14 +20,14 @@ This draft is for App Store Connect and Google Play Console setup. It should sta
 
 | Locale | App Name | Subtitle |
 |---|---|---|
-| en-US | Mongchi | A tiny friend from one photo |
-| ko-KR | 몽치 (Mongchi) | 사진 한 장으로 만나는 작은 친구 |
-| ja-JP | モンチ (Mongchi) | 写真一枚から生まれる小さな友だち |
-| zh-TW | Mongchi | 一張照片，一個小小朋友 |
-| de-DE | Mongchi | Dein Freund aus einem Foto |
-| fr-FR | Mongchi | Un compagnon né d'une photo |
-| pt-BR | Mongchi | Um amiguinho de uma foto só |
-| es-MX | Mongchi | Un amiguito hecho de una foto |
+| en-US | Mongchi: Pixel Pet Garden (25/30) | A virtual friend from a photo (29/30) |
+| ko-KR | 몽치 Mongchi — 픽셀 펫 키우기 (21/30) | 사진 한 장으로 만나는 AI 친구 (18/30) |
+| ja-JP | モンチ Mongchi - ピクセルペット育成 (23/30) | 写真一枚から生まれる小さな友だち (16/30) |
+| zh-TW | Mongchi 像素寵物花園 (14/30) | 一張照片，一個小小朋友 (11/30) |
+| de-DE | Mongchi: Pixel-Haustier (23/30) | Dein Freund aus einem Foto (26/30) |
+| fr-FR | Mongchi : animal pixel (22/30) | Un compagnon né d'une photo (27/30) |
+| pt-BR | Mongchi: Pet Pixel (18/30) | Um amiguinho de uma foto só (27/30) |
+| es-MX | Mongchi: Mascota Píxel (22/30) | Un amiguito hecho de una foto (29/30) |
 
 ### Metadata by Locale (Full)
 
@@ -56,7 +57,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > Mongchi is a calm pet-life space for people who want one small companion to look after — not a social feed, a leaderboard, or an ad network.
 
-**Keywords** (97 / 100 chars): `virtual pet,tamagotchi,pixel pet,dog,cat,garden,companion,cozy,walk,chat,ai friend,pet sim,themes`
+**Keywords** (98 / 100 chars): `tamagotchi,dog,cat,puppy,kitten,widget,cozy,adopt,care,cute,ai,companion,memories,walk,chat,themes`
 
 **Promotional Text** (121 / 170 chars): Turn one pet photo into a tiny pixel friend, care for them in a cozy garden, and unlock chat, walks, and themes together.
 
@@ -80,7 +81,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > 몽치는 소셜 피드도, 순위표도, 광고 네트워크도 아니에요. 작은 친구 한 마리를 매일 조금씩 돌보고 싶은 사람들을 위한 차분한 반려동물 공간이에요.
 
-**Keywords** (45 / 100 chars): `펫,강아지,고양이,픽셀,다마고치,키우기,정원,힐링,반려동물,산책,대화,꾸미기,테마`
+**Keywords** (97 / 100 chars): `강아지,고양이,다마고치,정원,힐링,반려동물,산책,대화,꾸미기,테마,강아지키우기,고양이키우기,전자펫,포켓펫,힐링게임,추억,앨범,도트,육성,캐릭터,스토리,감성게임,편지,일기,동물`
 
 **Promotional Text** (59 / 170 chars): 사진 한 장으로 작은 픽셀 친구를 만나고, 아늑한 정원에서 함께 돌보며 대화와 산책, 테마까지 즐겨보세요.
 
@@ -104,7 +105,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > モンチはSNSのフィードでも、ランキングでも、広告ネットワークでもありません。小さなお友だちを一匹、毎日少しずつお世話したい人のための、穏やかなペットのための場所です。
 
-**Keywords** (46 / 100 chars): `ペット,犬,猫,育成,ドット絵,たまごっち,庭,癒し,散歩,会話,着せ替え,テーマ,かわいい`
+**Keywords** (98 / 100 chars): `ペット,犬,猫,ドット絵,たまごっち,庭,癒し,散歩,会話,着せ替え,テーマ,かわいい,育成ゲーム,子犬,子猫,思い出,シミュレーション,キャラクター,日記,天気,性格,お手紙,ストーリー,お世話`
 
 **Promotional Text** (50 / 170 chars): 写真一枚から小さなピクセル友だちが生まれ、庭でお世話をしながら会話やお散歩、テーマ替えも楽しめます。
 
@@ -128,7 +129,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > Mongchi 不是社群動態、排行榜，也不是廣告網路，而是給想要每天用心照顧一隻小小朋友的人的一個平靜的寵物空間。
 
-**Keywords** (38 / 100 chars): `寵物,狗,貓,像素,養成,電子雞,花園,療癒,散步,聊天,主題,可愛,療癒系`
+**Keywords** (96 / 100 chars): `狗,貓,養成,電子雞,療癒,散步,聊天,主題,可愛,療癒系,狗狗,貓咪,換裝,回憶,相簿,寵物遊戲,電子寵物,模擬,陪伴,互動,收藏,日記,天氣,個性,故事,角色,信件,小屋,旅行,禮物,時光`
 
 **Promotional Text** (40 / 170 chars): 用一張照片認識小小像素朋友，在花園裡一起照顧牠、聊天、散步，還能換上喜歡的主題。
 
@@ -152,7 +153,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > Mongchi ist ein ruhiger Ort für Tierliebhaber, die sich um einen kleinen Freund kümmern möchten — kein Social-Feed, keine Bestenliste, kein Werbenetzwerk.
 
-**Keywords** (95 / 100 chars): `virtuelles haustier,hund,katze,pixel,tamagotchi,garten,pflege,spaziergang,chat,gemütlich,themen`
+**Keywords** (97 / 100 chars): `hund,katze,tamagotchi,garten,pflege,spaziergang,chat,gemütlich,themen,virtuell,welpe,kätzchen,süß`
 
 **Promotional Text** (126 / 170 chars): Aus einem Tierfoto wird ein kleiner Pixel-Freund: Kümmere dich um ihn in einem gemütlichen Garten, chatte und entdecke Themen.
 
@@ -176,7 +177,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > Mongchi est un espace apaisant pour les personnes qui veulent s'occuper d'un petit compagnon — ni un fil social, ni un classement, ni un réseau publicitaire.
 
-**Keywords** (94 / 100 chars): `animal virtuel,chien,chat,pixel,tamagotchi,jardin,soin,promenade,chat ia,cosy,thèmes,compagnon`
+**Keywords** (99 / 100 chars): `chien,chat,tamagotchi,jardin,soin,promenade,chat ia,cosy,thèmes,virtuel,chiot,chaton,mignon,adopter`
 
 **Promotional Text** (131 / 170 chars): Une photo suffit pour faire naître un petit compagnon pixel : prenez-en soin dans un jardin douillet, discutez et changez de thème.
 
@@ -200,7 +201,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > O Mongchi é um espaço tranquilo para quem quer cuidar de um pequeno amiguinho — não é um feed social, um ranking, nem uma rede de anúncios.
 
-**Keywords** (93 / 100 chars): `bichinho virtual,cachorro,gato,pixel,tamagotchi,jardim,cuidar,passeio,chat,aconchegante,temas`
+**Keywords** (95 / 100 chars): `bichinho virtual,cachorro,gato,tamagotchi,jardim,cuidar,passeio,chat,aconchegante,temas,filhote`
 
 **Promotional Text** (116 / 170 chars): Uma foto já basta para criar um amiguinho pixelado: cuide dele em um jardim aconchegante, converse e troque de tema.
 
@@ -224,7 +225,7 @@ App-level fields below (Support URL, Marketing URL, Privacy Policy URL) are shar
 >
 > Mongchi es un espacio tranquilo para quienes quieren cuidar a un pequeño amigo — no es un feed social, ni una tabla de clasificación, ni una red publicitaria.
 
-**Keywords** (99 / 100 chars): `mascota virtual,perro,gato,pixel,tamagotchi,jardín,cuidar,paseo,chat,acogedor,temas,mascota digital`
+**Keywords** (95 / 100 chars): `pet simulator,dog game,cat game,digital pet,pocket pet,kawaii,daily pet,virtual dog,virtual cat`
 
 **Promotional Text** (123 / 170 chars): Con una sola foto nace un amiguito pixelado: cuídalo en un jardín acogedor, platica con él y cambia de tema cuando quieras.
 
@@ -282,7 +283,7 @@ Display Name is capped at 30 characters; Description is capped at 45 characters.
 ### Brand Guidelines
 
 - **Logo and wordmark**: "Mongchi" (roman script) for all locales.
-- **App name display**: English name "Mongchi" is the primary identifier. For Korean (ko-KR) and Japanese (ja-JP), the local script ("몽치" and "モンチ" respectively) is displayed alongside "Mongchi" in parentheses.
+- **App name display**: English name "Mongchi" is the primary identifier. For Korean (ko-KR) and Japanese (ja-JP), the local script ("몽치" and "モンチ" respectively) is displayed alongside "Mongchi" (dash-separated in the App Store title, e.g. "몽치 Mongchi — 픽셀 펫 키우기"), not in parentheses — the 2026-07-16 ASO title revision dropped the parenthetical format in favor of a keyword-suffix title.
 
 ### App Store Description
 
